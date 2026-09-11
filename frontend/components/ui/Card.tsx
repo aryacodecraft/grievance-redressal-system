@@ -11,8 +11,7 @@ export function Card({
   return (
     <div
       className={clsx(
-        "rounded-lg border border-ink-200 bg-white shadow-sm",
-        "dark:border-ink-800 dark:bg-ink-900",
+        "rounded-xl border border-ink-200/80 bg-white shadow-xs transition-shadow duration-200 hover:shadow-sm",
         className
       )}
     >
@@ -31,13 +30,13 @@ export function CardHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-ink-200 px-5 py-4 dark:border-ink-800">
+    <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4.5">
       <div>
-        <h2 className="text-base font-semibold text-ink-900 dark:text-white">
+        <h2 className="text-base font-semibold tracking-tight text-ink-900">
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-0.5 text-sm text-ink-500 dark:text-ink-400">
+          <p className="mt-0.5 text-xs font-normal text-ink-500">
             {subtitle}
           </p>
         )}
@@ -54,5 +53,5 @@ export function CardBody({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={clsx("px-5 py-4", className)}>{children}</div>;
+  return <div className={clsx("px-6 py-5", className)}>{children}</div>;
 }

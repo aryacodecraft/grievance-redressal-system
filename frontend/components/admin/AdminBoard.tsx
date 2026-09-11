@@ -49,17 +49,17 @@ export function AdminBoard() {
       {/* Stat strip */}
       <div className="grid gap-4 sm:grid-cols-4">
         {[
-          ["Total registered", String(MOCK_GRIEVANCES.length)],
-          ["Awaiting assignment", String(open)],
-          ["Urgent & open", String(urgent)],
+          ["Total Registered", String(MOCK_GRIEVANCES.length)],
+          ["Awaiting Triage", String(open)],
+          ["Urgent & Open", String(urgent)],
           ["Resolved", String(MOCK_GRIEVANCES.filter((g) => g.status === "resolved").length)],
         ].map(([label, value]) => (
-          <Card key={label}>
-            <CardBody>
-              <p className="text-2xl font-bold text-ink-900 dark:text-white">
+          <Card key={label} className="border-ink-200/80 shadow-xs">
+            <CardBody className="p-5">
+              <p className="text-2xl font-bold tracking-tight text-ink-950">
                 {value}
               </p>
-              <p className="mt-1 text-xs uppercase tracking-wide text-ink-500">
+              <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                 {label}
               </p>
             </CardBody>
@@ -67,18 +67,18 @@ export function AdminBoard() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Queue */}
-        <Card>
+        <Card className="border-ink-200/80 shadow-xs">
           <CardHeader
-            title="Assignment queue"
-            subtitle="Select a grievance to review the AI recommendation."
+            title="Assignment Queue"
+            subtitle="Select a ticket to inspect grievance details and AI classification."
             action={
               <Select
                 aria-label="Filter by status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-auto"
+                className="w-auto text-xs py-1.5"
               >
                 <option value="all">All statuses</option>
                 <option value="open">Open</option>
@@ -88,7 +88,7 @@ export function AdminBoard() {
               </Select>
             }
           />
-          <CardBody className="space-y-2">
+          <CardBody className="space-y-2.5 p-5">
             {filtered.map((g) => (
               <button
                 key={g.id}
@@ -98,49 +98,52 @@ export function AdminBoard() {
                 }}
                 className={
                   g.id === selectedId
-                    ? "w-full rounded-md border border-primary-600 bg-primary-50 p-3 text-left dark:bg-primary-950"
-                    : "w-full rounded-md border border-ink-200 p-3 text-left hover:border-primary-400 dark:border-ink-800"
+                    ? "w-full rounded-xl border border-primary-500 bg-primary-50/50 p-4 text-left shadow-2xs transition-all ring-1 ring-primary-500/20"
+                    : "w-full rounded-xl border border-ink-200/80 bg-white p-4 text-left hover:border-primary-300 hover:bg-ink-50/50 shadow-2xs transition-all"
                 }
               >
                 <span className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-ink-900 dark:text-white">
+                  <span className="text-sm font-semibold tracking-tight text-ink-950">
                     {g.title}
                   </span>
-                  <span className="font-mono text-xs text-ink-400">{g.id}</span>
+                  <span className="font-mono text-[11px] font-medium text-ink-400 bg-white px-2 py-0.5 rounded border border-ink-100">
+                    {g.id}
+                  </span>
                 </span>
-                <span className="mt-2 flex flex-wrap gap-2">
+                <span className="mt-3 flex flex-wrap gap-2">
                   <StatusBadge status={g.status} />
                   <PriorityBadge priority={g.priority} />
                 </span>
               </button>
             ))}
             {filtered.length === 0 && (
-              <p className="py-6 text-center text-sm text-ink-500">
-                No grievances with this status.
+              <p className="py-8 text-center text-xs text-ink-500">
+                No grievances match this status filter.
               </p>
             )}
           </CardBody>
         </Card>
 
         {/* Detail + decision */}
-        <Card>
+        <Card className="border-ink-200/80 shadow-xs">
           <CardHeader
-            title="Review & assignment"
-            subtitle="AI recommends — the officer decides."
+            title="Review & Officer Action"
+            subtitle="AI advises with rationale — authorized officer makes final decision."
           />
-          <CardBody className="space-y-4">
+          <CardBody className="space-y-5 p-5">
             {!selected && (
-              <p className="text-sm text-ink-500">
-                Select a grievance from the queue.
+              <p className="text-xs text-ink-500 py-8 text-center">
+                Select a grievance from the queue to take action.
               </p>
             )}
             {selected && (
               <>
-                <div>
-                  <p className="text-base font-semibold text-ink-900 dark:text-white">
+                <div className="border-b border-ink-100 pb-4">
+                  <span className="font-mono text-[11px] text-ink-400 font-medium">{selected.id}</span>
+                  <p className="text-base font-semibold tracking-tight text-ink-950 mt-1">
                     {selected.title}
                   </p>
-                  <p className="mt-1 text-sm text-ink-600 dark:text-ink-300">
+                  <p className="mt-2 text-xs leading-relaxed text-ink-600">
                     {selected.description}
                   </p>
                 </div>
@@ -159,8 +162,8 @@ export function AdminBoard() {
                     ))}
                   </Select>
                 </Field>
-                {decision && <Alert>{decision}</Alert>}
-                <div className="flex flex-wrap gap-2">
+                {decision && <Alert tone="info">{decision}</Alert>}
+                <div className="flex flex-wrap gap-2.5 pt-2">
                   <Button
                     onClick={() =>
                       setDecision(
@@ -168,22 +171,21 @@ export function AdminBoard() {
                       )
                     }
                   >
-                    Approve assignment
+                    Approve Assignment
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() =>
                       setDecision(
-                        `Overridden: ${selected.id} reassigned to ${assignee} with officer note (demo).`
+                        `Overridden: ${selected.id} reassigned to ${assignee} with officer justification note (demo).`
                       )
                     }
                   >
-                    Override
+                    Manual Override
                   </Button>
                 </div>
-                <p className="text-xs text-ink-400">
-                  Final assignment stores both the AI recommendation and the
-                  human decision in the audit trail.
+                <p className="text-[11px] text-ink-400 pt-1">
+                  Final assignment action commits both the original AI recommendation and the authorized officer's verified decision into the permanent audit trail.
                 </p>
               </>
             )}

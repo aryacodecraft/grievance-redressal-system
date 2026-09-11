@@ -14,21 +14,21 @@ export function SiteHeader() {
   const { user, signOut } = useDemoUser();
 
   return (
-    <header className="border-b border-ink-200 bg-white dark:border-ink-800 dark:bg-ink-950">
+    <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 group">
           <span
             aria-hidden
-            className="flex h-9 w-9 items-center justify-center rounded-md bg-primary-700 text-lg font-bold text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 font-bold text-white shadow-xs transition-transform group-hover:scale-105"
           >
             G
           </span>
           <span className="leading-tight">
-            <span className="block text-base font-bold tracking-tight text-ink-900 dark:text-white">
+            <span className="block text-base font-bold tracking-tight text-ink-950">
               GrievAI
             </span>
-            <span className="block text-[11px] font-medium uppercase tracking-wider text-ink-500 dark:text-ink-400">
-              National Grievance Redressal Portal
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+              National Grievance Portal
             </span>
           </span>
         </Link>
@@ -37,21 +37,21 @@ export function SiteHeader() {
             <Link
               key={l.href}
               href={l.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-ink-800 dark:hover:text-white"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100/70 hover:text-ink-950"
             >
               {l.label}
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {user ? (
             <>
-              <span className="hidden max-w-40 truncate text-sm text-ink-500 sm:block dark:text-ink-400">
+              <span className="hidden max-w-40 truncate text-xs font-medium text-ink-500 sm:block">
                 {user.email}
               </span>
               <button
                 onClick={signOut}
-                className="rounded-md px-3 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-ink-800"
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-950"
               >
                 Sign out
               </button>
@@ -59,28 +59,28 @@ export function SiteHeader() {
           ) : (
             <Link
               href="/login"
-              className="hidden rounded-md px-3 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 sm:block dark:text-primary-300 dark:hover:bg-ink-800"
+              className="hidden rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-950 sm:block"
             >
               Sign in
             </Link>
           )}
           <Link
             href="/submit"
-            className="rounded-md bg-primary-700 px-4 py-2 text-sm font-medium text-white hover:bg-primary-800"
+            className="rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-primary-700 hover:shadow-sm active:scale-[0.98]"
           >
-            File a Grievance
+            File Grievance
           </Link>
         </div>
       </div>
       <nav
-        className="flex gap-1 overflow-x-auto border-t border-ink-100 px-4 py-1 md:hidden dark:border-ink-800"
+        className="flex gap-1 overflow-x-auto border-t border-ink-100 px-4 py-1.5 md:hidden"
         aria-label="Primary mobile"
       >
         {links.map((l) => (
           <Link
             key={l.href}
             href={l.href}
-            className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-ink-800"
+            className="whitespace-nowrap rounded-lg px-3 py-1 text-xs font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-950"
           >
             {l.label}
           </Link>

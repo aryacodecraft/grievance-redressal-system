@@ -1,39 +1,44 @@
 export function SiteFooter() {
   return (
-    <footer className="border-t border-ink-200 bg-ink-50 dark:border-ink-800 dark:bg-ink-950">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-3">
+    <footer className="border-t border-ink-100 bg-white">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-3">
         <div>
-          <p className="text-sm font-bold text-ink-900 dark:text-white">
-            GrievAI — National Grievance Redressal Portal
-          </p>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-600 text-xs font-bold text-white">
+              G
+            </span>
+            <p className="text-sm font-bold text-ink-900">
+              GrievAI
+            </p>
+          </div>
+          <p className="mt-2.5 text-xs leading-relaxed text-ink-500">
             An academic research prototype demonstrating AI-assisted grievance
             categorization with human-in-the-loop decision making.
           </p>
         </div>
         <div>
-          <p className="text-sm font-semibold text-ink-900 dark:text-white">
-            Citizen services
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
+            Citizen Services
           </p>
-          <ul className="mt-2 space-y-1 text-sm text-ink-500 dark:text-ink-400">
-            <li>Register a grievance</li>
-            <li>Track grievance status</li>
-            <li>View resolution timeline</li>
+          <ul className="mt-3 space-y-2 text-xs text-ink-500">
+            <li className="hover:text-ink-800 transition-colors">Register a public grievance</li>
+            <li className="hover:text-ink-800 transition-colors">Track grievance status & timeline</li>
+            <li className="hover:text-ink-800 transition-colors">Officer assignment & verification</li>
           </ul>
         </div>
         <div>
-          <p className="text-sm font-semibold text-ink-900 dark:text-white">
-            Accountability
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
+            Accountability & Safety
           </p>
-          <p className="mt-2 text-sm text-ink-500 dark:text-ink-400">
-            AI provides recommendations only. Assignment, escalation, and
-            closure always require an authorized human decision.
+          <p className="mt-3 text-xs leading-relaxed text-ink-500">
+            AI provides recommendation only. Assignment, escalation, and closure
+            always require an authorized human decision.
           </p>
         </div>
       </div>
-      <div className="border-t border-ink-200 py-4 dark:border-ink-800">
+      <div className="border-t border-ink-100 py-4 bg-white">
         <p className="mx-auto max-w-6xl px-4 text-xs text-ink-400 sm:px-6">
-          Prototype — not an official government service.
+          © {new Date().getFullYear()} GrievAI Research Prototype — AI decision support system.
         </p>
       </div>
     </footer>

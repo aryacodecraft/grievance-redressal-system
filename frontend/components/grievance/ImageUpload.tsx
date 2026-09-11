@@ -76,21 +76,21 @@ export function ImageUpload({
   }
 
   return (
-    <Field label="Photo evidence" hint="Optional. JPG or PNG, max 10 MB.">
-      <div className="flex flex-wrap items-center gap-2">
+    <Field label="Evidence Photograph" hint="Optional. JPG or PNG, max 10 MB.">
+      <div className="flex flex-col gap-1.5">
         <Input
           type="file"
           accept="image/*"
           disabled={busy}
           onChange={(e) => void handleFile(e.target.files?.[0])}
-          className="h-auto py-1.5"
+          className="h-auto py-2 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-ink-100 file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-ink-800 hover:file:bg-ink-200 cursor-pointer"
         />
       </div>
       {busy && (
-        <span className="mt-1 block text-xs text-ink-500">Working…</span>
+        <span className="mt-1.5 block text-xs font-medium text-primary-600">Processing image validation…</span>
       )}
       {note && !busy && (
-        <span className="mt-1 block text-xs text-ink-500 dark:text-ink-400">
+        <span className="mt-1.5 block text-xs text-ink-500">
           {note}
         </span>
       )}

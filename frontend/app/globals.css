@@ -2,52 +2,45 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #111418;
+  --foreground: #0f172a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Official blue — primary brand */
-  --color-primary-50: #eef4fb;
-  --color-primary-100: #d9e6f5;
-  --color-primary-200: #b3cdec;
-  --color-primary-300: #84addf;
-  --color-primary-400: #4f86cf;
-  --color-primary-500: #2b64b4;
-  --color-primary-600: #1d4e97;
-  --color-primary-700: #163d78;
-  --color-primary-800: #102d5a;
-  --color-primary-900: #0b2144;
-  --color-primary-950: #071630;
+  /* Modern refined indigo-blue primary palette */
+  --color-primary-50: #f0f7ff;
+  --color-primary-100: #e0effe;
+  --color-primary-200: #bae0fd;
+  --color-primary-300: #7cc5fb;
+  --color-primary-400: #38a5f6;
+  --color-primary-500: #0e87ea;
+  --color-primary-600: #026bc7;
+  --color-primary-700: #0356a1;
+  --color-primary-800: #074984;
+  --color-primary-900: #0c3e6e;
+  --color-primary-950: #082749;
 
-  /* Ink + greys */
-  --color-ink-50: #f6f7f8;
-  --color-ink-100: #eceef0;
-  --color-ink-200: #d5d9de;
-  --color-ink-300: #b1b8c1;
-  --color-ink-400: #87909c;
-  --color-ink-500: #67707d;
-  --color-ink-600: #525963;
-  --color-ink-700: #43484f;
-  --color-ink-800: #23272d;
-  --color-ink-900: #14171b;
-  --color-ink-950: #0b0d10;
+  /* Sleek modern slate / neutral tones */
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+  --color-ink-950: #020617;
 
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI",
     Roboto, Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0d10;
-    --foreground: #e8eaed;
-  }
-}
-
 body {
-  background: var(--background);
+  background-color: #ffffff;
   color: var(--foreground);
 }

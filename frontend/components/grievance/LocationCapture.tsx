@@ -40,27 +40,31 @@ export function LocationCapture({
 
   return (
     <div>
-      <span className="mb-1 block text-sm font-medium text-ink-800 dark:text-ink-200">
-        Location <span className="text-primary-600">*</span>
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-700">
+        Geo-Location <span className="text-primary-600">*</span>
       </span>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2">
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant={state === "done" ? "outline" : "secondary"}
+          size="md"
           onClick={capture}
           disabled={state === "busy"}
+          className="w-full justify-start text-xs font-medium"
         >
-          {state === "busy" ? "Locating…" : "Use my location"}
+          {state === "busy" && "Acquiring GPS coordinates…"}
+          {state === "idle" && "Pin My Current Location"}
+          {state === "done" && "✓ Location Verified & Pinned"}
+          {state === "denied" && "Retry Location"}
         </Button>
         {state === "done" && (
-          <span className="text-xs font-medium text-ink-700 dark:text-ink-300">
-            Location captured
+          <span className="text-[11px] font-medium text-emerald-600">
+            Coordinates captured accurately
           </span>
         )}
         {state === "denied" && (
-          <span className="text-xs text-ink-500">
-            Location unavailable — allow access in your browser to continue.
+          <span className="text-[11px] text-rose-500">
+            Permission denied — allow location access in your browser.
           </span>
         )}
       </div>

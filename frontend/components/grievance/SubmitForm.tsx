@@ -74,37 +74,37 @@ export function SubmitForm() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="space-y-6">
+      <Card className="border-ink-200/80 shadow-xs">
         <CardHeader
-          title="Submit your grievance"
-          subtitle="Fields marked * are required. Category is suggested — AI confirms it on submit."
+          title="Complaint Details"
+          subtitle="Fields marked * are mandatory. The AI classifier automatically infers or validates the department."
         />
         <CardBody>
-          <form onSubmit={void handleSubmit(onSubmit)} className="space-y-4">
-            <Field label="Title" required error={errors.title?.message}>
+          <form onSubmit={void handleSubmit(onSubmit)} className="space-y-5">
+            <Field label="Subject / Short Title" required error={errors.title?.message}>
               <Input
-                placeholder="e.g. Potholes on MG Road near bus stand"
+                placeholder="e.g. Broken water pipeline causing waterlogging near Sector 12"
                 {...register("title")}
               />
             </Field>
             <Field
-              label="Description"
+              label="Detailed Description"
               required
               error={errors.description?.message}
             >
               <Textarea
                 rows={4}
-                placeholder="What is the issue, where exactly, since when, and who is affected?"
+                placeholder="Describe what occurred, specific street or landmark, duration of the issue, and impact on residents..."
                 {...register("description")}
               />
             </Field>
             <Field
-              label="Likely department"
-              hint="A hint only — the system re-classifies on submit."
+              label="Intended Department (Optional)"
+              hint="Suggested hint. The AI model will verify and determine canonical routing."
             >
               <Select {...register("categoryHint")} defaultValue="">
-                <option value="">Let the system decide</option>
+                <option value="">Let system auto-classify</option>
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
                     {c[0].toUpperCase() + c.slice(1)}
@@ -112,24 +112,28 @@ export function SubmitForm() {
                 ))}
               </Select>
             </Field>
-            <ImageUpload onChange={setImage} />
-            <LocationCapture onChange={setCoords} />
+            <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
+              <ImageUpload onChange={setImage} />
+              <LocationCapture onChange={setCoords} />
+            </div>
             {error && <Alert tone="error">{error}</Alert>}
-            <Button type="submit" size="lg" disabled={submitting}>
-              {submitting ? "Submitting & classifying…" : "Submit grievance"}
-            </Button>
+            <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
+              <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-40">
+                {submitting ? "Submitting & Classifying…" : "Submit Grievance"}
+              </Button>
+            </div>
           </form>
         </CardBody>
       </Card>
 
       {result && (
-        <Card>
+        <Card className="border-emerald-200/80 bg-white shadow-sm">
           <CardHeader
-            title="Grievance registered"
-            subtitle={`Reference ID: ${result.grievanceId}`}
+            title="Grievance Successfully Registered"
+            subtitle={`Reference Ticket ID: ${result.grievanceId}`}
           />
-          <CardBody className="space-y-3">
-            <Alert>{result.message}</Alert>
+          <CardBody className="space-y-4">
+            <Alert tone="info">{result.message}</Alert>
             <AnalysisPanel hfEngine={result.hfEngine} />
           </CardBody>
         </Card>
