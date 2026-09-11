@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +33,14 @@ export function SubmitForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SubmitResult | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // Bring the confirmation into view — users missed it below the fold.
+  useEffect(() => {
+    if (result) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [result]);
 
   const {
     register,
@@ -81,7 +89,13 @@ export function SubmitForm() {
           subtitle="Fields marked * are mandatory. The AI classifier automatically infers or validates the department."
         />
         <CardBody>
-          <form onSubmit={void handleSubmit(onSubmit)} className="space-y-5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSubmit(onSubmit)(e);
+            }}
+            className="space-y-5"
+          >
             <Field label="Subject / Short Title" required error={errors.title?.message}>
               <Input
                 placeholder="e.g. Broken water pipeline causing waterlogging near Sector 12"
@@ -127,16 +141,26 @@ export function SubmitForm() {
       </Card>
 
       {result && (
+        <div ref={resultRef} className="scroll-mt-20">
         <Card className="border-emerald-200/80 bg-white shadow-sm">
           <CardHeader
             title="Grievance Successfully Registered"
-            subtitle={`Reference Ticket ID: ${result.grievanceId}`}
+            subtitle="Save this reference ID to track your complaint."
           />
           <CardBody className="space-y-4">
+            <div className="rounded-md bg-ink-900 px-4 py-3 dark:bg-white">
+              <p className="text-xs uppercase tracking-wider text-ink-400 dark:text-ink-500">
+                Reference Ticket ID
+              </p>
+              <p className="font-mono text-lg font-bold text-white dark:text-ink-900">
+                {result.grievanceId}
+              </p>
+            </div>
             <Alert tone="info">{result.message}</Alert>
             <AnalysisPanel hfEngine={result.hfEngine} />
           </CardBody>
         </Card>
+        </div>
       )}
     </div>
   );

@@ -214,3 +214,122 @@ Change the background color to white across the entire frontend only, and refine
 - `frontend/app/register/page.tsx`
 - `memory/CHANGELOG.md`
 - `memory/SESSION_LOG.md`
+
+---
+
+## 2026-09-11 — Env Split + Backend Live Verification (`app/frontend`)
+
+### Goal
+User pasted all keys into `frontend/.env.local`. Split env correctly,
+bring the Flask backend up with real services, and verify which functions
+the new Next.js frontend can exercise.
+
+### Work Completed
+- `backend/.env` created (git-ignored): PORT=10000, HF_API_TOKEN,
+  GROQ_API_KEY, CLOUDINARY_* — OPEN_ROUTER key omitted (server has no
+  OpenRouter client), GOOGLE_APPLICATION_CREDENTIALS ignored by server
+  (it uses FIREBASE_SERVICE_ACCOUNT or backend/serviceAccountKey.json,
+  which exists).
+- `frontend/.env.local` rewritten (git-ignored): NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+  (="grievance app" per legacy UI — UNCONFIRMED, verify in Cloudinary
+  dashboard), NEXT_PUBLIC_USE_MOCKS=true.
+- Rebuilt `/tmp/grs-venv` (flask, flask-cors, firebase-admin, groq,
+  cloudinary, etc.); Flask on :10000 → Firebase/Groq/Cloudinary all
+  initialized.
+- Found server default GROQ_MODEL `llama-3.3-70b-versatile` 404s
+  (decommissioned); probed key — only `openai/gpt-oss-20b` works for text.
+  Pinned `GROQ_MODEL=openai/gpt-oss-20b` in `backend/.env` (no code change).
+- Verified live: text submit → 200 with real HF sentiment + Groq-refined
+  category (water→health correction observed, confidence 0.95);
+  gas-leak text → priority high/isUrgent true; generic text → medium.
+- Found LLM *image* validation unusable with this key: vision model id is
+  hardcoded (`server.py:734`, LLAVA_MODEL env unused there) and every
+  vision-capable Groq model 404s on this account. Heuristic fallback is the
+  steady state (quality score vs threshold 60). Left `server.py` untouched.
+- `lib/api.ts` null-guards `hfEngine.priority` → "low"; CATEGORIES aligned
+  to server CATEGORY_KEYS (uncommitted hardening).
+- Next.js dev on :3001 — all 6 routes 200.
+
+### Next
+- User browser-checks: photo upload accept/reject, full submit with photo,
+  track/admin mock pages. Confirm Cloudinary preset name if upload fails.
+
+---
+
+## 2026-09-11 — Live Admin via Firebase Client (`app/frontend`, uncommitted)
+
+### Goal
+User's submit never arrived (no backend POST, no Firestore doc — confirmed:
+only 4 smoke-test docs + old June/July docs exist). Cause is browser-side.
+Also: new `/admin` was mock-only, so real submissions were invisible there.
+Implement option (c): live Firestore reads in the new frontend.
+
+### Work Completed
+- Installed `firebase` SDK (client: app/auth/firestore).
+- `frontend/.env.local`: added NEXT_PUBLIC_FIREBASE_* web config (same
+  values as legacy UI; key rotation still owed — key is public in repo).
+- `lib/firebase.ts` (new): client init, `isFirebaseConfigured`,
+  `isAdminEmail` (mirrors firestore.rules allowlist `aryaadmin@gmail.com`).
+- `lib/grievances.ts` (new): doc→Grievance mapper, `subscribeGrievances`
+  (admin: latest 50; citizen: userId==uid + createdAt desc per deployed
+  composite index), `fetchGrievanceById` for Track.
+- `lib/session.tsx`: Firebase email/password auth added alongside demo
+  mode; Firebase session wins when present (`user.live`, role from
+  allowlist); sign-out clears both.
+- Login/register: Firebase-first, demo fallback button retained.
+- `AdminBoard`: live onSnapshot when signed in live (spinner, error→mock
+  fallback, scrollable queue, evidence image in detail); demo banner + mocks
+  otherwise. Track: live doc lookup when signed in.
+- `SubmitForm`: auto-scrolls to confirmation; reference ID shown in a
+  persistent high-contrast panel (users missed it below the fold).
+- `tsc` clean, `next build` passes (6 routes), dev restarted on :3001.
+
+### Note
+User commits on this branch include their own "ui overhaul" (08c40dc) —
+edits above were adapted to their restyled files. Nothing committed by agent.
+
+---
+
+## 2026-09-11 — Second Admin Credential (`app/frontend`, uncommitted)
+
+### Goal
+Create a second admin login (keep `aryaadmin@gmail.com`), visible in the
+sign-in UI during development.
+
+### Work Completed
+- Created Firebase Auth user `admin@grievai.test` via Admin SDK
+  (email pre-verified; password shared in chat only, stored nowhere).
+- Allowlist updated in both places: `firestore.rules` isAdmin() and
+  `frontend/lib/firebase.ts` isAdminEmail() now accept both addresses.
+- `/login` shows a dashed dev-credentials box (email/password + autofill
+  button) gated behind `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in the git-ignored
+  `.env.local`. Remove before any shared deployment.
+- Verified: REST sign-in with the new creds returns a valid ID token;
+  `tsc` + `next build` clean; dev restarted on :3001.
+- Nothing committed by agent.
+
+### Open (owner)
+- Publish the updated `firestore.rules` in Firebase console
+  (Firestore → Rules → paste → Publish) — local edit alone changes nothing
+  deployed. Until published, live admin reads fail closed (UI falls back to
+  mocks with an error banner).
+- Rotate the Firebase web API key (public in legacy files) and the dev
+  admin password before any shared/staging use; delete the dev banner.
+
+---
+
+## 2026-09-11 — Dead Form Handlers Fix (`app/frontend`, uncommitted)
+
+### Cause
+`onSubmit={void submit}` evaluates to `undefined` — React got no handler,
+so Sign in / Sign up / Submit Grievance all did a silent native reload.
+This was the reason for both "click sign in, nothing happens" and the
+earlier "submitted but no confirmation".
+
+### Work Completed
+- `app/login/page.tsx`, `app/register/page.tsx`,
+  `components/grievance/SubmitForm.tsx`: handlers wrapped as
+  `(e) => { e.preventDefault(); void …(e); }`.
+- `tsc` clean, `next build` passes, dev restarted on :3001 (all routes 200).
+- Nothing committed by agent.

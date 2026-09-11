@@ -21,7 +21,13 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 const hfEngineSchema = z.object({
   category: z.string(),
-  priority: z.string(),
+  // Server can return priority: null when no keyword rule hits and no LLM
+  // is configured (backend/server.py classify_priority). Fall back to "low"
+  // so a saved grievance never surfaces as a client error.
+  priority: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? "low"),
   isUrgent: z.boolean().default(false),
   keywords: z.array(z.string()).default([]),
   explanation: z.string().default(""),

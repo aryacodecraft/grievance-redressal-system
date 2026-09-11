@@ -11,22 +11,35 @@ import {
   StatusTimeline,
 } from "@/components/grievance/GrievanceCard";
 import { MOCK_GRIEVANCES, findMockGrievance } from "@/lib/mock";
+import { fetchGrievanceById } from "@/lib/grievances";
+import { useDemoUser } from "@/lib/session";
 import type { Grievance } from "@/lib/types";
 
 export default function TrackPage() {
+  const { user } = useDemoUser();
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState(false);
   const [found, setFound] = useState<Grievance | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function search() {
+  async function search() {
     setBusy(true);
-    // Mock lookup with a short delay to mimic a backend round-trip.
-    setTimeout(() => {
-      setFound(findMockGrievance(query) ?? null);
+    setSearched(false);
+    try {
+      if (user?.live) {
+        // Live Firestore lookup (rules: owner or admin).
+        setFound(await fetchGrievanceById(query));
+      } else {
+        // Mock lookup with a short delay to mimic a round-trip.
+        await new Promise((r) => setTimeout(r, 400));
+        setFound(findMockGrievance(query) ?? null);
+      }
+    } catch {
+      setFound(null);
+    } finally {
       setSearched(true);
       setBusy(false);
-    }, 400);
+    }
   }
 
   return (
@@ -46,6 +59,11 @@ export default function TrackPage() {
               GRV-2026-0142
             </button>{" "}
             in this prototype.
+            {user?.live && (
+              <>
+                {" "}Signed in — you can also look up your real submissions.
+              </>
+            )}
           </p>
         </div>
 

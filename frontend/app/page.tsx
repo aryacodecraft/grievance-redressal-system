@@ -21,13 +21,12 @@ const steps = [
 ];
 
 const categories = [
-  "Roads",
   "Water",
+  "Roads",
   "Electricity",
   "Sanitation",
   "Health",
-  "Education",
-  "Transport",
+  "Governance",
   "Other",
 ];
 
