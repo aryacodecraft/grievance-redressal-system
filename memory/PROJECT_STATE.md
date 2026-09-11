@@ -2,13 +2,16 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-09-11 (unified repo — Flask backend + Idea Lab context/frontend/memory)
+> Last updated: 2026-09-11 (unification committed as e0d363f, pushed to
+> origin/feature/unified-system; stale local branch app/intialise deleted;
+> root README written; real frontend deferred to a new branch)
 
 ---
 
 ## Current Phase
 
-**Unification (`feature/unified-system` branch, based off `app/intialise`)** ⬤ In progress
+**Unification (`feature/unified-system`, committed `e0d363f`, pushed)** ⬤ Complete
+(stale local branch `app/intialise` deleted; `main` untouched)
 
 Per DEC-008: `backend/server.py` (Flask + ML) is authoritative; FastAPI scaffold
 discarded (not copied); Firestore kept temporarily; `frontend/`, `docs/`,
@@ -118,7 +121,7 @@ firebase.* / firestore.* / .firebaserc — Firestore persistence               I
 2. Firebase-removal branch (see INTEGRATION.md §3)
 3. Wire Next.js frontend to Flask backend (resolve port + API contract)
 4. Fix `.gitignore` (binary), untrack `__pycache__/`, convert `backend/requirements.txt` to UTF-8, decide `adfbh`, rotate hardcoded Firebase key
-5. New root README describing the unified repo
+5. ~~New root README describing the unified repo~~ — DONE 2026-09-11 (root `README.md`)
 
 ---
 
@@ -157,7 +160,8 @@ firebase.* / firestore.* / .firebaserc — Firestore persistence               I
 
 ## Immediate Next Steps
 
-1. Review + merge `feature/unified-system` → `app/intialise` (then → `main`).
+1. Review + merge `feature/unified-system` → `main` (`--no-ff`) when ready.
+2. Create `feature/frontend` for real UI work (typed API client, submission form, track/admin views).
 2. Owner decision: canonical stack (confirm Flask + replacement persistence).
 3. Firebase-removal branch per INTEGRATION.md §3.
 4. Wire Next.js frontend to Flask backend (port + API contract).

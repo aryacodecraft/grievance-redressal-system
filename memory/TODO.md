@@ -17,7 +17,7 @@
 - [ ] Firebase-removal branch: delete `firebase.json`/`.firebaserc`/`firestore.*`, strip `firebase-admin` from `backend/server.py` + `tools/recategorize.py`, remove `FIREBASE_SERVICE_ACCOUNT` from `render.yaml`, replace `/submit-grievance` persistence
 - [ ] Wire Next.js `frontend/` to Flask backend (resolve `:8000` vs `:10000` + API contract)
 - [ ] Hygiene: rewrite binary `.gitignore` as UTF-8, untrack `__pycache__/`, convert `backend/requirements.txt` from UTF-16 to UTF-8, decide fate of `adfbh`, rotate hardcoded Firebase key in `functions/admin_api.js`
-- [ ] Write new root README describing the unified repo (do not reuse `Idea Lab` README — it describes the discarded stack)
+- [x] Write new root README describing the unified repo (written 2026-09-11; deliberately not reusing `Idea Lab` README)
 - [ ] Rewrite `docs/DATABASE.md` + `docs/API.md` against the Flask + replacement-persistence design
 
 ---

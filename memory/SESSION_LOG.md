@@ -112,3 +112,56 @@ context + Next.js frontend + memory, defer Firebase removal (Firestore stays).
 Review + merge `feature/unified-system` → `app/intialise` → `main` (`--no-ff`).
 Then: canonical-stack confirmation → Firebase-removal branch → frontend wiring.
 See `INTEGRATION.md` and updated `PROJECT_STATE.md`.
+
+---
+
+## 2026-09-11 — Unification Commit (frontend scaffold reuse + root README)
+
+### Goal
+Per owner direction: touch nothing on `main`, delete stale `app/intialise`,
+reuse the existing Next.js frontend scaffold (no new UI yet — real frontend
+goes on another branch), commit the unification baseline, and write the root
+README. Unification ends here.
+
+### Context Read
+- Git state: `feature/unified-system`, `app/intialise`, `main` all at `2d8dfa5`;
+  `origin` has only `main`; `app/intialise` has no upstream (local-only)
+- `frontend/` scaffold: Next.js 16.3.0 + Tailwind v4, `package.json`,
+  `.env.example` (`:8000` mismatch), `app/page.tsx` placeholder,
+  `app/globals.css`; `.gitignore` already covers `node_modules/`, `.next/`, `.env*`
+- `backend/server.py` routes: `/health`, `/test`, `/submit-grievance`,
+  `/validate-image`, `/sign-cloudinary`, `/delete-cloudinary` (Flask, `:10000`)
+- `render.yaml` (gunicorn `backend.server:app`), `memory/*`, `INTEGRATION.md`
+
+### Work Completed
+- Deleted local branch `app/intialise` (`git branch -D`; was `2d8dfa5`, not on
+  origin) — `main` never checked out or modified
+- Verified: `git diff main -- backend tools functions ...` empty (backend
+  untouched); no secrets in tree (only `frontend/.env.example`)
+- Staged + committed 42 additive-only files as `e0d363f`, pushed
+  (`git push -u origin feature/unified-system`); force-added
+  `frontend/.env.example` (otherwise ignored by `frontend/.gitignore` `.env*` rule)
+- Verified: `npm run build` passes (prerendered `/` + `/_not-found`);
+  `python3 -m py_compile backend/server.py tools/recategorize.py` OK
+- Wrote new root `README.md` (unified-repo layout, quickstart, branch
+  strategy, stale-docs warnings, follow-ups) — deliberately not reusing the
+  `Idea Lab` README (describes discarded FastAPI/Postgres stack)
+- Updated `memory/TODO.md` (root README done), `PROJECT_STATE.md`,
+  `CHANGELOG.md`
+
+### Decisions Made
+- Reuse existing scaffold (owner-confirmed via question) instead of fresh
+  `create-next-app` — scaffold already builds; real UI deferred to `feature/frontend`
+- Unification declared complete at this commit; remaining work is follow-ups
+
+### Problems / Risks
+- `frontend/.env.example` still points at `:8000` vs Flask `:10000` — rewiring
+  is the `feature/frontend` branch's job
+- Pre-existing hygiene backlog unchanged (binary `.gitignore`, UTF-16
+  `backend/requirements.txt`, committed `__pycache__/`, `adfbh`, hardcoded
+  Firebase key)
+
+### Next Recommended Step
+Create `feature/frontend` off `feature/unified-system` and build the real UI
+there (typed API client in `frontend/lib/`, submission form, track/admin views).
+See `memory/TODO.md` unification follow-ups.

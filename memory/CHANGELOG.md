@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-09-11 — Unification Commit + Root README (`feature/unified-system`)
+
+### Added
+- Root `README.md` — unified-repo layout, backend/frontend quickstart, branch
+  strategy, stale-docs warnings, follow-ups (written fresh; `Idea Lab` README
+  deliberately not reused)
+
+### Changed
+- Deleted local branch `app/intialise` (was `2d8dfa5`, never on origin) — `main` untouched
+- Committed unification baseline as `e0d363f` (42 additive-only files) and pushed
+  `origin/feature/unified-system`; verified `npm run build` passes and
+  `backend/` diff vs `main` is empty
+- `memory/TODO.md` — root README follow-up marked done
+- `memory/PROJECT_STATE.md` — unification marked committed/pushed; `app/intialise` refs removed
+- `memory/SESSION_LOG.md` — this session entry appended
+
+### Repository State at End of This Entry
+- `main` pristine at `2d8dfa5`; `app/intialise` deleted; `feature/unified-system`
+  at `e0d363f` (tracked upstream)
+- Unification complete; real frontend work deferred to a new branch
+
+---
+
 ## 2026-09-11 — Repo Unification (`feature/unified-system`)
 
 ### Added
