@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GrievAI</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Custom Styles -->
+  <style>
+    :root {
+      --primary-color: #0d47a1;
+      --secondary-color: #0d47a1;
+      --light-bg: #ffffff;
+      --dark-text: #212121;
+      --gray-text: #757575;
+    }
+
+    body {
+      background-color: var(--primary-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      margin: 0;
+    }
+
+    .container-wrapper {
+      background: var(--light-bg);
+      border-radius: 15px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+      padding: 30px;
+      max-width: 1200px;
+      margin: auto;
+      position: relative;
+    }
+
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 0;
+      border-bottom: 2px solid #eee;
+    }
+
+    .navbar .logo {
+      font-weight: bold;
+      color: var(--primary-color);
+      font-size: 1.5rem;
+    }
+
+    .navbar .nav-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .navbar .nav-links a {
+      text-decoration: none;
+      color: var(--dark-text);
+      font-weight: 500;
+      padding: 5px 10px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .navbar .nav-links a:hover,
+    .navbar .nav-links a.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+    }
+
+    .navbar .auth-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-signin {
+      background: white;
+      color: var(--primary-color);
+      border: 2px solid var(--primary-color);
+      font-weight: bold;
+      padding: 8px 20px;
+      border-radius: 20px;
+      transition: all 0.2s;
+    }
+
+    .btn-signin:hover {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .btn-join {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      font-weight: bold;
+      padding: 8px 20px;
+      border-radius: 20px;
+      transition: all 0.2s;
+    }
+
+    .btn-join:hover {
+      background: #e65100;
+    }
+
+    .hero-section {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+      margin-top: 40px;
+      padding: 40px 0;
+    }
+
+    .hero-text {
+      flex: 1;
+    }
+
+    .hero-text h1 {
+      font-size: 2.5rem;
+      color: var(--secondary-color);
+      margin-bottom: 15px;
+    }
+
+    .hero-text h1 span {
+      color: var(--primary-color);
+    }
+
+    .hero-text p {
+      color: var(--gray-text);
+      font-size: 1.1rem;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    .btn-register {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      font-weight: bold;
+      padding: 12px 30px;
+      border-radius: 25px;
+      font-size: 1.1rem;
+      transition: all 0.2s;
+    }
+
+    .btn-register:hover {
+      background: #e65100;
+      transform: translateY(-2px);
+    }
+
+    .hero-image {
+      flex: 1;
+      text-align: center;
+    }
+
+    .hero-image img {
+      max-width: 100%;
+      height: auto;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.1));
+    }
+
+    /* Floating Action Buttons */
+    .floating-actions {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .fab {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 180px;
+      text-align: center;
+    }
+
+    .fab:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+
+    .fab i {
+      font-size: 2rem;
+      color: var(--primary-color);
+      margin-bottom: 5px;
+    }
+
+    .fab p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--dark-text);
+    }
+
+    /* Form Section */
+    .form-section {
+      background: #fafafa;
+      padding: 30px;
+      border-radius: 15px;
+      margin-top: 40px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .form-section h5 {
+      color: var(--secondary-color);
+      margin-bottom: 20px;
+    }
+
+    .form-control {
+      background: white;
+      border: 1px solid #ddd;
+      color: var(--dark-text);
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.1);
+    }
+
+    .btn-submit {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 25px;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .btn-submit:hover {
+      background: #e65100;
+    }
+
+    .status-badge {
+      font-size: 0.85em;
+      padding: 0.25em 0.5em;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+
+    .status-open { background: #ff9800; color: #121212; }
+    .status-resolved { background: #4caf50; color: white; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero-section {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .hero-text h1 {
+        font-size: 2rem;
+      }
+
+      .floating-actions {
+        bottom: 20px;
+        right: 20px;
+      }
+
+      .fab {
+        width: 150px;
+        padding: 12px;
+      }
+    }
+  </style>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <div class="container-wrapper">
+    <!-- Navbar -->
+    <div class="navbar">
+      <div class="logo">GrievAI</div>
+      <div class="nav-links">
+        <a href="#" class="active">Home</a>
+      </div>
+      
+      <div class="auth-buttons">
+        
+        <button class="btn-signin" onclick="showAuthModal('signin')">Sign in</button>
+        <button class="btn-join" onclick="showAuthModal('signup')">Join now</button>
+      </div>
+    </div>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+      <div class="hero-text">
+        <h1>GrievAI - <span>National Grievance Redressal Portal</span></h1>
+        <p>The only place where your complaints are precious to us! If you have a complaint, you are at the right place.</p>
+        <button class="btn-register" onclick="scrollToForm()">Register Complaint</button>
+      </div>
+      <div class="hero-image">
+        <!-- Placeholder illustration -->
+        <img src="download.jpg" alt="Complaint Illustration" />
+      </div>
+    </div>
+
+    <!-- Main Form Section -->
+    <div id="mainFormSection" class="form-section" style="display:none;">
+      <h5>Submit Your Grievance</h5>
+      <div class="mb-3">
+        <input type="text" id="title" class="form-control" placeholder="Title (e.g., Road Repair)" />
+      </div>
+      <div class="mb-3">
+        <textarea id="description" class="form-control" rows="3" placeholder="Describe your issue..."></textarea>
+      </div>
+
+      <!-- ✅ ADDED: Image Upload Block -->
+      <div class="mb-3">
+        <label class="form-label">📸 Upload Image (Optional)</label>
+        <input type="file" id="imageUpload" class="form-control" accept="image/*" />
+        <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="uploadImage()">Upload to Cloudinary</button>
+        <p class="text-muted small mt-1">Image URL will appear here after upload:</p>
+        <span id="imageUrl" class="text-break"></span>
+        <input type="hidden" id="imageURLHidden" name="imageUrl" value="" />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">📍 Your Location (Mandatory) </label>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation()">
+            Use My Location
+          </button>
+          <span id="locationStatus" class="align-self-center text-muted small"></span>
+        </div>
+        <input type="hidden" id="latitude" />
+        <input type="hidden" id="longitude" />
+      </div>
+      <div class="d-grid gap-2 mb-4">
+        <button class="btn-submit" onclick="submitGrievance()">Submit Grievance</button>
+        <button class="btn btn-outline-secondary" onclick="signOut()">Sign Out</button>
+      </div>
+
+      <h6>Your Grievances:</h6>
+      <div id="grievanceList" class="list-group mt-3">
+        <div class="text-center text-muted">Loading grievances...</div>
+      </div>
+    </div>
+
+    <!-- Status Message -->
+    <div id="status" class="mt-3 text-center fw-bold"></div>
+  </div>
+
+  <!-- Auth Modal (Simple Popup) -->
+  <div id="authModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+    <div style="background:white; padding:30px; border-radius:15px; width:400px; max-width:90%;">
+      <h5 id="authModalTitle">Sign In</h5>
+      <div class="mb-3">
+        <input type="email" id="modalEmail" class="form-control" placeholder="Email" />
+      </div>
+      <div class="mb-3">
+        <input type="password" id="modalPassword" class="form-control" placeholder="Password" />
+      </div>
+      <div class="d-grid gap-2">
+        <button class="btn btn-success" id="authModalBtn">Sign In</button>
+        <button class="btn btn-outline-secondary" onclick="closeAuthModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 🔑 Your Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWTsTs_NEav91LKQ5jLrVf3ojsLYAY4XI",
+      authDomain: "grievance-redressal-syst-627d7.firebaseapp.com",
+      projectId: "grievance-redressal-syst-627d7",
+      storageBucket: "grievance-redressal-syst-627d7.firebasestorage.app",
+      messagingSenderId: "47862331768",
+      appId: "1:47862331768:web:423bb1a0ac46e259d1b08d",
+      measurementId: "G-YX2Y3RFF3P"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const BACKEND_URL = "http://127.0.0.1:5000";
+
+    let unsubscribe = null;
+
+    // Toggle UI
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById('mainFormSection').style.display = 'block';
+        document.querySelector('.navbar .auth-buttons').innerHTML = `
+          <button class="btn-signin" onclick="signOut()">Sign Out</button>
+        `;
+        loadGrievances(user.uid);
+      } else {
+        document.getElementById('mainFormSection').style.display = 'none';
+        document.querySelector('.navbar .auth-buttons').innerHTML = `
+          <button class="btn-signin" onclick="showAuthModal('signin')">Sign in</button>
+          <button class="btn-join" onclick="showAuthModal('signup')">Join now</button>
+        `;
+        if (unsubscribe) unsubscribe();
+      }
+    });
+
+    function showAuthModal(mode) {
+      const modal = document.getElementById('authModal');
+      const title = document.getElementById('authModalTitle');
+      const btn = document.getElementById('authModalBtn');
+
+      if (mode === 'signin') {
+        title.innerText = 'Sign In';
+        btn.innerText = 'Sign In';
+        btn.onclick = signIn;
+      } else {
+        title.innerText = 'Create Account';
+        btn.innerText = 'Join Now';
+        btn.onclick = signUp;
+      }
+
+      modal.style.display = 'flex';
+    }
+
+    function closeAuthModal() {
+      document.getElementById('authModal').style.display = 'none';
+    }
+
+    async function signUp() {
+      const email = document.getElementById('modalEmail').value;
+      const password = document.getElementById('modalPassword').value;
+      if (!email || !password) return showStatus("⚠ Fill all fields.", "text-warning");
+      try {
+        await auth.createUserWithEmailAndPassword(email, password);
+        closeAuthModal();
+        showStatus("✅ Account created!", "text-success");
+      } catch (e) {
+        showStatus("❌ " + e.message, "text-danger");
+      }
+    }
+
+    async function signIn() {
+      const email = document.getElementById('modalEmail').value;
+      const password = document.getElementById('modalPassword').value;
+      if (!email || !password) return showStatus("⚠ Fill all fields.", "text-warning");
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+        closeAuthModal();
+        showStatus("✅ Welcome back!", "text-success");
+      } catch (e) {
+        showStatus("❌ " + e.message, "text-danger");
+      }
+    }
+
+    function signOut() {
+      auth.signOut();
+    }
+
+    function getLocation() {
+      const statusEl = document.getElementById('locationStatus');
+      if (!navigator.geolocation) {
+        statusEl.innerText = "📍 Not supported";
+        return;
+      }
+      statusEl.innerText = "📍 Getting location...";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('latitude').value = pos.coords.latitude;
+          document.getElementById('longitude').value = pos.coords.longitude;
+          statusEl.innerText = "📍 Captured";
+          statusEl.className = "align-self-center text-success small";
+        },
+        () => {
+          statusEl.innerText = "📍 Denied";
+          statusEl.className = "align-self-center text-danger small";
+        }
+      );
+    }
+
+    async function submitGrievance() {
+      const user = auth.currentUser;
+      const title = document.getElementById('title').value.trim();
+      const desc = document.getElementById('description').value.trim();
+      const latitude = document.getElementById('latitude').value;
+      const longitude = document.getElementById('longitude').value;
+      const imageUrl = document.getElementById('imageURLHidden').value.trim();
+
+      if (!user) return showStatus("❌ You must be signed in!", "text-danger");
+      if (!title || !desc) return showStatus("⚠ Title and description required.", "text-warning");
+      if (!latitude || !longitude) {
+        return showStatus("⚠ Location is mandatory. Click 'Use My Location'.", "text-warning");
+      }
+
+      showStatus("⏳ Submitting and classifying grievance...", "text-info");
+
+      try {
+        const payload = {
+          title,
+          description: desc,
+          userId: user.uid,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          ...(imageUrl && { imageUrl })
+        };
+
+        const response = await fetch(`${BACKEND_URL}/submit-grievance`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const respJson = await response.json();
+
+        if (!response.ok) {
+          throw new Error(respJson.error || "Failed to submit grievance");
+        }
+
+        // clear form
+        document.getElementById('title').value = '';
+        document.getElementById('description').value = '';
+        document.getElementById('imageURLHidden').value = '';
+        document.getElementById('imageUrl').textContent = '';
+        document.getElementById('imageUpload').value = '';
+        document.getElementById('latitude').value = '';
+        document.getElementById('longitude').value = '';
+        document.getElementById('locationStatus').innerText = '';
+        showStatus("✅ Grievance submitted and categorized!", "text-success");
+      } catch (e) {
+        console.error(e);
+        showStatus("❌ Failed: " + e.message, "text-danger");
+      }
+    }
+
+    function loadGrievances(uid) {
+      if (unsubscribe) unsubscribe();
+
+      const q = db.collection("grievances")
+                  .where("userId", "==", uid)
+                  .orderBy("createdAt", "desc");
+
+      unsubscribe = q.onSnapshot(snapshot => {
+        const listEl = document.getElementById('grievanceList');
+        if (snapshot.empty) {
+          listEl.innerHTML = '<div class="text-center text-muted">No grievances yet.</div>';
+          return;
+        }
+
+        let html = '';
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const date = data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : new Date();
+          const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          const statusClass = data.status === 'resolved' ? 'status-resolved' : 'status-open';
+          html += `
+            <div class="list-group-item bg-white border-secondary mb-2 p-3 rounded shadow-sm">
+              <div class="d-flex justify-content-between">
+                <strong>${escapeHtml(data.title || 'Untitled')}</strong>
+                <span class="status-badge ${statusClass}">${escapeHtml(data.status || 'open')}</span>
+              </div>
+              ${data.imageUrl ? `<div class="my-2 text-center"><img src="${escapeAttr(data.imageUrl)}" alt="Grievance image" class="img-thumbnail mb-2" style="max-height:200px; width:auto; object-fit:contain;"></div>` : ''}
+              <p class="mb-1">${escapeHtml(data.description || '')}</p>
+              <small class="text-muted">${escapeHtml(formattedDate)}</small>
+            </div>
+          `;
+        });
+        listEl.innerHTML = html;
+      }, error => {
+        console.error("❌ [DEBUG] Firestore read error:", error);
+        const listEl = document.getElementById('grievanceList');
+        listEl.innerHTML = '<div class="text-danger">Failed to load grievances.</div>';
+      });
+    }
+
+    function showStatus(msg, className) {
+      const el = document.getElementById('status');
+      el.innerText = msg;
+      el.className = `mt-2 text-center fw-bold ${className}`;
+      setTimeout(() => {
+        if (el.innerText === msg) el.innerText = ''; // auto-clear
+      }, 5000);
+    }
+
+    function scrollToForm() {
+      document.getElementById('mainFormSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Simple escaping to avoid injecting raw HTML (basic protection)
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+    function escapeAttr(str) {
+      return String(str).replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    }
+
+    // ✅ ADDED: Cloudinary Image Upload Function
+    async function uploadImage() {
+  const fileInput = document.getElementById('imageUpload');
+  const file = fileInput.files[0];
+  const urlDisplay = document.getElementById('imageUrl');
+  const hiddenInput = document.getElementById('imageURLHidden');
+
+  if (!file) {
+    alert('⚠ Please select an image first.');
+    return;
+  }
+
+  const BACKEND = "http://127.0.0.1:5000";
+  const CLOUD_NAME = "dnw1p9dnk";
+  const UPLOAD_PRESET = "grievance app"; // exact preset name in Cloudinary
+
+  urlDisplay.textContent = "⏳ Uploading...";
+  hiddenInput.value = "";
+
+  try {
+    // 1) upload to Cloudinary
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("upload_preset", UPLOAD_PRESET);
+
+    const upResp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: "POST",
+      body: fd
+    });
+
+    const upJson = await upResp.json();
+
+    if (!upResp.ok || !upJson.secure_url) {
+      alert("Upload failed: " + (upJson.error?.message || "Unknown"));
+      urlDisplay.textContent = "❌ Upload failed";
+      return;
+    }
+
+    const uploadedUrl = upJson.secure_url;
+    const publicId = upJson.public_id;
+
+    // 2) call your server to validate the image (LLM)
+    urlDisplay.textContent = "⏳ Validating image...";
+
+    const validateResp = await fetch(`${BACKEND}/validate-image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageUrl: uploadedUrl })
+    });
+
+    const validateJson = await validateResp.json().catch(() => null);
+
+    if (!validateResp.ok) {
+      console.error("Validation API error:", validateResp.status, validateJson);
+      // try to clean up uploaded asset on server if possible
+      try {
+        await fetch(`${BACKEND}/delete-cloudinary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ public_id: publicId, resource_type: 'image' })
+        });
+      } catch(e) { /* ignore */ }
+      urlDisplay.textContent = '❌ Validation failed (server)';
+      alert('Image validation failed on server. Check server logs/console.');
+      return;
+    }
+
+    // 3) validation response exists
+    if (validateJson && validateJson.ok) {
+      // accepted
+      urlDisplay.textContent = uploadedUrl;
+      hiddenInput.value = uploadedUrl;
+      showStatus(`✅ Image validated (score ${validateJson.llm_score})`, "text-success");
+      return;
+    }
+
+    // 4) rejected by LLM
+    urlDisplay.textContent = '❌ Image rejected';
+    hiddenInput.value = '';
+    showStatus("⚠️ Image rejected: " + (validateJson?.explanation || "Not relevant"), "text-warning");
+
+    // best-effort delete uploaded asset
+    try {
+      await fetch(`${BACKEND}/delete-cloudinary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_id: publicId, resource_type: 'image' })
+      });
+    } catch (e) {
+      console.warn("Failed to request server-side deletion of Cloudinary asset", e);
+    }
+
+    alert("That image looks invalid for a public grievance (selfie/screenshot). Please choose another image.");
+  } catch (err) {
+    console.error("Upload/validate error:", err);
+    urlDisplay.textContent = "❌ Upload failed";
+    alert("Upload/validation failed. Check console and server logs.");
+  }
+}
+
+  </script>
+</body>
+</html>

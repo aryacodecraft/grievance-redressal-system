@@ -1,0 +1,10 @@
+flask
+flask-cors
+gunicorn
+firebase-admin
+requests
+pillow
+numpy
+python-dotenv
+cloudinary
+groq

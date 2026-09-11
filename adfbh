@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin – Grievance Dashboard</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      background-color: #121212 !important;
+      color: #e0e0e0;
+    }
+    .card {
+      background-color: #1e1e1e;
+      border: 1px solid #333;
+    }
+    .card-header {
+      background: linear-gradient(135deg, #ff6a00 0%, #ee0979 100%);
+      color: white;
+    }
+    .form-control, .form-select {
+      background-color: #2d2d2d !important;
+      border: 1px solid #555 !important;
+      color: #e0e0e0 !important;
+    }
+    .form-control::placeholder {
+      color: #aaa !important;
+    }
+    .badge-priority-high {
+      background: #ff5252;
+    }
+    .badge-priority-medium {
+      background: #ffb300;
+      color: #121212;
+    }
+    .badge-priority-low {
+      background: #66bb6a;
+    }
+    .badge-urgent {
+      background: #ff1744;
+    }
+    .status-chip {
+      padding: 0.15rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+    }
+    .status-open {
+      background: #ff9800;
+      color: #121212;
+    }
+    .status-resolved {
+      background: #4caf50;
+      color: white;
+    }
+    .grievance-row {
+      border-bottom: 1px solid #333;
+      padding: 0.75rem 0;
+      cursor: pointer;
+    }
+    .grievance-row:last-child {
+      border-bottom: none;
+    }
+    .small-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #bdbdbd;
+    }
+
+    /* map */
+    #map {
+      height: 320px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    /* pagination */
+    .pagination-wrapper {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:8px;
+      flex-wrap:wrap;
+    }
+    .page-btn {
+      min-width:36px;
+    }
+
+    /* modal detail panel */
+    #grievance-detail-modal {
+      position: fixed;
+      right: 18px;
+      top: 72px;
+      width: 420px;
+      max-width: calc(100% - 36px);
+      background: #141414;
+      color: #e6e6e6;
+      border: 1px solid #2f2f2f;
+      border-radius: 8px;
+      z-index: 9999;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      display: none;
+      padding: 14px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+  </style>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+</head>
+<body data-bs-theme="dark">
+  <div class="container-fluid mt-3">
+    <div class="row justify-content-center">
+      <div class="col-xl-10 col-lg-11">
+        <div class="card shadow">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <h4 class="mb-0">Admin Dashboard</h4>
+              <small class="text-light-50">AI-powered grievance prioritization</small>
+            </div>
+            <div>
+              <span id="adminEmail" class="me-3 small"></span>
+              <button class="btn btn-sm btn-outline-light" onclick="signOut()">Sign Out</button>
+            </div>
+          </div>
+          <div class="card-body">
+
+            <div id="adminLoginSection">
+              <h5 class="mb-3">Admin Sign In</h5>
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <input type="email" id="adminEmailInput" class="form-control" placeholder="Admin email">
+                </div>
+                <div class="col-md-4">
+                  <input type="password" id="adminPasswordInput" class="form-control" placeholder="Password">
+                </div>
+                <div class="col-md-4 d-grid">
+                  <button class="btn btn-primary" onclick="adminSignIn()">Sign In as Admin</button>
+                </div>
+              </div>
+              <p class="mt-2 small text-muted">
+                (Use an email that you’ve created in Firebase Auth and added to the ADMIN_EMAILS list in this page.)
+              </p>
+            </div>
+
+            <div id="dashboardSection" style="display:none;">
+              <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                  <label class="small-label mb-1">Priority</label>
+                  <select id="priorityFilter" class="form-select" onchange="onFilterChange()">
+                    <option value="all">All</option>
+                    <option value="high">High only</option>
+                    <option value="medium">Medium only</option>
+                    <option value="low">Low only</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="small-label mb-1">Category</label>
+                  <select id="categoryFilter" class="form-select" onchange="onFilterChange()">
+                    <option value="all">All</option>
+                    <option value="roads">Roads</option>
+                    <option value="water">Water</option>
+                    <option value="electricity">Electricity</option>
+                    <option value="sanitation">Sanitation</option>
+                    <option value="health">Health</option>
+                    <option value="governance">Governance</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="small-label mb-1">Status</label>
+                  <select id="statusFilter" class="form-select" onchange="onFilterChange()">
+                    <option value="all">All</option>
+                    <option value="open">Open</option>
+                    <option value="resolved">Resolved</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="small-label mb-1">Search (title / desc)</label>
+                  <input id="searchInput" class="form-control" placeholder="Search text..." oninput="onFilterChange()">
+                </div>
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-3">
+                  <div class="p-3 rounded" style="background:#212121;">
+                    <div class="small-label mb-1">Total grievances</div>
+                    <div id="statTotal" class="fs-4">0</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="p-3 rounded" style="background:#212121;">
+                    <div class="small-label mb-1">High priority open</div>
+                    <div id="statHighOpen" class="fs-4">0</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="p-3 rounded" style="background:#212121;">
+                    <div class="small-label mb-1">Medium priority open</div>
+                    <div id="statMediumOpen" class="fs-4">0</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="p-3 rounded" style="background:#212121;">
+                    <div class="small-label mb-1">Resolved</div>
+                    <div id="statResolved" class="fs-4">0</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- MAP -->
+              <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h5 class="mb-0">Map</h5>
+                  <div class="small text-muted">Click a grievance row to center map & open marker</div>
+                </div>
+                <div id="map"></div>
+              </div>
+
+              <div class="mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h5 class="mb-0">Grievances</h5>
+                  <small class="text-muted" id="listMeta"></small>
+                </div>
+
+                <!-- pagination controls (pageSize + navigation) -->
+                <div class="pagination-wrapper mb-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <label class="small-label mb-0 me-2">Page size</label>
+                    <select id="pageSizeSelect" class="form-select form-select-sm" style="width:110px" onchange="onPageSizeChange()">
+                      <option value="5">5</option>
+                      <option value="10" selected>10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                    </select>
+                  </div>
+
+                  <div id="paginationButtons" class="d-flex align-items-center gap-1">
+                    <!-- will be filled by JS -->
+                  </div>
+                </div>
+
+                <div id="grievanceList">
+                  <div class="text-center text-muted py-5">Loading grievances...</div>
+                </div>
+              </div>
+            </div>
+
+            <div id="status" class="mt-3 text-center fw-bold"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- detail modal (kept in HTML so it's ready) -->
+  <div id="grievance-detail-modal" aria-hidden="true">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div id="gd-title" style="font-weight:700;font-size:1.05rem;margin-bottom:6px"></div>
+        <div id="gd-badges" style="margin-bottom:8px"></div>
+      </div>
+      <div style="margin-left:12px;">
+        <button id="gd-close" style="background:transparent;border:1px solid #3b3b3b;color:#e6e6e6;padding:6px 10px;border-radius:6px;cursor:pointer">Close</button>
+      </div>
+    </div>
+    <div id="gd-desc" style="color:#cfcfcf;margin-top:8px;margin-bottom:10px"></div>
+    <div id="gd-meta" style="font-size:0.85rem;color:#bdbdbd;margin-bottom:8px"></div>
+    <div id="gd-latlon" style="font-size:0.9rem;color:#dcdcdc;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="gd-map-btn" style="background:#0b5; border:0; padding:8px 10px;border-radius:6px;color:#051; font-weight:600; cursor:pointer">Open on Map</button>
+      <button id="gd-resolve-btn" style="background:transparent;border:1px solid #2f7f56;color:#a8ffc9;padding:8px 10px;border-radius:6px;cursor:pointer">Mark Resolved</button>
+    </div>
+  </div>
+
+  <script>
+    // 🔑 Same Firebase config as citizen app
+    const firebaseConfig = {
+      apiKey: "AIzaSyAWTsTs_NEav91LKQ5jLrVf3ojsLYAY4XI",
+      authDomain: "grievance-redressal-syst-627d7.firebaseapp.com",
+      projectId: "grievance-redressal-syst-627d7",
+      storageBucket: "grievance-redressal-syst-627d7.firebasestorage.app",
+      messagingSenderId: "47862331768",
+      appId: "1:47862331768:web:423bb1a0ac46e259d1b08d",
+      measurementId: "G-YX2Y3RFF3P"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // 💼 Admin whitelist (replace with your admin emails)
+    const ADMIN_EMAILS = [
+       "aryaadmin@gmail.com",
+    ];
+
+    let grievances = [];   // all loaded docs
+    let unsubscribe = null;
+
+    // pagination state
+    let currentPage = 1;
+    let pageSize = 10;
+
+    // ====== Leaflet map state ======
+    let map = null;
+    let markersLayer = null; // FeatureGroup for markers
+    const markersById = {}; // map document id -> marker
+
+    function initMap() {
+      if (map) return;
+      map = L.map('map', { zoomControl: true }).setView([20.5937, 78.9629], 5); // India default
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      markersLayer = L.featureGroup().addTo(map);
+
+      // ensure correct rendering if map was hidden when initialized
+      setTimeout(()=>{ try { map.invalidateSize(); } catch(e){} }, 300);
+    }
+
+    // ========= Auth / Admin gating =========
+    auth.onAuthStateChanged(user => {
+      if (!user) {
+        document.getElementById("adminLoginSection").style.display = "block";
+        document.getElementById("dashboardSection").style.display = "none";
+        document.getElementById("adminEmail").innerText = "";
+        if (unsubscribe) unsubscribe();
+        return;
+      }
+
+      if (!ADMIN_EMAILS.includes(user.email)) {
+        showStatus("❌ You are signed in, but not an admin.", "text-danger");
+        auth.signOut();
+        return;
+      }
+
+      document.getElementById("adminEmail").innerText = user.email;
+      document.getElementById("adminLoginSection").style.display = "none";
+      document.getElementById("dashboardSection").style.display = "block";
+      showStatus("✅ Signed in as admin.", "text-success");
+
+      initMap();
+      setTimeout(()=>{ try { map.invalidateSize(); } catch(e){} }, 400);
+
+      if (unsubscribe) unsubscribe();
+
+      const q = db.collection("grievances").orderBy("createdAt", "desc");
+      unsubscribe = q.onSnapshot(snapshot => {
+        grievances = [];
+        snapshot.forEach(doc => {
+          grievances.push({ id: doc.id, ...doc.data() });
+        });
+        // reset page to 1 when data changes
+        currentPage = 1;
+        renderStats();
+        renderGrievances();
+      }, err => {
+        console.error("Grievance snapshot error:", err);
+        showStatus("❌ Failed to load grievances.", "text-danger");
+      });
+    });
+
+    async function adminSignIn() {
+      const email = document.getElementById("adminEmailInput").value.trim();
+      const password = document.getElementById("adminPasswordInput").value.trim();
+      if (!email || !password) {
+        return showStatus("⚠️ Enter email and password.", "text-warning");
+      }
+      try {
+        await auth.signInWithEmailAndPassword(email, password);
+      } catch (e) {
+        console.error(e);
+        showStatus("❌ " + e.message, "text-danger");
+      }
+    }
+
+    function signOut() {
+      auth.signOut();
+    }
+
+    // ========= Rendering & Filters =========
+    function priorityWeight(p) {
+      if (p === "high") return 3;
+      if (p === "medium") return 2;
+      return 1;
+    }
+
+    function renderStats() {
+      const total = grievances.length;
+      let highOpen = 0, medOpen = 0, resolved = 0;
+
+      grievances.forEach(g => {
+        const status = g.status || "open";
+        const priority = g.hfEngine?.priority || "low";
+
+        if (status === "resolved") {
+          resolved++;
+        } else {
+          if (priority === "high") highOpen++;
+          if (priority === "medium") medOpen++;
+        }
+      });
+
+      document.getElementById("statTotal").innerText = total;
+      document.getElementById("statHighOpen").innerText = highOpen;
+      document.getElementById("statMediumOpen").innerText = medOpen;
+      document.getElementById("statResolved").innerText = resolved;
+    }
+
+    function onFilterChange() {
+      currentPage = 1;
+      renderGrievances();
+    }
+
+    function onPageSizeChange() {
+      const val = Number(document.getElementById('pageSizeSelect').value) || 10;
+      pageSize = val;
+      currentPage = 1;
+      renderGrievances();
+    }
+
+    function renderGrievances() {
+      const listEl = document.getElementById("grievanceList");
+      if (!grievances.length) {
+        listEl.innerHTML = '<div class="text-center text-muted py-5">No grievances yet.</div>';
+        document.getElementById("listMeta").innerText = "0 items";
+        updateMapMarkers([]);
+        renderPaginationControls(0);
+        return;
+      }
+
+      const priorityFilter = document.getElementById("priorityFilter").value;
+      const categoryFilter = document.getElementById("categoryFilter").value;
+      const statusFilter = document.getElementById("statusFilter").value;
+      const searchText = document.getElementById("searchInput").value.trim().toLowerCase();
+
+      let filtered = grievances.filter(g => {
+        const hf = g.hfEngine || {};
+        const pr = (hf.priority || "low").toLowerCase();
+        const cat = (hf.category || "other").toLowerCase();
+        const st = (g.status || "open").toLowerCase();
+
+        if (priorityFilter !== "all" && pr !== priorityFilter) return false;
+        if (categoryFilter !== "all" && cat !== categoryFilter) return false;
+        if (statusFilter !== "all" && st !== statusFilter) return false;
+
+        if (searchText) {
+          const textBlob = `${g.title || ""} ${g.description || ""}`.toLowerCase();
+          if (!textBlob.includes(searchText)) return false;
+        }
+
+        return true;
+      });
+
+      // sort: high → medium → low, then newest first
+      filtered.sort((a, b) => {
+        const pa = priorityWeight(a.hfEngine?.priority || "low");
+        const pb = priorityWeight(b.hfEngine?.priority || "low");
+        if (pa !== pb) return pb - pa;
+
+        const da = a.createdAt?.toDate?.() || new Date(0);
+        const db = b.createdAt?.toDate?.() || new Date(0);
+        return db - da;
+      });
+
+      // pagination slice
+      const totalItems = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIdx = (currentPage - 1) * pageSize;
+      const pageItems = filtered.slice(startIdx, startIdx + pageSize);
+
+      document.getElementById("listMeta").innerText = `${totalItems} items • page ${currentPage} of ${totalPages}`;
+
+      let html = "";
+      pageItems.forEach(g => {
+        const hf = g.hfEngine || {};
+        const priority = (hf.priority || "low").toLowerCase();
+        const category = (hf.category || "other").toLowerCase();
+        const isUrgent = !!hf.isUrgent;
+        const status = (g.status || "open").toLowerCase();
+
+        const created = g.createdAt?.toDate?.() || new Date();
+        const createdStr = created.toLocaleDateString() + " " + created.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+        let badgeClass = "badge-priority-low";
+        if (priority === "high") badgeClass = "badge-priority-high";
+        else if (priority === "medium") badgeClass = "badge-priority-medium";
+
+        const urgentBadge = isUrgent
+          ? `<span class="badge ms-1 badge-urgent">URGENT</span>`
+          : "";
+
+        const statusClass = status === "resolved" ? "status-resolved" : "status-open";
+
+        const keywords = (hf.keywords || []).slice(0, 5).join(", ");
+
+        // lat/lon display (if present)
+        const lat = (typeof g.latitude !== 'undefined' && g.latitude !== null) ? g.latitude : null;
+        const lon = (typeof g.longitude !== 'undefined' && g.longitude !== null) ? g.longitude : null;
+        const latlonHtml = (lat !== null && lon !== null)
+          ? `<div class="mt-1 small text-muted"><span class="small-label">Lat / Lon:</span> ${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}</div>`
+          : "";
+
+        // row includes onclick to focus map and open modal
+        html += `
+          <div class="grievance-row" onclick="onRowClick('${g.id}')">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="d-flex align-items-center mb-1">
+                  <strong>${escapeHtml(g.title || "Untitled")}</strong>
+                  <span class="badge ms-2 ${badgeClass} text-uppercase">${priority || "low"}</span>
+                  ${urgentBadge}
+                  <span class="badge ms-2 bg-secondary text-uppercase">${escapeHtml(category)}</span>
+                </div>
+                <div class="mb-1 small text-muted">${escapeHtml(g.description || "")}</div>
+                <div class="small text-muted">
+                  <span class="me-3"><span class="small-label">Created:</span> ${escapeHtml(createdStr)}</span>
+                  <span class="me-3"><span class="small-label">User:</span> ${escapeHtml(g.userId || "-")}</span>
+                  ${keywords ? `<span class="small-label">Keywords:</span> ${escapeHtml(keywords)}` : ""}
+                </div>
+                ${latlonHtml}
+              </div>
+              <div class="text-end">
+                <div class="mb-2">
+                  <span class="status-chip ${statusClass}">${status}</span>
+                </div>
+                ${status === "open" ? `
+                  <button class="btn btn-sm btn-outline-success mb-1" onclick="event.stopPropagation(); markResolved('${g.id}')">
+                    Mark Resolved
+                  </button>
+                ` : `
+                  <button class="btn btn-sm btn-outline-secondary" disabled>Resolved</button>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      listEl.innerHTML = html || '<div class="text-center text-muted py-5">No grievances match these filters.</div>';
+
+      // pagination controls
+      renderPaginationControls(totalItems);
+
+      // update map markers for current page items (ensures map shows the page's points)
+      updateMapMarkers(pageItems);
+    }
+
+    function renderPaginationControls(totalItems) {
+      const paginationEl = document.getElementById('paginationButtons');
+      paginationEl.innerHTML = '';
+
+      const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+      // prev button
+      const prev = document.createElement('button');
+      prev.className = 'btn btn-sm btn-outline-light page-btn';
+      prev.innerText = 'Prev';
+      prev.disabled = currentPage <= 1;
+      prev.onclick = () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderGrievances();
+        }
+      };
+      paginationEl.appendChild(prev);
+
+      // page numbers (smart: show up to 7 entries with ellipsis)
+      const maxButtons = 7;
+      const createPageButton = (n) => {
+        const b = document.createElement('button');
+        b.className = `btn btn-sm ${n === currentPage ? 'btn-primary' : 'btn-outline-light'} page-btn`;
+        b.innerText = n;
+        b.onclick = () => {
+          if (currentPage === n) return;
+          currentPage = n;
+          renderGrievances();
+        };
+        return b;
+      };
+
+      if (totalPages <= maxButtons) {
+        for (let i = 1; i <= totalPages; i++) paginationEl.appendChild(createPageButton(i));
+      } else {
+        // always show first, last, current and neighbors
+        const pages = new Set();
+        pages.add(1);
+        pages.add(totalPages);
+        pages.add(currentPage);
+        pages.add(currentPage - 1);
+        pages.add(currentPage + 1);
+        pages.add(2);
+        pages.add(totalPages - 1);
+
+        const sorted = Array.from(pages).filter(n => n >= 1 && n <= totalPages).sort((a,b)=>a-b);
+
+        let last = 0;
+        sorted.forEach(n => {
+          if (last && n - last > 1) {
+            const ell = document.createElement('span');
+            ell.className = 'mx-1 text-muted';
+            ell.style.minWidth = '18px';
+            ell.style.textAlign = 'center';
+            ell.innerText = '…';
+            paginationEl.appendChild(ell);
+          }
+          paginationEl.appendChild(createPageButton(n));
+          last = n;
+        });
+      }
+
+      // next button
+      const next = document.createElement('button');
+      next.className = 'btn btn-sm btn-outline-light page-btn';
+      next.innerText = 'Next';
+      next.disabled = currentPage >= totalPages;
+      next.onclick = () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderGrievances();
+        }
+      };
+      paginationEl.appendChild(next);
+
+      // ensure map resizes after pagination UI updated
+      setTimeout(()=>{ try { map.invalidateSize(); } catch(e){} }, 150);
+    }
+
+    async function markResolved(id) {
+      try {
+        await db.collection("grievances").doc(id).update({
+          status: "resolved"
+        });
+        showStatus("✅ Marked as resolved.", "text-success");
+      } catch (e) {
+        console.error(e);
+        showStatus("❌ Failed to update status.", "text-danger");
+      }
+    }
+
+    // ===== Map: add / update / clear markers =====
+    function updateMapMarkers(list) {
+      if (!map) return;
+      markersLayer.clearLayers();
+      for (const k in markersById) delete markersById[k];
+
+      const points = [];
+      list.forEach(g => {
+        const lat = (typeof g.latitude !== 'undefined' && g.latitude !== null) ? Number(g.latitude) : null;
+        const lon = (typeof g.longitude !== 'undefined' && g.longitude !== null) ? Number(g.longitude) : null;
+        if (lat === null || lon === null || isNaN(lat) || isNaN(lon)) return;
+
+        const marker = L.marker([lat, lon]).addTo(markersLayer);
+        const created = g.createdAt?.toDate?.() || new Date();
+        const createdStr = created.toLocaleString();
+        const hf = g.hfEngine || {};
+        const popupHtml = `
+          <div>
+            <strong>${escapeHtml(g.title || 'Untitled')}</strong><br/>
+            <small class="text-muted">${escapeHtml(g.userId || '-')}</small><br/>
+            <div style="margin-top:6px;">
+              <span class="small-label">Category:</span> ${escapeHtml((hf.category||'other'))}<br/>
+              <span class="small-label">Priority:</span> ${escapeHtml((hf.priority||'low'))}<br/>
+              <span class="small-label">Lat/Lon:</span> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br/>
+              <span class="small-label">Created:</span> ${escapeHtml(createdStr)}
+            </div>
+          </div>
+        `;
+        marker.bindPopup(popupHtml);
+        markersById[g.id] = marker;
+        points.push([lat, lon]);
+      });
+
+      if (points.length) {
+        try {
+          const bounds = L.latLngBounds(points);
+          map.fitBounds(bounds, { padding: [40, 40] });
+        } catch(e) { /* ignore */ }
+      } else {
+        map.setView([20.5937, 78.9629], 5);
+      }
+
+      // force redraw to ensure tiles and markers show
+      setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 150);
+    }
+
+    // center map on a marker (called by clicking a grievance row)
+    function focusOnMarker(docId) {
+      if (!map) return;
+      const marker = markersById[docId];
+      if (marker) {
+        try {
+          map.setView(marker.getLatLng(), 15);
+          marker.openPopup();
+        } catch(e) { console.error(e); }
+      } else {
+        showStatus("ℹ️ No location available for this grievance.", "text-info");
+      }
+    }
+
+    // row click handler -> open modal and center map if available
+    function onRowClick(docId) {
+      // find grievance
+      const g = (grievances || []).find(x => x.id === docId);
+      if (!g) {
+        showStatus("ℹ️ Could not find grievance details.", "text-info");
+        return;
+      }
+      showDetailModal(g);
+      // center map if coordinates exist
+      if (g.latitude !== undefined && g.latitude !== null && g.longitude !== undefined && g.longitude !== null) {
+        focusOnMarker(docId);
+      }
+    }
+
+    // small helper to escape html
+    function escapeHtml(str) {
+      if (!str && str !== 0) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // ========= Detail modal logic =========
+    function showDetailModal(g) {
+      const m = document.getElementById('grievance-detail-modal');
+      if (!m) return;
+      document.getElementById('gd-title').innerText = g.title || 'Untitled';
+
+      const hf = g.hfEngine || {};
+      const priority = (hf.priority || 'low').toUpperCase();
+      const priorityColor = priority === 'HIGH' ? '#ff5252' : (priority === 'MEDIUM' ? '#ffb300' : '#66bb6a');
+      const priorityBadge = `<span style="background:${priorityColor};color:#fff;padding:4px 8px;border-radius:999px;margin-right:6px;font-size:0.75rem">${priority}</span>`;
+      const urgentBadge = hf.isUrgent ? `<span style="background:#ff1744;color:#fff;padding:4px 8px;border-radius:999px;margin-right:6px;font-size:0.75rem">URGENT</span>` : '';
+      const catBadge = `<span style="background:#6c757d;color:#fff;padding:4px 8px;border-radius:999px;font-size:0.75rem">${(hf.category||'').toUpperCase()}</span>`;
+      document.getElementById('gd-badges').innerHTML = priorityBadge + urgentBadge + catBadge;
+
+      document.getElementById('gd-desc').innerText = g.description || '';
+
+      const created = (g.createdAt && typeof g.createdAt.toDate === 'function') ? g.createdAt.toDate().toLocaleString() : (g.createdAt || '');
+      const keywords = (hf.keywords && hf.keywords.length) ? hf.keywords.join(', ') : '-';
+      document.getElementById('gd-meta').innerHTML =
+        `<div><strong style="color:#bdbdbd">Created:</strong> ${created}</div>
+         <div><strong style="color:#bdbdbd">User:</strong> ${g.userId || '-'}</div>
+         <div><strong style="color:#bdbdbd">Keywords:</strong> ${escapeHtml(keywords)}</div>`;
+
+      const lat = (g.latitude !== undefined && g.latitude !== null) ? Number(g.latitude) : null;
+      const lon = (g.longitude !== undefined && g.longitude !== null) ? Number(g.longitude) : null;
+      document.getElementById('gd-latlon').innerHTML = lat!==null && lon!==null
+        ? `<strong style="color:#bdbdbd">Lat/Lon:</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}`
+        : `<strong style="color:#bdbdbd">Lat/Lon:</strong> Not provided`;
+
+      // map button
+      const mapBtn = document.getElementById('gd-map-btn');
+      if (lat !== null && lon!==null) {
+        mapBtn.style.display = 'inline-block';
+        mapBtn.onclick = function(e){
+          e.stopPropagation();
+          focusOnMarker(g.id);
+        };
+      } else {
+        mapBtn.style.display = 'none';
+        mapBtn.onclick = null;
+      }
+
+      // resolve button
+      const resolveBtn = document.getElementById('gd-resolve-btn');
+      resolveBtn.onclick = async function(e){
+        e.stopPropagation();
+        await markResolved(g.id);
+        hideDetailModal();
+      };
+
+      // show modal
+      m.style.display = 'block';
+    }
+
+    function hideDetailModal(){
+      const m = document.getElementById('grievance-detail-modal');
+      if (m) m.style.display = 'none';
+    }
+
+    document.getElementById('gd-close').addEventListener('click', function(e){
+      e.stopPropagation();
+      hideDetailModal();
+    });
+    // click outside modal to close
+    document.addEventListener('click', function(e){
+      const m = document.getElementById('grievance-detail-modal');
+      if (!m || m.style.display === 'none') return;
+      if (!m.contains(e.target)) hideDetailModal();
+    });
+
+    // ========= Status helper =========
+    function showStatus(msg, className) {
+      const el = document.getElementById("status");
+      el.innerText = msg;
+      el.className = `mt-2 text-center fw-bold ${className}`;
+      setTimeout(() => {
+        if (el.innerText === msg) el.innerText = "";
+      }, 5000);
+    }
+
+    // Expose helpers for debugging / external use
+    window._admin_helpers = { initMap, updateMapMarkers, focusOnMarker };
+  </script>
+</body>
+</html>

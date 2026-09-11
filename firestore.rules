@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // helper: is this user one of the admins?
+    // This is what grants access if the authenticated user's email is in the list.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          "aryaadmin@gmail.com",    // <-- 🔑 Ensure your admin email is here
+        ];
+    }
+
+    match /grievances/{docId} {
+
+      // citizens can read/write their own grievances
+      allow read, create, update: if request.auth != null
+        && request.auth.uid == resource.data.userId;
+
+      // admins can read/write ALL grievances
+      allow read, write: if isAdmin();
+    }
+  }
+}
