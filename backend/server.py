@@ -18,6 +18,7 @@ Env:
 import os
 import json as json_lib
 import logging
+import base64
 from io import BytesIO
 from collections import Counter
 import re
@@ -29,6 +30,13 @@ from PIL import Image, ImageStat
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+
+try:
+    from grievance_model import GrievanceModel
+    from llm_fallback import predict_with_fallback
+    ml_fallback_model = GrievanceModel().train()
+except Exception as _e:
+    ml_fallback_model = None
 
 # Firebase admin SDK
 import firebase_admin
@@ -57,6 +65,7 @@ logger = logging.getLogger("grievance-server")
 # -------------------------
 # Load .env
 # -------------------------
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 load_dotenv()
 
 # -------------------------
@@ -701,144 +710,98 @@ def compute_image_quality_score(pil_img):
 
 # -------------------------
 # LLM image validation — returns a dict: { score: float(0-100), explanation: str, raw: str }
-# Uses Groq multimodal (meta-llama/llama-4-scout-17b-16e-instruct) correctly.
+# Uses OpenRouter Vision LLM (openai/gpt-4o-mini) with server-side base64 normalization.
 # -------------------------
 def llm_image_confidence(image_url):
     """
-    Validate an image using an LLM (Groq) when available, otherwise fall back to
-    an image-quality heuristic. Returns: {"score": float(0-100), "explanation": str, "raw": str}.
+    Validate an image using OpenRouter multimodal vision model.
+    Downloads image server-side and converts to base64 Data URI to prevent CDN/header issues.
+    Returns: {"score": float(0-100), "explanation": str, "raw": str}.
     """
-
     if not image_url:
         return {"score": 0.0, "explanation": "No image URL provided", "raw": ""}
 
-    # Try LLM first if configured
-    if groq_client:
+    # Step 1: Download & normalize image to JPEG base64 Data URI server-side if HTTP URL
+    data_uri = image_url
+    if not image_url.startswith("data:image/"):
         try:
-            system_prompt = (
-                "You are an image validation assistant for a public grievance portal.\n"
-                "Given an image URL, return a JSON object only with two keys:\n"
-                "  - score: integer 0-100 (how confident the image shows a public infrastructure complaint)\n"
-                "  - explanation: short plain-text explanation (1-2 sentences).\n\n"
-                "Acceptable examples: broken roads, potholes, visible water leakage, large garbage piles, damaged streetlights, flooded streets.\n"
-                "Unacceptable examples: selfies, memes, screenshots of chat/webpages, indoor food/pets, documents.\n\n"
-                "IMPORTANT: Reply with VALID JSON only, for example:\n"
-                '{"score": 78, "explanation": "Shows a large pothole on a public road; clear context and damage visible."}\n'
-                "Do NOT include any extra text outside the JSON object."
-            )
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            r = requests.get(image_url, headers=headers, timeout=12)
+            r.raise_for_status()
+            pil_img = Image.open(BytesIO(r.content)).convert("RGB")
+            buffer = BytesIO()
+            pil_img.save(buffer, format="JPEG", quality=85)
+            base64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
+            data_uri = f"data:image/jpeg;base64,{base64_str}"
+        except Exception as e:
+            logger.warning(f"Failed to download and process image URL {image_url}: {e}")
+            return {
+                "score": 0.0,
+                "explanation": f"Unable to download or process image file: {str(e)}",
+                "raw": "image_download_error"
+            }
 
+    # Step 2: Query OpenRouter Vision AI (openai/gpt-4o-mini)
+    openrouter_key = os.getenv("OPEN_ROUTER_API_KEY")
+    if openrouter_key:
+        prompt = (
+            "You are an image validation AI for a public civic grievance portal.\n"
+            "Analyze the image and determine if it shows a public infrastructure complaint "
+            "(e.g., potholes, broken roads, garbage dumps, water leakage, damaged electrical poles/wires, street flooding, fallen trees, broken streetlights).\n"
+            "REJECT non-grievance images (selfies, human faces, memes, indoor food, screenshots of text/chat, personal documents, animals, clean indoor rooms).\n"
+            "Return ONLY a valid JSON object:\n"
+            "{\n"
+            "  \"score\": integer 0-100 (70-100 for valid public grievance, 0-30 for invalid/selfie/meme/document),\n"
+            "  \"explanation\": \"1-2 sentence concise reason\"\n"
+            "}"
+        )
 
-
-            # Use a plain string for message content (fixes Groq 'messages.1' errors)
-            res = groq_client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": """
-                                Does this image show a public infrastructure complaint?
-
-                                Valid:
-                                - potholes
-                                - broken roads
-                                - garbage piles
-                                - damaged streetlights
-                                - drainage issues
-                                - water leakage
-
-                                Invalid:
-                                - screenshots
-                                - selfies
-                                - memes
-                                - chats
-                                - documents
-
-                                Return JSON:
-                                {
-                                "score": 0-100,
-                                "explanation": "..."
-                                }
-                                """
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": image_url
-                                }
-                            }
-                        ]
-                    }
-                ],
-                temperature=0.0,
-                max_tokens=500,
-            )
-
-            # extract raw text safely
-            raw = ""
+        for model in ["openai/gpt-4o-mini", "google/gemini-2.5-flash"]:
             try:
-                # stable path for many Groq responses
-                raw = res.choices[0].message.content.strip()
-            except Exception:
-                try:
-                    # older/newer shapes
-                    raw = getattr(res.choices[0].message, "content", str(res)).strip()
-                except Exception:
-                    raw = str(res)
+                headers = {
+                    "Authorization": f"Bearer {openrouter_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": model,
+                    "max_tokens": 250,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": data_uri}}
+                            ]
+                        }
+                    ]
+                }
+                resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"].strip()
 
-            # Try to parse JSON; if the model wraps text, try to extract the {...}
-            parsed = None
-            try:
-                parsed = json_lib.loads(raw)
-            except Exception:
-                import re as _re
-                m = _re.search(r'\{[\s\S]*\}', raw)
-                if m:
-                    try:
-                        parsed = json_lib.loads(m.group(0))
-                    except Exception:
-                        parsed = None
+                    # Extract JSON object
+                    start_idx = content.find('{')
+                    end_idx = content.rfind('}')
+                    if start_idx != -1 and end_idx != -1:
+                        parsed = json_lib.loads(content[start_idx:end_idx + 1])
+                        score = float(parsed.get("score", 0.0))
+                        explanation = str(parsed.get("explanation", ""))
+                        return {
+                            "score": round(max(0.0, min(100.0, score)), 2),
+                            "explanation": explanation,
+                            "raw": content
+                        }
+            except Exception as ex:
+                logger.warning(f"Vision model {model} check failed: {ex}")
+                continue
 
-            # If parsed and contains score, normalize and return
-            if parsed and isinstance(parsed, dict) and "score" in parsed:
-                try:
-                    score = float(parsed.get("score", 0.0))
-                except Exception:
-                    try:
-                        score = float(int(parsed.get("score", 0)))
-                    except Exception:
-                        score = 0.0
-                score = max(0.0, min(100.0, score))
-                explanation = str(parsed.get("explanation", "") or "")[:400]
-                return {"score": round(score, 2), "explanation": explanation, "raw": raw}
-
-            # If LLM returned but not parseable => log and fall through to fallback
-            logger.warning("LLM returned unparsable/unexpected response for image validation: %s", str(raw)[:400])
-
-        except Exception:
-            # keep the exception in logs and fall back to heuristics
-            logger.exception("LLM image confidence check failed; falling back to heuristics.")
-
-    try:
-        r = requests.get(image_url, timeout=12)
-        r.raise_for_status()
-        img = Image.open(BytesIO(r.content)).convert("RGB")
-        q = compute_image_quality_score(img)
-        score = q.get("score", 0.0)
-        comps = q.get("components", {})
-        explanation = f"Fallback quality check: score={score}. Components: {comps}."
-        if score < 30:
-            explanation = "Low image clarity/context for a public complaint. " + explanation
-        return {"score": float(round(score, 2)), "explanation": explanation[:400], "raw": "heuristic:quality-check"}
-    except Exception as e:
-        logger.exception("Fallback image download/quality check failed")
-        return {
-            "score": 5.0,
-            "explanation": "Unable to validate image (LLM failed and fallback also failed).",
-            "raw": f"heuristic:error:{str(e)[:300]}"
-        }
+    # Step 3: Reject if Vision AI is unavailable
+    return {
+        "score": 0.0,
+        "explanation": "Image validation service was unable to verify public infrastructure content.",
+        "raw": "validation_unavailable"
+    }
 
 
 # -------------------------
@@ -1010,74 +973,85 @@ def submit_grievance():
         return jsonify({"error": "Failed to save grievance"}), 500
 
     full_text = f"{title}\n{description}"
-    try:
-        cat_res = classify_category(full_text)
-    except Exception:
-        cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
-    try:
-        pri_res = classify_priority(full_text)
-    except Exception:
-        pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
+    if ml_fallback_model is not None:
+        try:
+            res_fb = predict_with_fallback(ml_fallback_model, full_text)
+            category = res_fb["category"]
+            priority = res_fb["priority"]
+            confidence = res_fb["confidence"]
+            source = res_fb["source"]
+            reason = res_fb["reason"]
 
-    hf_priority = pri_res.get("priority", "low")
-    sentiment_raw = pri_res.get("sentiment", "neutral")
-    score = pri_res.get("sentimentScore", 0.0)
-    urgent_matches = find_urgent_matches(full_text)
-
-    hf_category = cat_res.get("category", "other")
-    keyword_category = infer_category_from_keywords(full_text)
-    if keyword_category:
-        hf_category = keyword_category
-
-    if hf_category == "sanitation" and hf_priority == "low":
-        hf_priority = "medium"
-
-    hf_raw_label = cat_res.get("rawLabel", "")
-    keywords = extract_keywords(full_text)
-
-    # 2. LLM Refinement (SECOND LOGIC PASS / WRAPPER)
-    try:
-        groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
-    except Exception:
-        groq_res = None
-
-    # 3. FINAL CLASSIFICATION (Prioritizes Groq refinement)
-    if groq_res:
-        priority = groq_res.get("priority", hf_priority)
-        category = groq_res.get("category", hf_category)
-        ai_explanation = groq_res.get("explanation", "Refined by Groq LLM.")
+            hf_engine = {
+                "category": category,
+                "priority": priority,
+                "isUrgent": priority.lower() == "high",
+                "confidence": confidence,
+                "source": source,
+                "explanation": reason,
+                "modelInfo": {
+                    "mlModel": "GrievanceModel (TF-IDF + LogisticRegression)",
+                    "fallbackModel": "Groq LLM",
+                    "usedSource": source
+                }
+            }
+        except Exception as e:
+            logger.exception("ML Fallback prediction failed, reverting to default logic")
+            cat_res = {"category": "Other", "confidence": 0.0}
+            pri_res = {"priority": "Low"}
+            category = "Other"
+            priority = "Low"
+            hf_engine = {"category": category, "priority": priority, "explanation": str(e)}
     else:
-        priority = hf_priority
-        category = hf_category
-        ai_explanation = (
-            f"Category '{category}' predicted from '{hf_raw_label}' "
-            f"(score: {float(cat_res.get('confidence', 0.0)):.2f}), "
-            f"Priority '{priority}' determined using sentiment ('{sentiment_raw}', "
-            f"score: {float(score):.2f}) and urgency keywords."
-        )
+        try:
+            cat_res = classify_category(full_text)
+        except Exception:
+            cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
+        try:
+            pri_res = classify_priority(full_text)
+        except Exception:
+            pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
 
-    hf_engine = {
-        "category": category,
-        "priority": priority,
-        "isUrgent": priority == "high",
-        "keywords": keywords,
-        "explanation": ai_explanation,
-        "rawCategoryLabel": hf_raw_label,
-        "categoryConfidence": float(cat_res.get("confidence", 0.0)),
-        "urgentMatches": urgent_matches,
-        "modelInfo": {
-            "categoryModel": CATEGORY_MODEL,
-            "priorityModel": PRIORITY_MODEL,
-            "sentimentLabel": sentiment_raw,
-            "sentimentScore": float(score),
-            "groqModel": GROQ_MODEL if groq_res else "None",
-            "hfCategory": hf_category,
-            "hfPriority": hf_priority,
-        },
-    }
+        hf_priority = pri_res.get("priority", "low")
+        sentiment_raw = pri_res.get("sentiment", "neutral")
+        score = pri_res.get("sentimentScore", 0.0)
+        urgent_matches = find_urgent_matches(full_text)
+
+        hf_category = cat_res.get("category", "other")
+        keyword_category = infer_category_from_keywords(full_text)
+        if keyword_category:
+            hf_category = keyword_category
+
+        if hf_category == "sanitation" and hf_priority == "low":
+            hf_priority = "medium"
+
+        hf_raw_label = cat_res.get("rawLabel", "")
+        keywords = extract_keywords(full_text)
+
+        try:
+            groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
+        except Exception:
+            groq_res = None
+
+        if groq_res:
+            priority = groq_res.get("priority", hf_priority)
+            category = groq_res.get("category", hf_category)
+            ai_explanation = groq_res.get("explanation", "Refined by Groq LLM.")
+        else:
+            priority = hf_priority
+            category = hf_category
+            ai_explanation = f"Category '{category}' predicted."
+
+        hf_engine = {
+            "category": category,
+            "priority": priority,
+            "isUrgent": priority == "high",
+            "keywords": keywords,
+            "explanation": ai_explanation,
+        }
 
     try:
-        db.collection("grievances").document(doc_id).set({"hfEngine": hf_engine}, merge=True)
+        db.collection("grievances").document(doc_id).set({"hfEngine": hf_engine, "category": category, "priority": priority}, merge=True)
     except Exception:
         logger.exception("Failed to write hfEngine to document")
 
