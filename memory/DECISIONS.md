@@ -42,7 +42,10 @@ Single monorepo with `frontend/`, `backend/`, `docs/`, and `memory/` directories
 
 **ID:** DEC-002
 **Date:** 2026-08-06
-**Status:** ACCEPTED
+**Status:** SUPERSEDED BY DEC-011 (2026-10-01, Phase 5) — MongoDB is the
+database in the serving path. The SQLAlchemy/Alembic choices here never made it
+into this repository. Retained as the record of the originally approved stack;
+`AGENTS.md`'s stack table was reconciled in Phase 5.
 
 **Context:**
 The approved tech stack specifies PostgreSQL. A relational database is appropriate given
@@ -466,7 +469,11 @@ removed Firebase from the frontend.
 **ID:** DEC-011
 **Date:** 2026-09-11
 **Status:** ACCEPTED (implements UNIFIED_MIGRATION_PLAN Phase 3; supersedes
-DEC-008 item 4)
+DEC-008 item 4). Follow-ups from the Consequences section: **Phase 4 done**
+(`functions/` + `adfbh` deleted, `09e83af`) and **Phase 5 done** (AGENTS stack
+table + docs reconciled, `cfdb7d1`/`4e52990`, DEC-002 marked superseded).
+**Still open:** Firebase Web API key rotation (key remains in git history) and
+the owner's MongoDB Atlas setup.
 
 **Context:**
 Phase 2 left persistence on an in-process repository with MongoDB planned, and
@@ -529,3 +536,136 @@ code remains.
 **Affected Components:** `backend/app/db.py`, `backend/app/routers/health.py`,
 requirements files, `tools/recategorize.py`, `docs/DATABASE.md`,
 `backend/.env.example`, deleted Firebase config + `backend/server.py`, memory
+
+---
+
+## DEC-012 — Phase 6: Test Strategy (pytest, root-level tests, skip-if-unreachable Mongo)
+
+**ID:** DEC-012
+**Date:** 2026-10-01
+**Status:** ACCEPTED (implements UNIFIED_MIGRATION_PLAN Phase 6)
+
+**Context:**
+Phases 1–5 left no automated tests; every verification so far had been manual
+(in-process `TestClient` smoke tests, live `uvicorn` runs, throwaway `mongod`
+checks). The migration plan's Phase 6 calls for a pytest suite covering the
+classifier, the endpoints, and the repository layer, plus a repo-wide
+`rg -i "firestore|firebase"` sweep. The suite had to work on a machine with no
+database and no LLM keys — the state a fresh clone is in.
+
+**Decision:**
+1. `tests/` at the repository root with `pytest.ini`
+   (`testpaths = tests`, `pythonpath = .`) so `backend.app` imports without
+   installation. Three files: `test_classification.py` (keyword classifier +
+   the `CATEGORY_KEYS` ↔ frontend `CATEGORIES` contract), `test_endpoints.py`
+   (real FastAPI app over `TestClient`), `test_repository.py` (both
+   `GrievanceRepository` implementations + `_build_repository()` selection).
+2. `tests/conftest.py` pins `MONGODB_URI=""`, `MONGODB_DB`, `GROQ_API_KEY=""`
+   and `HF_API_TOKEN=""` **before `backend.app` is imported**. This forces the
+   deterministic keyword path and the in-memory store, so endpoint tests can
+   never reach a real cluster or the network. (`load_dotenv()` does not
+   override existing env vars, so pinning wins over `backend/.env`.)
+3. An **autouse fixture swaps a fresh `InMemoryRepository` per test** by
+   reassigning `backend.app.routers.grievances.repository`. Necessary because
+   `db.repository` is module-global and the router binds it at import
+   (`from ..db import repository`), so tests would otherwise share state.
+4. **Mongo tests skip, they do not fail.** `TEST_MONGODB_URI` defaults to
+   `mongodb://127.0.0.1:27017`; a ping with a 750 ms timeout decides. The
+   fixture drops the collection before and after each test, and one test drops
+   its throwaway database explicitly, so a local `mongod` is left clean.
+5. Dev dependencies live in a new `requirements-dev.txt` (`-r requirements.txt`
+   + `pytest`). The root `requirements.txt` stays runtime-only because
+   Render's `buildCommand` installs it.
+6. Repository *selection* is tested by monkeypatching `backend.app.config`
+   rather than reloading modules — `_build_repository()` does a function-local
+   `from .config import ...`, so the patched attribute is what it reads.
+
+**Reason:**
+- Deterministic tests are the point: the HF/Groq cascade is EXPERIMENTAL
+  (DEC-005) and needs keys + network, so it is deliberately not asserted.
+- Skipping (rather than failing) without a database keeps `pytest` usable on
+  any machine while still exercising Mongo where one exists.
+- Swapping the router's bound `repository` is the only way to get isolation
+  without restructuring production code purely for tests.
+
+**Alternatives Considered:**
+- Pointing tests at the owner's Atlas cluster: rejected — tests must not write
+  to production data, and the owner is setting Atlas up separately.
+- Reloading `backend.app.db` per test to rebuild the repository: rejected —
+  import-order fragile, and it would not update the router's already-bound name.
+- Requiring a Docker Compose Mongo for the suite: rejected — would make
+  `pytest` fail out of the box for contributors without Docker.
+- `pytest-asyncio` / async tests: rejected for now — the repository protocol is
+  synchronous and FastAPI runs it in the threadpool (same reasoning as DEC-011).
+
+**Consequences:**
+- `pytest` green without any database (68 tests) and with one (85 tests).
+- The suite does **not** cover the HF/Groq classification branches, auth
+  (unimplemented), or the image/Cloudinary services — those remain uncovered.
+- `render.yaml` gained `MONGODB_URI` (sync: false) + `MONGODB_DB` in this phase;
+  without them a deployment silently runs on the in-memory fallback.
+
+**Affected Components:** `tests/`, `pytest.ini`, `requirements-dev.txt`,
+`render.yaml`, `docs/DEVELOPMENT.md`
+
+---
+
+## DEC-013 — Phase 5: Stale Docs Annotated in Place, Not Rewritten
+
+**ID:** DEC-013
+**Date:** 2026-10-01
+**Status:** ACCEPTED (implements UNIFIED_MIGRATION_PLAN Phase 5)
+
+**Context:**
+`docs/ARCHITECTURE.md`, `docs/API.md`, `docs/SECURITY.md` and
+`docs/DEVELOPMENT.md` describe a FastAPI/PostgreSQL/JWT design that was proposed
+before the repository was unified and before DEC-010/DEC-011 landed. Most of
+that content is still the *target* design — only the persistence layer and the
+serving entry point changed. Rewriting them from scratch would delete the
+reasoning that `AGENTS.md` requires memory to preserve.
+
+**Decision:**
+- Correct the factual mismatches (port `:8000` → `:10000`, PostgreSQL →
+  MongoDB, `alembic upgrade head` → no migrations, the directory tree → the
+  real `backend/app/`, SQLAlchemy/asyncpg → pymongo, the error format → the
+  actual `{"error": …}` / 400).
+- Mark unimplemented sections with a `**Status: PLANNED — not
+  implemented**` banner instead of deleting them (Authentication in
+  `ARCHITECTURE.md` and `SECURITY.md`).
+- `docs/API.md` gains an "Implemented endpoints" table at the top plus a note
+  that the implemented create route is `POST /submit-grievance`, not the
+  planned `POST /grievances`; the rest of the file stays as the planned surface.
+- `docs/SECURITY.md`'s Known Prototype Limitations now leads with the
+  **server-side auth gap** — the API trusts `userId` from the request body and
+  performs no authorization; the frontend allowlist is client-side only.
+- `AGENTS.md`'s stack table is updated in place (Backend/Database/Auth rows)
+  with a dated note, and `INTEGRATION.md` gets a status banner + resolved-loose-
+  ends annotation rather than a rewrite, since it is the source map for the
+  original merge.
+- `README.md` is the one document rewritten wholesale — it described a
+  Flask/`server.py` world that no longer exists anywhere in the tree.
+
+**Reason:**
+- `AGENTS.md`: "Never replace useful documentation with a shorter generic
+  version… Preserve historical decisions, useful explanations." A banner keeps
+  the proposed design available while making the current truth unmissable.
+- The planned auth design is still the target, so deleting it would make the
+  docs *wrong* in a new way rather than right.
+
+**Alternatives Considered:**
+- Full rewrite of all four docs: rejected — would discard the RBAC/OAuth/API
+  design work and violate the context-preservation rule.
+- Leaving them untouched with a "reference only" warning (the Phase 3 state):
+  rejected — the plan explicitly requires reconciliation, and a doc that
+  contradicts the running system is actively misleading.
+
+**Consequences:**
+- Readers must notice the status banners to know what is implemented; the
+  "Implemented endpoints" table in `API.md` exists for that reason.
+- `docs/DATABASE.md` and `docs/WORKFLOWS.md` were already rewritten/checked in
+  Phase 3 and were not revisited here.
+- The Auth row in `AGENTS.md` is now honest about the gap between the
+  JWT/OAuth target and the demo localStorage session (DEC-009).
+
+**Affected Components:** `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`,
+`docs/API.md`, `docs/SECURITY.md`, `docs/DEVELOPMENT.md`, `INTEGRATION.md`

@@ -466,3 +466,156 @@ Commits:
   `rg -i "firestore|firebase"` check.
 - Note: a `pkill` pattern in this session matched its own shell (SIGTERM);
   cleanup was re-done with a bracketed pattern — no stray mongod left running.
+
+---
+
+## 2026-10-01 — Migration Phases 4, 5, 6 Committed (`feature/unified-system`)
+
+### Goal
+Execute the approved `UNIFIED_MIGRATION_PLAN.md` Phases 4 (retire the legacy
+Firebase UI), 5 (align docs/config with the real stack) and 6 (verification:
+pytest suite + end-to-end check), committing verified work as one-line commits
+and updating memory afterwards. MongoDB Atlas setup stays with the owner
+("I'll do mongo setup at last").
+
+### Context Read
+- `AGENTS.md` (mandatory), `memory/{README,PROJECT_STATE,DECISIONS,TODO,CHANGELOG,SESSION_LOG}.md`
+- `UNIFIED_MIGRATION_PLAN.md` / `UNIFIED_MIGRATION_CHECKLIST.md`
+- Source touched: `backend/app/{db.py,config.py,main.py,routers/grievances.py,services/classification.py}`,
+  `frontend/lib/{types.ts,tfidf.ts,roles.ts,grievances.ts}`, `tools/recategorize.py`
+- Docs touched: `README.md`, `INTEGRATION.md`, `AGENTS.md`, `docs/{ARCHITECTURE,API,SECURITY,DEVELOPMENT}.md`
+
+### Work Completed
+
+**Phase 4 — retire the legacy Firebase UI (`09e83af`)**
+- Deleted `functions/` (6 files: `tfidf.js`, `admin_api.js`, `admin_ui.js`,
+  `admin.html`, `grievance-app.html`, `download.jpg`) and root `adfbh`.
+- Updated `README.md` repo table + follow-ups, `INTEGRATION.md` (status banner
+  + loose-ends annotated resolved), and the `frontend/lib/tfidf.ts` header
+  comment. The only surviving reference to `functions/` is that intentional
+  historical note.
+
+**Phase 5 — docs/config alignment (`cfdb7d1`, `4e52990`, + `4686f81`)**
+- `AGENTS.md` stack table: Backend annotated `backend/app/` (DEC-010),
+  Database PostgreSQL → MongoDB (DEC-011, supersedes DEC-002), Auth marked
+  *planned* vs. the demo localStorage session (DEC-009), dated stack note added.
+- `README.md` rewritten where it described a Flask/`server.py` world
+  (layout, quickstart, `:8000` → `:10000`, key decisions, follow-ups).
+- `docs/ARCHITECTURE.md` — overview, port, ASCII diagram (Postgres+pgvector →
+  MongoDB), backend tree → the real `backend/app/` layout, Auth marked PLANNED,
+  Database + boundaries sections rewritten.
+- `docs/API.md` — status header, base URL, new "Implemented endpoints" table
+  (documenting that create is `POST /submit-grievance`, not `POST /grievances`),
+  real `/health` shape, real `{"error": …}` / 400 error format.
+- `docs/DEVELOPMENT.md` — prerequisites/setup/migrations/commands/conventions/
+  troubleshooting rewritten for MongoDB + uvicorn, plus a "Running Tests" section.
+- `docs/SECURITY.md` — Authentication marked PLANNED; Known Prototype
+  Limitations now leads with the server-side auth gap (API trusts request-body
+  `userId`; list/PATCH are unauthorised; the frontend allowlist is client-side
+  only and provides no security).
+- `render.yaml` gained `MONGODB_URI` (sync: false) + `MONGODB_DB` — without them
+  a deployment silently uses the in-memory fallback.
+
+**Phase 6 — verification (`f6e2890`, `98ec1f3`)**
+- New `tests/` (4 files, 85 tests), `pytest.ini`, `requirements-dev.txt`.
+  Split so Render keeps installing only the runtime `requirements.txt`.
+
+### Verification (all done before committing)
+- `pytest` → **85 passed** with a local `mongod` on `:27017`; after
+  `mongod --shutdown` → **68 passed, 17 skipped** (Mongo tests skip, they never
+  fail). Test databases dropped after runs — only `admin`/`config`/`local` left.
+- End-to-end against live `uvicorn` on `:10000` with `MONGODB_URI` set:
+  `storage: mongodb` → submit ×2 → list all + `?userId=` scoped → get →
+  PATCH `status`/`assignee` → 404s → `400 {"error": "description: Field required; userId: Field required"}`.
+  **Restarted the process and the data (including the PATCH) was still there.**
+  Then ran the same server with no `MONGODB_URI`: `storage: in-memory`, empty list.
+- `tsc --noEmit` clean; `npm run build` passes (9 routes).
+- `rg -i "firestore|firebase"` over source + docs → only past-tense history
+  (`tools/recategorize.py`, `frontend/lib/{roles,grievances}.ts`,
+  `INTEGRATION.md`, key-rotation notices). No firebase/firestore dependency in
+  `frontend/package.json`; no such files outside `venv/`.
+- Hygiene: 0 tracked `__pycache__` (including the new `tests/__pycache__`),
+  `venv/` gitignored and untracked.
+
+### Commits (all local, not pushed)
+1. `09e83af` Retire legacy Firebase UI and stray adfbh file
+2. `cfdb7d1` Update AGENTS stack table and README for FastAPI and MongoDB
+3. `4e52990` Align architecture, API, development, and security docs with the real stack
+4. `f6e2890` Add pytest suite covering classifier, endpoints, and repositories
+5. `4686f81` Declare MONGODB_URI in the Render service environment
+6. `98ec1f3` Document the test suite and dev-requirements setup
+7. `TBD` Add a frontend end-to-end script driving the real API client
+8. `TBD` Mark migration Phases 4–6 complete in the plan and checklist
+9. (this entry) memory — DEC-002 superseded, DEC-011 follow-ups closed, DEC-012/DEC-013 added
+
+### Decisions
+- **DEC-012** — test strategy: root `tests/` + `pytest.ini` `pythonpath = .`;
+  conftest pins `MONGODB_URI=""` / `GROQ_API_KEY=""` / `HF_API_TOKEN=""` *before*
+  `backend.app` imports (so `load_dotenv()` cannot override) forcing the
+  deterministic keyword + in-memory path; an **autouse fixture swaps a fresh
+  `InMemoryRepository` onto `backend.app.routers.grievances.repository`** (the
+  router binds `repository` at import, so patching `db.repository` alone would
+  not isolate tests); Mongo tests **skip** unless `TEST_MONGODB_URI`
+  (default `mongodb://127.0.0.1:27017`) answers a 750 ms ping; repository
+  *selection* is tested by monkeypatching `backend.app.config` because
+  `_build_repository()` does a function-local import.
+- **DEC-013** — stale docs annotated in place rather than rewritten (status
+  banners, "Implemented endpoints" table); `README.md` was the sole wholesale
+  rewrite. Rationale: `AGENTS.md` forbids replacing useful docs with shorter
+  generic versions, and the planned auth design is still the target.
+- **DEC-002** marked **SUPERSEDED BY DEC-011** — the Phase 5 item DEC-011 had
+  queued as "needs an owner decision".
+- DEC-011's Consequences section: Phase 4 and Phase 5 items annotated as closed;
+  key rotation + Atlas setup annotated as still open.
+
+### Notes / Gotchas
+- Two test assertions were initially wrong because I guessed at the keyword
+  lists; both were corrected against the real source rather than loosened —
+  `normalize_sentiment("LABEL_0")` returns `"neutral"` (the decoder only looks
+  for `"neg"`/`"pos"` substrings), and `contains_high_risk_issue()` matches the
+  two-word phrase `bridge collapse`, so "the bridge may collapse" does not hit.
+  These are documented as current behaviour in the tests.
+- A `pkill -f "uvicorn backend.app.main"` matched its own shell (SIGTERM) and
+  killed the command mid-run; re-done using PID files in a script under
+  `/tmp/opencode`. No stray `mongod` or `uvicorn` left running.
+
+### Addendum — end-to-end through the real frontend client
+The plan's Phase 6 item *"end-to-end: submit → track → admin view"* was first
+attempted through the desktop browser, but **no browser was connected to this
+session**, so the DOM could not be driven. Re-done at the client-contract level
+instead, and the result was committed as `frontend/scripts/e2e.mjs` so the check
+is reproducible: it `import`s the real `frontend/lib/api.ts`, so every response
+is parsed by the same zod schemas the UI uses (`grievanceSchema`,
+`submitResultSchema`, …), and drives it against live `uvicorn` + `mongod`:
+
+- `checkBackendHealth` → true
+- `submitGrievance` → `GRV-2026-0001`
+- `getGrievance` (track) → `status=open`, title/userId round-tripped
+- `getGrievance("GRV-1999-9999")` → `null` (the track page's not-found path)
+- `listGrievances()` / scoped `?userId=` / unknown user → all, 1, `[]`
+- `updateGrievanceStatus` assigned → resolved; a re-read shows both persisted
+  and the other fields untouched
+- submit without `userId` rejects with the backend's `{error}` message
+- a second citizen proves the admin queue is genuinely multi-user
+
+Also confirmed all 6 frontend routes (`/`, `/submit`, `/track`, `/admin`,
+`/login`, `/register`) return 200 from `next dev` on `:3000`, and that
+`frontend/lib/api.ts` resolves its base URL to `NEXT_PUBLIC_API_URL`
+(`.env.local` already points at `:10000`).
+
+Stack torn down afterwards: backend, `next dev` and `mongod` all stopped,
+`grievance_ui` / `grievance_e2e` databases dropped, no listeners left on
+`:3000`/`:10000`/`:27017`.
+
+### Open
+- **Owner blocker:** create the MongoDB Atlas cluster + set `MONGODB_URI` /
+  `MONGODB_DB` in `backend/.env` — until then the API runs on the in-memory
+  fallback (`/health` reports `storage`).
+- Rotate the hardcoded Firebase Web API key — still in git history; deleting
+  the file (Phase 4) does not remove it.
+- Real auth (JWT/RBAC) — the documented highest-risk gap; `docs/SECURITY.md`
+  now spells out the mitigation path.
+- Commits are local only; review + `--no-ff` merge `feature/unified-system` →
+  `app/intialise` → `main`.
+- Not covered by the new suite: HF/Groq classification branches, image +
+  Cloudinary services, frontend tests (Jest/RTL still OPEN in `TODO.md`).

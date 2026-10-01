@@ -3,28 +3,33 @@
 > Remove or mark tasks done when actually completed.
 > Each task should be concrete and actionable.
 >
-> **2026-09-11 unification note (DEC-008):** tasks assuming the FastAPI/PostgreSQL
-> stack are marked **SUPERSEDED** — the authoritative backend is Flask
-> `backend/server.py` with Firestore (temporary). Unification follow-ups are
-> listed first; see `INTEGRATION.md`.
+> **Unification notes:** the original 2026-09-11 banner (DEC-008: *"the
+> authoritative backend is Flask `backend/server.py` with Firestore
+> temporary"*) is **itself superseded** — see DEC-010/DEC-011. The serving path
+> is `backend/app/` (FastAPI) on MongoDB; `backend/server.py` and all
+> Firebase/Firestore files were deleted in Phase 3, and `functions/` + `adfbh`
+> in Phase 4. Migration Phases 1–6 are complete as of 2026-10-01; items below
+> marked SUPERSEDED refer to the discarded FastAPI/Postgres-era plan, not to
+> the current stack. See `INTEGRATION.md` for the source map.
 
 ---
 
 ## Unification Follow-ups (current branch → merge → next)
 
 - [ ] Review + merge `feature/unified-system` → `main` (`--no-ff`)
-- [ ] Update `AGENTS.md` stack table + `docs/ARCHITECTURE.md` for the now-real stack (FastAPI + MongoDB per DEC-010/DEC-011; PostgreSQL row is stale) — Phase 5; auth stack decision still open
+- [x] Update `AGENTS.md` stack table + `docs/ARCHITECTURE.md` for the now-real stack (FastAPI + MongoDB per DEC-010/DEC-011) — DONE 2026-10-01 (Phase 5, DEC-013; DEC-002 marked superseded. **Auth stack decision still open** — demo/localStorage auth remains temporary)
 - [x] **Implement `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status`** — DONE 2026-09-11 (Phase 2: `backend/app/routers/grievances.py`; smoke-tested in-process + via `uvicorn` on `:10000`)
 - [x] **Phase 3 — MongoDB persistence** — DONE 2026-09-11 (`pymongo` + `dnspython`; `MongoRepository` behind `GrievanceRepository`, in-memory fallback when `MONGODB_URI` unset; indexes at startup; `/health` reports `storage`; verified against a local `mongod` incl. BSON dates, compound index, PATCH, and persistence across restart)
-- [ ] **Phase 4 — retire `functions/` + root `adfbh`** (last Firebase-era code) — `backend/server.py`, `tools/recategorize.py` (rewritten for Mongo), root `firebase.json`/`.firebaserc`/`firestore.*` already deleted in Phase 3
+- [x] **Phase 4 — retire `functions/` + root `adfbh`** (last Firebase-era code) — DONE 2026-10-01 (`09e83af`; 6 files + `adfbh` deleted; README/INTEGRATION/tfidf.ts references updated. `backend/server.py`, `tools/recategorize.py`, root `firebase.*`/`firestore.*` had gone in Phase 3)
 - [x] Hygiene: ~~binary `.gitignore`, tracked `__pycache__/`, UTF-16 `backend/requirements.txt`~~ — all fixed/verified 2026-09-11
-- [ ] Hygiene remaining: decide fate of `adfbh`; rotate hardcoded Firebase key in `functions/admin_api.js` (present in git history — rotation mandatory)
+- [x] ~~Hygiene remaining: decide fate of `adfbh`~~ — DONE 2026-10-01 (deleted, Phase 4)
+- [ ] **Rotate the hardcoded Firebase Web API key** (was in `functions/admin_api.js`, now deleted, but the key is still in git history — rotation mandatory; requires the owner's Google Console action)
 - [x] Write new root README describing the unified repo (written 2026-09-11; deliberately not reusing `Idea Lab` README)
 - [x] Rewrite `docs/DATABASE.md` for MongoDB — DONE 2026-09-11 (Postgres entities moved to a roadmap section)
-- [ ] Align `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, root `README.md`, `INTEGRATION.md` with the FastAPI + MongoDB reality (Phase 5)
+- [x] Align `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, root `README.md`, `INTEGRATION.md` with the FastAPI + MongoDB reality (Phase 5) — DONE 2026-10-01 (`cfdb7d1`, `4e52990`; `docs/DEVELOPMENT.md` + `AGENTS.md` too; annotated rather than rewritten per DEC-013)
 - [ ] Set real Cloudinary cloud name + upload preset in `frontend/.env.local` (Phase 1.5 checklist leftover)
-- [ ] Phase 5 — docs/config/memory alignment per `UNIFIED_MIGRATION_PLAN.md`
-- [ ] Phase 6 — verification: pytest vs test Mongo DB, classifier unit tests, `npm run build`, end-to-end manual check, `rg -i "firestore|firebase"` clean in tracked source
+- [x] Phase 5 — docs/config/memory alignment per `UNIFIED_MIGRATION_PLAN.md` — DONE 2026-10-01 (also `render.yaml` `MONGODB_URI`/`MONGODB_DB` env vars, `4686f81`)
+- [x] Phase 6 — verification: pytest vs test Mongo DB, classifier unit tests, `npm run build`, end-to-end manual check, `rg -i "firestore|firebase"` clean in tracked source — DONE 2026-10-01 (85 passed with a local `mongod`, 68 passed / 17 skipped without; e2e via `frontend/scripts/e2e.mjs` incl. restart persistence; `tsc --noEmit` + `npm run build` clean; sweep leaves only past-tense history)
 
 ---
 
@@ -101,22 +106,29 @@
 
 ## Testing
 
-- [ ] Set up `pytest` with `pytest-asyncio` for async FastAPI tests
+- [x] Set up `pytest` — DONE 2026-10-01 (Phase 6, DEC-012): root `tests/` +
+      `pytest.ini` + `requirements-dev.txt`; **no `pytest-asyncio` needed** — the
+      repository protocol is synchronous (DEC-011), so `TestClient` is enough
+- [x] Write integration tests for grievance CRUD — DONE 2026-09-11 behaviour,
+      locked down 2026-10-01 in `tests/test_endpoints.py` (submit/list/get/PATCH
+      + 404s + error shape) and `tests/test_repository.py` (both implementations)
+- [x] Classifier unit tests incl. `CATEGORY_KEYS` ↔ frontend `CATEGORIES` — DONE 2026-10-01
+      (`tests/test_classification.py`; keyword path only — HF/Groq cascade is
+      EXPERIMENTAL per DEC-005 and not asserted)
 - [ ] Set up Jest + React Testing Library for frontend tests
-- [ ] Write unit tests for grievance state machine transitions
-- [ ] Write integration tests for auth flows
-- [ ] Write integration tests for grievance CRUD
+- [ ] Write unit tests for grievance state machine transitions (needs the state machine + real auth first)
+- [ ] Write integration tests for auth flows (blocked on real auth)
 - [ ] Define AI evaluation protocol for each module
 
 ---
 
-## Documentation (partially DONE via copy — DATABASE/API/ARCHITECTURE need rewrite per DEC-008)
+## Documentation (aligned 2026-10-01 per DEC-013)
 
-- [ ] Complete `docs/API.md` with actual implemented endpoints (update as backend is built)
-- [ ] Complete `docs/DATABASE.md` with actual schema once migrations exist
-- [ ] Add `frontend/` and `backend/` directory structure diagrams to `docs/ARCHITECTURE.md`
-- [ ] Create `.env.example` files
-- [ ] Document actual development commands in `docs/DEVELOPMENT.md` once scaffold exists
+- [x] Complete `docs/API.md` with actual implemented endpoints — DONE 2026-10-01 (implemented-endpoints table + corrected `/health`/error shapes; planned surface kept)
+- [x] `docs/DATABASE.md` for MongoDB — DONE 2026-09-11 (Postgres entities moved to a roadmap section)
+- [x] Add `backend/` directory structure to `docs/ARCHITECTURE.md` — DONE 2026-10-01 (real `backend/app/` tree replacing the proposed one)
+- [x] Create `.env.example` files — DONE (`backend/.env.example`, `frontend/.env.example`)
+- [x] Document actual development commands in `docs/DEVELOPMENT.md` — DONE 2026-10-01 (incl. a "Running Tests" section)
 
 ---
 

@@ -6,7 +6,98 @@
 
 ---
 
-## 2026-09-11 — Phase 3: MongoDB Persistence + Firebase Retirement — committed
+## 2026-10-01 — Migration Phases 4, 5, 6: Legacy UI Retired, Docs Aligned, Test Suite Added — committed
+
+### Added
+- `tests/` (4 files, 85 tests) — pytest suite: `test_classification.py` (keyword
+  category inference, urgency/risk/priority rules, sentiment normalisation, and
+  the `CATEGORY_KEYS` ↔ `frontend/lib/types.ts` `CATEGORIES` contract test),
+  `test_endpoints.py` (real FastAPI app over `TestClient`: health, submit,
+  scoped/limited/newest-first list, get, PATCH, 404s, flat `{"error": …}` shape),
+  `test_repository.py` (both `GrievanceRepository` implementations behind one
+  parametrised contract, Mongo-specific BSON/index/persistence checks, and
+  `_build_repository()` selection)
+- `pytest.ini` — `testpaths = tests`, `pythonpath = .` (imports `backend.app`
+  without installation)
+- `requirements-dev.txt` — `-r requirements.txt` + `pytest`; kept separate
+  because Render's `buildCommand` installs the root `requirements.txt`
+- `frontend/scripts/e2e.mjs` — end-to-end check that imports the **real**
+  `frontend/lib/api.ts` (so responses are zod-parsed by the same schemas the UI
+  uses) and drives submit → track → admin assign/resolve → re-read against a
+  live backend; needs a running backend, not part of `pytest`
+- `render.yaml` — `MONGODB_URI` (sync: false) + `MONGODB_DB` env vars; without
+  them a deployment silently runs on the in-memory fallback
+
+### Changed
+- `AGENTS.md` — stack table reconciled with reality: Backend row annotated
+  `backend/app/` (DEC-010), Database row PostgreSQL → MongoDB (DEC-011),
+  Auth row marked *planned* vs. the demo localStorage session (DEC-009), plus a
+  dated stack note
+- `README.md` — rewritten sections (repository layout, quickstart, port, key
+  decisions, follow-ups) to describe FastAPI + MongoDB instead of Flask +
+  `server.py`; stale-docs warning removed now that docs are aligned
+- `docs/ARCHITECTURE.md` — overview/port/diagram corrected to MongoDB + `:10000`,
+  backend tree replaced with the real `backend/app/` layout, Auth section marked
+  PLANNED, Database + boundaries sections rewritten for pymongo
+- `docs/API.md` — status header rewritten, base URL `:8000` → `:10000`, added an
+  "Implemented endpoints" table (incl. the `POST /submit-grievance` naming note),
+  `/health` response and the error format corrected to the actual shapes
+- `docs/DEVELOPMENT.md` — prerequisites/setup/migrations/commands/conventions/
+  troubleshooting rewritten for MongoDB + uvicorn; new "Running Tests" section
+- `docs/SECURITY.md` — Authentication marked PLANNED; Known Prototype
+  Limitations now leads with the server-side auth gap (API trusts request-body
+  `userId`, no authorization on list/PATCH, frontend allowlist is client-side only)
+- `INTEGRATION.md` — status banner (Phases 1–4 executed) + loose-ends items
+  annotated as resolved; original source map preserved verbatim
+- `frontend/lib/tfidf.ts` — comment notes `functions/tfidf.js` was retired
+
+### Removed
+- `functions/` (6 files: `tfidf.js`, `admin_api.js`, `admin_ui.js`,
+  `admin.html`, `grievance-app.html`, `download.jpg`) — last Firebase-era code
+- root `adfbh` — unidentified duplicate admin HTML
+
+### Verified
+- `pytest`: **85 passed** with a local `mongod`; **68 passed, 17 skipped**
+  without one (Mongo tests skip rather than fail)
+- Test DBs cleaned up after runs (only `admin`/`config`/`local` remained);
+  `mongod --shutdown` used afterwards
+- **End-to-end via the real frontend client** (`node frontend/scripts/e2e.mjs`
+  against live `uvicorn` + `mongod`): submit → track-by-id → unknown-id `null`
+  → admin global/scoped/empty lists → assign → resolve → re-read persists the
+  changes and keeps other fields → submit without `userId` rejects with the
+  backend's `{error}` message → second citizen proves the queue is multi-user.
+  All responses passed the frontend's zod schemas.
+- HTTP-level: all 6 frontend routes (`/`, `/submit`, `/track`, `/admin`,
+  `/login`, `/register`) return 200 with the dev server on `:3000`.
+  *No desktop browser was connected to this session, so the DOM was not driven —
+  `frontend/scripts/e2e.mjs` covers the same contract minus rendering.*
+- End-to-end against live `uvicorn` on `:10000` with `MONGODB_URI` set:
+  health `storage: mongodb`, submit ×2, list (all + `?userId=` scoped), get,
+  PATCH status+assignee, 404s, `400 {"error": "description: Field required; …"}`,
+  **data survives a process restart** (including the PATCH), and the same server
+  with no `MONGODB_URI` reports `storage: in-memory` and an empty list
+- `tsc --noEmit` clean; `npm run build` passes (9 routes)
+- `rg -i "firestore|firebase"` over source + docs: only past-tense historical
+  comments remain (`tools/recategorize.py`, `frontend/lib/{roles,grievances}.ts`,
+  `INTEGRATION.md`, plus the key-rotation notices in `README.md`/`SECURITY.md`);
+  no `firebase`/`firestore` dependency in `frontend/package.json`, no
+  `firebase*`/`firestore*` files outside `venv/`
+- Hygiene: 0 tracked `__pycache__` (incl. the new `tests/__pycache__`),
+  `venv/` gitignored and untracked
+
+### Repository State at End of This Entry
+- 6 new commits `09e83af..98ec1f3` on `feature/unified-system` (+ memory commit);
+  `UNIFIED_MIGRATION_PLAN.md` / `UNIFIED_MIGRATION_CHECKLIST.md` marked Phases
+  4–6 complete (only the key rotation, Cloudinary preset and an unrelated
+  `main`-branch file question remain unticked)
+- **Migration plan Phases 1–6 complete**; DEC-002 marked SUPERSEDED BY DEC-011;
+  DEC-011's Phase 4/5 follow-ups closed; new DEC-012 (test strategy) and
+  DEC-013 (docs annotated rather than rewritten)
+- Still open: owner's MongoDB Atlas setup (`MONGODB_URI`), Firebase Web API key
+  rotation (in git history), real auth, unpushed local commits
+
+---
+
 
 ### Added
 - `MongoRepository` in `backend/app/db.py` — pymongo implementation of the existing `GrievanceRepository` protocol; selected when `MONGODB_URI` is set, in-memory fallback otherwise; indexes at startup (unique `id`, compound `userId + createdAt`); `createdAt` stored as BSON date
