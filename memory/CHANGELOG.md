@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-09-11 — Frontend de-Firebase (Phase 1) + Legacy Parity (Phase 1.5) — committed
+
+### Added
+- `frontend/lib/roles.ts` — admin allowlist + `roleForEmail` (extracted from the deleted `lib/firebase.ts`; single source of admin detection until real auth lands)
+- `frontend/lib/tfidf.ts` — TypeScript port of `functions/tfidf.js` (client-side TF-IDF + greedy clustering)
+- `frontend/components/admin/AdminMap.tsx` — Leaflet map with markers/image popups for the filtered set
+- `frontend/components/admin/AdminClusters.tsx` — cluster panel; "View" filters the queue
+- `frontend/components/grievance/MyGrievances.tsx` — citizen's own submissions on `/submit`
+- `frontend/lib/api.ts` — `listGrievances`, `getGrievance`, `updateGrievanceStatus` + grievance zod schemas (plus a shared `requestJson` helper)
+
+### Changed
+- `frontend/lib/session.tsx` — demo-only localStorage provider; `liveMode` (from `NEXT_PUBLIC_USE_MOCKS`) replaces the Firebase session; `signInDemo(email, role?, name?)`, synchronous `signOut`
+- `frontend/lib/grievances.ts` — REST polling (15s default) replaces Firestore `onSnapshot`; admins → all, citizens → own
+- `frontend/components/admin/AdminBoard.tsx` — priority/category/status filters, free-text search, pagination (5/10/20/50), Leaflet map, TF-IDF clusters, legacy stat cards (total / high-open / medium-open / resolved), per-row urgent badge + created + userId, live `PATCH /grievances/{id}/status` for assign/resolve with local overrides in mock mode
+- `frontend/app/login/page.tsx`, `register/page.tsx` — Firebase sign-in/sign-up removed; demo sign-in with role resolution
+- `frontend/app/track/page.tsx` — `liveMode` instead of `user.live`
+- `frontend/.env.example` — Firebase/NextAuth vars stripped; `NEXT_PUBLIC_SHOW_DEV_CREDS` added
+- `frontend/package.json` / `package-lock.json` — `-firebase`, `-next-auth`, `+leaflet`, `+@types/leaflet` (lock regenerated via clean reinstall)
+- `frontend/components/grievance/ImageUpload.tsx` — unused `Button` import removed
+
+### Removed
+- `frontend/lib/firebase.ts` (Firestore + Firebase Auth client)
+
+### Verified
+- `tsc --noEmit` clean; `npm run build` passes (9 routes) on the final tree.
+
+### Repository State at End of This Entry
+- 7 new commits `1857ee3..0b438b8` on `feature/unified-system` (memory update committed after)
+- Frontend is Firebase-free; live mode now expects `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status` — **these do not exist in `backend/server.py` yet** (Phase 2 FastAPI rewrite pending), so live reads/writes 404 until then (UI surfaces the error banner)
+
+---
+
 ## 2026-09-11 — Frontend White Theme & Sleek UI Modernization
 
 ### Changed

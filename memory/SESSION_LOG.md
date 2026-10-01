@@ -333,3 +333,45 @@ earlier "submitted but no confirmation".
   `(e) => { e.preventDefault(); void …(e); }`.
 - `tsc` clean, `next build` passes, dev restarted on :3001 (all routes 200).
 - Nothing committed by agent.
+
+---
+
+## 2026-09-11 — Phase 1 + 1.5 Committed (`feature/unified-system`)
+
+### Goal
+Commit the pending working tree: `UNIFIED_MIGRATION_PLAN` Phase 1 (frontend
+de-Firebase) and Phase 1.5 (legacy behavioural parity), as multiple logical
+one-line commits.
+
+### Work Completed
+Verified the gates first, then committed in dependency order so every
+intermediate commit is buildable:
+1. `1857ee3` Add grievance list, detail, and status endpoints to API client
+2. `1d31ff5` Add TF-IDF cluster panel and Leaflet map for admin parity
+   (package files staged as an intermediate blob: leaflet added only —
+   firebase/next-auth removal held back for the next commit; see
+   `/tmp/opencode/mk_intermediate_pkg.py` approach, index-only staging via
+   `git hash-object -w` + `git update-index --cacheinfo`)
+3. `337ec2a` Drop Firebase client and move session and admin queue to REST
+   (`lib/firebase.ts` deleted, `roles.ts` added, session/grievances/auth
+   pages/AdminBoard rewritten, deps removed, `.env.example` stripped)
+4. `ac07e29` Add citizen my-grievances list below the submit form
+5. `1ad8393` Remove unused Button import from ImageUpload
+6. `0b438b8` Mark migration phases 1 and 1.5 complete in migration docs
+7. (this entry) memory update commit
+
+### Verified
+- `tsc --noEmit` clean and `npm run build` passes (9 routes) on the final
+  working tree — i.e. the content of commits 1–6.
+- Staged diffs inspected per commit (dependency changes split so no commit
+  removes a package still imported by that commit's code).
+
+### Open
+- **Backend gap:** the new REST calls (`GET /grievances`, `GET /grievances/{id}`,
+  `PATCH /grievances/{id}/status`) are **not implemented in `backend/server.py`**
+  — live mode 404s until Phase 2 (FastAPI rewrite) or an interim Flask shim.
+- Cloudinary cloud name / upload preset still need real values in
+  `frontend/.env.local` (Phase 1.5 checklist item left open).
+- Previous session's Firebase-console follow-ups (publish `firestore.rules`,
+  rotate web API key) are now moot for the frontend (Firebase client removed);
+  backend/legacy files still hold the key.

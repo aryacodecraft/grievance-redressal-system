@@ -12,13 +12,15 @@
 
 ## Unification Follow-ups (current branch → merge → next)
 
-- [ ] Review + merge `feature/unified-system` → `app/intialise` → `main` (`--no-ff`)
+- [ ] Review + merge `feature/unified-system` → `main` (`--no-ff`)
 - [ ] Owner confirms canonical backend/DB/auth stack; update `AGENTS.md` stack table + `docs/ARCHITECTURE.md`
-- [ ] Firebase-removal branch: delete `firebase.json`/`.firebaserc`/`firestore.*`, strip `firebase-admin` from `backend/server.py` + `tools/recategorize.py`, remove `FIREBASE_SERVICE_ACCOUNT` from `render.yaml`, replace `/submit-grievance` persistence
-- [ ] Wire Next.js `frontend/` to Flask backend (resolve `:8000` vs `:10000` + API contract)
+- [ ] **Implement `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status`** (Phase 2 of UNIFIED_MIGRATION_PLAN) — frontend REST client already calls these; live mode 404s without them
+- [ ] Firebase-removal (server side): delete `firebase.json`/`.firebaserc`/`firestore.*`, strip `firebase-admin` from `backend/server.py` + `tools/recategorize.py`, remove `FIREBASE_SERVICE_ACCOUNT` from `render.yaml`, replace `/submit-grievance` persistence — **frontend half DONE 2026-09-11** (`lib/firebase.ts` deleted, `firebase`/`next-auth` deps removed)
+- [x] Wire Next.js `frontend/` to backend API contract — DONE 2026-09-11 (`lib/api.ts` typed client; `:10000` aligned in `.env.example`); server endpoints pending (above)
 - [ ] Hygiene: rewrite binary `.gitignore` as UTF-8, untrack `__pycache__/`, convert `backend/requirements.txt` from UTF-16 to UTF-8, decide fate of `adfbh`, rotate hardcoded Firebase key in `functions/admin_api.js`
 - [x] Write new root README describing the unified repo (written 2026-09-11; deliberately not reusing `Idea Lab` README)
 - [ ] Rewrite `docs/DATABASE.md` + `docs/API.md` against the Flask + replacement-persistence design
+- [ ] Set real Cloudinary cloud name + upload preset in `frontend/.env.local` (Phase 1.5 checklist leftover)
 
 ---
 
@@ -62,13 +64,13 @@
 
 ---
 
-## Next — PHASE 5: UI
+## Next — PHASE 5: UI (partially done 2026-09-11 — see UNIFIED_MIGRATION_CHECKLIST Phase 1/1.5)
 
-- [ ] Design and implement User portal (submit, track, view grievance history)
-- [ ] Design and implement Resolver dashboard (assigned grievances, actions, resolution form)
-- [ ] Design and implement Admin dashboard (overview, assignment, analytics navigation)
-- [ ] Implement grievance detail page (timeline, AI insights panel, actions)
-- [ ] Implement authentication pages (login, Google OAuth)
+- [x] User portal: submit + "my grievances" list (`MyGrievances.tsx`), track page, demo auth — DONE (legacy parity)
+- [ ] Design and implement Resolver dashboard (assigned grievances, actions, resolution form) — OPEN
+- [x] Admin dashboard: queue, assignment/override, filters, search, pagination, map, TF-IDF clusters, stats, mark resolved — DONE 2026-09-11; analytics views still OPEN
+- [ ] Implement grievance detail page (timeline, AI insights panel, actions) — OPEN (admin detail panel with AI analysis exists; citizen-facing detail/timeline OPEN)
+- [x] Authentication pages (login, register) — DONE as demo/localStorage auth; Google OAuth + real auth OPEN (deferred per migration plan)
 
 ---
 

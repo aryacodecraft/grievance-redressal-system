@@ -331,3 +331,65 @@ frontend + memory; remove Firebase eventually but keep Firestore working for now
 frontend wiring, all `docs/` and `memory/` files copied from `Idea Lab`
 
 **Source map:** see `INTEGRATION.md` at repo root.
+
+---
+
+## DEC-009 — Frontend De-Firebase: Demo Auth, REST Polling, Client-Side TF-IDF
+
+**ID:** DEC-009
+**Date:** 2026-09-11
+**Status:** ACCEPTED (implements UNIFIED_MIGRATION_PLAN Phase 1 + 1.5)
+
+**Context:**
+The Next.js frontend was wired to the Firebase client SDK (Auth + Firestore
+`onSnapshot`) while the migration plan calls for Firebase removal and a typed
+REST client. Phase 1.5 additionally requires behavioural parity with the legacy
+HTML UI (`functions/*.html`). Real authentication and the backend rewrite
+(Phase 2) do not exist yet.
+
+**Decision:**
+1. `frontend/lib/firebase.ts` is deleted; `firebase` and `next-auth` are removed
+   from `frontend/package.json`. The admin allowlist moves to
+   `frontend/lib/roles.ts` (`ADMIN_EMAILS`, `isAdminEmail`, `roleForEmail`).
+2. `frontend/lib/session.tsx` is a demo localStorage provider only
+   (`user`, `liveMode` from `NEXT_PUBLIC_USE_MOCKS`, `signInDemo`, `signOut`).
+   Real auth is deferred; the persisted demo user id is the identity sent to
+   the API. This keeps AI/admin actions human-attributed per the HITL rule
+   until server-side auth lands.
+3. Firestore `onSnapshot` is replaced by REST polling in
+   `frontend/lib/grievances.ts` (15s default) — same admin/citizen scoping
+   (admins: all, citizens: own) as the old security rules.
+4. TF-IDF clustering stays **client-side** (`frontend/lib/tfidf.ts`, a port of
+   `functions/tfidf.js`), matching the legacy HTML behaviour, so the admin
+   cluster panel works without backend support; a server-side port is optional.
+5. The API contract is defined by `frontend/lib/api.ts`:
+   `POST /submit-grievance`, `GET /grievances`, `GET /grievances/{id}`,
+   `PATCH /grievances/{id}/status`, plus existing image/health endpoints.
+
+**Reason:**
+- Removes the browser-side Firebase dependency (and the leaked web API key
+  surface in frontend code) without a persistence gap server-side.
+- Polling is deterministic and simple; WebSockets/SSE are unnecessary for a prototype.
+- Client-side TF-IDF preserves verified legacy behaviour cheaply.
+- Demo auth is explicitly temporary and reversible — swap `session.tsx` for a
+  real provider without touching consumers.
+
+**Alternatives Considered:**
+- Keep Firebase Auth for live data: rejected — contradicts the migration plan's Phase 1.
+- Fake JWT auth in the frontend: rejected — client-issued tokens provide no
+  security and would misrepresent auth as implemented.
+- Server-side TF-IDF now: rejected — deferred to Phase 2/4; legacy parity does
+  not require it.
+
+**Consequences:**
+- Live mode calls `GET/PATCH /grievances*`, which `backend/server.py` does not
+  implement yet — live reads/writes fail until Phase 2 (documented in
+  PROJECT_STATE "Known Issues"); mock mode (`NEXT_PUBLIC_USE_MOCKS=true`) is
+  the default and unaffected.
+- `firestore.rules` / `functions/admin_api.js` Firebase auth remains for the
+  legacy HTML UI only; server-side Firebase removal is still pending.
+- Any route can read the localStorage session (no server-side authorization
+  yet) — acceptable only for the prototype, must not reach production.
+
+**Affected Components:** `frontend/` (session, data access, admin UI, auth
+pages, deps), migration docs, memory
