@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SubmitForm } from "@/components/grievance/SubmitForm";
+import { MyGrievances } from "@/components/grievance/MyGrievances";
 
 export const metadata: Metadata = { title: "Register Complaint" };
 
@@ -17,6 +18,10 @@ export default function SubmitPage() {
           </p>
         </div>
         <SubmitForm />
+
+        <div className="mt-12 border-t border-ink-100 pt-8">
+          <MyGrievances />
+        </div>
       </div>
     </div>
   );
