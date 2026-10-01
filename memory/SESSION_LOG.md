@@ -544,9 +544,9 @@ and updating memory afterwards. MongoDB Atlas setup stays with the owner
 4. `f6e2890` Add pytest suite covering classifier, endpoints, and repositories
 5. `4686f81` Declare MONGODB_URI in the Render service environment
 6. `98ec1f3` Document the test suite and dev-requirements setup
-7. `TBD` Add a frontend end-to-end script driving the real API client
-8. `TBD` Mark migration Phases 4–6 complete in the plan and checklist
-9. (this entry) memory — DEC-002 superseded, DEC-011 follow-ups closed, DEC-012/DEC-013 added
+7. `63e9e5b` Add a frontend end-to-end script driving the real API client
+8. `d8fac99` Mark migration Phases 4–6 complete in the plan and checklist
+9. `328a5cd` Record Phases 4–6 completion in project memory (this entry)
 
 ### Decisions
 - **DEC-012** — test strategy: root `tests/` + `pytest.ini` `pythonpath = .`;
