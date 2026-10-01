@@ -8,75 +8,58 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  type User as FirebaseUser,
-} from "firebase/auth";
-import {
-  getFirebaseAuth,
-  isAdminEmail,
-  isFirebaseConfigured,
-} from "./firebase";
+import { roleForEmail } from "./roles";
+import { useMocks } from "./api";
 
 export interface DemoUser {
   id: string;
   name: string;
   email: string;
   role: "citizen" | "admin";
-  /** Set when signed in through Firebase (live data unlocked). */
-  live: boolean;
 }
 
 const STORAGE_KEY = "grievai-demo-user";
 
 interface Session {
   user: DemoUser | null;
-  firebaseUser: FirebaseUser | null;
-  firebaseReady: boolean;
-  /** Demo session (mock data). */
-  signInDemo: (email: string, role?: DemoUser["role"]) => void;
-  /** Real Firebase session (live Firestore reads). Throws on failure. */
-  signInFirebase: (email: string, password: string) => Promise<void>;
-  signUpFirebase: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  /** True when the app talks to the real backend (NEXT_PUBLIC_USE_MOCKS=false). */
+  liveMode: boolean;
+  signInDemo: (email: string, role?: DemoUser["role"], name?: string) => void;
+  signOut: () => void;
 }
 
 const DemoUserContext = createContext<Session | null>(null);
 
-function roleFor(email: string | null): DemoUser["role"] {
-  return isAdminEmail(email) ? "admin" : "citizen";
-}
-
+/**
+ * Demo (localStorage) session provider.
+ *
+ * Real authentication is out of scope for this pass — see the migration plan.
+ * The persisted user is the only identity the app has; the REST API is called
+ * with that user's id.
+ */
 export function DemoUserProvider({ children }: { children: ReactNode }) {
-  const [demoUser, setDemoUser] = useState<DemoUser | null>(null);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const firebaseReady = isFirebaseConfigured();
+  const [user, setUser] = useState<DemoUser | null>(null);
+  const liveMode = !useMocks();
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setDemoUser(JSON.parse(raw) as DemoUser);
+      if (raw) setUser(JSON.parse(raw) as DemoUser);
     } catch {
-      /* ignore */
+      /* ignore corrupt storage */
     }
-    const auth = getFirebaseAuth();
-    if (!auth) return;
-    return onAuthStateChanged(auth, (u) => setFirebaseUser(u));
   }, []);
 
   const signInDemo = useCallback(
-    (email: string, role: DemoUser["role"] = "citizen") => {
+    (email: string, role?: DemoUser["role"], name?: string) => {
+      const normalized = email.trim() || "demo@example.in";
       const next: DemoUser = {
-        id: `demo-${role}`,
-        name: email.split("@")[0] || "Demo User",
-        email,
-        role,
-        live: false,
+        id: `demo-${normalized.toLowerCase()}`,
+        name: name?.trim() || normalized.split("@")[0] || "Demo User",
+        email: normalized,
+        role: role ?? roleForEmail(normalized),
       };
-      setDemoUser(next);
+      setUser(next);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       } catch {
@@ -86,72 +69,18 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const signInFirebase = useCallback(async (email: string, password: string) => {
-    const auth = getFirebaseAuth();
-    if (!auth) throw new Error("Live sign-in is not configured.");
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    setDemoUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    setFirebaseUser(cred.user);
-  }, []);
-
-  const signUpFirebase = useCallback(async (email: string, password: string) => {
-    const auth = getFirebaseAuth();
-    if (!auth) throw new Error("Live sign-up is not configured.");
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    setDemoUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    setFirebaseUser(cred.user);
-  }, []);
-
-  const signOut = useCallback(async () => {
-    const auth = getFirebaseAuth();
-    if (auth) {
-      try {
-        await firebaseSignOut(auth);
-      } catch {
-        /* ignore */
-      }
-    }
-    setFirebaseUser(null);
-    setDemoUser(null);
+  const signOut = useCallback(() => {
+    setUser(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
       /* ignore */
     }
   }, []);
-
-  // Firebase session wins when present; otherwise demo session.
-  const user: DemoUser | null = firebaseUser
-    ? {
-        id: firebaseUser.uid,
-        name: firebaseUser.email?.split("@")[0] ?? "Citizen",
-        email: firebaseUser.email ?? "",
-        role: roleFor(firebaseUser.email),
-        live: true,
-      }
-    : demoUser;
 
   return (
     <DemoUserContext.Provider
-      value={{
-        user,
-        firebaseUser,
-        firebaseReady,
-        signInDemo,
-        signInFirebase,
-        signUpFirebase,
-        signOut,
-      }}
+      value={{ user, liveMode, signInDemo, signOut }}
     >
       {children}
     </DemoUserContext.Provider>
