@@ -11,13 +11,13 @@
 | Python | 3.11+ | Backend |
 | Node.js | 20+ | Frontend |
 | npm | 10+ | Frontend package manager |
-| PostgreSQL | 15+ | Database |
+| MongoDB | 7+ (or an Atlas free cluster) | Database |
 | Git | any recent | Version control |
 
 Optional but recommended:
 - `pyenv` for Python version management
 - `nvm` for Node.js version management
-- Docker (for PostgreSQL, if preferred over direct install)
+- Docker (for a local MongoDB, if preferred over Atlas)
 
 ---
 
@@ -26,7 +26,8 @@ Optional but recommended:
 ```
 /
 ├── frontend/       — Next.js (TypeScript) app
-├── backend/        — FastAPI (Python) app
+├── backend/app/    — FastAPI (Python) app
+├── tools/          — batch recategorization script
 ├── docs/           — Technical documentation
 └── memory/         — AI agent persistent memory
 ```
@@ -35,58 +36,58 @@ Optional but recommended:
 
 ## Database Setup
 
-### Option A: Direct PostgreSQL Install (Linux)
+The backend needs `MONGODB_URI` to persist data. **Without it the API still
+boots** and uses a non-persistent in-memory store — `GET /health` tells you
+which is active (`"storage": "mongodb"` or `"in-memory"`).
+
+### Option A: MongoDB Atlas (recommended, free tier)
+
+1. Atlas → Database → Add → Free (M0) → Connect → Drivers → copy the URI.
+2. Put it in `backend/.env` (see below). The `grievances` collection and its
+   indexes are created automatically on first boot.
+
+### Option B: Local MongoDB (Docker)
 
 ```bash
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo -u postgres psql -c "CREATE USER grievance_user WITH PASSWORD 'yourpassword';"
-sudo -u postgres psql -c "CREATE DATABASE grievance_db OWNER grievance_user;"
-sudo -u postgres psql -d grievance_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker run -d --name grievance-mongo -p 27017:27017 mongo:7
+# then: MONGODB_URI=mongodb://localhost:27017
 ```
 
-### Option B: Docker
+### Option C: Local MongoDB (system package)
 
 ```bash
-docker run -d \
-  --name grievance-postgres \
-  -e POSTGRES_DB=grievance_db \
-  -e POSTGRES_USER=grievance_user \
-  -e POSTGRES_PASSWORD=yourpassword \
-  -p 5432:5432 \
-  ankane/pgvector:latest
+mongod --dbpath /path/to/data --port 27017
 ```
 
-*Using `ankane/pgvector` image which includes the pgvector extension.*
+**No migrations** — MongoDB is schemaless; the indexes (`uniq_grievance_id`,
+`user_created`) are created at startup by `backend/app/db.py`.
 
 ---
 
 ## Backend Setup
 
 ```bash
-cd backend
-
-# Create virtual environment
+# From the repository root
 python -m venv venv
 source venv/bin/activate      # Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Configure environment
-cp .env.example .env
-# Edit .env and fill in your values
-
-# Run database migrations
-alembic upgrade head
+cp backend/.env.example backend/.env
+# Edit backend/.env and fill in your values (MONGODB_URI at minimum)
 
 # Start development server
-uvicorn app.main:app --reload --port 8000
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 10000
 ```
 
-Backend API available at: `http://localhost:8000`
-Interactive docs: `http://localhost:8000/docs` (Swagger UI)
-Alternative docs: `http://localhost:8000/redoc`
+Backend API available at: `http://localhost:10000`
+Interactive docs: `http://localhost:10000/docs` (Swagger UI)
+Alternative docs: `http://localhost:10000/redoc`
+
+> Run `uvicorn` from the **repository root** (not from inside `backend/`) so
+> that `backend.app` resolves as a package.
 
 ---
 
@@ -114,68 +115,55 @@ Frontend available at: `http://localhost:3000`
 
 ### Backend (`backend/.env`)
 
+See `backend/.env.example` for the authoritative list. The ones that matter
+day-to-day:
+
 ```env
-# Database
-DATABASE_URL=postgresql+asyncpg://grievance_user:yourpassword@localhost:5432/grievance_db
+# Database (leave empty to use the non-persistent in-memory fallback)
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+MONGODB_DB=grievance
 
-# JWT
-JWT_SECRET_KEY=your-secret-key-here-use-openssl-rand-hex-32
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=15
-REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-
-# LLM API
-LLM_API_KEY=your-llm-api-key
-LLM_API_BASE_URL=https://api.openai.com/v1  # or your chosen provider
+# LLM classification (optional — keyword rules are used without them)
+GROQ_API_KEY=
+GROQ_MODEL=llama-3.3-70b-versatile
+HF_API_TOKEN=
 
 # CORS
-ALLOWED_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000
 
-# App
-DEBUG=true
-APP_ENV=development
+# Server
+PORT=10000
 ```
+
+> JWT / Google OAuth vars are **not yet read by the backend** — real auth is
+> still a planned feature (see `docs/SECURITY.md`).
 
 ### Frontend (`frontend/.env.local`)
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXTAUTH_SECRET=your-nextauth-secret
-NEXTAUTH_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+NEXT_PUBLIC_API_URL=http://localhost:10000
+NEXT_PUBLIC_USE_MOCKS=true        # false = talk to the live backend
+NEXT_PUBLIC_SHOW_DEV_CREDS=false  # local only, never enable in production
 ```
 
-> Generate a JWT secret: `openssl rand -hex 32`
-> Generate a NextAuth secret: `openssl rand -base64 32`
+> NextAuth / Google OAuth vars were removed along with the Firebase client —
+> auth is a demo/localStorage session for now.
 
 ---
 
-## Database Migrations
+## Schema Changes
 
-```bash
-cd backend
-source venv/bin/activate
+There is **no migration tool** — MongoDB is schemaless. To change the shape of
+a grievance:
 
-# Apply all pending migrations
-alembic upgrade head
+1. Update `backend/app/models.py` (Pydantic) and `backend/app/db.py`.
+2. Existing documents keep their old shape; read paths should tolerate missing
+   fields (`to_api()` in `db.py` already defaults them).
+3. If an index needs to change, drop/recreate it in `ensure_indexes()`
+   (`backend/app/db.py`).
 
-# Create a new migration after model changes
-alembic revision --autogenerate -m "add_grievance_embeddings_table"
-
-# Downgrade one step (use with caution)
-alembic downgrade -1
-
-# View migration history
-alembic history
-
-# View current revision
-alembic current
-```
+For a one-off data fix, use `tools/recategorize.py --dry-run` first, then drop
+`--dry-run` to apply.
 
 ---
 
@@ -185,14 +173,12 @@ alembic current
 
 | Command | Description |
 |---|---|
-| `uvicorn app.main:app --reload` | Start dev server with hot reload |
-| `pytest` | Run all tests |
-| `pytest tests/test_auth.py` | Run specific test file |
-| `pytest -v` | Verbose test output |
-| `alembic upgrade head` | Apply migrations |
-| `alembic revision --autogenerate -m "..."` | Create migration |
-| `python -m ruff check app/` | Lint with Ruff |
-| `python -m ruff format app/` | Format with Ruff |
+| `uvicorn backend.app.main:app --reload --port 10000` | Start dev server with hot reload (from repo root) |
+| `pytest` | Run all tests (from repo root) |
+| `pytest tests/test_endpoints.py -v` | Run specific test file |
+| `python tools/recategorize.py --dry-run` | Preview batch re-classification |
+| `python -m ruff check backend/app/` | Lint with Ruff |
+| `python -m ruff format backend/app/` | Format with Ruff |
 
 ### Frontend
 
@@ -223,12 +209,12 @@ alembic current
 
 - Follow PEP 8 / Ruff defaults
 - Use type hints throughout
-- FastAPI routers in `app/routers/` — one file per domain
-- Business logic in `app/services/` — not in routers
-- SQLAlchemy models in `app/models/`
-- Pydantic schemas in `app/schemas/`
-- AI modules in `app/ai/` — one file per AI module
-- No hardcoded configuration values — use `app/config.py` via pydantic-settings
+- FastAPI routers in `backend/app/routers/` — one file per domain
+- Business logic in `backend/app/services/` — not in routers
+- Pydantic request/response models in `backend/app/models.py`
+- Persistence behind the `GrievanceRepository` protocol in `backend/app/db.py`
+- No hardcoded configuration values — read them in `backend/app/config.py` via
+  `python-dotenv`
 
 ### Frontend (TypeScript)
 
@@ -243,27 +229,31 @@ alembic current
 
 ## Common Issues
 
-**pgvector extension not found:**
+**`"storage": "in-memory"` in `/health`:**
 ```
-Make sure you're using PostgreSQL with pgvector installed.
-Run: CREATE EXTENSION IF NOT EXISTS vector;
-Or use the ankane/pgvector Docker image.
+MONGODB_URI is empty or unreachable. Set it in backend/.env and restart.
+Data written while in-memory is lost on restart.
 ```
 
-**Alembic can't find models:**
+**MongoDB index/ping failed at startup:**
 ```
-Ensure all SQLAlchemy models are imported in alembic/env.py
-before target_metadata is referenced.
+The URI is set but the cluster isn't reachable (network, IP allowlist, or
+bad credentials). The API will error on reads/writes until it connects.
 ```
 
 **CORS error from frontend:**
 ```
-Check ALLOWED_ORIGINS in backend .env matches the frontend origin exactly.
+Check CORS_ORIGINS in backend/.env matches the frontend origin exactly
+(default: http://localhost:3000).
 ```
 
-**Google OAuth callback fails:**
+**Frontend shows demo data instead of live data:**
 ```
-Verify NEXTAUTH_URL in frontend .env.local and that the callback URL
-is registered in Google Cloud Console:
-http://localhost:3000/api/auth/callback/google
+NEXT_PUBLIC_USE_MOCKS must be "false" in frontend/.env.local, and the backend
+must be running on :10000. Check the error banner in the UI.
+```
+
+**`ModuleNotFoundError: No module named 'backend'`:**
+```
+Run uvicorn from the repository root, not from inside backend/.
 ```

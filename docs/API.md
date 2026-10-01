@@ -1,14 +1,35 @@
 # API.md — API Endpoint Documentation
 
-> Status: PLANNED — documents intended endpoints before implementation.
-> Update with actual route paths, request/response shapes, and error codes as the backend is built.
-> Authentication: All endpoints except `/auth/*` and `/health` require `Authorization: Bearer <token>`.
+> Status: **PARTIALLY IMPLEMENTED (2026-09-11).** The "Implemented endpoints"
+> table below reflects what `backend/app/routers/*` actually serves today;
+> everything else in this document is the PLANNED surface for later phases.
+> Authentication: **not enforced yet** — the API trusts a `userId` supplied in
+> the request body (documented limitation, see `docs/SECURITY.md`). The
+> `Authorization: Bearer <token>` scheme described below is the target design.
 
 ---
 
 ## Base URL
 
-Development: `http://localhost:8000`
+Development: `http://localhost:10000`
+
+### Implemented endpoints
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/health` | Returns `{ "status", "storage" }` — `storage` is `mongodb` or `in-memory` |
+| `GET` | `/test` | Legacy smoke-test route |
+| `POST` | `/submit-grievance` | Creates a grievance; runs the AI classifier cascade. Returns `{ "message", "grievanceId", "hfEngine" }` |
+| `GET` | `/grievances` | List; optional `?userId=` scopes to one citizen, `?limit=` |
+| `GET` | `/grievances/{grievance_id}` | Single grievance; `404` if unknown |
+| `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` |
+| `POST` | `/validate-image` | Image validation |
+| `POST` | `/sign-cloudinary` | Cloudinary upload signature |
+| `POST` | `/delete-cloudinary` | Cloudinary asset removal |
+
+> **Naming note:** the implemented create route is `POST /submit-grievance`
+> (kept for parity with the legacy client), not `POST /grievances` as
+> originally planned below. Interactive docs: `http://localhost:10000/docs`.
 
 ---
 
@@ -17,10 +38,12 @@ Development: `http://localhost:8000`
 ### GET /health
 No auth required.
 
-**Response 200:**
+**Response 200 (actual):**
 ```json
-{ "status": "ok", "version": "0.1.0" }
+{ "status": "ok", "storage": "mongodb" }
 ```
+`storage` is `"mongodb"` when `MONGODB_URI` is set and reachable, otherwise
+`"in-memory"` (non-persistent fallback).
 
 ---
 
@@ -350,6 +373,15 @@ Update category. **Auth:** ADMIN.
 
 ## Error Response Format
 
+**Implemented shape (actual):** validation and domain errors return
+`400`/`404` with a flat message field:
+```json
+{ "error": "Human-readable error message" }
+```
+FastAPI request-validation failures are normalised to the same shape by the
+`RequestValidationError` handler in `backend/app/main.py`.
+
+**Planned shape (target, not yet used):**
 All errors follow:
 ```json
 {

@@ -7,8 +7,8 @@
 The system follows a three-tier architecture:
 
 - **Frontend** — Next.js (TypeScript) single-page application served via Node.js
-- **Backend** — FastAPI (Python) REST API handling business logic and AI orchestration
-- **Database** — PostgreSQL for all persistent data
+- **Backend** — FastAPI (Python) REST API handling business logic and AI orchestration (`backend/app/`, port `10000`)
+- **Database** — MongoDB for all persistent data (DEC-011; originally PostgreSQL, superseded)
 
 The AI/NLP layer is co-located with the backend as Python modules/services, not as a
 separate HTTP microservice. This reduces operational complexity for an academic prototype.
@@ -37,7 +37,7 @@ separate HTTP microservice. This reduces operational complexity for an academic 
 └──────────────────┬───────────────────────────┘
                    │ REST API (JSON)
 ┌──────────────────▼───────────────────────────┐
-│            FastAPI Backend (Port 8000)         │
+│            FastAPI Backend (Port 10000)        │
 │                                               │
 │  Routers                                      │
 │  ├── /auth          Auth & token management   │
@@ -73,10 +73,11 @@ separate HTTP microservice. This reduces operational complexity for an academic 
 └────────┬─────────────────────┬────────────────┘
          │                     │
 ┌────────▼───────┐    ┌────────▼────────────────┐
-│  PostgreSQL DB  │    │  External AI APIs        │
-│  (Port 5432)   │    │  LLM API (OpenAI/etc.)   │
+│  MongoDB        │    │  External AI APIs        │
+│  (Atlas)        │    │  LLM API (Groq/HF)       │
 │                │    │  Sentence Transformers   │
-│  pgvector ext  │    │  (local inference)       │
+│  grievances    │    │  (local inference)       │
+│  collection    │    │                          │
 └────────────────┘    └─────────────────────────┘
 ```
 
@@ -124,33 +125,34 @@ frontend/
 **Framework:** FastAPI (Python 3.11+)
 
 **Key decisions:**
-- Async FastAPI with `asyncpg`-backed SQLAlchemy for async DB access
-- Dependency injection for database sessions, current user, and role checks
-- Alembic for database migrations
+- FastAPI running under `uvicorn`; repository-based persistence (`GrievanceRepository` protocol) with `pymongo` — no ORM, no migrations (DEC-011)
+- Dependency injection for current user and role checks *(planned)*
+- Schema evolution handled by flexible documents rather than Alembic migrations
 - Pydantic v2 for request/response validation and serialization
-- Background tasks (FastAPI `BackgroundTasks` or Celery for heavier AI processing)
+- Background tasks (FastAPI `BackgroundTasks`) for heavier AI processing
 
-**Directory structure (proposed):**
+**Actual directory structure (implemented):**
 ```
 backend/
 ├── app/
-│   ├── main.py           (FastAPI app factory)
-│   ├── config.py         (settings from env vars)
-│   ├── database.py       (SQLAlchemy engine + session)
-│   ├── dependencies.py   (shared DI: db session, current user, roles)
+│   ├── main.py           (app factory, CORS, validation error handler)
+│   ├── config.py         (settings from env vars via python-dotenv)
+│   ├── db.py             (GrievanceRepository protocol; Mongo + in-memory impls)
+│   ├── models.py         (Pydantic request/response models)
 │   │
-│   ├── models/           (SQLAlchemy ORM models)
-│   ├── schemas/          (Pydantic request/response schemas)
-│   ├── routers/          (FastAPI routers, one per domain)
-│   ├── services/         (Business logic layer)
-│   ├── ai/               (AI/NLP modules)
-│   └── utils/            (helpers, validators)
+│   ├── routers/          (grievances, images, health)
+│   ├── services/         (classification, image, cloudinary)
+│   └── __init__.py
 │
-├── alembic/              (migration scripts)
-├── tests/
-├── requirements.txt
-└── .env.example
+├── .env.example
+└── requirements.txt
 ```
+
+> The `alembic/`, `database.py`, `models/` (SQLAlchemy), `schemas/`,
+> `dependencies/`, `ai/`, `utils/`, `tests/` entries previously shown here were
+> the *proposed* FastAPI/Postgres layout from before DEC-008; `backend/app/`
+> above is what actually exists (DEC-010/DEC-011). A `tests/` directory is
+> planned for Phase 6.
 
 ---
 
@@ -196,6 +198,12 @@ Grievance state → PENDING_ASSIGNMENT
 
 ## Authentication Architecture
 
+> **Status: PLANNED — not implemented.** The current prototype uses a demo
+> localStorage session in the frontend (`frontend/lib/session.tsx`) with an
+> email allowlist for admin role (`frontend/lib/roles.ts`); the API trusts a
+> `userId` supplied in the request body. This is a documented known limitation
+> (see `docs/SECURITY.md`). The target design below remains the plan.
+
 ```
 User → POST /auth/login (email/password) → JWT access + refresh tokens
 User → GET /auth/google → Google OAuth 2.0 → JWT tokens
@@ -218,14 +226,15 @@ Handler proceeds or 403 Forbidden
 
 ## Database Architecture
 
-See `docs/DATABASE.md` for full schema documentation.
+See `docs/DATABASE.md` for full schema documentation (rewritten for MongoDB,
+DEC-011).
 
-**Key design choices:**
-- All tables have `id` (UUID), `created_at`, `updated_at`
-- Soft deletes where data must be preserved for audit purposes
-- JSONB columns for flexible AI analysis storage
-- `pgvector` extension for grievance embeddings
-- Audit log table for all significant state changes
+**Key design choices (current):**
+- Documents carry `id`, `createdAt`; unique index on `id`, compound index on `userId + createdAt`
+- Flexible documents absorb AI analysis output (no JSONB column concept needed)
+- Embeddings column via `pgvector` — **superseded**: deferred until a
+  Sentence-Transformers path is built (see `docs/DATABASE.md` roadmap)
+- Audit/history trail: **not yet implemented** — planned alongside real auth
 
 ---
 
@@ -262,10 +271,10 @@ Results in AI-08/AI-09 recommendations stored in the database and surfaced to ad
 | Boundary | Protocol | Notes |
 |---|---|---|
 | Frontend ↔ Backend | REST/JSON over HTTP | Documented in `docs/API.md` |
-| Backend ↔ PostgreSQL | SQLAlchemy async | Internal only |
-| Backend ↔ LLM API | HTTPS/REST | API key via env var |
-| Backend ↔ Sentence Transformers | Python function call | Local model inference |
-| Backend ↔ Google OAuth | HTTPS/OAuth2 | Client ID/secret via env var |
+| Backend ↔ MongoDB | pymongo driver | `MONGODB_URI` env var (Atlas) |
+| Backend ↔ LLM API | HTTPS/REST | API key via env var (`GROQ_API_KEY`, `HF_API_TOKEN`) |
+| Backend ↔ Sentence Transformers | Python function call | Local model inference *(planned)* |
+| Backend ↔ Google OAuth | HTTPS/OAuth2 | *(planned — see Authentication Architecture)* |
 
 ---
 
