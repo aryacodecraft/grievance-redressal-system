@@ -46,8 +46,8 @@ export interface ImageValidation {
   explanation?: string;
 }
 
-// Must match CATEGORY_KEYS in backend/server.py — the server only ever
-// emits these keys.
+// Must match CATEGORY_KEYS in backend/app/services/classification.py — the
+// server only ever emits these keys.
 export const CATEGORIES = [
   "water",
   "roads",
