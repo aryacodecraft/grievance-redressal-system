@@ -112,12 +112,16 @@ Use the approved stack. Do not introduce new frameworks or languages without doc
 | Layer | Approved Technology |
 |---|---|
 | Frontend | Next.js (TypeScript) |
-| Backend | FastAPI (Python) |
-| Database | PostgreSQL |
-| Auth | JWT + Google OAuth 2.0 + RBAC |
+| Backend | FastAPI (Python) — `backend/app/` is the serving path (DEC-010) |
+| Database | MongoDB (DEC-011; supersedes the original PostgreSQL plan in DEC-002) |
+| Auth | JWT + Google OAuth 2.0 + RBAC *(planned; current prototype uses a demo localStorage session + server-side-free role hints — see DEC-009)* |
 | AI/NLP | LLM API, Hugging Face Transformers, Sentence Transformers |
 | ML | PyTorch, Scikit-learn |
 | Visualization | Chart.js / Recharts |
+
+> **Stack note (2026-09-11):** rows above reflect the state after migration
+> Phases 1–3 (owner approved executing the migration plan, which supersedes
+> DEC-008). The Auth row is the *target*; real auth is not yet implemented.
 
 Prefer TypeScript over plain JavaScript for all substantial frontend code.
 
