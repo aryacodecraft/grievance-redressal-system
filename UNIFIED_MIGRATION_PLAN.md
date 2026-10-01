@@ -145,28 +145,32 @@ Indexes: unique on `grievanceId`; compound `userId + createdAt`; `createdAt` sto
 
 ### Phase 4 — Similarity port (1 day) — optional / partly done
 - ✅ TF-IDF + greedy clustering ported to TypeScript (`frontend/lib/tfidf.ts`) and wired into the admin cluster panel — works without the backend, exactly as the legacy HTML did.
-- [ ] Retire `functions/` (legacy admin HTML/JS) and the stray root `adfbh`.
-- [ ] Optional: move the port behind `GET /grievances/{id}/similar` if server-side results are wanted.
+- ✅ Retired `functions/` (6 files) and deleted the stray root `adfbh` (`09e83af`); references cleaned in `README.md`, `INTEGRATION.md`, `frontend/lib/tfidf.ts`.
+- ➖ `GET /grievances/{id}/similar` **not built** — TF-IDF runs client-side, so there is no server consumer. Closed as not-applicable rather than left open.
+- **Phase 4 complete.**
 
 ### Phase 5 — Docs, config, memory (1 day)
-- Add a new decision record (proposed **DEC-009**) reversing DEC-008.
-- Update `AGENTS.md` stack table, root `README.md`, `INTEGRATION.md`.
-- Update `memory/PROJECT_STATE.md`, `memory/TODO.md`, `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
-- Align `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`.
-- Rotate the hardcoded Firebase Web API key in `functions/admin_api.js` (it is in git history, so rotation is mandatory, not just deletion).
+- ✅ Decision records: **DEC-009** (frontend de-Firebase) exists, plus **DEC-010** (FastAPI serving path) and **DEC-011** (MongoDB), which cover the backend side the proposed DEC-009 was standing in for. **DEC-002** (PostgreSQL) marked SUPERSEDED BY DEC-011; **DEC-013** records the annotate-don't-rewrite approach.
+- ✅ Updated `AGENTS.md` stack table, root `README.md`, `INTEGRATION.md` (`cfdb7d1`, `09e83af`).
+- ✅ Updated `memory/PROJECT_STATE.md`, `memory/TODO.md`, `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+- ✅ Aligned `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md` (+ `docs/DEVELOPMENT.md`) — implemented-vs-planned status banners rather than rewrites (`4e52990`, DEC-013). `docs/SECURITY.md` now leads its Known Limitations with the trusted-`userId` gap.
+- ✅ *Beyond the plan:* `render.yaml` gained `MONGODB_URI`/`MONGODB_DB` env vars (`4686f81`).
+- ⬜ **Rotate the hardcoded Firebase Web API key — still open (owner action).** The file is gone; the key is in git history.
+- **Phase 5 complete** except the key rotation.
 
 ### Phase 6 — Verification (1 day)
-- pytest against a test Mongo database + classifier unit tests.
-- `npm run build` passes.
-- End-to-end manual check: submit → track → admin view.
-- `rg -i "firestore|firebase"` returns nothing in tracked source.
+- ✅ pytest against a test Mongo database + classifier unit tests — `tests/` (4 files, 85 tests) + `pytest.ini` + `requirements-dev.txt` (DEC-012). **85 passed** with a local `mongod`; **68 passed / 17 skipped** without one. Endpoint tests force the in-memory path by pinning `MONGODB_URI` before `backend.app` imports.
+- ✅ `npm run build` passes (9 routes); `tsc --noEmit` clean.
+- ✅ End-to-end: submit → track → admin view — `frontend/scripts/e2e.mjs` drives the real `lib/api.ts` client (zod-parsed) against a live backend + `mongod`, covering submit, track-by-id, unknown-id → null, admin global/scoped lists, assign → resolve, persistence, and error propagation. HTTP-level checks confirm all 6 frontend routes serve and a process restart keeps the data. *(No desktop browser was connected this session, so the DOM itself was not driven.)*
+- ✅ `rg -i "firestore|firebase"` returns nothing in tracked source — only past-tense history comments remain.
+- **Phase 6 complete.** `rg`/hygiene re-verified (0 tracked `__pycache__`, `venv/` untracked).
 
 ---
 
 ## 5. Known gaps / risks
 
 - **`/submit-grievance` trusts `userId` from the request body.** Acceptable for a demo-auth prototype; document it in `docs/SECURITY.md` as a known limitation.
-- **Firebase key in git history** — rotate, do not rely on deleting the file.
+- **Firebase key in git history** — rotate, do not rely on deleting the file. *(File deleted in Phase 4; rotation still open — owner action.)*
 - **`.env` / `serviceAccountKey.json` are untracked secrets** — never commit them (and they become obsolete after Mongo).
 - **One shared worktree across branches** — always check the branch before editing; `git checkout <branch> -- <path>` only for deliberately lifting files.
 - **`main` protection** — no commits, resets, or checkouts that modify `main`.
