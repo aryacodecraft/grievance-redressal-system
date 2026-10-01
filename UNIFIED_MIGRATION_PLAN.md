@@ -131,17 +131,22 @@ Indexes: unique on `grievanceId`; compound `userId + createdAt`; `createdAt` sto
 - **Phase 2 complete.** Note: `config.py` uses `python-dotenv` rather than `pydantic-settings` to avoid a new dependency.
 
 ### Phase 3 — MongoDB (2–3 days)
-- Add `pymongo`/`motor`; env `MONGODB_URI`, `MONGODB_DB`.
-- Drop `firebase-admin` from both requirements files.
-- Create the `grievances` collection + indexes (fresh DB).
-- Replace the Firestore write in `/submit-grievance` and in `tools/recategorize.py`.
-- Rewrite `docs/DATABASE.md` for MongoDB; mark the other 21 spec'd entities as roadmap.
-- Delete `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`.
+- ✅ Added `pymongo` + `dnspython` (`dnspython` is required for Atlas `mongodb+srv://`); dropped `firebase-admin` from both requirements files.
+- ✅ `MongoRepository` implements the existing `GrievanceRepository` protocol — routers untouched; `db.py` picks Mongo when `MONGODB_URI` is set and falls back to the in-memory store otherwise (logged clearly, reported as `"storage"` from `/health`).
+- ✅ Indexes created at startup: unique `id`, compound `userId + createdAt`; `createdAt` stored as a BSON `Date`.
+- ✅ Firestore write replaced by `MongoRepository.create`; `tools/recategorize.py` rewritten for Mongo (and now imports the shared classifier, with `--dry-run`).
+- ✅ `docs/DATABASE.md` rewritten for MongoDB; the 22 Postgres entities moved to a roadmap section.
+- ✅ Deleted `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`, and retired `backend/server.py`.
+- ✅ Added `backend/.env.example` documenting the Atlas setup.
+- ✅ Verified against a real MongoDB: indexes, BSON date, scoped list, PATCH, and persistence across a server restart. Also verified a clean-venv install from `backend/requirements.txt` and the in-memory fallback.
+- **Phase 3 complete.** Remaining: the user's Atlas setup (cluster + `MONGODB_URI`), which is the only blocker.
 
-### Phase 4 — Similarity port (1 day)
-- Port `functions/tfidf.js` (TF-IDF + greedy clustering) to Python.
-- Expose `GET /grievances/{id}/similar`.
-- Retire `functions/`.
+**Your Atlas setup** — the only remaining blocker (cluster + `MONGODB_URI`). Also delete `backend/serviceAccountKey.json` and any `FIREBASE_*` entries in `backend/.env`.
+
+### Phase 4 — Similarity port (1 day) — optional / partly done
+- ✅ TF-IDF + greedy clustering ported to TypeScript (`frontend/lib/tfidf.ts`) and wired into the admin cluster panel — works without the backend, exactly as the legacy HTML did.
+- [ ] Retire `functions/` (legacy admin HTML/JS) and the stray root `adfbh`.
+- [ ] Optional: move the port behind `GET /grievances/{id}/similar` if server-side results are wanted.
 
 ### Phase 5 — Docs, config, memory (1 day)
 - Add a new decision record (proposed **DEC-009**) reversing DEC-008.

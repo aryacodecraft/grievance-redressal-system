@@ -98,21 +98,36 @@ Source of truth: `functions/grievance-app.html` (citizen), `functions/admin.html
 
 ## Phase 3 — MongoDB
 
-- [ ] Add `pymongo`/`motor`
-- [ ] Add `MONGODB_URI` / `MONGODB_DB` config
-- [ ] Drop `firebase-admin` from root `requirements.txt`
-- [ ] Drop `firebase-admin` from `backend/requirements.txt`
-- [ ] Create `grievances` collection with today's field set
-- [ ] Unique index on `grievanceId`
-- [ ] Compound index on `userId + createdAt`
-- [ ] Store `createdAt` as BSON date
-- [ ] Replace Firestore write in `/submit-grievance`
-- [ ] Rewrite `tools/recategorize.py` for MongoDB
-- [ ] Rewrite `docs/DATABASE.md` for MongoDB
-- [ ] Delete `firebase.json`
-- [ ] Delete `.firebaserc`
-- [ ] Delete `firestore.rules`
-- [ ] Delete `firestore.indexes.json`
+- [x] Add `pymongo`/`motor` — chose **pymongo** (sync; FastAPI sync endpoints run in a threadpool) + `dnspython` for `mongodb+srv://`
+- [x] Add `MONGODB_URI` / `MONGODB_DB` config
+- [x] Drop `firebase-admin` from root `requirements.txt` (also dropped Flask/Flask-Cors/gunicorn)
+- [x] Drop `firebase-admin` from `backend/requirements.txt` (file rewritten as an accurate freeze of the new stack)
+- [x] Create `grievances` collection with today's field set
+- [x] Unique index on `id` (`uniq_grievance_id`)
+- [x] Compound index on `userId + createdAt` (`user_created`)
+- [x] Store `createdAt` as BSON date
+- [x] Replace Firestore write in `/submit-grievance` (now `MongoRepository.create`)
+- [x] Rewrite `tools/recategorize.py` for MongoDB (now imports `backend.app.services`, has `--dry-run`)
+- [x] Rewrite `docs/DATABASE.md` for MongoDB
+- [x] Delete `firebase.json`
+- [x] Delete `.firebaserc`
+- [x] Delete `firestore.rules`
+- [x] Delete `firestore.indexes.json`
+- [x] Retire legacy `backend/server.py`
+- [x] Add `backend/.env.example` with Atlas setup instructions
+- [x] Verify: clean-venv install from `backend/requirements.txt` + app import
+- [x] Verify against a real MongoDB (local `mongod`): indexes created, `createdAt` is a BSON `Date`, scoped list, PATCH, **persistence across restart**
+- [x] Verify in-memory fallback when `MONGODB_URI` is unset
+
+**Phase 3 complete** (code side).
+
+**Your setup (Atlas) — the only remaining blocker:**
+1. Create a free **M0** cluster at cloud.mongodb.com
+2. Database Access → create a DB user; Network Access → add your IP (or `0.0.0.0/0`)
+3. Connect → Drivers → copy the URI into `backend/.env` as `MONGODB_URI` (set `MONGODB_DB=grievance`)
+4. Boot and confirm `GET /health` reports `"storage": "mongodb"`
+
+**Left for you:** delete `backend/serviceAccountKey.json` (obsolete Firebase key) and any `FIREBASE_*` vars in `backend/.env`.
 
 ## Phase 4 — Similarity port
 
