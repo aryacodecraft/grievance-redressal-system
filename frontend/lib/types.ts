@@ -13,6 +13,7 @@ export interface Grievance {
   id: string;
   title: string;
   description: string;
+  userId?: string;
   status: string;
   category: string;
   priority: string;
