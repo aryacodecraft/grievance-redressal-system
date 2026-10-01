@@ -125,6 +125,23 @@ mongod --dbpath /path/to/scratch --shutdown
 
 Override with `TEST_MONGODB_URI` / `TEST_MONGODB_DB` to point elsewhere.
 
+### End-to-end check (frontend client ↔ live backend)
+
+```bash
+# terminal 1 — backend (with or without MONGODB_URI)
+uvicorn backend.app.main:app --host 127.0.0.1 --port 10000
+
+# terminal 2 — the real frontend API client against it
+NEXT_PUBLIC_API_URL=http://localhost:10000 node frontend/scripts/e2e.mjs
+```
+
+`frontend/scripts/e2e.mjs` imports `frontend/lib/api.ts` itself, so every
+response is validated by the same zod schemas the UI uses — submit → track →
+admin assign/resolve → re-read. It needs **Node 23.6+** (TypeScript type
+stripping is on by default there — earlier versions need
+`--experimental-strip-types`) and a backend already running; it is **not** part
+of `pytest`.
+
 ---
 
 ## Frontend Setup
