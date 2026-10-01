@@ -72,7 +72,9 @@ python -m venv venv
 source venv/bin/activate      # Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r backend/requirements.txt
+pip install -r requirements.txt          # runtime — what Render installs
+pip install -r requirements-dev.txt      # runtime + pytest (local dev/tests)
+# backend/requirements.txt is a pinned snapshot of the same runtime deps
 
 # Configure environment
 cp backend/.env.example backend/.env
@@ -88,6 +90,40 @@ Alternative docs: `http://localhost:10000/redoc`
 
 > Run `uvicorn` from the **repository root** (not from inside `backend/`) so
 > that `backend.app` resolves as a package.
+
+---
+
+## Running Tests
+
+```bash
+# From the repository root
+pip install -r requirements-dev.txt
+pytest                      # all tests
+pytest tests/test_endpoints.py -v
+```
+
+The suite has three files:
+
+| File | Covers |
+|---|---|
+| `tests/test_classification.py` | Keyword classifier, priority/urgency rules, sentiment normalisation, and the `CATEGORY_KEYS` ↔ frontend `CATEGORIES` contract |
+| `tests/test_endpoints.py` | HTTP behaviour of the real FastAPI app (request/response shapes, status codes, error format) |
+| `tests/test_repository.py` | Both `GrievanceRepository` implementations + repository selection |
+
+**Endpoint and in-memory tests always run** — `tests/conftest.py` pins
+`MONGODB_URI=""` (and disables LLM keys) before `backend.app` is imported, so
+they never touch a real database or the network.
+
+**MongoDB tests skip unless a test database is reachable.** They default to
+`mongodb://127.0.0.1:27017` and drop their collection before/after each test:
+
+```bash
+mongod --dbpath /path/to/scratch --port 27017 --fork --logpath /tmp/mongod.log
+pytest                                  # Mongo tests now run
+mongod --dbpath /path/to/scratch --shutdown
+```
+
+Override with `TEST_MONGODB_URI` / `TEST_MONGODB_DB` to point elsewhere.
 
 ---
 
