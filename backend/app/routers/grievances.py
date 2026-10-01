@@ -1,0 +1,216 @@
+"""Grievance submission, listing, lookup and officer status updates."""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
+
+from ..config import IMAGE_LLM_THRESHOLD
+from ..db import repository, to_api
+from ..models import StatusUpdateRequest, SubmitGrievanceRequest
+from ..services.classification import (
+    CATEGORY_KEYS,
+    CATEGORY_LABELS,
+    CATEGORY_MODEL,
+    GROQ_MODEL,
+    PRIORITY_MODEL,
+    classify_category,
+    classify_priority,
+    extract_keywords,
+    find_urgent_matches,
+    infer_category_from_keywords,
+    refine_with_groq,
+)
+from ..services.image import llm_image_confidence
+
+logger = logging.getLogger("grievance-api")
+router = APIRouter()
+
+
+@router.post("/submit-grievance")
+def submit_grievance(payload: SubmitGrievanceRequest):
+    title = payload.title.strip()
+    description = payload.description.strip()
+    user_id = payload.userId.strip()
+
+    if not title or not description or not user_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "Missing required fields (title, description, userId)"
+            },
+        )
+
+    image_url = payload.imageUrl
+    image_validation_result = None
+
+    # 1. LLM image validation (rejection is decided here, before we store)
+    if image_url:
+        try:
+            llm_res = llm_image_confidence(image_url)
+        except Exception as exc:
+            logger.exception("LLM image validation failed during submit")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "LLM image validation failed",
+                    "detail": str(exc),
+                },
+            )
+        llm_score = float(llm_res.get("score", 0.0))
+        image_validation_result = {
+            "llm_score": llm_score,
+            "explanation": llm_res.get("explanation", ""),
+            "raw": llm_res.get("raw", ""),
+        }
+        if llm_score < IMAGE_LLM_THRESHOLD:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Image rejected by LLM validation (score below threshold)",
+                    "imageValidation": image_validation_result,
+                    "threshold": float(IMAGE_LLM_THRESHOLD),
+                },
+            )
+
+    # 2. Classification cascade (HF → Groq → keywords)
+    full_text = f"{title}\n{description}"
+    try:
+        cat_res = classify_category(full_text)
+    except Exception:
+        logger.exception("category classification failed")
+        cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
+    try:
+        pri_res = classify_priority(full_text)
+    except Exception:
+        logger.exception("priority classification failed")
+        pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
+
+    hf_priority = pri_res.get("priority", "low")
+    sentiment_raw = pri_res.get("sentiment", "neutral")
+    sentiment_score = pri_res.get("sentimentScore", 0.0)
+    urgent_matches = find_urgent_matches(full_text)
+
+    hf_category = cat_res.get("category", "other")
+    keyword_category = infer_category_from_keywords(full_text)
+    if keyword_category:
+        hf_category = keyword_category
+
+    if hf_category == "sanitation" and hf_priority == "low":
+        hf_priority = "medium"
+
+    hf_raw_label = cat_res.get("rawLabel", "")
+    keywords = extract_keywords(full_text)
+
+    try:
+        groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
+    except Exception:
+        groq_res = None
+
+    if groq_res:
+        priority = groq_res.get("priority", hf_priority)
+        category = groq_res.get("category", hf_category)
+        ai_explanation = groq_res.get("explanation", "Refined by Groq LLM.")
+    else:
+        priority = hf_priority
+        category = hf_category
+        ai_explanation = (
+            f"Category '{category}' predicted from '{hf_raw_label}' "
+            f"(score: {float(cat_res.get('confidence', 0.0)):.2f}), "
+            f"Priority '{priority}' determined using sentiment ('{sentiment_raw}', "
+            f"score: {float(sentiment_score):.2f}) and urgency keywords."
+        )
+
+    hf_engine = {
+        "category": category,
+        "priority": priority,
+        "isUrgent": priority == "high",
+        "keywords": keywords,
+        "explanation": ai_explanation,
+        "rawCategoryLabel": hf_raw_label,
+        "categoryConfidence": float(cat_res.get("confidence", 0.0)),
+        "urgentMatches": urgent_matches,
+        "modelInfo": {
+            "categoryModel": CATEGORY_MODEL,
+            "priorityModel": PRIORITY_MODEL,
+            "sentimentLabel": sentiment_raw,
+            "sentimentScore": float(sentiment_score),
+            "groqModel": GROQ_MODEL if groq_res else "None",
+            "hfCategory": hf_category,
+            "hfPriority": hf_priority,
+        },
+    }
+
+    # 3. Persist
+    record = {
+        "title": title,
+        "description": description,
+        "userId": user_id,
+        "status": "open",
+        "category": category,
+        "priority": priority,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "hfEngine": hf_engine,
+    }
+    if image_url:
+        record["imageUrl"] = image_url
+        if image_validation_result:
+            record["imageValidation"] = image_validation_result
+    if payload.latitude is not None and payload.longitude is not None:
+        record["latitude"] = float(payload.latitude)
+        record["longitude"] = float(payload.longitude)
+
+    try:
+        doc_id = repository.create(record)
+    except Exception:
+        logger.exception("Failed to create grievance document")
+        return JSONResponse(
+            status_code=500, content={"error": "Failed to save grievance"}
+        )
+
+    return {
+        "message": "Grievance submitted successfully",
+        "grievanceId": doc_id,
+        "hfEngine": hf_engine,
+    }
+
+
+@router.get("/grievances")
+def list_grievances(userId: str | None = None, limit: int = 50):
+    """Admins call with no `userId`; citizens pass their own id."""
+    docs = repository.list(user_id=userId, limit=limit)
+    return [to_api(doc) for doc in docs]
+
+
+@router.get("/grievances/{grievance_id}")
+def get_grievance(grievance_id: str):
+    doc = repository.get(grievance_id.strip())
+    if doc is None:
+        return JSONResponse(
+            status_code=404, content={"error": "Grievance not found"}
+        )
+    return to_api(doc)
+
+
+@router.patch("/grievances/{grievance_id}/status")
+def update_status(grievance_id: str, payload: StatusUpdateRequest):
+    patch = {}
+    if payload.status is not None:
+        patch["status"] = payload.status
+    if payload.assignee is not None:
+        patch["assignee"] = payload.assignee
+
+    if not patch:
+        return JSONResponse(
+            status_code=400, content={"error": "Nothing to update"}
+        )
+
+    doc = repository.update(grievance_id.strip(), patch)
+    if doc is None:
+        return JSONResponse(
+            status_code=404, content={"error": "Grievance not found"}
+        )
+    return to_api(doc)
