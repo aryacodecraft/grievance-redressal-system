@@ -14,10 +14,10 @@
 
 - [ ] Review + merge `feature/unified-system` → `main` (`--no-ff`)
 - [ ] Owner confirms canonical backend/DB/auth stack; update `AGENTS.md` stack table + `docs/ARCHITECTURE.md`
-- [ ] **Implement `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status`** (Phase 2 of UNIFIED_MIGRATION_PLAN) — frontend REST client already calls these; live mode 404s without them
-- [ ] Firebase-removal (server side): delete `firebase.json`/`.firebaserc`/`firestore.*`, strip `firebase-admin` from `backend/server.py` + `tools/recategorize.py`, remove `FIREBASE_SERVICE_ACCOUNT` from `render.yaml`, replace `/submit-grievance` persistence — **frontend half DONE 2026-09-11** (`lib/firebase.ts` deleted, `firebase`/`next-auth` deps removed)
-- [x] Wire Next.js `frontend/` to backend API contract — DONE 2026-09-11 (`lib/api.ts` typed client; `:10000` aligned in `.env.example`); server endpoints pending (above)
-- [ ] Hygiene: rewrite binary `.gitignore` as UTF-8, untrack `__pycache__/`, convert `backend/requirements.txt` from UTF-16 to UTF-8, decide fate of `adfbh`, rotate hardcoded Firebase key in `functions/admin_api.js`
+- [x] **Implement `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status`** — DONE 2026-09-11 (Phase 2: `backend/app/routers/grievances.py`; smoke-tested in-process + via `uvicorn` on `:10000`)
+- [ ] **Phase 3 — MongoDB persistence:** add `pymongo`/`motor` + `MONGODB_URI`/`MONGODB_DB`; swap `InMemoryRepository` for Mongo behind `GrievanceRepository` in `backend/app/db.py` (no router changes)
+- [ ] **Phase 4 — remove remaining Firebase/Firestore:** `backend/server.py`, `tools/recategorize.py`, `functions/`, root `firebase.json`/`.firebaserc`/`firestore.*` — after Phase 3 + parity sign-off (frontend + serving path already Firebase-free)
+- [ ] Hygiene: rewrite binary `.gitignore` as UTF-8, untrack `__pycache__/` (incl. new untracked `backend/app/**/__pycache__`), convert `backend/requirements.txt` from UTF-16 to UTF-8, decide fate of `adfbh`, rotate hardcoded Firebase key in `functions/admin_api.js`
 - [x] Write new root README describing the unified repo (written 2026-09-11; deliberately not reusing `Idea Lab` README)
 - [ ] Rewrite `docs/DATABASE.md` + `docs/API.md` against the Flask + replacement-persistence design
 - [ ] Set real Cloudinary cloud name + upload preset in `frontend/.env.local` (Phase 1.5 checklist leftover)
@@ -41,7 +41,7 @@
 - [ ] Configure `alembic` in `backend/` — SUPERSEDED (no Alembic; Firestore is current DB)
 - [ ] Set up basic FastAPI app with health check — SUPERSEDED (Flask `/health` already exists in `backend/server.py`)
 - [ ] Set up basic Next.js app with placeholder landing page — DONE via copy
-- [ ] Verify backend starts — OPEN (`gunicorn ... backend.server:app` per `render.yaml`, or `python backend/server.py`)
+- [x] Verify backend starts — DONE 2026-09-11: `uvicorn backend.app.main:app` on `:10000` serves `/health` + `/grievances` (legacy `gunicorn backend.server:app` still available for the Flask reference)
 - [ ] Verify frontend starts: `npm run dev` — OPEN
 
 ---

@@ -272,7 +272,7 @@ JWT payload includes user ID and role. Role claims verified server-side on every
 
 **ID:** DEC-008
 **Date:** 2026-09-11
-**Status:** ACCEPTED
+**Status:** ACCEPTED — items 1 and 3 partially SUPERSEDED BY DEC-010 (FastAPI `backend/app/` is now the serving path; Flask `backend/server.py` retained as legacy reference), item 4 partially superseded (Firestore is out of the serving path; `firebase.*` files kept until Phase 4). Items 2 and 5 remain valid.
 
 **Context:**
 Two codebases existed: `Idea Lab` (FastAPI + PostgreSQL scaffold, Next.js frontend,
@@ -393,3 +393,68 @@ HTML UI (`functions/*.html`). Real authentication and the backend rewrite
 
 **Affected Components:** `frontend/` (session, data access, admin UI, auth
 pages, deps), migration docs, memory
+
+---
+
+## DEC-010 — Phase 2: FastAPI Becomes the Serving Path; In-Process Repository Pending MongoDB
+
+**ID:** DEC-010
+**Date:** 2026-09-11
+**Status:** ACCEPTED (implements UNIFIED_MIGRATION_PLAN Phase 2; supersedes
+DEC-008 items 1, 3 and 4 — see the annotation on DEC-008)
+
+**Context:**
+DEC-008 kept `backend/server.py` (Flask + Firestore) authoritative and
+discarded the FastAPI scaffold. `UNIFIED_MIGRATION_PLAN` (owner-approved
+follow-up) instead calls for a FastAPI rewrite (`Phase 2`), Firestore →
+MongoDB replacement (`Phase 3`), and full Firebase removal, with the frontend's
+typed REST client (`lib/api.ts`) defining the contract. Phase 1/1.5 had already
+removed Firebase from the frontend.
+
+**Decision:**
+1. `backend/app/` (FastAPI) is the serving path: `uvicorn
+   backend.app.main:app` (render.yaml). Endpoints mirror the legacy contract
+   exactly — `POST /submit-grievance` (`message, grievanceId, hfEngine`),
+   `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status`,
+   image + health routes, `400 {"error": …}` validation shape.
+2. Classifier/image logic is ported **verbatim** from `backend/server.py`
+   (HF → Groq → keyword cascade); `CATEGORY_KEYS` stays byte-identical to the
+   frontend's `CATEGORIES`.
+3. Persistence goes behind a `GrievanceRepository` protocol (`db.py`). Phase 2
+   ships an in-process repository so every endpoint works end-to-end with no
+   external service; Phase 3 swaps in MongoDB (`pymongo`/`motor`,
+   `MONGODB_URI`/`MONGODB_DB`) with no router changes.
+4. `backend/server.py`, `tools/recategorize.py`, `functions/`, and root
+   `firebase.*` remain untouched as legacy reference until Phase 3 + parity
+   sign-off; they are excluded from the serving path.
+5. `config.py` uses `python-dotenv`, not `pydantic-settings`, to avoid an
+   extra dependency.
+
+**Reason:**
+- The frontend contract already existed and needed a real server; an
+  in-process repository delivers working endpoints without introducing
+  MongoDB before the persistence decision is exercised.
+- Verbatim porting preserves ML behaviour without an evaluation harness to
+  prove a rewrite.
+- Protocol-based persistence makes the MongoDB swap a single-file change.
+
+**Alternatives Considered:**
+- Keep Flask as authoritative (DEC-008 status quo): rejected — the approved
+  migration plan explicitly targets FastAPI, and two backends would diverge.
+- Implement MongoDB directly in Phase 2: rejected — plan splits it into
+  Phase 3; in-process repo keeps Phase 2 verifiable without external services.
+- Fake the API in the frontend: rejected — contradicts the migration plan.
+
+**Consequences:**
+- DEC-008 items 1, 3 and 4 are marked partially superseded; Flask remains in
+  the repo but is no longer the target architecture.
+- In-process persistence is **volatile and single-process** — data is lost on
+  restart; acceptable only until Phase 3 lands (documented, not a hidden gap).
+- Server-side Firebase removal (Phase 4) still pending: `backend/server.py`,
+  `tools/`, `functions/`, `render.yaml` history, root `firebase.*` files.
+- `/submit-grievance` degrades gracefully without `GROQ_API_KEY`/
+  `HF_API_TOKEN` (keywords-only classification) — matches legacy fallback.
+
+**Affected Components:** `backend/app/`, `backend/server.py` (legacy),
+`render.yaml`, requirements files, `frontend/lib/api.ts`/`types.ts`
+(null-tolerant schemas), migration docs, memory

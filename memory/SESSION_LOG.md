@@ -375,3 +375,42 @@ intermediate commit is buildable:
 - Previous session's Firebase-console follow-ups (publish `firestore.rules`,
   rotate web API key) are now moot for the frontend (Firebase client removed);
   backend/legacy files still hold the key.
+
+---
+
+## 2026-09-11 — Phase 2 Committed (`feature/unified-system`)
+
+### Goal
+Commit the pending Phase 2 (FastAPI rewrite) working tree as multiple
+one-line commits, verifying first.
+
+### Work Completed
+Verified: in-process `TestClient` smoke test against `backend/app.main`
+(health, submit → list → `?userId=` scoped list → get → patch status/assignee
+→ 404s all correct; AI refinement degrades gracefully without API keys),
+`tsc --noEmit` clean, `npm run build` 9 routes, AST-parse of all 13
+`backend/app` modules (fastapi not installed in system python — smoke test
+ran in a throwaway venv at `/tmp/opencode/phase2venv`).
+
+Commits:
+1. `e55a9a3` Add FastAPI grievance service under backend/app
+   (13 `.py` files; `__pycache__`/`.pyc` excluded on purpose)
+2. `78cd9ed` Add FastAPI dependencies and switch Render to uvicorn
+3. `79906d5` Accept null grievance fields in the typed API client
+4. `d1c9c6d` Mark Phase 2 complete in migration docs
+5. (this entry) memory + DEC-010
+
+### Decisions
+- DEC-010 recorded; DEC-008 marked partially superseded (FastAPI is now the
+  serving path per `UNIFIED_MIGRATION_PLAN`; Flask `backend/server.py` stays
+  as legacy reference).
+
+### Open
+- Phase 3: MongoDB persistence — swap `InMemoryRepository` for Mongo behind
+  the existing `GrievanceRepository` protocol; add `MONGODB_URI`/`MONGODB_DB`.
+- Server-side Firebase removal is still incomplete: `backend/server.py`,
+  `tools/recategorize.py`, `functions/`, root `firebase.*` remain (legacy path).
+- `backend/app/**/__pycache__` left untracked (repo-wide `.gitignore` hygiene
+  fix still pending).
+- `pydantic-settings` avoided in favour of `python-dotenv` (documented in the
+  migration plan) — no new dependency introduced beyond fastapi/uvicorn.
