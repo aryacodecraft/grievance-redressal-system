@@ -13,16 +13,16 @@ export interface Grievance {
   id: string;
   title: string;
   description: string;
-  userId?: string;
+  userId?: string | null;
   status: string;
   category: string;
   priority: string;
   createdAt: string;
-  imageUrl?: string;
-  latitude?: number;
-  longitude?: number;
-  hfEngine?: HfEngine;
-  assignee?: string;
+  imageUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  hfEngine?: HfEngine | null;
+  assignee?: string | null;
 }
 
 export interface SubmitPayload {

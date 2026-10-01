@@ -64,16 +64,16 @@ const grievanceSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().default(""),
-  userId: z.string().optional(),
+  userId: z.string().nullish(),
   status: z.string().default("open"),
   category: z.string().default("other"),
   priority: z.string().default("low"),
   createdAt: z.string(),
-  imageUrl: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
-  hfEngine: hfEngineSchema.optional(),
-  assignee: z.string().optional(),
+  imageUrl: z.string().nullish(),
+  latitude: z.number().nullish(),
+  longitude: z.number().nullish(),
+  hfEngine: hfEngineSchema.nullish(),
+  assignee: z.string().nullish(),
 });
 
 const grievanceListSchema = z.array(grievanceSchema);
