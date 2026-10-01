@@ -72,6 +72,9 @@
     .navbar .auth-buttons {
       display: flex;
       gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .btn-signin {
@@ -100,7 +103,30 @@
     }
 
     .btn-join:hover {
-      background: #e65100;
+      background: #0b3d8a;
+    }
+
+    .btn-admin {
+      background: white;
+      color: var(--primary-color);
+      border: 2px solid var(--primary-color);
+      font-weight: bold;
+      padding: 8px 18px;
+      border-radius: 20px;
+      transition: all 0.2s;
+      font-size: 0.95rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .btn-admin:hover {
+      background: var(--primary-color);
+      color: white;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(13,71,161,0.2);
     }
 
     .hero-section {
@@ -144,7 +170,7 @@
     }
 
     .btn-register:hover {
-      background: #e65100;
+      background: #0b3d8a;
       transform: translateY(-2px);
     }
 
@@ -223,7 +249,7 @@
 
     .form-control:focus {
       border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(255, 111, 0, 0.1);
+      box-shadow: 0 0 0 3px rgba(13, 71, 161, 0.1);
     }
 
     .btn-submit {
@@ -237,18 +263,46 @@
     }
 
     .btn-submit:hover {
-      background: #e65100;
+      background: #0b3d8a;
     }
 
     .status-badge {
       font-size: 0.85em;
-      padding: 0.25em 0.5em;
-      border-radius: 12px;
-      font-weight: bold;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.02em;
     }
 
-    .status-open { background: #ff9800; color: #121212; }
-    .status-resolved { background: #4caf50; color: white; }
+    .status-open { background: #fff3e0; color: #e65100; border:1px solid #ffcc80; }
+    .status-pending { background: #fff3e0; color: #e65100; border:1px solid #ffcc80; }
+    .status-resolved { background: #e8f5e9; color: #2e7d32; border:1px solid #a5d6a7; }
+
+    .user-grievance-card {
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border-left: 4px solid #ff9800;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .user-grievance-card.pending { border-left-color: #ff9800; }
+    .user-grievance-card.resolved { border-left-color: #4caf50; background: #fafffe; }
+    .user-grievance-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+
+    .stat-card-mini {
+      background: white;
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
 
     /* Responsive */
     @media (max-width: 768px) {
@@ -291,6 +345,7 @@
         
         <button class="btn-signin" onclick="showAuthModal('signin')">Sign in</button>
         <button class="btn-join" onclick="showAuthModal('signup')">Join now</button>
+        <button class="btn-admin" onclick="goToAdmin()" title="Admin dashboard">Sign in as Admin</button>
       </div>
     </div>
 
@@ -343,7 +398,25 @@
         <button class="btn btn-outline-secondary" onclick="signOut()">Sign Out</button>
       </div>
 
-      <h6>Your Grievances:</h6>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h6 class="mb-0" style="color:var(--secondary-color); font-weight:700;">Your Grievances:</h6>
+        <small id="grievanceStats" class="text-muted"></small>
+      </div>
+
+      <!-- User stats -->
+      <div id="userGrievanceStats" class="row g-2 mb-3" style="display:none;">
+        <div class="col-4"><div class="stat-card-mini"><div class="small-label">Total</div><div id="userStatTotal" style="font-weight:700; color:var(--primary-color); font-size:1.25rem;">0</div></div></div>
+        <div class="col-4"><div class="stat-card-mini" style="border-color:#ffcc80;"><div class="small-label">Pending</div><div id="userStatPending" style="font-weight:700; color:#ef6c00; font-size:1.25rem;">0</div></div></div>
+        <div class="col-4"><div class="stat-card-mini" style="border-color:#a5d6a7;"><div class="small-label">Resolved</div><div id="userStatResolved" style="font-weight:700; color:#2e7d32; font-size:1.25rem;">0</div></div></div>
+      </div>
+
+      <!-- Status filter for user -->
+      <div class="d-flex gap-2 mb-3 flex-wrap" id="userStatusFilterRow">
+        <button class="btn btn-sm btn-primary" data-filter="all" onclick="filterUserGrievances('all')">All</button>
+        <button class="btn btn-sm btn-outline-primary" data-filter="pending" onclick="filterUserGrievances('pending')">⏳ Pending</button>
+        <button class="btn btn-sm btn-outline-primary" data-filter="resolved" onclick="filterUserGrievances('resolved')">✅ Resolved</button>
+      </div>
+
       <div id="grievanceList" class="list-group mt-3">
         <div class="text-center text-muted">Loading grievances...</div>
       </div>
@@ -389,12 +462,15 @@
     const BACKEND_URL = "http://127.0.0.1:5000";
 
     let unsubscribe = null;
+    let userGrievances = [];
+    let userStatusFilter = 'all';
 
     // Toggle UI
     auth.onAuthStateChanged(user => {
       if (user) {
         document.getElementById('mainFormSection').style.display = 'block';
         document.querySelector('.navbar .auth-buttons').innerHTML = `
+          <button class="btn-admin" onclick="goToAdmin()" title="Admin dashboard">Admin Panel</button>
           <button class="btn-signin" onclick="signOut()">Sign Out</button>
         `;
         loadGrievances(user.uid);
@@ -403,10 +479,21 @@
         document.querySelector('.navbar .auth-buttons').innerHTML = `
           <button class="btn-signin" onclick="showAuthModal('signin')">Sign in</button>
           <button class="btn-join" onclick="showAuthModal('signup')">Join now</button>
+          <button class="btn-admin" onclick="goToAdmin()" title="Admin dashboard">Sign in as Admin</button>
         `;
-        if (unsubscribe) unsubscribe();
+        if (unsubscribe) { try { unsubscribe(); } catch(e){} unsubscribe = null; }
+        userGrievances = [];
+        userStatusFilter = 'all';
+        const statsRow = document.getElementById('userGrievanceStats');
+        if (statsRow) statsRow.style.display = 'none';
+        const meta = document.getElementById('grievanceStats');
+        if (meta) meta.innerText = '';
       }
     });
+
+    function goToAdmin() {
+      window.location.href = 'admin.html';
+    }
 
     function showAuthModal(mode) {
       const modal = document.getElementById('authModal');
@@ -438,6 +525,11 @@
         await auth.createUserWithEmailAndPassword(email, password);
         closeAuthModal();
         showStatus("✅ Account created!", "text-success");
+        // auto-scroll to grievance form after signup
+        setTimeout(() => {
+          const sec = document.getElementById('mainFormSection');
+          if (sec && auth.currentUser) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 400);
       } catch (e) {
         showStatus("❌ " + e.message, "text-danger");
       }
@@ -451,6 +543,10 @@
         await auth.signInWithEmailAndPassword(email, password);
         closeAuthModal();
         showStatus("✅ Welcome back!", "text-success");
+        setTimeout(() => {
+          const sec = document.getElementById('mainFormSection');
+          if (sec && auth.currentUser) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 400);
       } catch (e) {
         showStatus("❌ " + e.message, "text-danger");
       }
@@ -537,6 +633,104 @@
       }
     }
 
+    function normalizeUserStatus(s) {
+      const v = String(s || 'open').toLowerCase().trim();
+      if (v === 'resolved' || v === 'closed' || v === 'completed') return 'resolved';
+      return 'pending';
+    }
+
+    function filterUserGrievances(status) {
+      userStatusFilter = status;
+      // update pill styles
+      document.querySelectorAll('#userStatusFilterRow button').forEach(btn => {
+        const f = btn.getAttribute('data-filter');
+        if (f === status) {
+          btn.className = 'btn btn-sm btn-primary';
+        } else {
+          btn.className = 'btn btn-sm btn-outline-primary';
+        }
+      });
+      renderUserGrievances();
+    }
+
+    function renderUserGrievances() {
+      const listEl = document.getElementById('grievanceList');
+      const statsRow = document.getElementById('userGrievanceStats');
+      const statsMeta = document.getElementById('grievanceStats');
+      if (!listEl) return;
+
+      if (!userGrievances.length) {
+        listEl.innerHTML = '<div class="text-center text-muted py-4">No grievances yet. File your first complaint above.</div>';
+        if (statsRow) statsRow.style.display = 'none';
+        if (statsMeta) statsMeta.innerText = '';
+        return;
+      }
+
+      // stats
+      const pendingCount = userGrievances.filter(g => normalizeUserStatus(g.status) === 'pending').length;
+      const resolvedCount = userGrievances.filter(g => normalizeUserStatus(g.status) === 'resolved').length;
+      const total = userGrievances.length;
+      const totalPendEl = document.getElementById('userStatTotal');
+      const pendEl = document.getElementById('userStatPending');
+      const resEl = document.getElementById('userStatResolved');
+      if (totalPendEl) totalPendEl.innerText = total;
+      if (pendEl) pendEl.innerText = pendingCount;
+      if (resEl) resEl.innerText = resolvedCount;
+      if (statsRow) statsRow.style.display = 'flex';
+      if (statsMeta) statsMeta.innerText = total + ' total • ' + pendingCount + ' pending • ' + resolvedCount + ' resolved';
+
+      // filtered list
+      let filtered = userGrievances;
+      if (userStatusFilter === 'pending') filtered = userGrievances.filter(g => normalizeUserStatus(g.status) === 'pending');
+      if (userStatusFilter === 'resolved') filtered = userGrievances.filter(g => normalizeUserStatus(g.status) === 'resolved');
+
+      if (!filtered.length) {
+        const label = userStatusFilter === 'resolved' ? 'No resolved complaints' : userStatusFilter === 'pending' ? 'No pending complaints' : 'No grievances';
+        listEl.innerHTML = '<div class="text-center text-muted py-4">' + label + '.</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(data => {
+        const created = data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : new Date());
+        const formattedDate = isNaN(created.getTime()) ? '-' : created.toLocaleDateString() + ' ' + created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const resolvedRaw = data.resolvedAt && typeof data.resolvedAt.toDate === 'function' ? data.resolvedAt.toDate() : (data.resolvedAt instanceof Date ? data.resolvedAt : null);
+        const resolvedDate = resolvedRaw && !isNaN(resolvedRaw.getTime()) ? resolvedRaw.toLocaleDateString() + ' ' + resolvedRaw.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+        const norm = normalizeUserStatus(data.status);
+        const isResolved = norm === 'resolved';
+        const statusClass = isResolved ? 'status-resolved' : 'status-pending';
+        const statusLabel = isResolved ? '✅ Resolved' : '⏳ Pending';
+        const cardClass = isResolved ? 'user-grievance-card resolved' : 'user-grievance-card pending';
+        const priority = data.hfEngine?.priority || data.priority || '';
+        const category = data.hfEngine?.category || data.category || '';
+        const priorityBadge = priority ? `<span class="badge bg-light text-dark border ms-1" style="font-size:0.75em;">${escapeHtml(String(priority))}</span>` : '';
+        const categoryBadge = category ? `<span class="badge bg-light text-dark border ms-1" style="font-size:0.75em;">${escapeHtml(String(category))}</span>` : '';
+        html += `
+          <div class="${cardClass}">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div style="flex:1; min-width:0;">
+                <div class="d-flex align-items-center flex-wrap gap-1 mb-1">
+                  <strong style="font-size:1.05rem; color:var(--secondary-color); word-break:break-word;">${escapeHtml(data.title || 'Untitled')}</strong>
+                  ${priorityBadge} ${categoryBadge}
+                </div>
+                ${data.description ? `<p class="mb-2" style="color:var(--dark-text); white-space:pre-wrap; word-break:break-word;">${escapeHtml(data.description)}</p>` : ''}
+                ${data.imageUrl ? `<div class="my-2 text-center"><img src="${escapeAttr(data.imageUrl)}" alt="Grievance image" class="img-thumbnail" style="max-height:200px; width:auto; object-fit:contain; border-radius:8px;"></div>` : ''}
+              </div>
+              <span class="status-badge ${statusClass}" title="Status: ${escapeAttr(norm)}">${statusLabel}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-top:1px solid #eee; margin-top:10px; padding-top:10px;">
+              <div class="small d-flex align-items-center gap-2 flex-wrap">
+                <span style="font-weight:700; color:${isResolved ? '#2e7d32' : '#e65100'};">Status: ${isResolved ? 'Resolved' : 'Pending — Under review'}</span>
+                ${isResolved && resolvedDate ? `<span class="text-muted">• Resolved on ${escapeHtml(resolvedDate)}</span>` : ''}
+              </div>
+              <small class="text-muted" style="white-space:nowrap;">Filed: ${escapeHtml(formattedDate)}</small>
+            </div>
+          </div>
+        `;
+      });
+      listEl.innerHTML = html;
+    }
+
     function loadGrievances(uid) {
       if (unsubscribe) unsubscribe();
 
@@ -544,35 +738,34 @@
                   .where("userId", "==", uid)
                   .orderBy("createdAt", "desc");
 
-      unsubscribe = q.onSnapshot(snapshot => {
+      // fallback helper
+      function handleSnapshot(snapshot) {
         const listEl = document.getElementById('grievanceList');
-        if (snapshot.empty) {
-          listEl.innerHTML = '<div class="text-center text-muted">No grievances yet.</div>';
-          return;
-        }
-
-        let html = '';
+        userGrievances = [];
         snapshot.forEach(doc => {
           const data = doc.data();
-          const date = data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : new Date();
-          const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-          const statusClass = data.status === 'resolved' ? 'status-resolved' : 'status-open';
-          html += `
-            <div class="list-group-item bg-white border-secondary mb-2 p-3 rounded shadow-sm">
-              <div class="d-flex justify-content-between">
-                <strong>${escapeHtml(data.title || 'Untitled')}</strong>
-                <span class="status-badge ${statusClass}">${escapeHtml(data.status || 'open')}</span>
-              </div>
-              ${data.imageUrl ? `<div class="my-2 text-center"><img src="${escapeAttr(data.imageUrl)}" alt="Grievance image" class="img-thumbnail mb-2" style="max-height:200px; width:auto; object-fit:contain;"></div>` : ''}
-              <p class="mb-1">${escapeHtml(data.description || '')}</p>
-              <small class="text-muted">${escapeHtml(formattedDate)}</small>
-            </div>
-          `;
+          // preserve id
+          userGrievances.push({ id: doc.id, ...data });
         });
-        listEl.innerHTML = html;
+        // ensure default filter All is active on first load
+        renderUserGrievances();
+      }
+
+      unsubscribe = q.onSnapshot(snapshot => {
+        handleSnapshot(snapshot);
       }, error => {
         console.error("❌ [DEBUG] Firestore read error:", error);
+        // fallback without orderBy if index missing
+        if (error && error.code === 'failed-precondition') {
+          db.collection("grievances").where("userId", "==", uid).get().then(snap => {
+            handleSnapshot(snap);
+          }).catch(e => {
+            console.error(e);
+            const listEl = document.getElementById('grievanceList');
+            listEl.innerHTML = '<div class="text-danger">Failed to load grievances.</div>';
+          });
+          return;
+        }
         const listEl = document.getElementById('grievanceList');
         listEl.innerHTML = '<div class="text-danger">Failed to load grievances.</div>';
       });
@@ -588,7 +781,18 @@
     }
 
     function scrollToForm() {
-      document.getElementById('mainFormSection').scrollIntoView({ behavior: 'smooth' });
+      const user = auth.currentUser;
+      if (!user) {
+        showAuthModal('signin');
+        showStatus("⚠ Please sign in to register a complaint.", "text-warning");
+        return;
+      }
+      const section = document.getElementById('mainFormSection');
+      // ensure visible (auth state already shows it, but guard)
+      section.style.display = 'block';
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // slight highlight
+      setTimeout(() => section.classList.add('shadow'), 300);
     }
 
     // Simple escaping to avoid injecting raw HTML (basic protection)

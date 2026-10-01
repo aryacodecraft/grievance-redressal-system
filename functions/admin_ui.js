@@ -4,6 +4,7 @@ import {
   subscribeGrievancesRealtime,
   fetchGrievancesOnce,
   markResolved,
+  updateGrievance,
   signInWithEmail,
   signOut,
   onAuthStateChanged,
@@ -113,8 +114,8 @@ function renderStats(){
   const total = grievances.length;
   let highOpen=0, medOpen=0, resolved=0;
   grievances.forEach(g=>{
-    const status = (g.status || "open").toLowerCase();
-    const p = (g.hfEngine?.priority || "low").toLowerCase();
+    const status = grievanceStatus(g);
+    const p = grievancePriority(g);
     if(status === "resolved") resolved++; else { if(p==="high") highOpen++; if(p==="medium") medOpen++; }
   });
   document.getElementById("statTotal").innerText = total;
@@ -137,21 +138,52 @@ function asEpoch(x){
   return 0;
 }
 
+/** Normalize labels so ML ("Road"/"High") and filter values ("roads"/"high") match. */
+function normalizePriority(p){
+  const v = String(p || "low").trim().toLowerCase();
+  if(v === "high" || v === "medium" || v === "low") return v;
+  return "low";
+}
+function normalizeCategory(cat){
+  const v = String(cat || "other").trim().toLowerCase();
+  const aliases = {
+    road: "roads",
+    roads: "roads",
+    water: "water",
+    electricity: "electricity",
+    sanitation: "sanitation",
+    health: "health",
+    healthcare: "health",
+    governance: "governance",
+    transport: "transport",
+    other: "other"
+  };
+  return aliases[v] || v;
+}
+function grievancePriority(g){
+  return normalizePriority(g?.hfEngine?.priority ?? g?.priority ?? "low");
+}
+function grievanceCategory(g){
+  return normalizeCategory(g?.hfEngine?.category ?? g?.category ?? "other");
+}
+function grievanceStatus(g){
+  return String(g?.status || "open").trim().toLowerCase();
+}
+
 function renderGrievances(){
   const listEl = document.getElementById("grievanceList");
   if(!listEl) return;
   if(!grievances.length){ listEl.innerHTML = `<div class="text-center text-muted py-5">No grievances yet</div>`; updateMapMarkers([]); return; }
 
-  const priorityFilter = document.getElementById("priorityFilter").value;
-  const categoryFilter = document.getElementById("categoryFilter").value;
-  const statusFilter = document.getElementById("statusFilter").value;
-  const searchText = (document.getElementById("searchInput").value || "").trim().toLowerCase();
+  const priorityFilter = document.getElementById("priorityFilter")?.value || "all";
+  const categoryFilter = document.getElementById("categoryFilter")?.value || "all";
+  const statusFilter = document.getElementById("statusFilter")?.value || "all";
+  const searchText = (document.getElementById("searchInput")?.value || "").trim().toLowerCase();
 
   let filtered = grievances.filter(g=>{
-    const hf = g.hfEngine || {};
-    const pr = (hf.priority || "low").toLowerCase();
-    const cat = (hf.category || "other").toLowerCase();
-    const st = (g.status || "open").toLowerCase();
+    const pr = grievancePriority(g);
+    const cat = grievanceCategory(g);
+    const st = grievanceStatus(g);
     if(priorityFilter !== "all" && pr !== priorityFilter) return false;
     if(categoryFilter !== "all" && cat !== categoryFilter) return false;
     if(statusFilter !== "all" && st !== statusFilter) return false;
@@ -170,8 +202,8 @@ function renderGrievances(){
     const ta = asEpoch(a.createdAt);
     const tb = asEpoch(b.createdAt);
     if(ta !== tb) return tb - ta;
-    const pa = priorityWeight(a.hfEngine?.priority || "low");
-    const pb = priorityWeight(b.hfEngine?.priority || "low");
+    const pa = priorityWeight(grievancePriority(a));
+    const pb = priorityWeight(grievancePriority(b));
     if(pa !== pb) return pb - pa;
     return String(b.id || "").localeCompare(String(a.id || ""));
   });
@@ -187,10 +219,10 @@ function renderGrievances(){
   let html = "";
   pageItems.forEach(g=>{
     const hf = g.hfEngine || {};
-    const priority = hf.priority || "low";
-    const category = hf.category || "other";
-    const urgent = !!hf.isUrgent;
-    const status = g.status || "open";
+    const priority = grievancePriority(g);
+    const category = grievanceCategory(g);
+    const urgent = !!hf.isUrgent || priority === "high";
+    const status = grievanceStatus(g);
     let createdDate = null;
     try { createdDate = (g.createdAt && typeof g.createdAt.toDate === 'function') ? g.createdAt.toDate() : (g.createdAt instanceof Date ? g.createdAt : (typeof g.createdAt === 'number' ? new Date(asEpoch(g.createdAt)) : (typeof g.createdAt === 'string' ? new Date(asEpoch(g.createdAt)) : null))); } catch(e) { createdDate = null; }
     const created = createdDate || new Date();
@@ -217,11 +249,11 @@ function renderGrievances(){
             </div>
           </div>
 
-          <div class="text-end">
-            <button class="btn btn-sm btn-outline-light mb-2" onclick="event.stopPropagation(); onRowClick('${g.id}')">Open</button>
-            ${status === "open"
-              ? `<button id="resolve-btn-${g.id}" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); markResolvedHandler('${g.id}', this)">Resolve</button>`
-              : `<button class="btn btn-sm btn-secondary" disabled>Resolved</button>`
+          <div class="d-flex gap-2 align-items-center justify-content-end flex-shrink-0" style="min-width:168px;">
+            <button type="button" class="btn btn-sm btn-outline-primary grievance-action" style="min-width:76px;" data-action="open" data-id="${escapeHtml(g.id)}">Open</button>
+            ${status === "resolved"
+              ? `<button type="button" class="btn btn-sm btn-secondary" style="min-width:76px; border-radius:20px;" disabled>Resolved</button>`
+              : `<button type="button" class="btn btn-sm btn-outline-success grievance-action" style="min-width:76px; border-radius:20px;" data-action="resolve" data-id="${escapeHtml(g.id)}">Resolve</button>`
             }
           </div>
         </div>
@@ -241,7 +273,7 @@ function renderPaginationControls(totalItems){
   el.innerHTML = "";
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
-  const prev = document.createElement("button"); prev.className = "btn btn-sm btn-outline-light page-btn"; prev.innerText = "Prev"; prev.disabled = currentPage <= 1;
+  const prev = document.createElement("button"); prev.className = "btn btn-sm btn-outline-primary page-btn"; prev.innerText = "Prev"; prev.disabled = currentPage <= 1;
   prev.onclick = ()=>{ if(currentPage>1){ currentPage--; renderGrievances(); } }; el.appendChild(prev);
 
   const maxButtons = Math.min(7, totalPages);
@@ -249,22 +281,22 @@ function renderPaginationControls(totalItems){
   let end = Math.min(totalPages, start + maxButtons - 1);
   for(let i=start;i<=end;i++){
     const b = document.createElement("button");
-    b.className = `btn btn-sm ${i===currentPage ? "btn-primary" : "btn-outline-light"} page-btn`;
+    b.className = `btn btn-sm ${i===currentPage ? "btn-primary" : "btn-outline-primary"} page-btn`;
     b.innerText = i;
     b.onclick = ()=>{ currentPage = i; renderGrievances(); };
     el.appendChild(b);
   }
 
-  const next = document.createElement("button"); next.className = "btn btn-sm btn-outline-light page-btn"; next.innerText = "Next"; next.disabled = currentPage >= totalPages;
+  const next = document.createElement("button"); next.className = "btn btn-sm btn-outline-primary page-btn"; next.innerText = "Next"; next.disabled = currentPage >= totalPages;
   next.onclick = ()=>{ if(currentPage<totalPages){ currentPage++; renderGrievances(); } }; el.appendChild(next);
 
   setTimeout(()=>{ try{ map?.invalidateSize(); }catch(e){} }, 150);
 }
 
-/* mark resolved (calls admin.api) */
+/* status updates (calls admin.api) */
 async function markResolvedHandler(id, btnEl) {
   try {
-    if (btnEl) { btnEl.disabled = true; btnEl.innerText = "Resolving..."; }
+    if (btnEl) { btnEl.disabled = true; btnEl.innerText = "…"; }
     await markResolved(id);
     const idx = grievances.findIndex(x => x.id === id);
     if (idx !== -1) grievances[idx].status = "resolved";
@@ -278,6 +310,30 @@ async function markResolvedHandler(id, btnEl) {
     showStatus("❌ Failed to update status", "text-danger");
   }
 }
+
+/* Event delegation: Open / Resolve buttons in the list */
+function wireGrievanceListActions() {
+  const listEl = document.getElementById("grievanceList");
+  if (!listEl || listEl._actionsWired) return;
+  listEl._actionsWired = true;
+  listEl.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".grievance-action");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+    if (!id || !action) return;
+    if (action === "open") {
+      onRowClick(id);
+      return;
+    }
+    if (action === "resolve") {
+      await markResolvedHandler(id, btn);
+    }
+  });
+}
+wireGrievanceListActions();
 
 /* map markers (same as before) */
 function updateMapMarkers(list){
@@ -306,6 +362,83 @@ function onRowClick(id){
   showDetailModal(g);
   if(g.latitude != null && g.longitude != null) focusOnMarker(id);
 }
+const CATEGORY_STORE_LABEL = {
+  roads: "Road",
+  water: "Water",
+  electricity: "Electricity",
+  sanitation: "Sanitation",
+  health: "Health",
+  transport: "Transport",
+  governance: "Governance",
+  other: "Other"
+};
+const PRIORITY_STORE_LABEL = {
+  high: "High",
+  medium: "Medium",
+  low: "Low"
+};
+
+function fillClassificationEditors(g) {
+  const catEl = document.getElementById("gd-category");
+  const priEl = document.getElementById("gd-priority");
+  const statusEl = document.getElementById("gd-edit-status");
+  if (catEl) catEl.value = grievanceCategory(g);
+  if (priEl) priEl.value = grievancePriority(g);
+  if (statusEl) statusEl.textContent = "";
+}
+
+async function saveClassificationHandler(g, btnEl) {
+  const catEl = document.getElementById("gd-category");
+  const priEl = document.getElementById("gd-priority");
+  const statusEl = document.getElementById("gd-edit-status");
+  if (!catEl || !priEl || !g?.id) return;
+
+  const catKey = catEl.value;
+  const priKey = priEl.value;
+  const category = CATEGORY_STORE_LABEL[catKey] || "Other";
+  const priority = PRIORITY_STORE_LABEL[priKey] || "Low";
+  try {
+    if (btnEl) { btnEl.disabled = true; btnEl.innerText = "Saving…"; }
+    if (statusEl) statusEl.textContent = "";
+
+    const hf = { ...(g.hfEngine || {}) };
+    const summary = `Admin set category to ${category} and priority to ${priority}.`;
+
+    hf.category = category;
+    hf.priority = priority;
+    hf.isUrgent = priKey === "high";
+    hf.source = "admin_override";
+    hf.explanation = summary;
+    hf.confidence = 1;
+    if (hf.explainability) delete hf.explainability;
+
+    await updateGrievance(g.id, {
+      category,
+      priority,
+      hfEngine: hf
+    });
+
+    const idx = grievances.findIndex(x => x.id === g.id);
+    if (idx !== -1) {
+      grievances[idx] = { ...grievances[idx], category, priority, hfEngine: hf };
+      g = grievances[idx];
+    }
+
+    renderStats();
+    renderGrievances();
+    runClientClustering();
+    showDetailModal(g);
+    if (statusEl) statusEl.textContent = "Saved";
+    showStatus("✅ Category & priority updated", "text-success");
+  } catch (e) {
+    console.error("saveClassification error", e);
+    if (statusEl) statusEl.textContent = "Save failed";
+    showStatus("❌ Failed to update classification", "text-danger");
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.innerText = "Save changes"; }
+  }
+}
+
 function showDetailModal(g) {
   const m = document.getElementById("grievance-detail-modal");
   if (!m) return;
@@ -320,13 +453,13 @@ function showDetailModal(g) {
   if (descEl) descEl.innerText = g.description || "";
 
   const hf = g.hfEngine || {};
-  const priority = (hf.priority || "low").toUpperCase();
-  const cat = (hf.category || "other").toUpperCase();
+  const priority = grievancePriority(g).toUpperCase();
+  const cat = grievanceCategory(g).toUpperCase();
   const priorityColor = priority === "HIGH" ? "#ff5252" : (priority === "MEDIUM" ? "#ffb300" : "#66bb6a");
 
   if (badgesEl) badgesEl.innerHTML = `
     <span style="background:${priorityColor};padding:6px 10px;border-radius:999px;color:white;font-weight:600">${escapeHtml(priority)}</span>
-    ${hf.isUrgent ? `<span style="background:#ff1744;padding:6px 10px;border-radius:999px;color:white;margin-left:8px">URGENT</span>` : ""}
+    ${hf.isUrgent || priority === "HIGH" ? `<span style="background:#ff1744;padding:6px 10px;border-radius:999px;color:white;margin-left:8px">URGENT</span>` : ""}
     <span style="background:#6c757d;padding:6px 10px;border-radius:999px;color:white;margin-left:8px">${escapeHtml(cat)}</span>
   `;
 
@@ -334,12 +467,21 @@ function showDetailModal(g) {
   if (metaEl) metaEl.innerHTML = `
     <div><strong>Created:</strong> ${createdDate.toLocaleString()}</div>
     <div><strong>User:</strong> ${escapeHtml(g.userId || "-")}</div>
-    <div><strong>Keywords:</strong> ${(hf.keywords || []).slice(0,6).map(escapeHtml).join(", ")}</div>
+    <div><strong>Keywords:</strong> ${(hf.keywords || []).slice(0,6).map(escapeHtml).join(", ") || "-"}</div>
   `;
 
   if (latlonEl) latlonEl.innerHTML = (g.latitude != null && g.longitude != null)
     ? `<strong>Lat/Lon:</strong> ${Number(g.latitude).toFixed(6)}, ${Number(g.longitude).toFixed(6)}`
     : `<strong>Lat/Lon:</strong> Not provided`;
+
+  fillClassificationEditors(g);
+  const saveBtn = document.getElementById("gd-save-class-btn");
+  if (saveBtn) {
+    saveBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await saveClassificationHandler(g, saveBtn);
+    };
+  }
 
   // image injection
   if (g.imageUrl) {
@@ -360,11 +502,11 @@ function showDetailModal(g) {
 
     const link = document.createElement("div");
     link.style.marginTop = "8px";
-    link.innerHTML = `<a href="${escapeHtml(g.imageUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">Open original</a>`;
+    link.innerHTML = `<a href="${escapeHtml(g.imageUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary" style="border-radius:20px;">Open original</a>`;
     gdImage.appendChild(link);
 
     img.onerror = () => {
-      gdImage.innerHTML = `<div style="color:#f88">Failed to load image preview. <a href="${escapeHtml(g.imageUrl)}" target="_blank" rel="noopener noreferrer">Open original</a></div>`;
+      gdImage.innerHTML = `<div style="color:#d32f2f">Failed to load image preview. <a href="${escapeHtml(g.imageUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color);">Open original</a></div>`;
     };
   } else {
     gdImage.style.display = "none";
@@ -372,13 +514,30 @@ function showDetailModal(g) {
   }
 
   const mapBtn = document.getElementById("gd-map-btn");
-  if (mapBtn) mapBtn.onclick = (e) => { e.stopPropagation(); focusOnMarker(g.id); };
+  if (mapBtn) {
+    mapBtn.onclick = (e) => {
+      e.stopPropagation();
+      hideDetailModal();
+      const mapEl = document.getElementById("map");
+      if (mapEl) mapEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => {
+        try { map?.invalidateSize(); } catch (err) {}
+        focusOnMarker(g.id);
+      }, 150);
+    };
+  }
 
   const resolveBtn = document.getElementById("gd-resolve-btn");
   if (resolveBtn) {
-    resolveBtn.onclick = async (e) => {
+    const isResolved = grievanceStatus(g) === "resolved";
+    resolveBtn.disabled = isResolved;
+    resolveBtn.innerText = isResolved ? "Resolved" : "Mark Resolved";
+    resolveBtn.style.opacity = isResolved ? "0.7" : "1";
+    resolveBtn.style.cursor = isResolved ? "default" : "pointer";
+    resolveBtn.onclick = isResolved ? null : async (e) => {
       e.stopPropagation();
-      await markResolvedHandler(g.id);
+      resolveBtn.disabled = true;
+      await markResolvedHandler(g.id, resolveBtn);
       hideDetailModal();
     };
   }
@@ -440,7 +599,7 @@ function renderTfidfClustersUI(){
     block.style.alignItems = "center";
     block.style.padding = "10px";
     block.style.marginBottom = "8px";
-    block.innerHTML = `<div style="flex:1;min-width:0;"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(title)}</div><div class="small text-muted" style="margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(keywords)}</div><div class="small text-muted mt-1" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sample)}</div></div><div style="flex:0 0 auto;margin-left:8px;text-align:right"><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div class="badge bg-light text-dark" style="font-size:0.9rem;padding:6px 8px;border-radius:10px">${size}</div><button class="btn btn-sm btn-outline-light btn-tview" data-id="${escapeHtml(c.clusterId || "")}" style="padding:6px 10px">View</button></div></div>`;
+    block.innerHTML = `<div style="flex:1;min-width:0;"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; color:var(--secondary-color);">${escapeHtml(title)}</div><div class="small text-muted" style="margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(keywords)}</div><div class="small text-muted mt-1" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(sample)}</div></div><div style="flex:0 0 auto;margin-left:8px;text-align:right"><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div class="badge" style="font-size:0.9rem;padding:6px 8px;border-radius:10px; background:var(--primary-color); color:white;">${size}</div><button class="btn btn-sm btn-outline-primary btn-tview" data-id="${escapeHtml(c.clusterId || "")}" style="padding:6px 10px; border-radius:20px;">View</button></div></div>`;
     tfDiv.appendChild(block);
   });
   document.querySelectorAll(".btn-tview").forEach(b=>b.addEventListener("click", e=>{ const id = e.currentTarget.dataset.id; applyClusterFilter(id); }));
@@ -463,6 +622,17 @@ setTimeout(()=>{ if(grievances && grievances.length) runClientClustering(); }, 3
 /* Expose a couple of functions for inline onclick handlers in HTML */
 window.onRowClick = onRowClick;
 window.markResolved = markResolvedHandler;
+window.markResolvedHandler = markResolvedHandler;
 window.onFilterChange = onFilterChange;
 window.onPageSizeChange = onPageSizeChange;
 window.applyClusterFilter = applyClusterFilter;
+
+/* Prefer JS listeners so filters still work if inline handlers are blocked */
+["priorityFilter", "categoryFilter", "statusFilter"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener("change", onFilterChange);
+});
+const searchInput = document.getElementById("searchInput");
+if (searchInput) searchInput.addEventListener("input", onFilterChange);
+const pageSizeSelect = document.getElementById("pageSizeSelect");
+if (pageSizeSelect) pageSizeSelect.addEventListener("change", onPageSizeChange);

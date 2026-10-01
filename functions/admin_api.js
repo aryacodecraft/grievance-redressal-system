@@ -167,7 +167,10 @@ export async function fetchGrievancesOnce() {
 /** Mark a grievance resolved by id */
 export async function markResolved(id) {
   if (!id) throw new Error("id required");
-  await db.collection("grievances").doc(id).update({ status: "resolved" });
+  await db.collection("grievances").doc(id).update({ 
+    status: "resolved",
+    resolvedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
   return true;
 }
 

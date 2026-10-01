@@ -129,10 +129,9 @@ LLAVA_MODEL = os.getenv("LLAVA_MODEL", "meta-llama/llama-4-scout-17b-16e-instruc
 IMAGE_LLM_THRESHOLD = float(os.getenv("IMAGE_LLM_THRESHOLD", "60.0"))
 
 # -------------------------
-# (Optional) HuggingFace text config used for text classification only
+# HuggingFace zero-shot removed — pipeline now uses GrievanceModel + Groq LLM fallback only
+# HF_API_TOKEN / HF_BASE_URL intentionally omitted (see llm_fallback.py for Groq)
 # -------------------------
-HF_API_TOKEN = os.getenv("HF_API_TOKEN") or os.getenv("HUGGINGFACE_API_TOKEN")
-HF_BASE_URL = "https://router.huggingface.co/hf-inference"
 
 # -------------------------
 # Cloudinary config (optional)
@@ -257,8 +256,8 @@ SANITATION_KEYWORDS = [
     "waste collection", "garbage collection"
 ]
 
-CATEGORY_MODEL = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+CATEGORY_MODEL = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"  # deprecated, HF removed
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 ALL_KEYWORD_LISTS = {
     "water": ["water", "leak", "contamination", "pipeline", "pressure", "supply", "pipe", "borewell"],
@@ -351,41 +350,7 @@ def classify_category(text):
     category = "other"
     confidence = 0.0
 
-    # Try HF zero-shot first
-    if HF_API_TOKEN:
-        models = [CATEGORY_MODEL, "facebook/bart-large-mnli"]
-        for model in models:
-            try:
-                url = f"{HF_BASE_URL}/models/{model}"
-                headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-                payload = {
-                    "inputs": text,
-                    "parameters": {
-                        "candidate_labels": CATEGORY_LABELS
-                    }
-                }
-                response = requests.post(url, headers=headers, json=payload, timeout=5)
-                if response.status_code == 200:
-                    res_data = response.json()
-                    if isinstance(res_data, dict) and "labels" in res_data and "scores" in res_data:
-                        labels = res_data["labels"]
-                        scores = res_data["scores"]
-                        if labels and scores:
-                            best_label = labels[0]
-                            best_score = float(scores[0])
-                            
-                            # Only accept if confidence is reasonably high (> 0.4)
-                            if best_score > 0.4 and best_label in CATEGORY_LABELS:
-                                idx = CATEGORY_LABELS.index(best_label)
-                                return {
-                                    "rawLabel": best_label,
-                                    "category": CATEGORY_KEYS[idx],
-                                    "confidence": best_score
-                                }
-            except Exception as e:
-                logger.error(f"HF category API call failed for model {model}: {e}")
-                
-    # Fallback to Groq LLM for categorization if HF fails or is low confidence
+    # Groq LLM categorization (HF zero-shot removed — see llm_fallback.py)
     if groq_client:
         prompt = (
             "You are an expert civic grievance classifier.\n"
@@ -525,24 +490,9 @@ def affects_many_people(text):
     return False
 
 def classify_priority(text):
-    # Sentiment Analysis (for analytics and fallback priority)
+    # HF sentiment removed — using keyword + Groq LLM only
     sentiment = "neutral"
     sentiment_score = 0.0
-    if HF_API_TOKEN:
-        try:
-            url = f"{HF_BASE_URL}/models/{PRIORITY_MODEL}"
-            headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
-            payload = {"inputs": text}
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
-            if response.status_code == 200:
-                res_data = response.json()
-                if isinstance(res_data, list) and len(res_data) > 0:
-                    items = res_data[0] if isinstance(res_data[0], list) else res_data
-                    best_item = max(items, key=lambda x: x.get("score", 0.0))
-                    sentiment = normalize_sentiment(best_item.get("label", "neutral"))
-                    sentiment_score = float(best_item.get("score", 0.0))
-        except Exception as e:
-            logger.error(f"HF priority sentiment API call failed: {e}")
 
     priority = None
     
@@ -747,11 +697,12 @@ def llm_image_confidence(image_url):
         prompt = (
             "You are an image validation AI for a public civic grievance portal.\n"
             "Analyze the image and determine if it shows a public infrastructure complaint "
-            "(e.g., potholes, broken roads, garbage dumps, water leakage, damaged electrical poles/wires, street flooding, fallen trees, broken streetlights).\n"
-            "REJECT non-grievance images (selfies, human faces, memes, indoor food, screenshots of text/chat, personal documents, animals, clean indoor rooms).\n"
+            "(e.g., potholes, broken roads, traffic congestion/jam, road blockage, accident scene, heavy traffic, broken traffic signals, garbage dumps, water leakage, damaged electrical poles/wires, street flooding, fallen trees, broken streetlights).\n"
+            "Traffic-related grievances (traffic jam, congestion, blocked road, accident, vehicles stuck, overcrowded buses, broken signals) ARE VALID public grievances and must be scored 70-100.\n"
+            "REJECT only non-grievance images (selfies, human faces, memes, indoor food, screenshots of text/chat, personal documents, animals, clean indoor rooms).\n"
             "Return ONLY a valid JSON object:\n"
             "{\n"
-            "  \"score\": integer 0-100 (70-100 for valid public grievance, 0-30 for invalid/selfie/meme/document),\n"
+            "  \"score\": integer 0-100 (70-100 for valid public grievance including traffic/transport, 0-30 for invalid/selfie/meme/document),\n"
             "  \"explanation\": \"1-2 sentence concise reason\"\n"
             "}"
         )
@@ -836,7 +787,12 @@ def validate_image():
         llm_score = float(llm_res.get("score", 0.0))
         explanation = llm_res.get("explanation", "")
         raw = llm_res.get("raw", "")
-        ok = llm_score >= IMAGE_LLM_THRESHOLD
+        # If validation service unavailable, allow image with warning (do not block pipeline)
+        if raw == "validation_unavailable":
+            ok = True
+            explanation = explanation + " (validation unavailable — allowed)"
+        else:
+            ok = llm_score >= IMAGE_LLM_THRESHOLD
 
         result = {"ok": ok, "llm_score": llm_score, "explanation": explanation, "raw": raw, "threshold": float(IMAGE_LLM_THRESHOLD)}
 
@@ -917,7 +873,8 @@ def delete_cloudinary():
         return jsonify({"error": "cloudinary delete failed", "detail": str(e)}), 500
 
 # -------------------------
-# API: /submit-grievance (uses LLM-only image check if image provided)
+# API: /submit-grievance — unified pipeline: GrievanceModel + Groq LLM fallback only (HF removed)
+# Atomic write with category/priority/hfEngine + updatedAt/resolvedAt
 # -------------------------
 @app.route("/submit-grievance", methods=["POST"])
 def submit_grievance():
@@ -932,8 +889,32 @@ def submit_grievance():
     longitude = payload.get("longitude")
     image_url = payload.get("imageUrl")
 
+    # ---- Input validation (fixes pipeline category failures due to empty/short text) ----
     if not title or not description or not user_id:
         return jsonify({"error": "Missing required fields (title, description, userId)"}), 400
+    title = str(title).strip()
+    description = str(description).strip()
+    user_id = str(user_id).strip()
+    if len(title) < 3 or len(title) > 200:
+        return jsonify({"error": "Title must be 3-200 characters"}), 400
+    if len(description) < 10 or len(description) > 2000:
+        return jsonify({"error": "Description must be 10-2000 characters"}), 400
+    if not user_id:
+        return jsonify({"error": "Invalid userId"}), 400
+
+    # Latitude/longitude validation (optional but must be in range if provided)
+    lat_f = None
+    lon_f = None
+    if latitude is not None and longitude is not None:
+        try:
+            lat_f = float(latitude)
+            lon_f = float(longitude)
+            if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+                return jsonify({"error": "Latitude/longitude out of range"}), 400
+        except Exception:
+            return jsonify({"error": "Invalid latitude/longitude — must be numbers"}), 400
+    elif (latitude is None) ^ (longitude is None):
+        return jsonify({"error": "Both latitude and longitude must be provided together"}), 400
 
     image_validation_result = None
     if image_url:
@@ -941,8 +922,13 @@ def submit_grievance():
             llm_res = llm_image_confidence(image_url)
             llm_score = float(llm_res.get("score", 0.0))
             explanation = llm_res.get("explanation", "")
-            image_validation_result = {"llm_score": llm_score, "explanation": explanation, "raw": llm_res.get("raw", "")}
-            if llm_score < IMAGE_LLM_THRESHOLD:
+            raw_val = llm_res.get("raw", "")
+            image_validation_result = {"llm_score": llm_score, "explanation": explanation, "raw": raw_val}
+            # If validation service unavailable, do not block submission (store with warning)
+            if raw_val == "validation_unavailable":
+                logger.warning("Image validation unavailable — allowing submission with warning")
+                image_validation_result["warning"] = "Validation service unavailable, image allowed"
+            elif llm_score < IMAGE_LLM_THRESHOLD:
                 return jsonify({
                     "error": "Image rejected by LLM validation (score below threshold)",
                     "imageValidation": image_validation_result,
@@ -952,18 +938,77 @@ def submit_grievance():
             logger.exception("LLM image validation failed during submit")
             return jsonify({"error": "LLM image validation failed", "detail": str(e)}), 500
 
-    new_doc = {"title": title, "description": description, "userId": user_id, "status": "open", "createdAt": firestore.SERVER_TIMESTAMP}
+    # ---- Unified classification — no HF zero-shot ----
+    full_text = f"{title}\n{description}"
+    try:
+        if ml_fallback_model is not None:
+            res_fb = predict_with_fallback(ml_fallback_model, full_text)
+            category = str(res_fb.get("category", "other")).strip().lower()
+            priority = str(res_fb.get("priority", "low")).strip().lower()
+            confidence = float(res_fb.get("confidence", 0.95))
+            source = res_fb.get("source", "ml_model")
+            reason = res_fb.get("reason", "")
+        else:
+            # Model unavailable — keyword fallback (no HF)
+            category = infer_category_from_keywords(full_text) or "other"
+            category = str(category).strip().lower()
+            try:
+                from llm_fallback import derive_priority_from_text as _derive
+                priority = _derive(full_text).lower()
+            except Exception:
+                priority = "low"
+            confidence = 0.5
+            source = "keyword_fallback"
+            reason = "Model unavailable, used keyword fallback"
+
+        # Canonical normalization
+        allowed_cats = ["water","roads","electricity","sanitation","health","governance","transport","other"]
+        cat_map = {"road":"roads","roads":"roads","water":"water","electricity":"electricity","sanitation":"sanitation","health":"health","transport":"transport","governance":"governance","other":"other"}
+        category = cat_map.get(category.lower(), "other")
+        if category not in allowed_cats:
+            category = "other"
+        if priority not in ["high","medium","low"]:
+            priority = priority.lower() if priority.lower() in ["high","medium","low"] else "low"
+
+        hf_engine = {
+            "category": category,
+            "priority": priority,
+            "isUrgent": priority == "high",
+            "confidence": confidence,
+            "source": source,
+            "explanation": reason,
+            "modelInfo": {
+                "mlModel": "GrievanceModel (TF-IDF + LogisticRegression)",
+                "fallbackModel": "Groq LLM",
+                "usedSource": source
+            }
+        }
+    except Exception as e:
+        logger.exception("Classification failed")
+        category = "other"
+        priority = "low"
+        hf_engine = {"category": category, "priority": priority, "isUrgent": False, "confidence": 0.0, "source": "error_fallback", "explanation": str(e)}
+
+    # ---- Atomic Firestore write ----
+    new_doc = {
+        "title": title,
+        "description": description,
+        "userId": user_id,
+        "status": "open",
+        "category": category,
+        "priority": priority,
+        "hfEngine": hf_engine,
+        "createdAt": firestore.SERVER_TIMESTAMP,
+        "updatedAt": firestore.SERVER_TIMESTAMP,
+        "resolvedAt": None,
+    }
     if image_url:
         new_doc["imageUrl"] = image_url
         if image_validation_result:
             new_doc["imageValidation"] = image_validation_result
-
-    try:
-        if latitude is not None and longitude is not None:
-            new_doc["latitude"] = float(latitude)
-            new_doc["longitude"] = float(longitude)
-    except Exception:
-        pass
+    if lat_f is not None and lon_f is not None:
+        new_doc["latitude"] = lat_f
+        new_doc["longitude"] = lon_f
 
     try:
         write_time, doc_ref = db.collection("grievances").add(new_doc)
@@ -971,89 +1016,6 @@ def submit_grievance():
     except Exception:
         logger.exception("Failed to create grievance document")
         return jsonify({"error": "Failed to save grievance"}), 500
-
-    full_text = f"{title}\n{description}"
-    if ml_fallback_model is not None:
-        try:
-            res_fb = predict_with_fallback(ml_fallback_model, full_text)
-            category = res_fb["category"]
-            priority = res_fb["priority"]
-            confidence = res_fb["confidence"]
-            source = res_fb["source"]
-            reason = res_fb["reason"]
-
-            hf_engine = {
-                "category": category,
-                "priority": priority,
-                "isUrgent": priority.lower() == "high",
-                "confidence": confidence,
-                "source": source,
-                "explanation": reason,
-                "modelInfo": {
-                    "mlModel": "GrievanceModel (TF-IDF + LogisticRegression)",
-                    "fallbackModel": "Groq LLM",
-                    "usedSource": source
-                }
-            }
-        except Exception as e:
-            logger.exception("ML Fallback prediction failed, reverting to default logic")
-            cat_res = {"category": "Other", "confidence": 0.0}
-            pri_res = {"priority": "Low"}
-            category = "Other"
-            priority = "Low"
-            hf_engine = {"category": category, "priority": priority, "explanation": str(e)}
-    else:
-        try:
-            cat_res = classify_category(full_text)
-        except Exception:
-            cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
-        try:
-            pri_res = classify_priority(full_text)
-        except Exception:
-            pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
-
-        hf_priority = pri_res.get("priority", "low")
-        sentiment_raw = pri_res.get("sentiment", "neutral")
-        score = pri_res.get("sentimentScore", 0.0)
-        urgent_matches = find_urgent_matches(full_text)
-
-        hf_category = cat_res.get("category", "other")
-        keyword_category = infer_category_from_keywords(full_text)
-        if keyword_category:
-            hf_category = keyword_category
-
-        if hf_category == "sanitation" and hf_priority == "low":
-            hf_priority = "medium"
-
-        hf_raw_label = cat_res.get("rawLabel", "")
-        keywords = extract_keywords(full_text)
-
-        try:
-            groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
-        except Exception:
-            groq_res = None
-
-        if groq_res:
-            priority = groq_res.get("priority", hf_priority)
-            category = groq_res.get("category", hf_category)
-            ai_explanation = groq_res.get("explanation", "Refined by Groq LLM.")
-        else:
-            priority = hf_priority
-            category = hf_category
-            ai_explanation = f"Category '{category}' predicted."
-
-        hf_engine = {
-            "category": category,
-            "priority": priority,
-            "isUrgent": priority == "high",
-            "keywords": keywords,
-            "explanation": ai_explanation,
-        }
-
-    try:
-        db.collection("grievances").document(doc_id).set({"hfEngine": hf_engine, "category": category, "priority": priority}, merge=True)
-    except Exception:
-        logger.exception("Failed to write hfEngine to document")
 
     return jsonify({"message": "Grievance submitted successfully", "grievanceId": doc_id, "hfEngine": hf_engine}), 200
 
