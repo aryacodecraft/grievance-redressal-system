@@ -1,7 +1,8 @@
 /**
  * Client-side TF-IDF + greedy clustering.
  *
- * A faithful TypeScript port of the legacy `functions/tfidf.js`, kept
+ * A faithful TypeScript port of the legacy `functions/tfidf.js`
+ * (retired in Phase 4), kept
  * client-side so the admin cluster panel behaves exactly as it did before.
  * (The migration plan may later move this behind the API.)
  */

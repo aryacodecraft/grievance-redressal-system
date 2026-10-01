@@ -4,6 +4,18 @@
 > (note: branch name typo `intialise` is pre-existing; left as-is).
 > Target merge path: `feature/unified-system` → `app/intialise` → `main`.
 
+> **⚠️ STATUS 2026-09-11 — migration executed (Phases 1–4 complete).**
+> This document is the *original* unification record; several rows below now
+> describe files that no longer exist. Current reality:
+> - `backend/server.py`, `functions/`, `adfbh`, `firebase.json`, `.firebaserc`,
+>   `firestore.rules`, `firestore.indexes.json` — **DELETED** (DEC-010/DEC-011).
+> - `render.yaml` → `uvicorn backend.app.main:app`; `FIREBASE_SERVICE_ACCOUNT` removed.
+> - `frontend/` is a working REST client (Firebase deps removed), wired to `backend/app` on `:10000`.
+> - Database is MongoDB (`MONGODB_URI`); `tools/recategorize.py` rewritten for it.
+> - The historical rows and follow-up list below are kept intentionally as the
+>   source map for the original merge — see `UNIFIED_MIGRATION_PLAN.md` for
+>   current status and `memory/PROJECT_STATE.md` for live state.
+
 ---
 
 ## What came from where
@@ -46,9 +58,14 @@
 
 ## Known mismatches / loose ends (follow-ups, not this branch)
 
-1. **Port mismatch**: `frontend/.env.example` → `:8000`; Flask backend → `:10000`.
-2. **`Idea Lab2/.gitignore` reads as binary** (`file` reports `data`) — needs rewrite as UTF-8 text; verify `serviceAccountKey.json`, `.env`, `venv/`, `node_modules/` are ignored.
-3. **Committed `__pycache__/`** (`backend/__pycache__/`, `tools/__pycache__/`) — should be untracked.
-4. **`adfbh`** (31 KB HTML at root) is an earlier/duplicate copy of the admin dashboard — decide keep/drop in review.
-5. **`backend/requirements.txt` is UTF-16** — breaks `pip install` on Linux; convert to UTF-8 in a follow-up.
-6. **Secret hygiene**: hardcoded Firebase Web API key in `functions/admin_api.js` — rotate the key; never commit `serviceAccountKey.json` or `.env` files.
+> **Resolved since writing** (2026-09-11): 1 (port now `:10000` both sides),
+> 2 (`.gitignore` is UTF-8), 3 (no tracked `__pycache__`), 4 (`adfbh` dropped),
+> 5 (requirements rewritten as ASCII). Item 6's file `functions/admin_api.js`
+> is deleted, **but the key is still in git history — rotation remains open.**
+
+1. **Port mismatch**: `frontend/.env.example` → `:8000`; Flask backend → `:10000`. ~~resolved~~
+2. **`Idea Lab2/.gitignore` reads as binary** (`file` reports `data`) — needs rewrite as UTF-8 text; verify `serviceAccountKey.json`, `.env`, `venv/`, `node_modules/` are ignored. ~~resolved~~
+3. **Committed `__pycache__/`** (`backend/__pycache__/`, `tools/__pycache__/`) — should be untracked. ~~resolved~~
+4. **`adfbh`** (31 KB HTML at root) is an earlier/duplicate copy of the admin dashboard — decide keep/drop in review. ~~resolved (dropped, Phase 4)~~
+5. **`backend/requirements.txt` is UTF-16** — breaks `pip install` on Linux; convert to UTF-8 in a follow-up. ~~resolved~~
+6. **Secret hygiene**: hardcoded Firebase Web API key in `functions/admin_api.js` — rotate the key; never commit `serviceAccountKey.json` or `.env` files. *(file deleted; rotation open)*
