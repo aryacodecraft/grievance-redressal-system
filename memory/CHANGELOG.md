@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-09-11 — Phase 3: MongoDB Persistence + Firebase Retirement — committed
+
+### Added
+- `MongoRepository` in `backend/app/db.py` — pymongo implementation of the existing `GrievanceRepository` protocol; selected when `MONGODB_URI` is set, in-memory fallback otherwise; indexes at startup (unique `id`, compound `userId + createdAt`); `createdAt` stored as BSON date
+- `/health` now reports `storage: mongodb | in-memory` (`backend/app/routers/health.py`)
+- `backend/.env.example` — `MONGODB_URI`/`MONGODB_DB`, LLM keys, Cloudinary, server config
+
+### Changed
+- `tools/recategorize.py` — rewritten for MongoDB; imports the shared classifier from `backend/app/services/classification.py` (no longer `backend.server`); adds `--dry-run`
+- `requirements.txt` / `backend/requirements.txt` — `+pymongo`, `+dnspython`; `-firebase-admin`, `-Flask`, `-gunicorn`, Google client stack; pins refreshed (`backend/requirements.txt` is now ASCII, fixing the old UTF-16 issue)
+- `docs/DATABASE.md` — rewritten for MongoDB (22 Postgres entities moved to a roadmap section)
+- `frontend/lib/types.ts` — stale `CATEGORY_KEYS` comment repointed from deleted `server.py` to `services/classification.py`
+
+### Removed
+- `backend/server.py` (legacy Flask + Firestore server — logic already ported to `backend/app/`)
+- `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`
+
+### Verified
+- Local throwaway `mongod`: `storage: mongodb`, create → scoped list → get → PATCH, BSON `createdAt`, both indexes present, data survives process restart
+- In-memory fallback (`MONGODB_URI=""`): same smoke test passes, `storage: in-memory`
+- `tools/recategorize.py --help` runs without `server.py`; `pip install --dry-run -r backend/requirements.txt` resolves; `tsc --noEmit` clean
+- Hygiene re-verified: `.gitignore` is UTF-8 text, 0 tracked `__pycache__` files
+
+### Repository State at End of This Entry
+- 4 new commits `c44d410..aae4b74` on `feature/unified-system` (+ memory commit)
+- DEC-011 recorded; DEC-008 item 4 superseded — **no Firebase/Firestore code in the serving path or root config**; remaining Firebase: `functions/` + root `adfbh` (Phase 4) and the key in git history (rotation required)
+- Blocker: owner must create the Atlas cluster + set `MONGODB_URI` in `backend/.env`
+
+---
+
 ## 2026-09-11 — Phase 2: FastAPI Rewrite — committed
 
 ### Added

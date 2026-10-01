@@ -13,21 +13,26 @@
 ## Unification Follow-ups (current branch → merge → next)
 
 - [ ] Review + merge `feature/unified-system` → `main` (`--no-ff`)
-- [ ] Owner confirms canonical backend/DB/auth stack; update `AGENTS.md` stack table + `docs/ARCHITECTURE.md`
+- [ ] Update `AGENTS.md` stack table + `docs/ARCHITECTURE.md` for the now-real stack (FastAPI + MongoDB per DEC-010/DEC-011; PostgreSQL row is stale) — Phase 5; auth stack decision still open
 - [x] **Implement `GET /grievances`, `GET /grievances/{id}`, `PATCH /grievances/{id}/status`** — DONE 2026-09-11 (Phase 2: `backend/app/routers/grievances.py`; smoke-tested in-process + via `uvicorn` on `:10000`)
-- [ ] **Phase 3 — MongoDB persistence:** add `pymongo`/`motor` + `MONGODB_URI`/`MONGODB_DB`; swap `InMemoryRepository` for Mongo behind `GrievanceRepository` in `backend/app/db.py` (no router changes)
-- [ ] **Phase 4 — remove remaining Firebase/Firestore:** `backend/server.py`, `tools/recategorize.py`, `functions/`, root `firebase.json`/`.firebaserc`/`firestore.*` — after Phase 3 + parity sign-off (frontend + serving path already Firebase-free)
-- [ ] Hygiene: rewrite binary `.gitignore` as UTF-8, untrack `__pycache__/` (incl. new untracked `backend/app/**/__pycache__`), convert `backend/requirements.txt` from UTF-16 to UTF-8, decide fate of `adfbh`, rotate hardcoded Firebase key in `functions/admin_api.js`
+- [x] **Phase 3 — MongoDB persistence** — DONE 2026-09-11 (`pymongo` + `dnspython`; `MongoRepository` behind `GrievanceRepository`, in-memory fallback when `MONGODB_URI` unset; indexes at startup; `/health` reports `storage`; verified against a local `mongod` incl. BSON dates, compound index, PATCH, and persistence across restart)
+- [ ] **Phase 4 — retire `functions/` + root `adfbh`** (last Firebase-era code) — `backend/server.py`, `tools/recategorize.py` (rewritten for Mongo), root `firebase.json`/`.firebaserc`/`firestore.*` already deleted in Phase 3
+- [x] Hygiene: ~~binary `.gitignore`, tracked `__pycache__/`, UTF-16 `backend/requirements.txt`~~ — all fixed/verified 2026-09-11
+- [ ] Hygiene remaining: decide fate of `adfbh`; rotate hardcoded Firebase key in `functions/admin_api.js` (present in git history — rotation mandatory)
 - [x] Write new root README describing the unified repo (written 2026-09-11; deliberately not reusing `Idea Lab` README)
-- [ ] Rewrite `docs/DATABASE.md` + `docs/API.md` against the Flask + replacement-persistence design
+- [x] Rewrite `docs/DATABASE.md` for MongoDB — DONE 2026-09-11 (Postgres entities moved to a roadmap section)
+- [ ] Align `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, root `README.md`, `INTEGRATION.md` with the FastAPI + MongoDB reality (Phase 5)
 - [ ] Set real Cloudinary cloud name + upload preset in `frontend/.env.local` (Phase 1.5 checklist leftover)
+- [ ] Phase 5 — docs/config/memory alignment per `UNIFIED_MIGRATION_PLAN.md`
+- [ ] Phase 6 — verification: pytest vs test Mongo DB, classifier unit tests, `npm run build`, end-to-end manual check, `rg -i "firestore|firebase"` clean in tracked source
 
 ---
 
 ## Critical
 
 - [ ] Choose and document LLM API provider (OpenAI, Anthropic, Google, or open-source) — needed before AI module implementation
-- [ ] Confirm PostgreSQL setup approach (local Docker vs. direct install vs. managed) for development
+- [ ] ~~Confirm PostgreSQL setup approach~~ — SUPERSEDED by DEC-011 (MongoDB Atlas; local `mongod` works for development/tests)
+- [ ] Owner: create MongoDB Atlas cluster and set `MONGODB_URI`/`MONGODB_DB` in `backend/.env` (without it the API runs on the non-persistent in-memory fallback)
 
 ---
 

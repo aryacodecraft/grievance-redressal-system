@@ -414,3 +414,55 @@ Commits:
   fix still pending).
 - `pydantic-settings` avoided in favour of `python-dotenv` (documented in the
   migration plan) — no new dependency introduced beyond fastapi/uvicorn.
+
+---
+
+## 2026-09-11 — Phase 3 Committed (`feature/unified-system`)
+
+### Goal
+Commit the pending Phase 3 (MongoDB persistence + Firebase/Flask retirement)
+working tree as multiple one-line commits, verifying first.
+
+### Work Completed
+Verified before committing:
+- AST-parse of all `backend/app` + `tools` modules.
+- Smoke test **in-memory fallback** (`MONGODB_URI=""` forced, since
+  `backend/.env` carries a real URI that `load_dotenv()` would pick up):
+  health `storage: in-memory`, submit → scoped list → PATCH → 404 all correct.
+- Smoke test against a **throwaway local `mongod`** (port 27123, temp dbpath
+  under `/tmp/opencode`): health `storage: mongodb`, create/list/get/PATCH,
+  `createdAt` is a BSON `datetime`, indexes `uniq_grievance_id` +
+  `user_created` exist, and a **fresh process** still sees the document
+  (persistence across restart). mongod shut down and temp data removed after.
+- `pip install --dry-run -r backend/requirements.txt` resolves cleanly.
+- `tools/recategorize.py --help` works with `backend/server.py` deleted.
+- `tsc --noEmit` clean after the `types.ts` comment fix.
+- Hygiene re-checked: `.gitignore` UTF-8, 0 tracked `__pycache__`,
+  `backend/requirements.txt` ASCII (old UTF-16 issue gone).
+
+Commits:
+1. `c44d410` Add MongoDB persistence behind the repository protocol
+   (db.py, health.py, both requirements, `backend/.env.example`, recategorize)
+2. `a4d9593` Retire the Flask server and Firebase config files
+   (`backend/server.py`, `firebase.json`, `.firebaserc`, `firestore.rules`,
+   `firestore.indexes.json`, `types.ts` comment)
+3. `2427983` Rewrite DATABASE documentation for MongoDB
+4. `aae4b74` Mark Phase 3 complete in migration docs
+5. (this entry) memory + DEC-011
+
+### Decisions
+- DEC-011 recorded (Mongo behind the repository protocol; Firebase config +
+  Flask server deleted; DEC-008 item 4 superseded; DEC-002 PostgreSQL now in
+  tension — owner decision queued for Phase 5).
+
+### Open
+- **Owner blocker:** create Atlas cluster + set `MONGODB_URI`/`MONGODB_DB` in
+  `backend/.env`; until then the API runs on the non-persistent in-memory
+  fallback (`/health` shows which).
+- Phase 4: retire `functions/` + root `adfbh`.
+- Phase 5: align `AGENTS.md` stack table / README / INTEGRATION / API /
+  ARCHITECTURE / SECURITY docs; rotate the leaked Firebase key (git history).
+- Phase 6: pytest vs test Mongo, classifier unit tests, repo-wide
+  `rg -i "firestore|firebase"` check.
+- Note: a `pkill` pattern in this session matched its own shell (SIGTERM);
+  cleanup was re-done with a bracketed pattern — no stray mongod left running.

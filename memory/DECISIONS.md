@@ -272,7 +272,7 @@ JWT payload includes user ID and role. Role claims verified server-side on every
 
 **ID:** DEC-008
 **Date:** 2026-09-11
-**Status:** ACCEPTED — items 1 and 3 partially SUPERSEDED BY DEC-010 (FastAPI `backend/app/` is now the serving path; Flask `backend/server.py` retained as legacy reference), item 4 partially superseded (Firestore is out of the serving path; `firebase.*` files kept until Phase 4). Items 2 and 5 remain valid.
+**Status:** ACCEPTED — items 1 and 3 SUPERSEDED BY DEC-010 (FastAPI `backend/app/` is the serving path; `backend/server.py` deleted in Phase 3), item 4 SUPERSEDED BY DEC-011 (Firestore/Firebase config files deleted), item 2 partially superseded (`functions/tfidf.js` ported to `frontend/lib/tfidf.ts`; `tools/recategorize.py` rewritten for MongoDB). Item 5 (additive-only merge) remains valid.
 
 **Context:**
 Two codebases existed: `Idea Lab` (FastAPI + PostgreSQL scaffold, Next.js frontend,
@@ -458,3 +458,74 @@ removed Firebase from the frontend.
 **Affected Components:** `backend/app/`, `backend/server.py` (legacy),
 `render.yaml`, requirements files, `frontend/lib/api.ts`/`types.ts`
 (null-tolerant schemas), migration docs, memory
+
+---
+
+## DEC-011 — Phase 3: MongoDB Replaces Firestore; Firebase Config and Flask Server Retired
+
+**ID:** DEC-011
+**Date:** 2026-09-11
+**Status:** ACCEPTED (implements UNIFIED_MIGRATION_PLAN Phase 3; supersedes
+DEC-008 item 4)
+
+**Context:**
+Phase 2 left persistence on an in-process repository with MongoDB planned, and
+Firestore config files plus the legacy Flask `backend/server.py` still in the
+repo. `UNIFIED_MIGRATION_PLAN` Phase 3 specifies MongoDB (Atlas) as the sole
+datastore, and its "definition of done" requires that no Firebase/Firestore
+code remains.
+
+**Decision:**
+1. `MongoRepository` (pymongo) implements the existing `GrievanceRepository`
+   protocol; routers are untouched. `db.py` selects it when `MONGODB_URI` is
+   set, else falls back to `InMemoryRepository`. `/health` reports
+   `storage: mongodb | in-memory`.
+2. Indexes at startup: unique `id` (`uniq_grievance_id`) and compound
+   `userId + createdAt` (`user_created`); `createdAt` stored as a BSON date
+   and serialised to ISO-8601 in `to_api()`.
+3. Dependencies: `pymongo` + `dnspython` (needed for Atlas `mongodb+srv://`)
+   added; `firebase-admin`, `Flask`, `gunicorn` and the Google client stack
+   removed from both requirements files.
+4. `tools/recategorize.py` rewritten for Mongo; it now imports the shared
+   classifier from `backend/app/services/classification.py` and supports
+   `--dry-run`.
+5. Deleted: `backend/server.py`, `firebase.json`, `.firebaserc`,
+   `firestore.rules`, `firestore.indexes.json`. `backend/.env.example`
+   documents `MONGODB_URI`/`MONGODB_DB`.
+6. `docs/DATABASE.md` rewritten for Mongo; the 22 Postgres entities moved to
+   a roadmap section.
+
+**Reason:**
+- One datastore in the serving path; keeping Firestore alongside Mongo would
+  split writes and keep the Firebase credential surface alive.
+- The repository protocol made the swap a single-file change — no router or
+  frontend edits (verified: in-memory and Mongo paths both pass the same
+  smoke test).
+- Deleting the Flask server removes the last second backend that could drift.
+
+**Alternatives Considered:**
+- Keep Firestore as the Phase 3 datastore: rejected — plan targets Mongo; the
+  Firebase service-account env var and rules files were the last Firebase
+  dependency in the serving path.
+- PostgreSQL + pgvector (per DEC-002 / AGENTS.md): rejected — DEC-002 remains
+  on record as the original plan, but MongoDB matches the document shape of
+  existing grievance records and the migration plan; the AGENTS.md stack table
+  must be reconciled in Phase 5 (open).
+- Motor (async pymongo): rejected for now — the repository methods are
+  synchronous and FastAPI runs them in the threadpool; switching would ripple
+  through the protocol for no measured gain.
+
+**Consequences:**
+- Nothing persists until the owner sets `MONGODB_URI` in `backend/.env`
+  (in-memory fallback is the default; `/health` makes the mode visible).
+- The in-memory fallback is intentionally non-persistent — a development
+  convenience, not a store.
+- `functions/` (legacy Firebase HTML/JS) and root `adfbh` remain — Phase 4.
+- The hardcoded Firebase web API key still exists in git history — rotation
+  remains mandatory (Phase 5), independent of these deletions.
+- DEC-008 item 4 is superseded; DEC-002 (PostgreSQL) is now in tension with
+  the real stack and needs an owner decision recorded in Phase 5.
+
+**Affected Components:** `backend/app/db.py`, `backend/app/routers/health.py`,
+requirements files, `tools/recategorize.py`, `docs/DATABASE.md`,
+`backend/.env.example`, deleted Firebase config + `backend/server.py`, memory
