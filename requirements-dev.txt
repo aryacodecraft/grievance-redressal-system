@@ -1,0 +1,5 @@
+# Development / test dependencies — not installed on deploy.
+# Render's buildCommand uses the root requirements.txt instead.
+-r requirements.txt
+
+pytest
