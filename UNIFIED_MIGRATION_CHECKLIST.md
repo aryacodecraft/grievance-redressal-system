@@ -20,20 +20,50 @@ Tick items as work completes. Plan: [UNIFIED_MIGRATION_PLAN.md](./UNIFIED_MIGRAT
 
 ## Phase 1 — Frontend de-Firebase
 
-- [ ] Delete `frontend/lib/firebase.ts`
-- [ ] Remove `firebase` dependency from `frontend/package.json`
-- [ ] Rewrite `frontend/lib/session.tsx` as demo localStorage provider only
-- [ ] Rewrite `frontend/lib/grievances.ts` to REST (drop Firestore `onSnapshot`)
-- [ ] Update `frontend/components/admin/AdminBoard.tsx`
-- [ ] Update `frontend/app/track/page.tsx`
-- [ ] Update `frontend/app/login/page.tsx`
-- [ ] Update `frontend/app/register/page.tsx`
-- [ ] Update `frontend/components/SiteHeader.tsx`
-- [ ] Extend `frontend/lib/api.ts` with new endpoints
-- [ ] Keep `frontend/lib/mock.ts` as `NEXT_PUBLIC_USE_MOCKS` fallback only
-- [ ] Strip Firebase/NextAuth vars from `frontend/.env.example`
-- [ ] `npm run build` passes
-- [ ] `tsc --noEmit` passes
+- [x] Delete `frontend/lib/firebase.ts`
+- [x] Extract admin allowlist into new `frontend/lib/roles.ts`
+- [x] Remove `firebase` dependency from `frontend/package.json`
+- [x] Remove unused `next-auth` dependency
+- [x] Rewrite `frontend/lib/session.tsx` as demo localStorage provider only
+- [x] Rewrite `frontend/lib/grievances.ts` to REST polling (drop Firestore `onSnapshot`)
+- [x] Update `frontend/components/admin/AdminBoard.tsx` (REST + wired assignment buttons)
+- [x] Update `frontend/app/track/page.tsx`
+- [x] Update `frontend/app/login/page.tsx`
+- [x] Update `frontend/app/register/page.tsx`
+- [x] `frontend/components/ui/SiteHeader.tsx` (already consumer-only — no change needed)
+- [x] Extend `frontend/lib/api.ts` with list/get/update endpoints
+- [x] Keep `frontend/lib/mock.ts` as `NEXT_PUBLIC_USE_MOCKS` fallback only
+- [x] Strip Firebase/NextAuth vars from `frontend/.env.example`
+- [x] Regenerate `frontend/package-lock.json` (`npm ci` clean reinstall)
+- [x] `tsc --noEmit` passes
+- [x] `npm run build` passes (9 routes)
+
+**Phase 1 complete.** Remaining lint output is the two pre-existing `setState`-in-effect errors (AdminBoard + session hydration) and one pre-existing unused-import warning.
+
+## Phase 1.5 — Legacy parity (behaviour must match the old HTML)
+
+Source of truth: `functions/grievance-app.html` (citizen), `functions/admin.html` + `admin_ui.js` + `admin_api.js` + `tfidf.js` (admin). Design may differ; **behaviour must match**.
+
+### Citizen
+- [x] "My grievances" list of own submissions (`components/grievance/MyGrievances.tsx` on `/submit`)
+- [ ] Confirm Cloudinary cloud name + preset configured (legacy hardcoded `dnw1p9dnk` / `grievance app`) — **needs real values in `frontend/.env.local`**
+
+### Admin
+- [x] Priority filter (high / medium / low)
+- [x] Category filter (7 categories)
+- [x] Free-text search over title + description
+- [x] Leaflet map with markers for the filtered set + image popups (`components/admin/AdminMap.tsx`)
+- [x] "Open on Map" action from the detail panel
+- [x] Pagination (page sizes 5/10/20/50, Prev/Next/numbered)
+- [x] Stat "Medium priority open" (legacy: total / high-open / medium-open / resolved)
+- [x] Per-row: urgent badge, created date, userId
+- [x] Detail panel: created timestamp, userId, keywords, lat/lon, "Open original" image link
+- [x] "Mark Resolved" action
+- [x] Sort order: createdAt desc, then priority, then id
+- [x] TF-IDF cluster panel with View → filter list (`lib/tfidf.ts` port of `functions/tfidf.js`, client-side)
+- [x] `userId` added to `Grievance` type + API schema
+
+**Phase 1.5 complete.** Frontend reaches legacy behavioural parity. Note: TF-IDF now runs client-side (as it did in the legacy HTML), making the Phase 4 server-side port optional rather than required.
 
 ## Phase 2 — FastAPI rewrite
 

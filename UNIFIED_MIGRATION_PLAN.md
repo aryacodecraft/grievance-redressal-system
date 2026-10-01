@@ -101,14 +101,24 @@ Indexes: unique on `grievanceId`; compound `userId + createdAt`; `createdAt` sto
 - **Phase 0 complete.**
 
 ### Phase 1 — Frontend de-Firebase (2–3 days)
-- Delete `lib/firebase.ts`; remove the `firebase` dependency.
-- Rewrite `lib/session.tsx` as a pure demo provider (strip Firebase auth calls/state).
-- Rewrite `lib/grievances.ts` to REST instead of Firestore `onSnapshot`.
-- Update `AdminBoard`, `Track`, `Login`, `Register`, `SiteHeader` to the new providers.
-- Extend `lib/api.ts` with the new endpoints.
-- Keep `lib/mock.ts` only as the `NEXT_PUBLIC_USE_MOCKS` fallback.
-- Strip Firebase/NextAuth vars from `frontend/.env.example`.
-- Gate: `npm run build` and `tsc --noEmit` both pass.
+- ✅ Deleted `lib/firebase.ts`; removed `firebase` and the unused `next-auth` deps.
+- ✅ Extracted the admin allowlist into new `lib/roles.ts` (`isAdminEmail`, `roleForEmail`).
+- ✅ Rewrote `lib/session.tsx` as a pure demo localStorage provider; exposes `user`, `liveMode`, `signInDemo`, `signOut`.
+- ✅ Rewrote `lib/grievances.ts` to REST polling (admins → all, citizens → own); `fetchGrievanceById` now hits `GET /grievances/{id}`.
+- ✅ Extended `lib/api.ts` with `listGrievances`, `getGrievance`, `updateGrievanceStatus`.
+- ✅ Updated `AdminBoard` (REST subscribe + assignment buttons now PATCH when live), `Track`, `Login`, `Register`; `SiteHeader` needed no change.
+- ✅ `lib/mock.ts` remains only as the `NEXT_PUBLIC_USE_MOCKS` fallback.
+- ✅ Stripped Firebase/NextAuth vars from `frontend/.env.example`; added `NEXT_PUBLIC_SHOW_DEV_CREDS`.
+- ✅ Gate passed: `tsc --noEmit` clean, `npm run build` builds all 9 routes.
+- **Phase 1 complete.**
+
+### Phase 1.5 — Legacy parity (required: behaviour must match the old HTML)
+- ✅ Citizen "my grievances" list added to `/submit` (`MyGrievances.tsx`).
+- ✅ Admin: priority filter, category filter, free-text search, Leaflet map + markers + popups, "Open on Map", pagination (5/10/20/50), "Medium priority open" stat, per-row urgent badge / created date / userId, detail-panel created + userId + lat/lon + "Open original", "Mark Resolved", and the createdAt→priority→id sort.
+- ✅ TF-IDF clusters: `lib/tfidf.ts` is a direct port of `functions/tfidf.js` and runs client-side (as legacy did), so it works without the backend. The Phase 4 server-side port is therefore optional.
+- ✅ `userId` added to the `Grievance` type + API schema; `leaflet` + `@types/leaflet` added.
+- Remaining: Cloudinary cloud name / upload preset values in `frontend/.env.local`.
+- **Phase 1.5 complete — frontend reaches legacy behavioural parity.**
 
 ### Phase 2 — FastAPI rewrite (3–4 days)
 - Create the `backend/app/` layout above.
