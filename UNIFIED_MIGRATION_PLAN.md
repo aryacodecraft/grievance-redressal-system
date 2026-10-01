@@ -121,11 +121,14 @@ Indexes: unique on `grievanceId`; compound `userId + createdAt`; `createdAt` sto
 - **Phase 1.5 complete — frontend reaches legacy behavioural parity.**
 
 ### Phase 2 — FastAPI rewrite (3–4 days)
-- Create the `backend/app/` layout above.
-- Port classifier/keyword/risk logic from `server.py` (~L264–668) verbatim into `services/classification.py`.
-- Port image analysis (~L669–846) into `services/image.py`.
-- Implement all endpoints; keep `CATEGORY_KEYS` and the response shape so zod still validates.
-- Update `render.yaml` → `uvicorn backend.app.main:app` on `:10000`.
+- ✅ Created `backend/app/` — `main.py`, `config.py`, `models.py`, `db.py`, `routers/{grievances,images,health}.py`, `services/{classification,image,cloudinary}.py`.
+- ✅ Ported classifier/keyword/risk logic and image analysis verbatim (cascade: HF → Groq → keywords), preserving `CATEGORY_KEYS`, which is byte-identical to the frontend's `CATEGORIES`.
+- ✅ Implemented every endpoint the frontend calls; `POST /submit-grievance` keeps the `message, grievanceId, hfEngine` shape the zod schemas validate.
+- ✅ Added CORS and a `400 {"error": …}` validation handler so error handling matches the legacy Flask contract.
+- ✅ `db.py` exposes a `GrievanceRepository` protocol with an in-process implementation — Phase 3 swaps in MongoDB with no router changes.
+- ✅ `render.yaml` → `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`; `fastapi`/`uvicorn` added to both requirements files.
+- ✅ Verified: full smoke test (health/test/submit/list/get/patch/404), plus an integration test proving the frontend's real zod schema parses the live API response.
+- **Phase 2 complete.** Note: `config.py` uses `python-dotenv` rather than `pydantic-settings` to avoid a new dependency.
 
 ### Phase 3 — MongoDB (2–3 days)
 - Add `pymongo`/`motor`; env `MONGODB_URI`, `MONGODB_DB`.

@@ -67,25 +67,34 @@ Source of truth: `functions/grievance-app.html` (citizen), `functions/admin.html
 
 ## Phase 2 — FastAPI rewrite
 
-- [ ] Create `backend/app/main.py`
-- [ ] Create `backend/app/config.py` (pydantic-settings)
-- [ ] Create `backend/app/db.py`
-- [ ] Create `backend/app/models.py`
-- [ ] Port classifier/keyword/risk logic → `services/classification.py`
-- [ ] Port image analysis → `services/image.py`
-- [ ] Port Cloudinary signing/deletion → `services/cloudinary.py`
-- [ ] `POST /submit-grievance` (shape: `message, grievanceId, hfEngine`)
-- [ ] `POST /validate-image`
-- [ ] `POST /sign-cloudinary`
-- [ ] `POST /delete-cloudinary`
-- [ ] `GET /grievances`
-- [ ] `GET /grievances?userId=<id>`
-- [ ] `GET /grievances/{id}`
-- [ ] `PATCH /grievances/{id}/status`
-- [ ] `GET /health`
-- [ ] `GET /test`
-- [ ] Confirm `CATEGORY_KEYS` matches frontend `CATEGORIES`
-- [ ] Update `render.yaml` → `uvicorn backend.app.main:app` on `:10000`
+- [x] Create `backend/app/main.py`
+- [x] Create `backend/app/config.py` (python-dotenv, not pydantic-settings — avoids a new dep)
+- [x] Create `backend/app/db.py` (repository abstraction; in-memory impl for Phase 2)
+- [x] Create `backend/app/models.py` (Pydantic request models)
+- [x] Port classifier/keyword/risk logic → `services/classification.py`
+- [x] Port image analysis → `services/image.py`
+- [x] Port Cloudinary signing/deletion → `services/cloudinary.py`
+- [x] `POST /submit-grievance` (shape: `message, grievanceId, hfEngine`)
+- [x] `POST /validate-image`
+- [x] `POST /sign-cloudinary`
+- [x] `POST /delete-cloudinary`
+- [x] `GET /grievances`
+- [x] `GET /grievances?userId=<id>`
+- [x] `GET /grievances/{id}`
+- [x] `PATCH /grievances/{id}/status`
+- [x] `GET /health`
+- [x] `GET /test`
+- [x] Confirm `CATEGORY_KEYS` matches frontend `CATEGORIES` (identical: water, roads, electricity, sanitation, health, governance, other)
+- [x] Update `render.yaml` → `uvicorn backend.app.main:app` on `:10000`
+- [x] Add `fastapi`/`uvicorn` to both requirements files
+- [x] CORS middleware + legacy `400 {"error": …}` validation shape
+- [x] Install `fastapi`/`uvicorn` into `venv/`
+- [x] Smoke test: health/test/submit/list/get/patch/404 all pass
+- [x] Integration test: frontend zod schema parses the live API response
+
+**Phase 2 complete.** Note: `db.py` uses an in-process repository — Phase 3 swaps it for MongoDB behind the same interface.
+
+**Known limitation:** `/submit-grievance` trusts `userId` from the request body (demo auth) — document in `docs/SECURITY.md`.
 
 ## Phase 3 — MongoDB
 
