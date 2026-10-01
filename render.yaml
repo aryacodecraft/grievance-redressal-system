@@ -13,6 +13,11 @@ services:
         value: "10000"
       - key: CORS_ORIGINS
         value: "http://localhost:3000"
+      # Without this the service boots on the non-persistent in-memory store.
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: "grievance"
       - key: HF_API_TOKEN
         sync: false
       - key: GROQ_API_KEY
