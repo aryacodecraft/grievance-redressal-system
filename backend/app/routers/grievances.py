@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 from ..config import IMAGE_LLM_THRESHOLD
@@ -179,8 +179,16 @@ def submit_grievance(payload: SubmitGrievanceRequest):
 
 
 @router.get("/grievances")
-def list_grievances(userId: str | None = None, limit: int = 50):
-    """Admins call with no `userId`; citizens pass their own id."""
+def list_grievances(
+    userId: str | None = None,
+    limit: int = Query(50, ge=1, le=1000),
+):
+    """Admins call with no `userId`; citizens pass their own id.
+
+    `limit` is bounded to 1..1000. It used to accept anything: `?limit=0` meant
+    "unlimited" to pymongo and "nothing" to the in-memory fallback, so the same
+    URL returned every row on MongoDB and none on the fallback.
+    """
     docs = repository.list(user_id=userId, limit=limit)
     return [to_api(doc) for doc in docs]
 
@@ -199,9 +207,25 @@ def get_grievance(grievance_id: str):
 def update_status(grievance_id: str, payload: StatusUpdateRequest):
     patch = {}
     if payload.status is not None:
-        patch["status"] = payload.status
+        # Reject a blank status rather than storing it. An empty string used
+        # to be written straight through (`update()` only drops `None`), which
+        # left the document with no usable status: `Badge` matched nothing and
+        # `StatusTimeline` fell back to step 0, showing an untouched grievance
+        # as "submitted". The vocabulary itself is NOT validated here — that is
+        # DEC-006's state machine (Phase 2); only emptiness is a bug.
+        status = payload.status.strip()
+        if not status:
+            return JSONResponse(
+                status_code=400, content={"error": "status must not be blank"}
+            )
+        patch["status"] = status
     if payload.assignee is not None:
-        patch["assignee"] = payload.assignee
+        assignee = payload.assignee.strip()
+        if not assignee:
+            return JSONResponse(
+                status_code=400, content={"error": "assignee must not be blank"}
+            )
+        patch["assignee"] = assignee
 
     if not patch:
         return JSONResponse(

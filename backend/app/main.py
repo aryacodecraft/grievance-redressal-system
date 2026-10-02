@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import CORS_ORIGINS
 from .routers import grievances, health, images
@@ -32,6 +33,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    """Unrouted paths and disallowed methods also use the flat error shape.
+
+    Without this, Starlette answers an unknown route with
+    `{"detail": "Not Found"}` while every handler in the app answers with
+    `{"error": "..."}` — and `frontend/lib/api.ts` only reads `json.error`,
+    so those failures surfaced to users as a bare "Request failed (404)".
+    `docs/API.md` documents the flat shape for 400/404 as the implemented one.
+    """
+    headers = getattr(exc, "headers", None)
+    detail = exc.detail
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": detail if isinstance(detail, str) else "Request failed"},
+        headers=headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)
