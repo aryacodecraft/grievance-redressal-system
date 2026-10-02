@@ -9,3 +9,6 @@ numpy
 python-dotenv
 cloudinary
 groq
+scikit-learn
+pandas
+scipy
