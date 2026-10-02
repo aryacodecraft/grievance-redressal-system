@@ -80,10 +80,10 @@ const submitResultSchema = z.object({
 });
 
 const imageValidationSchema = z.object({
-  ok: z.boolean(),
+  ok: z.boolean().default(true),
   llm_score: z.number().optional(),
   explanation: z.string().optional(),
-});
+}).passthrough();
 
 const grievanceSchema = z.object({
   id: z.string(),

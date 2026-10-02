@@ -34,7 +34,8 @@ export default function TrackPage() {
         await new Promise((r) => setTimeout(r, 400));
         setFound(findMockGrievance(query) ?? null);
       }
-    } catch {
+    } catch (err) {
+      console.error("Track lookup error:", err);
       setFound(null);
     } finally {
       setSearched(true);

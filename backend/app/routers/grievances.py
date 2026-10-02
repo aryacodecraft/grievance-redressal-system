@@ -62,6 +62,7 @@ def submit_grievance(payload: SubmitGrievanceRequest):
             )
         llm_score = float(llm_res.get("score", 0.0))
         image_validation_result = {
+            "ok": True,
             "llm_score": llm_score,
             "explanation": llm_res.get("explanation", ""),
             "raw": llm_res.get("raw", ""),
