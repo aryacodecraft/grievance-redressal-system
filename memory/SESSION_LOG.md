@@ -619,3 +619,127 @@ Stack torn down afterwards: backend, `next dev` and `mongod` all stopped,
   `app/intialise` → `main`.
 - Not covered by the new suite: HF/Groq classification branches, image +
   Cloudinary services, frontend tests (Jest/RTL still OPEN in `TODO.md`).
+
+---
+
+## 2026-10-02 — MongoDB Atlas Cutover + Restart-Safe ID Bug Found and Fixed
+
+### Goal
+Complete the owner-blocked item from the previous session (Atlas setup) and
+drive the end-to-end test that had been left pending, then record whatever the
+run turned up.
+
+### Context Read
+- `memory/{PROJECT_STATE,DECISIONS,TODO,CHANGELOG}.md`, prior session log entry
+- `backend/app/{config,db}.py`, `backend/app/services/image.py`,
+  `backend/.env.example`, `tests/conftest.py`, `frontend/scripts/e2e.mjs`
+
+### Work Completed
+
+**1. Atlas cutover (owner supplied the connection string; agent verified it)**
+- Connectivity probed read-only first: `ping` OK, server `8.0.34`, so SRV
+  resolution, TLS, credentials and the IP allowlist were all correct before
+  anything was written.
+- `MONGODB_URI` + `MONGODB_DB=grievance` appended to `backend/.env`
+  (gitignored — verified with `git check-ignore`; no tracked file contains the
+  cluster host; tree clean).
+- Boot → `{"status":"ok","storage":"mongodb"}`; `grievance.grievances` and both
+  indexes created (`uniq_grievance_id` unique, `user_created`).
+
+**2. End-to-end against real storage**
+- `next dev` on `:3000` in live mode; all 6 routes serve 200.
+- `frontend/scripts/e2e.mjs` PASSED through the real zod-parsing client:
+  submit → track → admin assign/resolve → re-read, error path, second citizen.
+- `pytest`: 85 passed with a local `mongod` (17 Mongo tests skip without one),
+  and Atlas was **not** touched by the suite — count 3 → 3 across the run,
+  confirming `conftest.py`'s `MONGODB_URI=""` pin does its job.
+- Cloudinary settled an open checklist item: the `grievance app` preset **is
+  unsigned** — a real JPEG uploaded (HTTP 200), then `/validate-image`
+  (heuristic path, `score=18.4` → correctly below `IMAGE_LLM_THRESHOLD=60`),
+  `/delete-cloudinary` and `/sign-cloudinary` all returned 200. Test asset
+  deleted afterwards.
+
+**3. Env-var port audit → two repairs + one recorded drop (DEC-015)**
+- `GROQ_MODEL` defaulted to `llama-3.3-70b-versatile`, which Groq has
+  decommissioned — the call 404s and the failure is swallowed, so
+  classification silently ran on keyword rules while *looking* configured. The
+  dead default also shipped in `.env.example`, so a fresh clone inherited it.
+  Both now say `openai/gpt-oss-20b`, with comments explaining the change.
+- `LLAVA_MODEL` was declared in `config.py` and read by nobody —
+  `services/image.py` hardcoded the same string. Now imported and used.
+- `OPEN_ROUTER_API_KEY` (present on `main`, used there for image validation)
+  was never ported; Phase 2 replaced that path with Groq vision + heuristic.
+  **Intentionally not restored**, recorded as DEC-015 rather than left as an
+  unnoticed gap.
+
+**4. The bug the audit did not catch — restart-safe IDs (DEC-014)**
+Submitting after a restart produced:
+
+```
+DuplicateKeyError: E11000 … index: uniq_grievance_id dup key: { id: "GRV-2026-0001" }
+POST /submit-grievance 500
+```
+
+`_new_id()` was `f"GRV-{year}-{next(_counter):04d}"` over a module-level
+`itertools.count(1)` — restarting the process resets it to 1, so the first
+write after every restart asked for an id that already existed. **The API could
+not create a grievance after a restart.**
+
+Fix (`backend/app/db.py`, DEC-014): the id tail is now read from stored data —
+`MongoRepository` takes the highest `id >= "GRV-<year>-"` (an indexed range
+lookup, not a scan) and retries on `DuplicateKeyError` up to 100 times to cover
+concurrent writers; `InMemoryRepository` takes `max(existing tails) + 1` under
+its lock. The `GRV-<year>-<seq>` scheme and every documented contract are
+unchanged.
+
+**5. Correction to the previous session's verification claim**
+The earlier "persistence across a process restart" result was **not valid**.
+The restart helper's `kill` used a stale PID file and did not actually stop the
+listening process, so the test ran against a process that never exited — which
+is exactly why the ID bug stayed hidden. Re-verified honestly this round with a
+PID sourced from `ss -ltnp` on `:10000`:
+
+- genuine recycle → next submit `GRV-2026-0005` (not `0001`)
+- second recycle → `GRV-2026-0006` and `GRV-2026-0007`, back to back
+- final listing: 7 then 9 documents, **no duplicate ids**
+- `pytest` still 85 passed after the change; `tsc --noEmit` clean;
+  `npm run build` renders 6 routes; e2e re-run PASSED (`GRV-2026-0008`);
+  zero errors in the backend log since the fix
+
+### Verification Summary
+| Check | Result |
+|---|---|
+| Atlas SRV/TLS/auth/allowlist | OK (server 8.0.34) |
+| `/health` storage | `mongodb` |
+| Indexes on `grievances` | `uniq_grievance_id` (unique), `user_created` |
+| Persistence across a *real* restart | OK — document + status + assignee intact |
+| `pytest` (with local mongod) | 85 passed |
+| `pytest` (no mongod) | 68 passed / 17 skipped |
+| Atlas untouched by tests | count 3 → 3 |
+| `frontend/scripts/e2e.mjs` | PASSED (real client, zod-validated) |
+| Cloudinary upload / validate / delete / sign | all HTTP 200 |
+| `tsc --noEmit` / `npm run build` | clean / 6 routes |
+| Restart-id regression | 0005, 0006, 0007 — no duplicates |
+
+### What Was Left Running
+Deliberately, so the owner can click through: backend `uvicorn` on `:10000`
+(PID in `/tmp/opencode/be.pid`), `next dev` on `:3000`, and a local `mongod` on
+`:27017` (`/tmp/opencode/mongodata`) used only for the full pytest run. The
+Atlas cluster holds 9 automated test records (persistence probes + e2e) —
+harmless, and droppable on request.
+
+### Open
+- **DOM still not driven** — no desktop browser is connected to this session,
+  so the click-through (submit → track → admin → refresh → resolve) remains
+  unverified; `e2e.mjs` covers the client contract only. Left for the owner.
+- Atlas password is short and now known to this conversation — rotation
+  recommended, and `0.0.0.0/0` allowlisting should be narrowed.
+- Firebase Web API key rotation (still in git history).
+- `imageValidation` is not persisted: `SubmitForm` sends `imageUrl` only, so
+  `publicId` and the validation score are dropped (affects later deletion and
+  auditability) — tracked in `TODO.md`.
+- A regression test that asserts ids are allocated *from stored data* would
+  have caught DEC-014 — tracked in `TODO.md`.
+- Post-migration roadmap unchanged: **Phase 0 checkpoint merge → Phase 1 JWT
+  auth/RBAC → Phase 2 DEC-006 state machine + history → Phase 3 UI → Phase 4
+  AI evaluation (deferred) → ship.**

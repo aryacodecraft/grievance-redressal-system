@@ -27,17 +27,30 @@
 - [x] Write new root README describing the unified repo (written 2026-09-11; deliberately not reusing `Idea Lab` README)
 - [x] Rewrite `docs/DATABASE.md` for MongoDB — DONE 2026-09-11 (Postgres entities moved to a roadmap section)
 - [x] Align `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, root `README.md`, `INTEGRATION.md` with the FastAPI + MongoDB reality (Phase 5) — DONE 2026-10-01 (`cfdb7d1`, `4e52990`; `docs/DEVELOPMENT.md` + `AGENTS.md` too; annotated rather than rewritten per DEC-013)
-- [ ] Set real Cloudinary cloud name + upload preset in `frontend/.env.local` (Phase 1.5 checklist leftover)
+- [x] Set real Cloudinary cloud name + upload preset in `frontend/.env.local` — DONE/verified 2026-10-02 (cloud `dnw1p9dnk` + preset `grievance app` match the legacy config; **preset confirmed unsigned** by a live HTTP 200 upload, which was the last open question — `/validate-image`, `/delete-cloudinary` and `/sign-cloudinary` also verified 200)
 - [x] Phase 5 — docs/config/memory alignment per `UNIFIED_MIGRATION_PLAN.md` — DONE 2026-10-01 (also `render.yaml` `MONGODB_URI`/`MONGODB_DB` env vars, `4686f81`)
 - [x] Phase 6 — verification: pytest vs test Mongo DB, classifier unit tests, `npm run build`, end-to-end manual check, `rg -i "firestore|firebase"` clean in tracked source — DONE 2026-10-01 (85 passed with a local `mongod`, 68 passed / 17 skipped without; e2e via `frontend/scripts/e2e.mjs` incl. restart persistence; `tsc --noEmit` + `npm run build` clean; sweep leaves only past-tense history)
+- [x] Re-verify everything against **real MongoDB Atlas** + settle the open Cloudinary preset question — DONE 2026-10-02 (see DEC-014/DEC-015 and the CHANGELOG entry; found and fixed the restart-id bug in the process)
+
+---
+
+## Post-Migration Roadmap (order decided with owner, 2026-10-01)
+
+- [ ] **Phase 0 — checkpoint ship:** push `feature/unified-system`, then `--no-ff` merge → `app/intialise` → `main` (owner's call; `main` has a protection rule)
+- [ ] **Phase 1 — JWT auth + RBAC** (DEC-007) on a fresh branch; server derives `userId` from the verified token, `docs/SECURITY.md` gap closed. **JWT only — Google OAuth deferred**
+- [ ] **Phase 2 — DEC-006 state machine:** adopt all 12 uppercase states, enforce transitions server-side, record audit history (who/what/when/reason, human vs AI recommendation). Note: `PATCH /grievances/{id}/status` currently accepts any string with no auth, no validation and no history, and the UI disagrees with itself (`TIMELINE` starts `"submitted"`, `to_api()` defaults `"open"`)
+- [ ] **Phase 3 — UI completeness** (resolver dashboard, citizen detail/timeline, analytics views)
+- [ ] **Phase 4 — AI evaluation** — **DEFERRED by owner ("later")**
+- [ ] Final ship
 
 ---
 
 ## Critical
 
-- [ ] Choose and document LLM API provider (OpenAI, Anthropic, Google, or open-source) — needed before AI module implementation
+- [ ] Choose and document LLM API provider (OpenAI, Anthropic, Google, or open-source) — needed before AI module implementation. **Partly answered:** Groq (`GROQ_MODEL`, default repaired in DEC-015) + HuggingFace zero-shot are what the code actually uses; OpenRouter for images was deliberately not ported (DEC-015); no evaluation done yet
 - [ ] ~~Confirm PostgreSQL setup approach~~ — SUPERSEDED by DEC-011 (MongoDB Atlas; local `mongod` works for development/tests)
-- [ ] Owner: create MongoDB Atlas cluster and set `MONGODB_URI`/`MONGODB_DB` in `backend/.env` (without it the API runs on the non-persistent in-memory fallback)
+- [x] **Owner: create MongoDB Atlas cluster and set `MONGODB_URI`/`MONGODB_DB` in `backend/.env`** — DONE 2026-10-02 (cluster verified from this machine — SRV/TLS/credentials/IP allowlist; `grievance.grievances` + both indexes created; persistence proven across a genuinely recycled process; `/health` → `storage: mongodb`)
+- [ ] Fill `MONGODB_URI` / `MONGODB_DB` into the **Render** environment for deployment (`render.yaml` declares them `sync: false`)
 
 ---
 
@@ -134,7 +147,24 @@
 
 ## Technical Debt
 
-*(None yet — track here as it accumulates)*
+- [ ] **`imageValidation` is not persisted.** `frontend/components/grievance/SubmitForm.tsx`
+      posts `imageUrl` only, so the Cloudinary `publicId` and the validation score
+      are discarded — the image can never be deleted via `/delete-cloudinary` and
+      there is no record of what the validator decided. Needs changes in
+      `lib/api.ts` (types), `SubmitForm`, `models.py` and `db.py` (`to_api`
+      already has an `imageValidation` pass-through).
+- [ ] **Id allocation has no regression test.** `tests/test_repository.py` only
+      asserts `startswith("GRV-")`; a test that seeds existing ids and asserts the
+      next one continues from them would have caught DEC-014 (restart → 500).
+- [ ] **DOM-level end-to-end still unverified** — no desktop browser has ever
+      been connected to these sessions, so `frontend/scripts/e2e.mjs` covers the
+      client contract only. The real click-through (citizen submit → track →
+      admin login → assign → **refresh** → resolve, then a separate image-upload
+      pass) needs a browser.
+- [ ] Groq's HF zero-shot call intermittently times out at 5 s
+      (`HF category API call failed … Read timed out` in the log); the keyword
+      fallback absorbs it, but the cascade degrades silently — worth a retry or a
+      longer timeout once AI evaluation (Phase 4) is picked up.
 
 ---
 

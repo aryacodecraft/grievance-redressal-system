@@ -6,6 +6,62 @@
 
 ---
 
+## 2026-10-02 — MongoDB Atlas Cutover, Restart-Safe IDs (DEC-014), Env Audit Fixes (DEC-015)
+
+### Added
+- `MONGODB_URI` / `MONGODB_DB` in `backend/.env` (untracked, gitignored) pointing
+  at the owner's Atlas cluster — the API now persists to MongoDB instead of the
+  in-memory fallback; `/health` reports `storage: "mongodb"`
+
+### Fixed
+- **`backend/app/db.py` — grievance ids are now derived from stored data, not a
+  per-process counter (DEC-014).** `_new_id()` used `itertools.count(1)`, which
+  resets to 1 on every process start, so the first submission after any restart
+  requested an existing `GRV-<year>-0001` and failed with `DuplicateKeyError`
+  → `POST /submit-grievance 500`. Reproduced against Atlas, then verified fixed:
+  after a genuine process recycle the next submit is `GRV-2026-0005`, and
+  back-to-back submits after a second restart yield `0006`, `0007` with no
+  duplicate ids. `MongoRepository` retries on unique-index collision;
+  `InMemoryRepository` seeds from its own stored ids.
+- `backend/app/config.py` + `backend/.env.example` — `GROQ_MODEL` default was
+  `llama-3.3-70b-versatile`, decommissioned by Groq (404s), which silently
+  dropped classification to the keyword fallback while looking configured;
+  now `openai/gpt-oss-20b` with a comment recording why (DEC-015)
+- `backend/app/services/image.py` — imports `LLAVA_MODEL` instead of hardcoding
+  the vision model, so the declared variable is no longer dead (DEC-015)
+
+### Changed
+- `backend/.env.example` — documents the repaired `GROQ_MODEL` default and adds
+  `LLAVA_MODEL`
+- `docs/DATABASE.md` — the `GRV-<year>-<seq>` scheme now documents how `<seq>`
+  is allocated and why (restart safety)
+
+### Verified
+- **Atlas connectivity** — SRV resolution, TLS, credentials and IP allowlist all
+  pass (`ping`, server 8.0.34); `grievance.grievances` created on first boot
+  with `uniq_grievance_id` (unique) and `user_created` (`userId` + `createdAt`)
+- **Persistence across a real restart** — submit → kill the listening PID →
+  fresh process → same document with status/assignee intact
+- **Test isolation** — `pytest` leaves Atlas untouched (grievance count 3 → 3
+  across the run); `conftest.py` pins `MONGODB_URI=""` so tests can never reach
+  the cluster. **85 passed** with a local `mongod`, **68 passed / 17 skipped**
+  without one
+- **End-to-end** — `frontend/scripts/e2e.mjs` passes against live `uvicorn` +
+  Atlas: submit → track → admin assign/resolve → re-read, 9 items / 5 users
+- **Cloudinary (open checklist item resolved)** — unsigned preset
+  `grievance app` on cloud `dnw1p9dnk` accepted a real upload (HTTP 200);
+  `/validate-image` (heuristic fallback, score 18.4 → correctly rejected below
+  the threshold of 60), `/delete-cloudinary` and `/sign-cloudinary` all 200
+- `tsc --noEmit` clean; `npm run build` renders all 6 routes
+
+### Notes
+- `OPEN_ROUTER_API_KEY` was deliberately **not** ported from `main` — image
+  validation stays on Groq vision + heuristic (DEC-015).
+- 9 automated test records remain in `grievance.grievances` (probes + e2e);
+  harmless, wiped on request.
+
+---
+
 ## 2026-10-01 — Migration Phases 4, 5, 6: Legacy UI Retired, Docs Aligned, Test Suite Added — committed
 
 ### Added

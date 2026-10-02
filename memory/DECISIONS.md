@@ -669,3 +669,128 @@ reasoning that `AGENTS.md` requires memory to preserve.
 
 **Affected Components:** `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`,
 `docs/API.md`, `docs/SECURITY.md`, `docs/DEVELOPMENT.md`, `INTEGRATION.md`
+
+---
+
+## DEC-014 — Phase 6 Follow-up: Grievance IDs Derived From Stored Data, Not a Per-Process Counter
+
+**ID:** DEC-014
+**Date:** 2026-10-02
+**Status:** ACCEPTED
+
+**Context:**
+Cutting over to real MongoDB surfaced a latent defect in `backend/app/db.py`.
+`_new_id()` was `f"GRV-{year}-{next(_counter):04d}"` over a module-level
+`itertools.count(1)` — a counter that starts at 1 **in every process**. The
+first submission after any restart therefore always asked for
+`GRV-<year>-0001`. With empty storage that works; once data exists,
+`uniq_grievance_id` rejects it:
+
+```
+pymongo.errors.DuplicateKeyError: E11000 duplicate key error collection:
+grievance.grievances index: uniq_grievance_id dup key: { id: "GRV-2026-0001" }
+→ POST /submit-grievance 500
+```
+
+i.e. **the API could not create a grievance after a restart** — the most basic
+persistence requirement. It had been invisible because every verification run
+either started from an empty database or, as later discovered, had not
+actually recycled the listening process (a `kill` on a stale PID file silently
+failed, so the "restart" test passed against a process that never exited).
+
+**Decision:**
+1. Delete `_new_id()` and `_counter`. Id allocation moves into each
+   repository implementation, derived from what is stored:
+   - `MongoRepository._next_sequence()` reads the highest `id` with
+     `{"id": {"$gte": "GRV-<year>-"}}` sorted descending — bounded by the
+     current-year prefix, so the lookup rides the `uniq_grievance_id` index
+     rather than scanning. Sequence = stored tail + 1.
+   - `InMemoryRepository.create()` takes `max(existing tails) + 1` for the
+     current year under its lock.
+2. `MongoRepository.create()` retries on `DuplicateKeyError` (up to 100 times,
+   popping the driver-injected `_id` each attempt) so two concurrent writers
+   resolving to the same number cannot 500.
+3. Helper functions `_id_for(year, seq)` / `_sequence_of(id)` are shared by
+   both implementations; the visible scheme `GRV-<year>-<seq>` is unchanged.
+
+**Alternatives Considered:**
+- A `counters` collection with an atomic `find_one_and_update` + `$inc`:
+  rejected — a second collection and a second failure mode for a prototype
+  whose id space is per-year and whose uniqueness is already guaranteed by an
+  index. The read-then-retry approach leans on the index it exists to protect.
+- `ObjectId` / ULID: rejected — `docs/DATABASE.md`, `docs/API.md` and the
+  frontend `track` UI all publish the human-readable `GRV-…` form.
+- Seeding the in-process counter from storage at boot and keeping `itertools`:
+  rejected — it fixes restart but not concurrent writers, and keeps two
+  sources of truth for the next value.
+
+**Consequences:**
+- Restart-safe by construction; a fresh process resumes at the stored tail.
+- Two extra small functions in `db.py`, and an indexed read per insert.
+- Cross-year edge cases (clock moving backwards, a foreign
+  `GRV-2027-…` id) resolve to a still-unique number via the retry.
+- A test that asserts ids are allocated from data would have caught this;
+  the existing suite only asserts `startswith("GRV-")` (tracked in `TODO.md`).
+
+**Affected Components:** `backend/app/db.py`, `docs/DATABASE.md`
+
+---
+
+## DEC-015 — Phase 6 Follow-up: Env-Var Port Audit; Groq Model Defaults Repaired
+
+**ID:** DEC-015
+**Date:** 2026-10-02
+**Status:** ACCEPTED
+
+**Context:**
+An audit of every environment variable used by `main` against the unified
+branch found three drifts introduced while `backend/server.py` was rewritten
+into `backend/app/` (Phase 2):
+
+1. `GROQ_MODEL` defaulted to `llama-3.3-70b-versatile`, a model Groq has
+   decommissioned — the call 404s, and because failure is swallowed the
+   classifier silently degrades to keyword rules while appearing configured.
+   The same dead value shipped in `backend/.env.example`, so a fresh clone
+   inherited it.
+2. `LLAVA_MODEL` was declared in `config.py` and never read: `services/image.py`
+   hardcoded `meta-llama/llama-4-scout-17b-16e-instruct`, so overriding the
+   variable did nothing.
+3. `OPEN_ROUTER_API_KEY` (used by `main`'s image validation) was never ported —
+   Phase 2 rewrote `services/image.py` around Groq vision + an image-quality
+   heuristic.
+
+**Decision:**
+1. `GROQ_MODEL` default and `.env.example` → `openai/gpt-oss-20b`, the model
+   verified working against this project's key, with a dated comment recording
+   why the old default was removed. `GROQ_MODEL` stays overridable — the right
+   value is key-specific, so this is a repair, not a lock-in.
+2. `services/image.py` imports and uses `LLAVA_MODEL`, making the variable real
+   (behaviour unchanged: the default equals the previously hardcoded value).
+3. **`OPEN_ROUTER_API_KEY` is intentionally not ported.** Image validation
+   keeps its two-tier design — Groq vision when available, deterministic
+   image-quality heuristic otherwise — and does not gain a third provider.
+   Recorded rather than silently dropped, so the difference from `main` is a
+   decision instead of an omission.
+
+**Alternatives Considered:**
+- Re-introducing OpenRouter for image validation to reach feature parity with
+  `main`: rejected — it would add a provider, an API key and a second vision
+  path for a behaviour the heuristic already covers, and the project has
+  not committed to paid vision inference.
+- Deleting `LLAVA_MODEL` instead of wiring it: rejected — the vision model
+  should be configurable the same way the text model is, and `image.py`'s
+  hardcoded literal was the anomaly.
+- Keeping `llama-3.3-70b-versatile` as the documented default and only noting
+  the 404: rejected — a broken default in `.env.example` is copied verbatim by
+  every new setup.
+
+**Consequences:**
+- A fresh clone classifies with a model that actually responds; behaviour on
+  this project's key is unchanged (`.env` already pinned the working value).
+- Image validation has two configurable models (`GROQ_MODEL`, `LLAVA_MODEL`)
+  and no OpenRouter dependency.
+- Cloudinary remains the only third-party media service; its preset
+  unsigned-ness is now confirmed (see `SESSION_LOG.md`, 2026-10-02).
+
+**Affected Components:** `backend/app/config.py`, `backend/app/services/image.py`,
+`backend/.env.example`

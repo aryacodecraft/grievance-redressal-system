@@ -2,9 +2,9 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-01 (Phases 4–6 committed `09e83af..98ec1f3` on
-> `feature/unified-system`; legacy Firebase UI deleted, docs aligned, pytest
-> suite added — **migration plan Phases 1–6 complete**)
+> Last updated: 2026-10-02 (MongoDB Atlas cutover verified end-to-end; restart-
+> safe grievance ids DEC-014; env-var audit fixes DEC-015 — migration plan
+> Phases 1–6 remain complete)
 
 ---
 
@@ -26,9 +26,9 @@ set, otherwise the in-memory fallback, both behind the `GrievanceRepository`
 protocol. `backend/server.py`, `functions/`, `adfbh`, `firebase.json`,
 `.firebaserc`, `firestore.rules` and `firestore.indexes.json` are **deleted**.
 
-**Remaining backlog** is no longer migration work: MongoDB Atlas setup (owner),
-Firebase key rotation, real auth, resolver/analytics UI, AI evaluation.
-See `INTEGRATION.md` at repo root for the source map.
+**Remaining backlog** is no longer migration work: ~~MongoDB Atlas setup (owner)~~
+**done 2026-10-02**, Firebase key rotation, real auth, resolver/analytics UI,
+AI evaluation. See `INTEGRATION.md` at repo root for the source map.
 
 ---
 
@@ -99,10 +99,18 @@ memory/        — AI agent persistent memory                                  I
   not that scaffold; SQLAlchemy/Alembic/Postgres-era PLANNED items remain SUPERSEDED
 
 ### Database
+- **MongoDB Atlas (live)** — `MONGODB_URI`/`MONGODB_DB` set in `backend/.env`
+  (2026-10-02); `/health` reports `storage: "mongodb"`, the `grievance.grievances`
+  collection and both indexes exist on the cluster (server 8.0.34)
 - **MongoDB** via `MongoRepository` (`backend/app/db.py`) — **IMPLEMENTED
   (Phase 3, DEC-011)**; selected by `MONGODB_URI`/`MONGODB_DB` (see
   `backend/.env.example`), indexes (`uniq_grievance_id`, `user_created`
   `userId+createdAt` compound) created at startup, `createdAt` stored as BSON date
+- **Grievance ids are allocated from stored data** — `GRV-<year>-<seq>` with
+  `<seq>` = highest stored tail for the year + 1, retried on unique-index
+  collision (**DEC-014**, 2026-10-02). Replaces an `itertools.count` that reset
+  per process and made the first submission after any restart fail with
+  `DuplicateKeyError`
 - **In-memory fallback** (`InMemoryRepository`, same protocol) — **IMPLEMENTED**;
   used when `MONGODB_URI` is unset so the API boots without a database
   (non-persistent by design; `/health` reports `storage: in-memory`)
@@ -145,10 +153,19 @@ memory/        — AI agent persistent memory                                  I
 - `frontend/scripts/e2e.mjs` — **IMPLEMENTED (Phase 6)**: imports the real
   `lib/api.ts` so responses are zod-validated by the schemas the UI uses
 - Verified end-to-end (Phase 6): live `uvicorn` on `:10000` — submit/list/get/
-  PATCH/404/400, persistence across a process restart, and the in-memory
-  fallback when `MONGODB_URI` is unset; the e2e script covers submit → track →
-  admin assign/resolve; all 6 frontend routes serve 200; `tsc --noEmit` +
-  `npm run build` clean. *(DOM not driven — no desktop browser connected)*
+  PATCH/404/400, and the in-memory fallback when `MONGODB_URI` is unset
+- Re-verified against **real MongoDB Atlas (2026-10-02)**: `e2e.mjs` PASSED
+  through the real zod-parsing client (submit → track → admin assign/resolve →
+  re-read, error path, second citizen); persistence across a **genuinely
+  recycled** process (the earlier restart check had silently not restarted);
+  `pytest` leaves Atlas untouched (count 3 → 3); all 6 frontend routes serve
+  200; `tsc --noEmit` + `npm run build` clean. *(DOM not driven — no desktop
+  browser connected)*
+- Cloudinary verified live (2026-10-02): unsigned preset `grievance app` on
+  cloud `dnw1p9dnk` accepts uploads, and `/validate-image` (heuristic fallback,
+  score 18.4 → rejected below the threshold of 60), `/delete-cloudinary`,
+  `/sign-cloudinary` all return 200 — the preset's unsigned-ness is no longer
+  an open question
 - Frontend tests (Jest + React Testing Library), state-machine tests and the
   AI evaluation protocol — **PLANNED**
 
@@ -207,13 +224,23 @@ memory/        — AI agent persistent memory                                  I
   closed before any deployment handling real data.
 - In-memory fallback repository is non-persistent by design — only used when
   `MONGODB_URI` is unset; `/health` reports which storage is active.
+- **`imageValidation` is not persisted.** `SubmitForm` posts `imageUrl` only,
+  so the Cloudinary `publicId` and the validation score never reach the
+  document — the image cannot later be deleted via `/delete-cloudinary`, and
+  there is no audit trail of what the validator decided. Client, model and
+  router all need the extra fields.
+- The Atlas database password is short (4 digits) and was pasted into a chat
+  transcript; combined with a `0.0.0.0/0` network allowlist that is
+  brute-forceable. Rotation is the owner's action — same class of problem as
+  the Firebase key below.
 
 ---
 
 ## Current Blockers
 
-- **MongoDB Atlas setup is the user's call** — nothing persists until a real
-  `MONGODB_URI` is set in `backend/.env` (in-memory fallback is the default).
+- ~~MongoDB Atlas setup~~ — **RESOLVED 2026-10-02**: cluster provisioned,
+  `MONGODB_URI`/`MONGODB_DB` set in `backend/.env`, persistence verified across
+  a real restart. (Render still needs the same vars filled in for deployment.)
 - Auth stack still undecided (DEC-010/DEC-011 cover backend + persistence
   direction; demo/localStorage auth in the frontend remains temporary).
 - LLM provider: Groq + HuggingFace in use (`GROQ_API_KEY`, `HF_API_TOKEN`,
@@ -242,16 +269,24 @@ memory/        — AI agent persistent memory                                  I
 
 ## Immediate Next Steps
 
-1. Owner: create MongoDB Atlas cluster + set `MONGODB_URI` in `backend/.env`
-   (the only thing standing between the app and persistent storage; `render.yaml`
-   also has `MONGODB_URI`/`MONGODB_DB` placeholders to fill for deployment).
-2. Rotate the hardcoded Firebase Web API key — still in git history.
-3. Real auth: implement the JWT/RBAC design in `docs/SECURITY.md` and make the
-   server derive `userId` from the verified token (closes the documented
-   highest-risk gap).
-4. Review + merge `feature/unified-system` → `app/intialise` → `main` (`--no-ff`)
-   — all work so far is **local and unpushed**.
-5. Beyond the migration plan: resolver dashboard + analytics views (Phase 5 UI),
-   AI evaluation protocol (Phase 12), frontend tests (Jest + RTL).
+> **Decided roadmap order (2026-10-01, owner-confirmed):** Phase 0 checkpoint
+> ship (push + `--no-ff` merge `feature/unified-system` → `app/intialise` →
+> `main`) → Phase 1 JWT auth + RBAC → Phase 2 DEC-006 state machine + history →
+> Phase 3 UI completeness → Phase 4 AI evaluation (deferred, "later") → ship.
+> Auth scope is **JWT only**; Google OAuth deferred.
+
+1. **Phase 0 — checkpoint merge.** Push and `--no-ff` merge
+   `feature/unified-system` → `app/intialise` → `main` (owner's call; `main` has
+   a protection rule). All work so far is **local and unpushed**.
+2. Rotate the hardcoded Firebase Web API key — still in git history; and
+   rotate/narrow the Atlas credentials noted under Known Issues.
+3. Phase 1: JWT auth + RBAC (`DEC-007`) on a fresh branch, making the server
+   derive `userId` from the verified token — closes the documented
+   highest-risk gap in `docs/SECURITY.md`.
+4. Phase 2: DEC-006's 12 uppercase states as a server-enforced transition
+   machine with audit history (`PATCH /grievances/{id}/status` currently accepts
+   any string, unauthenticated, with no history).
+5. Phase 3 UI completeness; Phase 4 AI evaluation deferred.
+6. Fill `MONGODB_URI`/`MONGODB_DB` into the Render environment for deployment.
 
 See `memory/TODO.md` for the full prioritized task backlog.
