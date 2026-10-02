@@ -102,13 +102,23 @@ pytest                      # all tests
 pytest tests/test_endpoints.py -v
 ```
 
-The suite has three files:
+The suite has nine files:
 
 | File | Covers |
 |---|---|
 | `tests/test_classification.py` | Keyword classifier, priority/urgency rules, sentiment normalisation, and the `CATEGORY_KEYS` ↔ frontend `CATEGORIES` contract |
-| `tests/test_endpoints.py` | HTTP behaviour of the real FastAPI app (request/response shapes, status codes, error format) |
-| `tests/test_repository.py` | Both `GrievanceRepository` implementations + repository selection |
+| `tests/test_classification_cascade.py` | The HF → Groq → keyword cascade, including provider-outage fallback and the submit-time `modelInfo` shape |
+| `tests/test_config_drift.py` | Drift between `config.py`, `backend/.env.example`, `frontend/.env.example` and `render.yaml` — plus secret-leak and wildcard-CORS checks |
+| `tests/test_endpoints.py` | HTTP behaviour of the real FastAPI app (request/response shapes, status codes, error format, limit bounds, unicode/injection round-trips) |
+| `tests/test_id_allocation.py` | DEC-014: ids derived from stored data — restart resumption, year rollover, out-of-order ids, concurrent creates |
+| `tests/test_image_validation.py` | `/validate-image` contract and the accept/reject threshold boundary, plus the (documented) SSRF surface |
+| `tests/test_repository.py` | Both `GrievanceRepository` implementations + repository selection + the shared list contract |
+| `tests/test_security_baseline.py` | **Asserts current insecure behaviour on purpose** — the "before" state Phase 1 must invert |
+| `tests/test_status_vocabularies.py` | The four conflicting status vocabularies DEC-006 must migrate together, parsed from source |
+
+Tests named `test_BASELINE_*` document a known gap rather than a requirement:
+they pass today and are meant to **fail** once the corresponding phase lands,
+which is the signal to rewrite them as assertions of the new behaviour.
 
 **Endpoint and in-memory tests always run** — `tests/conftest.py` pins
 `MONGODB_URI=""` (and disables LLM keys) before `backend.app` is imported, so
@@ -141,6 +151,23 @@ admin assign/resolve → re-read. It needs **Node 23.6+** (TypeScript type
 stripping is on by default there — earlier versions need
 `--experimental-strip-types`) and a backend already running; it is **not** part
 of `pytest`.
+
+### Contract checks (frontend only — no backend needed)
+
+```bash
+node frontend/scripts/check-contract.mjs
+```
+
+Stubs `fetch` rather than calling anything, so it runs offline and gates CI.
+It pins `roleForEmail` / `isAdminEmail` (including the deliberate `BASELINE`
+escalation that Phase 1 must remove), the `useMocks()` switch — which turns
+mocks off **only** for the exact string `"false"`, so `"FALSE"` or `0` silently
+serves fabricated data — and the zod schemas against backend-shaped JSON.
+
+That last part matters because `z.object()` strips undeclared keys without
+failing: a field the backend sends but the schema omits parses cleanly and
+then simply never reaches the UI. `hfEngine.categoryConfidence` shipped that
+way for a while — live data lost the confidence display that mock data kept.
 
 ---
 

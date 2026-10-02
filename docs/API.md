@@ -20,9 +20,9 @@ Development: `http://localhost:10000`
 | `GET` | `/health` | Returns `{ "status", "storage" }` — `storage` is `mongodb` or `in-memory` |
 | `GET` | `/test` | Legacy smoke-test route |
 | `POST` | `/submit-grievance` | Creates a grievance; runs the AI classifier cascade. Returns `{ "message", "grievanceId", "hfEngine" }` |
-| `GET` | `/grievances` | List; optional `?userId=` scopes to one citizen, `?limit=` |
+| `GET` | `/grievances` | List; optional `?userId=` scopes to one citizen, `?limit=` (default `50`, must be `1..1000`) |
 | `GET` | `/grievances/{grievance_id}` | Single grievance; `404` if unknown |
-| `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` |
+| `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` — blank/whitespace-only values are `400`; surrounding whitespace is trimmed. No auth and no transition rules yet (Phase 1/2). |
 | `POST` | `/validate-image` | Image validation |
 | `POST` | `/sign-cloudinary` | Cloudinary upload signature |
 | `POST` | `/delete-cloudinary` | Cloudinary asset removal |
@@ -42,8 +42,12 @@ No auth required.
 ```json
 { "status": "ok", "storage": "mongodb" }
 ```
-`storage` is `"mongodb"` when `MONGODB_URI` is set and reachable, otherwise
-`"in-memory"` (non-persistent fallback).
+`storage` is `"mongodb"` whenever `MONGODB_URI` is set, and `"in-memory"`
+otherwise (non-persistent fallback). It reports what is *configured*, not
+whether the cluster currently answers — `/health` does not ping, deliberately:
+a ping would hold a deployment's health check open for `serverSelectionTimeoutMS`
+whenever the cluster is down, and a `503` would trigger restarts that cannot
+fix an unreachable Atlas. Probe liveness separately if you need it.
 
 ---
 
@@ -380,6 +384,12 @@ Update category. **Auth:** ADMIN.
 ```
 FastAPI request-validation failures are normalised to the same shape by the
 `RequestValidationError` handler in `backend/app/main.py`.
+
+Unrouted paths (`404`) and disallowed methods (`405`) used to bypass that and
+return Starlette's `{"detail": "..."}`, which the client does not read — they
+surfaced to users as a bare "Request failed (404)". A `StarletteHTTPException`
+handler in `main.py` now maps them to the same flat shape, so **every** error
+body the API can return carries `error`.
 
 **Planned shape (target, not yet used):**
 All errors follow:

@@ -101,6 +101,28 @@ implementations:
 Routers only depend on the protocol, so the storage backend can change without
 touching any HTTP layer.
 
+### Shared list contract
+
+`list(user_id, limit)` must return the same rows in the same order from both
+implementations, or development (in-memory) and production (MongoDB) quietly
+diverge. Two rules, pinned by `tests/test_repository.py`:
+
+- **Order:** `(createdAt, id)` descending. Mongo sorts
+  `[("createdAt", -1), ("id", -1)]`; the in-memory fallback mirrors it. An
+  earlier tie-break on priority weight existed *only* in the fallback, so a
+  record tied on `createdAt` sorted differently per backend — `id` is
+  monotonic, which makes `(createdAt, id)` a total order and leaves priority
+  out of it.
+- **Limit:** at most `limit` rows, and `limit <= 0` returns **nothing**.
+  pymongo reads `.limit(0)` as *unlimited* and `.limit(-n)` as "take n"; a
+  Python slice reads `[:0]` as empty. The same `?limit=0` used to return the
+  whole collection on MongoDB and zero rows in-memory. The HTTP layer rejects
+  `limit < 1` (and `> 1000`) before either implementation is reached — the
+  repository guards are defence in depth for direct callers.
+
+`tests/test_status_vocabularies.py` and `tests/test_config_drift.py` cover the
+frontend and environment halves of the same drift risk.
+
 ---
 
 ## Roadmap (deferred)
