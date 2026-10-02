@@ -17,15 +17,22 @@ logger = logging.getLogger("grievance-api")
 def compute_image_quality_score(pil_img: Image.Image) -> dict:
     img = pil_img.convert("RGB")
     width, height = img.size
-    ref_area = 1024 * 768
+    ref_area = 800 * 600
     area = max(1, width * height)
     res_score = min(1.0, area / ref_area)
 
     gray = img.convert("L")
     stat = ImageStat.Stat(gray)
     mean_brightness = stat.mean[0] if stat.mean else 0
-    bright_score = (mean_brightness - 30) / (200 - 30)
-    bright_score = max(0.0, min(1.0, bright_score))
+    # Natural lighting check: normal indoor/outdoor exposure between 25 and 235
+    if mean_brightness < 20 or mean_brightness > 240:
+        bright_score = 0.0
+    elif 40 <= mean_brightness <= 220:
+        bright_score = 1.0
+    elif mean_brightness < 40:
+        bright_score = max(0.0, (mean_brightness - 20) / 20.0)
+    else:
+        bright_score = max(0.0, (240 - mean_brightness) / 20.0)
 
     arr = np.asarray(gray).astype(np.int32)
     if arr.shape[0] < 3 or arr.shape[1] < 3:
@@ -35,10 +42,15 @@ def compute_image_quality_score(pil_img: Image.Image) -> dict:
         dxx = arr[1:-1, 2:] - 2 * arr[1:-1, 1:-1] + arr[1:-1, :-2]
         lap = dyy + dxx
         var = float(np.var(lap))
-        sharpness_score = (var - 20.0) / (2000.0 - 20.0)
-        sharpness_score = max(0.0, min(1.0, sharpness_score))
+        # Standard photography threshold: Laplacian variance >= 60-100 indicates in-focus details.
+        sharpness_score = min(1.0, max(0.0, (var - 20.0) / 100.0))
 
-    final_score = (sharpness_score * 0.5 + res_score * 0.3 + bright_score * 0.2) * 100.0
+    final_score = (sharpness_score * 0.45 + res_score * 0.35 + bright_score * 0.20) * 100.0
+
+    # Minimum usability bounds (too small, pitch black, or completely blurred)
+    if width < 300 or height < 300 or sharpness_score < 0.10 or bright_score < 0.10:
+        final_score = min(final_score, 40.0)
+
     return {
         "score": round(final_score, 2),
         "components": {
@@ -135,9 +147,10 @@ def llm_image_confidence(image_url: str) -> dict:
                 "LLM returned unparsable response for image validation: %s",
                 str(raw)[:400],
             )
-        except Exception:
-            logger.exception(
-                "LLM image confidence check failed; falling back to heuristics."
+        except Exception as exc:
+            logger.info(
+                "Groq vision model unavailable (%s); using calibrated image quality check.",
+                str(exc).split("\n")[0][:100],
             )
 
     # Heuristic fallback
