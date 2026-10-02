@@ -11,8 +11,14 @@ services:
     envVars:
       - key: PORT
         value: "10000"
+      # Must be the ORIGIN of the deployed frontend (e.g.
+      # https://grievance-frontend.onrender.com), comma-separated if several.
+      # A localhost value here silently blocks every cross-origin call from the
+      # real frontend — the browser refuses them with no server-side error to
+      # explain it. Left unset, config.py falls back to "*", which works but is
+      # wide open; set it explicitly once the frontend has a public URL.
       - key: CORS_ORIGINS
-        value: "http://localhost:3000"
+        sync: false
       # Without this the service boots on the non-persistent in-memory store.
       - key: MONGODB_URI
         sync: false
