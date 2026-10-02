@@ -19,6 +19,7 @@ logger = logging.getLogger("grievance-api")
 CATEGORY_LABELS = [
     "Issues related to water supply, water pressure, contamination, or no water",
     "Issues related to roads, potholes, footpaths, traffic, or road damage",
+    "Issues related to public transport, buses, metro, rail, stops, or schedules",
     "Issues related to electricity, power cuts, voltage fluctuations, or streetlights not working",
     "Issues related to sanitation, garbage, sewage, drainage, or public cleanliness",
     "Issues related to health services, hospitals, clinics, medicines, or public health",
@@ -28,6 +29,7 @@ CATEGORY_LABELS = [
 CATEGORY_KEYS = [
     "water",
     "roads",
+    "transport",
     "electricity",
     "sanitation",
     "health",
@@ -72,6 +74,10 @@ ALL_KEYWORD_LISTS = {
     "roads": [
         "road", "pothole", "footpath", "traffic", "tar", "asphalt",
         "cracks", "pavement",
+    ],
+    "transport": [
+        "bus", "bus stop", "bus stand", "metro", "train", "railway",
+        "station", "timetable", "commute",
     ],
     "electricity": [
         "electricity", "power", "cut", "voltage", "streetlight", "wire",
@@ -240,13 +246,14 @@ def _classify_with_groq_category(text: str) -> dict | None:
         "Allowed Category Keys and Descriptions:\n"
         "- water: Issues related to water supply, water pressure, contamination, or no water\n"
         "- roads: Issues related to roads, potholes, footpaths, traffic, or road damage\n"
+        "- transport: Issues related to public transport, buses, metro, rail, stops, or schedules\n"
         "- electricity: Issues related to electricity, power cuts, voltage fluctuations, or streetlights not working\n"
         "- sanitation: Issues related to sanitation, garbage, sewage, drainage, or public cleanliness\n"
         "- health: Issues related to health services, hospitals, clinics, medicines, or public health\n"
         "- governance: Issues related to governance, staff behavior, corruption, permissions, or government service delays\n"
         "- other: Other issues not matching the above categories\n\n"
         "Return JSON only:\n"
-        '{\n  "category": "water|roads|electricity|sanitation|health|governance|other",\n'
+        '{"category": "' + "|".join(CATEGORY_KEYS) + '",\n'
         '  "reason": "short explanation"\n}\n'
     )
     try:

@@ -51,6 +51,7 @@ export interface ImageValidation {
 export const CATEGORIES = [
   "water",
   "roads",
+  "transport",
   "electricity",
   "sanitation",
   "health",
