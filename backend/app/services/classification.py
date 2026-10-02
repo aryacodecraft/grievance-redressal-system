@@ -1,7 +1,9 @@
 """Civic grievance classification: category, priority and urgency.
 
-Ported from the legacy Flask `backend/server.py` (~lines 264-668) so behaviour
-is unchanged. Cascade: HuggingFace zero-shot → Groq LLM → keyword fallback.
+Ported from the legacy Flask `backend/server.py` (~lines 264-668) and extended
+to match main's cascade order: ML model (GrievanceModel) → HuggingFace zero-shot
+→ Groq LLM → keyword fallback.  Each step is attempted in order; the next step
+runs only when the previous one returns None/other or low confidence.
 """
 
 from __future__ import annotations
@@ -15,6 +17,70 @@ import requests
 from ..config import GROQ_MODEL, HF_API_TOKEN, HF_BASE_URL, get_groq_client
 
 logger = logging.getLogger("grievance-api")
+
+# ---------------------------------------------------------------------------
+# Lazy ML model singleton (GrievanceModel + predict_with_fallback from main).
+# Loaded on first call; stays None if sklearn/pandas or the training CSV are
+# absent so the cascade degrades gracefully without crashing the server.
+# ---------------------------------------------------------------------------
+_ml_model = None  # set to the trained GrievanceModel or False (failed) at runtime
+
+
+def _get_ml_model():
+    """Return the trained GrievanceModel, or None if unavailable."""
+    global _ml_model
+    if _ml_model is False:
+        return None          # already tried and failed — don't retry every call
+    if _ml_model is not None:
+        return _ml_model
+    try:
+        from .grievance_model import GrievanceModel
+        model = GrievanceModel().train()
+        if model.is_trained:
+            _ml_model = model
+            logger.info("GrievanceModel trained and ready.")
+        else:
+            logger.warning("GrievanceModel.train() completed but is_trained=False; ML step disabled.")
+            _ml_model = False
+    except Exception as exc:
+        logger.warning("GrievanceModel unavailable (will skip ML step): %s", exc)
+        _ml_model = False
+    return _ml_model if _ml_model is not False else None
+
+
+def _classify_with_ml(text: str) -> dict | None:
+    """First cascade step: TF-IDF + LogisticRegression model.
+
+    Matches main's ``predict_with_fallback`` fallback condition:
+    skip (return None) when confidence < 0.5 **or** category is 'other'
+    so the next cascade step (HF) gets a chance.
+    """
+    model = _get_ml_model()
+    if model is None:
+        return None
+    try:
+        from .llm_fallback import canonicalize_category
+        result = model.predict(text)
+        raw_cat = result.get("category", "other")
+        ml_cat = canonicalize_category(raw_cat)
+        confidence = float(result.get("confidence", 0.0))
+
+        # Same fallback condition as main's predict_with_fallback
+        if confidence < 0.5 or ml_cat == "other":
+            return None
+
+        if ml_cat not in CATEGORY_KEYS:
+            return None
+
+        idx = CATEGORY_KEYS.index(ml_cat)
+        return {
+            "rawLabel": CATEGORY_LABELS[idx],
+            "category": ml_cat,
+            "confidence": confidence,
+        }
+    except Exception as exc:
+        logger.error("ML model classification failed: %s", exc)
+        return None
 
 CATEGORY_LABELS = [
     "Issues related to water supply, water pressure, contamination, or no water",
@@ -287,10 +353,17 @@ def classify_category(text: str) -> dict:
             "confidence": 0.0,
         }
 
+    # Step 1: ML model (TF-IDF + LogisticRegression) — matches main's cascade order
+    result = _classify_with_ml(text)
+    if result:
+        return result
+
+    # Step 2: HuggingFace zero-shot
     result = _classify_with_hf(text)
     if result:
         return result
 
+    # Step 3: Groq LLM
     result = _classify_with_groq_category(text)
     if result:
         return result

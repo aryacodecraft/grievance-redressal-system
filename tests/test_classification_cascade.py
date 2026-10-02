@@ -1,4 +1,4 @@
-"""Classifier cascade: HF → Groq → keywords, and what survives a provider outage.
+"""Classifier cascade: ML model → HF → Groq → keywords, and what survives a provider outage.
 
 `conftest.py` pins `GROQ_API_KEY`/`HF_API_TOKEN` empty, so every test here runs
 the offline path deterministically. The point is to prove the cascade *degrades*
@@ -6,6 +6,8 @@ rather than failing: a submit must never 500 because an LLM provider is down.
 
 Branches are exercised by monkeypatching the private `_classify_with_*` steps,
 which keeps the tests network-free while still walking the real decision tree.
+All tests that patch HF/Groq also patch `_classify_with_ml` to return None so
+the real ML model never runs during unit tests (avoids CSV/sklearn dependency).
 """
 
 from __future__ import annotations
@@ -19,7 +21,8 @@ from backend.app.services import classification as clf
 
 
 def test_category_cascade_falls_through_to_keywords(monkeypatch):
-    """HF returns None (down/timeout) and Groq returns None → keyword rules."""
+    """All providers return None → keyword rules."""
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
     monkeypatch.setattr(clf, "_classify_with_hf", lambda text: None)
     monkeypatch.setattr(clf, "_classify_with_groq_category", lambda text: None)
 
@@ -29,6 +32,7 @@ def test_category_cascade_falls_through_to_keywords(monkeypatch):
 
 
 def test_category_cascade_prefers_hf_when_available(monkeypatch):
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
     monkeypatch.setattr(
         clf,
         "_classify_with_hf",
@@ -44,6 +48,7 @@ def test_category_cascade_prefers_hf_when_available(monkeypatch):
 
 
 def test_category_cascade_uses_groq_when_hf_fails(monkeypatch):
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
     monkeypatch.setattr(clf, "_classify_with_hf", lambda text: None)
     monkeypatch.setattr(
         clf,
@@ -73,12 +78,18 @@ def test_category_cascade_treats_a_failed_hf_call_as_a_miss(monkeypatch):
     assert mod._classify_with_hf("text") is None  # swallowed, not raised
 
     # And the cascade still lands on the keyword rules.
+    monkeypatch.setattr(mod, "_classify_with_ml", lambda text: None)
     monkeypatch.setattr(mod, "_classify_with_groq_category", lambda text: None)
     result = mod.classify_category("sewage overflow in the street")
     assert result["category"] == "sanitation"
 
 
 def test_category_cascade_empty_text_short_circuits(monkeypatch):
+    monkeypatch.setattr(
+        clf,
+        "_classify_with_ml",
+        lambda text: (_ for _ in ()).throw(AssertionError("must not be called")),
+    )
     monkeypatch.setattr(
         clf,
         "_classify_with_hf",
@@ -179,6 +190,7 @@ def test_refine_returns_a_dict_when_the_model_answers(monkeypatch):
 
 def test_submit_reports_the_model_that_actually_ran(client, sample_payload, monkeypatch):
     """`modelInfo` must not claim a model that was never consulted."""
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
     monkeypatch.setattr(clf, "_classify_with_hf", lambda text: None)
     monkeypatch.setattr(clf, "_classify_with_groq_category", lambda text: None)
     monkeypatch.setattr(clf, "_classify_priority_with_groq", lambda text: None)
@@ -191,8 +203,10 @@ def test_submit_reports_the_model_that_actually_ran(client, sample_payload, monk
 
 
 def test_submit_always_returns_a_valid_category_and_priority(
-    client, sample_payload
+    client, sample_payload, monkeypatch
 ):
+    # Disable ML model so the test uses the deterministic keyword path
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
     body = client.post("/submit-grievance", json=sample_payload).json()
     engine = body["hfEngine"]
     assert engine["category"] in {"other", "roads"}  # keyword path
@@ -205,6 +219,7 @@ def test_submit_always_returns_a_valid_category_and_priority(
 def test_submit_never_fails_because_a_provider_is_down(client, sample_payload, monkeypatch):
     """Every provider step raises → the submit still succeeds with keywords."""
     for name in (
+        "_classify_with_ml",
         "_classify_with_hf",
         "_classify_with_groq_category",
         "_classify_priority_with_groq",
@@ -217,6 +232,48 @@ def test_submit_never_fails_because_a_provider_is_down(client, sample_payload, m
     engine = res.json()["hfEngine"]
     assert engine["category"] in {"other", "roads"}
     assert engine["priority"] in {"low", "medium", "high"}
+
+
+# ── ML model step ────────────────────────────────────────────────────────────
+
+
+def test_category_cascade_uses_ml_model_when_confident(monkeypatch):
+    """ML model is the first step; HF/Groq must not run when ML is confident."""
+    monkeypatch.setattr(
+        clf,
+        "_classify_with_ml",
+        lambda text: {"rawLabel": "Sanitation", "category": "sanitation", "confidence": 0.87},
+    )
+    monkeypatch.setattr(
+        clf,
+        "_classify_with_hf",
+        lambda text: (_ for _ in ()).throw(AssertionError("HF must not run when ML succeeds")),
+    )
+    monkeypatch.setattr(
+        clf,
+        "_classify_with_groq_category",
+        lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run when ML succeeds")),
+    )
+    result = clf.classify_category("garbage pile up in the street")
+    assert result["category"] == "sanitation"
+    assert result["confidence"] == 0.87
+
+
+def test_category_cascade_falls_to_hf_when_ml_returns_none(monkeypatch):
+    """When ML returns None, cascade must proceed to HF."""
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
+    monkeypatch.setattr(
+        clf,
+        "_classify_with_hf",
+        lambda text: {"rawLabel": "Electricity", "category": "electricity", "confidence": 0.82},
+    )
+    monkeypatch.setattr(
+        clf,
+        "_classify_with_groq_category",
+        lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
+    )
+    result = clf.classify_category("streetlight not working")
+    assert result["category"] == "electricity"
 
 
 def _raiser(name):
