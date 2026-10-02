@@ -46,6 +46,31 @@ const hfEngineSchema = z.object({
   isUrgent: z.boolean().default(false),
   keywords: z.array(z.string()).default([]),
   explanation: z.string().default(""),
+  // Declared because `lib/types.ts` HfEngine exposes them and GrievanceCard
+  // renders `categoryConfidence`. z.object() strips undeclared keys, so an
+  // omission does not fail the parse — the UI just quietly stops showing the
+  // value on live data while mock data (which bypasses zod) still works.
+  rawCategoryLabel: z.string().optional(),
+  categoryConfidence: z.number().optional(),
+  urgentMatches: z.array(z.string()).optional(),
+  modelInfo: z
+    .object({
+      categoryModel: z.string().optional(),
+      priorityModel: z.string().optional(),
+      sentimentLabel: z.string().optional(),
+      sentimentScore: z.number().optional(),
+      // Backend emits the string "None" when Groq did not run — normalise to
+      // a real null so consumers can test truthiness.
+      groqModel: z
+        .string()
+        .nullish()
+        .transform((v) => (v && v !== "None" ? v : null))
+        .optional(),
+      hfCategory: z.string().optional(),
+      hfPriority: z.string().optional(),
+    })
+    .passthrough()
+    .optional(),
 });
 
 const submitResultSchema = z.object({
@@ -74,6 +99,10 @@ const grievanceSchema = z.object({
   longitude: z.number().nullish(),
   hfEngine: hfEngineSchema.nullish(),
   assignee: z.string().nullish(),
+  // `to_api()` emits this whenever an image was attached, and lib/types.ts
+  // declares it on Grievance detail views need it back — without it here the
+  // stored verdict is stripped by zod before any component can read it.
+  imageValidation: imageValidationSchema.nullish(),
 });
 
 const grievanceListSchema = z.array(grievanceSchema);
