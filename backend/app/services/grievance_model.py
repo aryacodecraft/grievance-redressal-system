@@ -167,6 +167,9 @@ class GrievanceModel:
                 os.path.join(base_dir, 'data', 'Citizen (1).csv'),
                 os.path.join(base_dir, '..', 'backend', 'data', 'Citizen (1).csv'),
                 os.path.join(base_dir, '..', 'data', 'Citizen (1).csv'),
+                # This module lives at backend/app/services/ — the dataset
+                # stays with the research scripts at backend/data/.
+                os.path.join(base_dir, '..', '..', 'data', 'Citizen (1).csv'),
                 os.path.join(base_dir, 'Citizen (1).csv'),
                 os.path.join(base_dir, 'Citizen.csv'),
             ]

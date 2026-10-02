@@ -152,9 +152,10 @@ def derive_priority_from_text(text: str) -> str:
     Derives complaint priority (High, Medium, Low) from text using keyword detection
     when using the primary ML model prediction. Handles Hinglish via normalization.
     """
-    # Lazy import to avoid circular at top
+    # Kept lazy on purpose: `grievance_model` pulls in pandas/sklearn, and the
+    # Groq fallback must still work when those aren't installed.
     try:
-        from grievance_model import normalize_hinglish
+        from .grievance_model import normalize_hinglish
         normalized = normalize_hinglish(text.lower())
     except Exception:
         normalized = text.lower()

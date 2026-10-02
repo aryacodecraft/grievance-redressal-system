@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), "backend", ".env")
 load_dotenv(dotenv_path=dotenv_path)
 
-# Ensure backend directory is in path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+# Repository root must be on the path — the model lives in the serving package.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from grievance_model import GrievanceModel
-from llm_fallback import predict_with_fallback
+from backend.app.services.grievance_model import GrievanceModel
+from backend.app.services.llm_fallback import predict_with_fallback
 
 
 class LowConfidenceMockModel:
