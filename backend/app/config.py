@@ -8,7 +8,20 @@ from functools import lru_cache
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Search for .env in standard locations (backend/.env or repo root .env)
+_env_paths = [
+    os.path.join(os.path.dirname(__file__), "..", "..", "backend", ".env"),
+    os.path.join(os.path.dirname(__file__), "..", "..", ".env"),
+    os.path.join(os.path.dirname(__file__), "..", ".env"),
+    "backend/.env",
+    ".env",
+]
+for _p in _env_paths:
+    if os.path.exists(_p):
+        load_dotenv(_p)
+        break
+else:
+    load_dotenv()
 
 logger = logging.getLogger("grievance-api")
 
