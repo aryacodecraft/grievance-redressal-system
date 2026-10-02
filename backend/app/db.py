@@ -12,7 +12,6 @@ the implementation never touches them.
 
 from __future__ import annotations
 
-import itertools
 import logging
 import threading
 from datetime import datetime, timezone
@@ -37,11 +36,16 @@ class GrievanceRepository(Protocol):
     ) -> Optional[dict[str, Any]]: ...
 
 
-def _new_id() -> str:
-    return f"GRV-{datetime.now(timezone.utc).year}-{next(_counter):04d}"
+def _id_for(year: int, seq: int) -> str:
+    return f"GRV-{year}-{seq:04d}"
 
 
-_counter = itertools.count(1)
+def _sequence_of(grievance_id: str) -> Optional[int]:
+    """Numeric tail of ``GRV-2026-0007`` -> ``7``; ``None`` if unparseable."""
+    try:
+        return int(grievance_id.rsplit("-", 1)[1])
+    except (IndexError, ValueError):
+        return None
 
 
 class InMemoryRepository:
@@ -53,7 +57,20 @@ class InMemoryRepository:
 
     def create(self, doc: dict[str, Any]) -> str:
         with self._lock:
-            grievance_id = _new_id()
+            # Derived from stored ids rather than a shared counter, so a
+            # freshly constructed repo holding pre-existing ids never
+            # re-issues one (the failure mode that made _new_id() 500 after
+            # a restart against MongoDB).
+            year = datetime.now(timezone.utc).year
+            prefix = f"GRV-{year}-"
+            seq = 1
+            for existing in self._docs:
+                if existing.startswith(prefix):
+                    seen = _sequence_of(existing)
+                    if seen is not None:
+                        seq = max(seq, seen + 1)
+
+            grievance_id = _id_for(year, seq)
             record = dict(doc)
             record.setdefault(
                 "createdAt", datetime.now(timezone.utc).isoformat()
@@ -148,15 +165,45 @@ class MongoRepository:
             out["createdAt"] = created.astimezone(timezone.utc).isoformat()
         return out
 
+    def _next_sequence(self) -> int:
+        """Next free id tail for the current UTC year, read from stored ids.
+
+        Deriving this from the data (instead of an in-process counter) is what
+        keeps a restart from replaying ``GRV-<year>-0001`` and tripping the
+        unique index. The prefix bounds the lookup, so the sort rides the
+        ``uniq_grievance_id`` index instead of scanning the collection.
+        """
+        prefix = f"GRV-{datetime.now(timezone.utc).year}-"
+        doc = self._col.find_one(
+            {"id": {"$gte": prefix}},
+            {"_id": 0, "id": 1},
+            sort=[("id", -1)],
+        )
+        if doc is None:
+            return 1
+        seen = _sequence_of(str(doc.get("id", "")))
+        return (seen + 1) if seen is not None else 1
+
     def create(self, doc: dict[str, Any]) -> str:
-        grievance_id = _new_id()
+        from pymongo.errors import DuplicateKeyError
+
         record = self._to_storage(doc)
         record.setdefault("createdAt", datetime.now(timezone.utc))
         if isinstance(record["createdAt"], str):
             record["createdAt"] = datetime.fromisoformat(record["createdAt"])
-        record["id"] = grievance_id
-        self._col.insert_one(record)
-        return grievance_id
+
+        seq = self._next_sequence()
+        for _ in range(100):
+            grievance_id = _id_for(datetime.now(timezone.utc).year, seq)
+            record["id"] = grievance_id
+            try:
+                self._col.insert_one(record)
+                return grievance_id
+            except DuplicateKeyError:
+                # Concurrent writer took this number — try the next one.
+                record.pop("_id", None)
+                seq += 1
+        raise RuntimeError("could not allocate a unique grievance id")
 
     def get(self, grievance_id: str) -> Optional[dict[str, Any]]:
         doc = self._col.find_one({"id": grievance_id}, {"_id": 0})

@@ -37,6 +37,13 @@ lost on restart.
 
 One document per grievance. Human-readable id scheme: `GRV-<year>-<seq>`.
 
+The `<seq>` tail is **derived from stored ids at write time** (highest existing
+`id` for the current UTC year + 1, retried on a unique-index collision), not
+counted by the process. A restart therefore resumes the sequence instead of
+re-issuing `GRV-<year>-0001` and failing with `DuplicateKeyError` — the bug
+this replaced (`itertools.count`, reset per process) 500'd the first submission
+after every restart once data existed. See `memory/DECISIONS.md` DEC-014.
+
 | Field | Type | Notes |
 |---|---|---|
 | `id` | string | Unique, e.g. `GRV-2026-0001`. Returned as `id`. |
