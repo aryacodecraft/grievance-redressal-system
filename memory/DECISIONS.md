@@ -794,3 +794,84 @@ into `backend/app/` (Phase 2):
 
 **Affected Components:** `backend/app/config.py`, `backend/app/services/image.py`,
 `backend/.env.example`
+
+---
+
+## DEC-016 — Test Suite Policy: Fix Real Bugs, Baseline Known Gaps
+
+**ID:** DEC-016
+**Date:** 2026-10-02
+**Status:** ACCEPTED (extends DEC-012)
+
+**Context:**
+The suite grew from 85 to 207 tests. Writing them surfaced two categories of
+failing expectation that had to be resolved differently, and the choice made
+once would otherwise be re-litigated by every later agent:
+
+- **Real bugs** — behaviour no one intended, where two code paths disagree.
+  Encoding them as passing assertions would freeze the defect into the suite.
+- **Known gaps** — behaviour that is *deliberately* deferred to a later phase
+  (no auth, no state machine). Failing these today would leave a red suite;
+  silently omitting them would lose the measurement Phase 1/2 must be judged by.
+
+**Decision:**
+1. **A failing test caused by a real bug is fixed, not encoded.** Applied to:
+   `?limit=0`/negative — pymongo reads `.limit(0)` as *unlimited* while a
+   Python slice reads it as empty, so one URL returned the whole collection on
+   MongoDB and zero rows in-memory; the in-memory list sorted ties by priority
+   weight while Mongo ignored it, so dev and production ordered records
+   differently; `PATCH status=""` was stored verbatim (only `None` was
+   filtered), leaving `Badge` with no match; unrouted `404`/`405` returned
+   Starlette's `{"detail"}`, which `lib/api.ts` never reads; `_storage_mode`
+   was assigned only after a successful ping, so a cluster down at boot made
+   `/health` report `in-memory` while requests went to MongoDB; and
+   `hfEngineSchema` omitted `categoryConfidence`, which zod stripped silently —
+   the confidence display vanished on live data but kept working on mocks.
+2. **A gap deferred to a later phase becomes a `test_BASELINE_*` test** that
+   asserts today's behaviour with a docstring stating what must change and a
+   message telling the future author to invert it rather than delete it. Used
+   for: no auth on read or `PATCH` (`test_security_baseline.py`), identity
+   taken from the request body, no rate limiting, arbitrary status strings and
+   no history (Phase 2), `roleForEmail`'s `includes("admin")` substring
+   escalation, and `/health` not pinging. These pass now and **must fail** when
+   the phase lands — a green suite after Phase 1 with the same tests is the
+   signal that the gap was not actually closed.
+3. **Source-parsing assertions are acceptable where import is not.** JSX
+   (`TIMELINE`, `StatusBadge`) cannot load outside a React runtime, so
+   `test_status_vocabularies.py` regexes the `.tsx` files; `test_config_drift.py`
+   parses `config.py`, both `.env.example` files and `render.yaml`. Brittle by
+   design — a refactor that breaks the parse fails loudly instead of silently
+   emptying the set an assertion iterates.
+4. **`/health` reports configuration, not reachability.** `storage` is
+   `"mongodb"` whenever `MONGODB_URI` is set, even if the cluster never
+   answered. Adding a ping would hold a deployment health check open for
+   `serverSelectionTimeoutMS` (8 s) exactly when the cluster is down, and a
+   `503` would trigger restarts that cannot fix an unreachable Atlas. Liveness
+   belongs on a separate future `/readyz` with a short timeout; `/health` keeps
+   its current 200-always semantics because `render.yaml` and the frontend
+   `checkBackendHealth()` both rely on it.
+
+**Alternatives Considered:**
+- Marking the known gaps `xfail`: rejected — `xfail` reports as expected, so
+  nothing forces a reader to notice *what* is missing, and a strict marker
+  would break Phase 1's build for the wrong reason. An explicitly named
+  baseline test carries its own explanation and fails at exactly the right
+  moment.
+- Fixing the security gaps now: rejected — server-side authorisation, the
+  status vocabulary and audit history are Phase 1 and Phase 2 by the roadmap
+  the owner set on 2026-10-01. Implementing them here would silently expand
+  scope, and half-done auth is worse than documented-absent auth.
+- Adding a live ping to `/health`: rejected, see Decision 4.
+
+**Consequences:**
+- The suite is green today (207 pytest + 18 frontend contract checks) and each
+  later phase has a measurable "before" it must break.
+- Phase 1 must update `tests/test_security_baseline.py` and the `BASELINE`
+  block in `frontend/scripts/check-contract.mjs`; Phase 2 must update
+  `test_status_vocabularies.py`'s four-site divergence assertions.
+- Six divergences fixed in the same pass are now pinned by regression tests,
+  so neither can return unnoticed.
+
+**Affected Components:** `backend/app/db.py`, `backend/app/routers/grievances.py`,
+`backend/app/main.py`, `frontend/lib/api.ts`, `render.yaml`,
+`backend/.env.example`, `tests/` (9 files), `frontend/scripts/check-contract.mjs`

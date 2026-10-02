@@ -743,3 +743,117 @@ harmless, and droppable on request.
 - Post-migration roadmap unchanged: **Phase 0 checkpoint merge → Phase 1 JWT
   auth/RBAC → Phase 2 DEC-006 state machine + history → Phase 3 UI → Phase 4
   AI evaluation (deferred) → ship.**
+
+---
+
+## 2026-10-02 — Automated Test Suite (85 → 207), Six Divergences Fixed
+
+### Goal
+Write the comprehensive automated test suite the owner asked for before the
+post-migration roadmap starts (Phase 0 merge → Phase 1 JWT → Phase 2 state
+machine → Phase 3 UI → Phase 4 AI eval). DOM/walk-through testing remains the
+owner's job — no desktop browser is connected to this session.
+
+### Context Read
+- `AGENTS.md` + `memory/{README,PROJECT_STATE,DECISIONS,TODO}.md` and the tail
+  of `SESSION_LOG.md` (memory protocol)
+- `backend/app/{db.py,main.py,config.py,models.py}`,
+  `routers/{grievances,images,health}.py`, `services/{image,classification}.py`
+- `tests/{conftest,test_endpoints,test_repository,test_classification}.py`
+- `frontend/lib/{api,roles,types,mock}.ts`, `frontend/scripts/e2e.mjs`,
+  `components/{ui/Badge,grievance/GrievanceCard,admin/AdminBoard}.tsx`
+- `docs/{API,DATABASE,DEVELOPMENT,SECURITY}.md`, `render.yaml`,
+  both `.env.example` files
+
+### Approach
+Prove each candidate defect empirically *before* writing its test — a probe
+script against both repository implementations and `TestClient`, then against a
+local `mongod`, so nothing was encoded on assumption. Two categories emerged
+and were handled differently (recorded as **DEC-016**): real bugs were fixed,
+and gaps deferred to a later phase became `test_BASELINE_*` tests that assert
+today's behaviour and are *meant to fail* when that phase lands.
+
+### Bugs Probed and Confirmed
+| # | Finding | Evidence |
+|---|---|---|
+| 1 | `limit=0` → memory `0` rows, Mongo **5** (whole collection) | `docs[:0]` vs `.limit(0)` |
+| 2 | `limit=-2` → memory `3`, Mongo `2` | slice vs pymongo abs |
+| 3 | Tied `createdAt` → Mongo `[0003,0002,0001]`, memory `[0002,0003,0001]` | priority weight only in memory |
+| 4 | `status=""` stored verbatim → `Badge` no match, timeline step 0 | `update()` filters only `None` |
+| 5 | Unknown route/405 → `{"detail"}`, client reads `json.error` | FastAPI default |
+| 6 | `roleForEmail("notadmin@…")` → `"admin"` | `includes("admin")` |
+| 7 | `image.py:145` `requests.get(image_url)` — no scheme/host/IP/size check | source |
+| 8 | `_storage_mode` assigned only on ping success → `/health` lies at boot | `_build_repository()` |
+| 9 | `hfEngine.categoryConfidence` read by `GrievanceCard` but absent from `hfEngineSchema` → zod strips it | node probe: `undefined !== 0.5` |
+
+### Work Completed
+**Six fixes, each with a regression test:**
+- `db.py` — `limit<=0` returns `[]` in *both* implementations; in-memory sort
+  aligned to Mongo's `(createdAt, id)` desc; `_storage_mode` set as soon as
+  `MONGODB_URI` is present
+- `routers/grievances.py` — `limit: int = Query(50, ge=1, le=1000)`; blank
+  `status`/`assignee` → `400`, otherwise trimmed
+- `main.py` — `StarletteHTTPException` handler so 404/405 use the flat
+  `{"error"}` shape the docs already promised
+- `frontend/lib/api.ts` — `hfEngineSchema` declares `rawCategoryLabel`,
+  `categoryConfidence`, `urgentMatches`, `modelInfo` (normalising the backend's
+  `"None"` groqModel to real `null`); `grievanceSchema` declares `imageValidation`
+- `render.yaml` — `CORS_ORIGINS` no longer a localhost placeholder
+- `backend/.env.example` — documents the `HUGGINGFACE_API_TOKEN` alias
+
+**Nine test files (207 tests) + 18 offline frontend checks:**
+new `test_id_allocation.py`, `test_image_validation.py`,
+`test_classification_cascade.py`, `test_config_drift.py`,
+`test_security_baseline.py`, `test_status_vocabularies.py`;
+extended `test_endpoints.py`, `test_repository.py`; `repo` fixture hoisted to
+`conftest.py`; new `frontend/scripts/check-contract.mjs` (stubbed `fetch`).
+
+**Docs:** `docs/API.md` (limit bounds, `/health` semantics, flat 404/405,
+blank-status rejection), `docs/DATABASE.md` (new "Shared list contract"),
+`docs/DEVELOPMENT.md` (nine files, `test_BASELINE_*` convention,
+`check-contract.mjs`).
+
+**Memory:** DEC-016 added; CHANGELOG, PROJECT_STATE, TODO updated.
+
+### Verification
+| Check | Result |
+|---|---|
+| `venv/bin/pytest` (local `mongod`) | **207 passed** |
+| `node frontend/scripts/check-contract.mjs` | **18 checks passed** (offline) |
+| `node frontend/scripts/e2e.mjs` | PASSED (`GRV-2026-0010`, Atlas) |
+| `npx tsc --noEmit` | clean |
+| `npm run build` | 7 routes |
+| Live probes of every fix on Atlas | `limit=0/-5/1001`→400, unknown route→flat 404, `DELETE /health`→405 flat, blank status→400, `"  assigned  "`→`assigned` |
+| Per-commit isolation | each commit verified with unstaged work stashed |
+
+Each of the four commits was verified against exactly its own tree before
+committing: `925b89c` (repository contract), `c1e47eb` (router + error shape),
+`d2f7151` (image/cascade/config suites + their fixes), `dd867ea` (zod fix +
+frontend contract checks, incl. `tsc` + `build`).
+
+### Decisions Made
+- **DEC-016** — fix real bugs, baseline known gaps (`test_BASELINE_*`), source
+  parsing where import is impossible (JSX), and `/health` reports configuration
+  rather than reachability.
+
+### What Was Left Running
+Backend restarted to pick up the fixes: `uvicorn` on `:10000` (PID in
+`/tmp/opencode/be.pid`, Atlas, `/health` → `storage: mongodb`), `next dev` on
+`:3000`, local `mongod` on `:27017` (`/tmp/opencode/mongodata`) for the full
+pytest run. Atlas now holds the e2e records plus `GRV-2026-0010` (whose status
+the live probe set to `assigned`) — all droppable on request.
+
+### Open
+- **DOM still not driven** — no desktop browser; the click-through remains the
+  owner's. `check-contract.mjs` + `e2e.mjs` cover the client contract, not the
+  DOM.
+- Phase 1 must **invert** `tests/test_security_baseline.py` and the `BASELINE`
+  block in `check-contract.mjs` rather than delete them; Phase 2 must update
+  `test_status_vocabularies.py`'s four-site divergence assertions.
+- SSRF, unauthenticated `/delete-cloudinary`-`/sign-cloudinary`, the
+  `roleForEmail` escalation and the missing `/readyz` are logged in
+  `TODO.md` — all Phase 1 or deployment hardening, deliberately not fixed here.
+- Jest + React Testing Library still not set up (component/interaction tests);
+  `check-contract.mjs` covers pure functions and schemas only.
+- Unchanged: Atlas password rotation, Firebase key rotation, Phase 0 merge
+  (branch now **40 commits ahead of `main`, unpushed**).

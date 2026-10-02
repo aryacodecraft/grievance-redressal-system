@@ -6,6 +6,88 @@
 
 ---
 
+## 2026-10-02 — Automated Test Suite (85 → 207), Six Divergences Fixed (DEC-016)
+
+### Added — tests (all network-free; `conftest.py` still pins `MONGODB_URI=""`)
+- `tests/test_id_allocation.py` — DEC-014 regression: seeds existing ids and
+  asserts the next continues from them; year rollover, out-of-order ids,
+  unparseable ids, 8/32-way concurrent creates (exercises Mongo's
+  `DuplicateKeyError` retry), plus the exact endpoint-level reproduction
+- `tests/test_image_validation.py` — `/validate-image` contract (field aliases,
+  zod shape), the accept/reject threshold boundary (59.99 / 60.00 / 60.01),
+  submit-time rejection not persisting, a raising scorer, and a `BASELINE`
+  proving the server fetches any URL it is handed
+- `tests/test_classification_cascade.py` — HF → Groq → keyword cascade,
+  provider-outage fallback, every `HIGH_PRIORITY_KEYWORDS` phrase resolving to
+  `high`, and `modelInfo` not claiming a model that never ran
+- `tests/test_config_drift.py` — `config.py` ↔ `backend/.env.example` ↔
+  `render.yaml` ↔ `frontend/.env.example`, secret-leak and wildcard-CORS checks
+- `tests/test_security_baseline.py` — **asserts today's insecure behaviour on
+  purpose** (unauthenticated read/write, body-supplied identity, no rate
+  limiting); the measurable "before" Phase 1 must invert
+- `tests/test_status_vocabularies.py` — parses the four conflicting status
+  vocabularies (backend default, `TIMELINE`, `StatusBadge`, admin filter,
+  `mock.ts`) and pins their divergence against DEC-006's 12 uppercase states
+- `tests/test_repository.py` — shared-list-contract tests (`limit<=0`, tie-break)
+- `frontend/scripts/check-contract.mjs` — **18 offline frontend checks** with a
+  stubbed `fetch`: `roleForEmail`/`isAdminEmail` (incl. the `BASELINE`
+  escalation), `useMocks()` semantics, and the zod schemas against
+  backend-shaped JSON
+- `tests/conftest.py` — the parametrised `repo` fixture moved here so every
+  module can assert against both repository implementations
+
+### Fixed — found by writing those tests
+- **`?limit=0`/negative meant opposite things per backend.** pymongo reads
+  `.limit(0)` as *unlimited* and `.limit(-n)` as "take n"; a Python slice reads
+  `[:0]` as empty — one URL returned the whole collection on MongoDB and zero
+  rows in-memory. `limit` is now `Query(50, ge=1, le=1000)` at the router, and
+  both repositories return nothing for `limit<=0`
+- **List ordering diverged on ties.** The in-memory fallback sorted by
+  `(createdAt, priority weight, id)` while Mongo sorted `[createdAt, id]`, so
+  dev and production ordered records differently. Both now `(createdAt, id)` desc
+- **`PATCH status=""` was stored verbatim** (`update()` only filtered `None`),
+  leaving `Badge` with no match and the timeline pinned to step 0. Blank
+  `status`/`assignee` are now `400`; surrounding whitespace is trimmed
+- **Unrouted `404`/`405` returned Starlette's `{"detail"}`**, which
+  `lib/api.ts` never reads — users saw a bare "Request failed (404)". A
+  `StarletteHTTPException` handler in `main.py` maps them to the flat
+  `{"error"}` shape the docs already promised
+- **`/health` could report `in-memory` while requests went to MongoDB.**
+  `_storage_mode` was assigned only after a successful ping, so a cluster down
+  at boot left the mode at its initial value. It is now set as soon as
+  `MONGODB_URI` is present (DEC-016 §4: configuration, not reachability)
+- **`hfEngineSchema` stripped `categoryConfidence`** (and `rawCategoryLabel`,
+  `urgentMatches`, `modelInfo`) — z.object() drops undeclared keys without
+  failing, so the confidence display worked on mock data but silently vanished
+  on live data. `grievanceSchema` also now declares `imageValidation`
+- **`render.yaml` pinned `CORS_ORIGINS=http://localhost:3000`**, which would
+  have blocked the deployed frontend with no server-side error to explain it;
+  now `sync: false` with a comment requiring the real origin
+- **`HUGGINGFACE_API_TOKEN`** (an alias `config.py` reads) was absent from
+  `backend/.env.example`
+
+### Changed
+- `docs/API.md` — `?limit` bounds, `/health` semantics, the flat 404/405 shape,
+  `PATCH` blank-status rejection
+- `docs/DATABASE.md` — new "Shared list contract" section (ordering + limit
+  rules both implementations must honour)
+- `docs/DEVELOPMENT.md` — "Running Tests" now lists nine files, documents the
+  `test_BASELINE_*` convention and the `check-contract.mjs` script
+
+### Verified
+- `pytest` — **207 passed** (with a local `mongod`; Atlas is never touched)
+- `node frontend/scripts/check-contract.mjs` — 18 checks pass (offline)
+- `node frontend/scripts/e2e.mjs` — PASSED against live `uvicorn` + Atlas
+  (`GRV-2026-0010`), after restarting the backend to pick up these changes
+- Live probes of every fix against Atlas: `limit=0`/`-5`/`1001` → `400`,
+  unknown route → `{"error":"Not Found"}`, `DELETE /health` → `405` flat,
+  blank status → `400`, `"  assigned  "` → stored as `assigned`
+- `tsc --noEmit` clean; `npm run build` — 7 routes
+- Four commits, each verified in isolation (working tree stashed down to the
+  staged set before running the suite): `925b89c`, `c1e47eb`, `d2f7151`, `dd867ea`
+
+---
+
 ## 2026-10-02 — MongoDB Atlas Cutover, Restart-Safe IDs (DEC-014), Env Audit Fixes (DEC-015)
 
 ### Added

@@ -128,7 +128,17 @@
 - [x] Classifier unit tests incl. `CATEGORY_KEYS` ↔ frontend `CATEGORIES` — DONE 2026-10-01
       (`tests/test_classification.py`; keyword path only — HF/Groq cascade is
       EXPERIMENTAL per DEC-005 and not asserted)
-- [ ] Set up Jest + React Testing Library for frontend tests
+- [x] **Expand the automated suite before the post-migration roadmap** — DONE
+      2026-10-02 (DEC-016): 85 → **207 pytest** + **18 frontend contract
+      checks**. New files: `test_id_allocation.py` (DEC-014 regression),
+      `test_image_validation.py`, `test_classification_cascade.py`,
+      `test_config_drift.py`, `test_security_baseline.py`,
+      `test_status_vocabularies.py`; `frontend/scripts/check-contract.mjs`
+      (offline, stubbed `fetch`). Six real bugs found and fixed in the same
+      pass — see DEC-016.
+- [ ] Set up Jest + React Testing Library for frontend tests — **partly
+      covered** by `check-contract.mjs` (pure functions + zod schemas with a
+      stubbed `fetch`); still open for component/interaction tests
 - [ ] Write unit tests for grievance state machine transitions (needs the state machine + real auth first)
 - [ ] Write integration tests for auth flows (blocked on real auth)
 - [ ] Define AI evaluation protocol for each module
@@ -153,9 +163,34 @@
       there is no record of what the validator decided. Needs changes in
       `lib/api.ts` (types), `SubmitForm`, `models.py` and `db.py` (`to_api`
       already has an `imageValidation` pass-through).
-- [ ] **Id allocation has no regression test.** `tests/test_repository.py` only
-      asserts `startswith("GRV-")`; a test that seeds existing ids and asserts the
-      next one continues from them would have caught DEC-014 (restart → 500).
+- [ ] **Id allocation has no regression test.** ~~`tests/test_repository.py` only
+      asserts `startswith("GRV-")`~~ — **DONE 2026-10-02**: `tests/test_id_allocation.py`
+      seeds existing ids and asserts the next continues from them, plus year
+      rollover, out-of-order ids, unparseable ids, concurrent creates, and the
+      exact DEC-014 reproduction at endpoint level.
+- [ ] **SSRF: the backend fetches any URL it is handed.** `services/image.py`
+      does `requests.get(image_url, timeout=12)` on raw client input — no
+      scheme check, no host/IP validation, no size cap. A submitter can point
+      the server at `169.254.169.254` or any internal host. Pinned by
+      `test_BASELINE_image_url_is_fetched_without_host_validation`; belongs with
+      **Phase 1** input validation (allow `http(s)` only, resolve and refuse
+      loopback/private/link-local ranges, cap the download).
+- [ ] **`/delete-cloudinary` and `/sign-cloudinary` have no auth.** Any caller
+      can delete or sign assets against the project's Cloudinary account.
+      **Phase 1** (RBAC) is their natural home.
+- [ ] **`roleForEmail` promotes any address containing "admin".**
+      `notadmin@example.com` → `admin`, client-side only (DEC-009 demo auth).
+      Pinned as `BASELINE` in `check-contract.mjs`; **Phase 1** replaces it
+      wholesale with token-derived roles.
+- [ ] **`/health` cannot detect a dead cluster.** By decision (DEC-016 §4) — it
+      reports configuration and never pings. A separate `/readyz` with a
+      short-timeout ping should be added when deployment hardening happens;
+      do not change `/health`'s 200-always semantics, `render.yaml` and
+      `checkBackendHealth()` depend on them.
+- [ ] **`render.yaml` sets no `CORS_ORIGINS` value** (now `sync: false`, was a
+      localhost placeholder that would have blocked the deployed frontend).
+      Someone must set the real frontend origin in the Render dashboard once it
+      has a URL; until then config falls back to `*`.
 - [ ] **DOM-level end-to-end still unverified** — no desktop browser has ever
       been connected to these sessions, so `frontend/scripts/e2e.mjs` covers the
       client contract only. The real click-through (citizen submit → track →

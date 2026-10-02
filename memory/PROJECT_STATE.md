@@ -2,9 +2,10 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-02 (MongoDB Atlas cutover verified end-to-end; restart-
-> safe grievance ids DEC-014; env-var audit fixes DEC-015 — migration plan
-> Phases 1–6 remain complete)
+> Last updated: 2026-10-02 (automated test suite expanded 85 → 207 tests plus
+> 18 frontend contract checks; six divergences found and fixed — DEC-016.
+> MongoDB Atlas cutover verified; DEC-014 ids; DEC-015 env audit — migration
+> plan Phases 1–6 remain complete)
 
 ---
 
@@ -40,10 +41,13 @@ backend/app/   — FastAPI service (grievances/images/health routers,          I
                  in-memory fallback, /health reports storage mode)            DEC-011)
 tools/         — recategorize.py (batch re-classification over MongoDB;       IMPLEMENTED (imports shared
                  imports shared classifier, supports --dry-run)                classifier)
-tests/         — pytest suite (classifier, endpoints, repository;             IMPLEMENTED (DEC-012; 85 tests,
-                 Mongo tests skip when no DB is reachable)                     68 without a DB)
+tests/         — pytest suite (classifier, cascade, endpoints, repository,      IMPLEMENTED (DEC-012/DEC-016; 207 tests +
+                 id allocation, image validation, config drift,                 18 frontend contract checks; Mongo
+                 security baseline, status vocabularies; Mongo tests            tests skip when no DB is reachable)
+                 skip when no DB is reachable)
 frontend/      — Next.js 16 (TS, Tailwind v4): REST client, demo auth,       IMPLEMENTED (Firebase removed; live mode
-                 admin map/clusters/filters, citizen my-grievances)            works against backend/app)
+                 admin map/clusters/filters, citizen my-grievances)            works against backend/app; zod schemas
+                                                                               pinned by check-contract.mjs)
 docs/          — Technical documentation; ARCHITECTURE/API/SECURITY/          IMPLEMENTED (aligned to the real
                  DEVELOPMENT annotated with implemented-vs-planned             stack, DEC-013)
 memory/        — AI agent persistent memory                                  IMPLEMENTED
@@ -144,21 +148,36 @@ memory/        — AI agent persistent memory                                  I
   **DELETED** (Phase 4); superseded by the Next.js admin board
 
 ### Testing
-- `tests/` (4 files, 85 tests) + `pytest.ini` + `requirements-dev.txt` —
-  **IMPLEMENTED (Phase 6, DEC-012)**: classifier unit tests incl. the
-  `CATEGORY_KEYS` ↔ `CATEGORIES` contract, endpoint tests over `TestClient`,
-  both repository implementations + selection logic. Mongo tests skip unless
-  `TEST_MONGODB_URI` is reachable — `pytest` is green with **85 passed** (with a
-  DB) or **68 passed / 17 skipped** (without)
+- `tests/` (9 files, **207 tests**) + `pytest.ini` + `requirements-dev.txt` —
+  **IMPLEMENTED (Phase 6, DEC-012; expanded 2026-10-02 per DEC-016)**:
+  classifier unit tests incl. the `CATEGORY_KEYS` ↔ `CATEGORIES` contract,
+  endpoint tests over `TestClient`, both repository implementations + the
+  shared list contract, DEC-014 id-allocation regressions, image-validation
+  threshold, classifier cascade under provider outage, config drift across
+  `config.py` / both `.env.example` files / `render.yaml`, a **security
+  baseline** that asserts today's insecure behaviour on purpose, and the four
+  conflicting status vocabularies. Mongo tests skip unless `TEST_MONGODB_URI`
+  is reachable — `pytest` is green with **207 passed** (with a local `mongod`)
+- `frontend/scripts/check-contract.mjs` — **IMPLEMENTED (2026-10-02)**: 18
+  offline checks with a stubbed `fetch` — `roleForEmail`/`isAdminEmail`
+  (incl. the `BASELINE` substring escalation), the `useMocks()` switch, and the
+  zod schemas against backend-shaped JSON. Runs without a backend
 - `frontend/scripts/e2e.mjs` — **IMPLEMENTED (Phase 6)**: imports the real
   `lib/api.ts` so responses are zod-validated by the schemas the UI uses
+- Six divergences found and fixed while writing the suite (DEC-016): `limit=0`
+  and negative limits meant opposite things per backend; the in-memory list
+  broke `createdAt` ties by priority while Mongo did not; `PATCH status=""` was
+  stored verbatim; unrouted 404/405 returned `{"detail"}` which the client
+  never reads; `/health` claimed `in-memory` while requests went to MongoDB;
+  and `hfEngineSchema` omitted `categoryConfidence`, which zod stripped so the
+  confidence display worked on mocks but not live data
 - Verified end-to-end (Phase 6): live `uvicorn` on `:10000` — submit/list/get/
   PATCH/404/400, and the in-memory fallback when `MONGODB_URI` is unset
 - Re-verified against **real MongoDB Atlas (2026-10-02)**: `e2e.mjs` PASSED
   through the real zod-parsing client (submit → track → admin assign/resolve →
   re-read, error path, second citizen); persistence across a **genuinely
   recycled** process (the earlier restart check had silently not restarted);
-  `pytest` leaves Atlas untouched (count 3 → 3); all 6 frontend routes serve
+  `pytest` leaves Atlas untouched; all 7 frontend routes serve
   200; `tsc --noEmit` + `npm run build` clean. *(DOM not driven — no desktop
   browser connected)*
 - Cloudinary verified live (2026-10-02): unsigned preset `grievance app` on
@@ -166,7 +185,7 @@ memory/        — AI agent persistent memory                                  I
   score 18.4 → rejected below the threshold of 60), `/delete-cloudinary`,
   `/sign-cloudinary` all return 200 — the preset's unsigned-ness is no longer
   an open question
-- Frontend tests (Jest + React Testing Library), state-machine tests and the
+- Component tests (Jest + React Testing Library), state-machine tests and the
   AI evaluation protocol — **PLANNED**
 
 ---
@@ -193,7 +212,8 @@ memory/        — AI agent persistent memory                                  I
 - **PHASE 10**: Resolution quality assessment — PLANNED
 - **PHASE 11**: Analytics dashboard — legacy HTML exists; Next.js dashboard PLANNED
 - **PHASE 12**: Testing + AI evaluation — backend suite **IMPLEMENTED** (Phase 6,
-  85 tests); AI evaluation protocol and frontend tests PLANNED
+  DEC-012; expanded to 207 tests + 18 frontend contract checks on 2026-10-02,
+  DEC-016); AI evaluation protocol and component tests PLANNED
 
 **Unification follow-ups (this branch's backlog):**
 1. ~~Owner confirms canonical backend/DB/auth stack; update `AGENTS.md` + `docs/ARCHITECTURE.md`~~ — **DONE 2026-10-01** (Phase 5; auth stack itself still open)
@@ -220,8 +240,23 @@ memory/        — AI agent persistent memory                                  I
   deleting the file did not remove it. Open.
 - The API performs **no server-side authentication**: it trusts `userId` from
   the request body, and list/PATCH have no authorization; the frontend
-  allowlist is client-side only. Documented in `docs/SECURITY.md` — must be
-  closed before any deployment handling real data.
+  allowlist is client-side only. Documented in `docs/SECURITY.md` and pinned by
+  `tests/test_security_baseline.py` — must be closed before any deployment
+  handling real data. Phase 1 must *invert* those tests, not delete them.
+- **SSRF:** `services/image.py` fetches whatever `imageUrl` the client sends
+  (`requests.get`, no scheme/host/IP/size checks) — an internal host such as
+  `169.254.169.254` is reachable from the server. Pinned as a `BASELINE` test;
+  Phase 1 input validation.
+- **`/delete-cloudinary` / `/sign-cloudinary` are unauthenticated** — any
+  caller can delete or sign assets on the project's Cloudinary account. Phase 1.
+- `roleForEmail` in `frontend/lib/roles.ts` promotes any address *containing*
+  `"admin"` (`notadmin@example.com` → `admin`) — client-side demo auth only
+  (DEC-009), pinned as `BASELINE`, replaced wholesale by Phase 1.
+- `/health` reports **configuration, not reachability** (DEC-016 §4): a cluster
+  that dies after boot keeps reporting `storage: mongodb`, and a repository that
+  cannot answer still yields `status: "ok"`. Intentional — a ping would stall
+  the deployment health check for 8 s exactly when the DB is down. A separate
+  `/readyz` should carry liveness when hardening happens.
 - In-memory fallback repository is non-persistent by design — only used when
   `MONGODB_URI` is unset; `/health` reports which storage is active.
 - **`imageValidation` is not persisted.** `SubmitForm` posts `imageUrl` only,
