@@ -24,7 +24,13 @@ CORS_ORIGINS = [
 HF_API_TOKEN = os.getenv("HF_API_TOKEN") or os.getenv("HUGGINGFACE_API_TOKEN")
 HF_BASE_URL = "https://router.huggingface.co/hf-inference"
 
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# NB: the previous default, `llama-3.3-70b-versatile`, was decommissioned by
+# Groq and 404s (verified 2026-09-11 against this project's key), which silently
+# degraded classification to the keyword fallback. `openai/gpt-oss-20b` is the
+# model confirmed to work here; override via GROQ_MODEL if your key differs.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+# Multimodal model used by services/image.py for the vision half of image
+# validation. Previously read here but never consumed (image.py hardcoded it).
 LLAVA_MODEL = os.getenv("LLAVA_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 IMAGE_LLM_THRESHOLD = float(os.getenv("IMAGE_LLM_THRESHOLD", "60.0"))
 

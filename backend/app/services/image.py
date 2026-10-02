@@ -9,7 +9,7 @@ import requests
 from PIL import Image, ImageStat
 from io import BytesIO
 
-from ..config import IMAGE_LLM_THRESHOLD, get_groq_client
+from ..config import IMAGE_LLM_THRESHOLD, LLAVA_MODEL, get_groq_client
 
 logger = logging.getLogger("grievance-api")
 
@@ -64,7 +64,7 @@ def llm_image_confidence(image_url: str) -> dict:
     if groq_client:
         try:
             res = groq_client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                model=LLAVA_MODEL,
                 messages=[
                     {
                         "role": "user",
