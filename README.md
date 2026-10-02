@@ -27,13 +27,30 @@ humans retain final control over assignment, escalation, resolution, and closure
 
 ## Quickstart
 
+> Full walkthrough (tests, troubleshooting, commands): [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
 ### Backend (FastAPI, port `10000`)
 
+All commands run from the **repository root** — `backend.app` only resolves as
+a package from there.
+
 ```bash
-pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env   # then set values; never commit .env
-uvicorn backend.app.main:app --host 0.0.0.0 --port 10000
+python3 -m venv venv                     # see note below — do NOT skip this
+venv/bin/pip install -r requirements.txt         # runtime — what Render installs
+venv/bin/pip install -r requirements-dev.txt     # runtime + pytest (local dev/tests)
+cp backend/.env.example backend/.env             # then set values; never commit .env
+venv/bin/uvicorn backend.app.main:app --host 127.0.0.1 --port 10000
 ```
+
+> **Why the virtualenv is not optional:** on most Linux distros the system
+> Python is marked `EXTERNALLY-MANAGED` (PEP 668), so a bare
+> `pip install -r requirements.txt` fails with
+> `error: externally-managed-environment`. And `uvicorn` is only on `PATH`
+> *inside* the venv — invoking it bare gives `command not found: uvicorn`.
+> If you prefer activating the venv instead, `source venv/bin/activate` and
+> then plain `pip`/`uvicorn` work as written elsewhere in the docs.
+>
+> `venv/` is gitignored, so a fresh clone never has it.
 
 Environment: `MONGODB_URI`/`MONGODB_DB` (MongoDB Atlas — **without it the API
 runs on a non-persistent in-memory fallback**; `GET /health` reports which),
@@ -47,14 +64,20 @@ Endpoints: `POST /submit-grievance`, `GET /grievances`,
 
 ```bash
 cd frontend
-cp .env.example .env.local   # then set values; never commit .env.local
+cp .env.example .env.local   # skip if .env.local already exists; never commit it
 npm install
 npm run dev                  # or: npm run build && npm start
 ```
 
-> `frontend/.env.example` points at `NEXT_PUBLIC_API_URL=http://localhost:10000`,
-> matching the backend. `NEXT_PUBLIC_USE_MOCKS=true` (default) explores the UI
-> without a backend; set it to `false` for live data.
+> **Mock mode is the default and catches everyone.** `useMocks()` returns
+> `true` unless `NEXT_PUBLIC_USE_MOCKS` is exactly `"false"`, so out of the box
+> the UI serves demo data and **never calls your backend** — submissions,
+> tracking and the admin board all look broken. For live data set
+> `NEXT_PUBLIC_USE_MOCKS=false` in `frontend/.env.local`.
+>
+> `NEXT_PUBLIC_*` values are inlined when the dev server **starts**: you must
+> restart `npm run dev` after editing `.env.local`, or you stay in mock mode.
+> `NEXT_PUBLIC_API_URL=http://localhost:10000` already matches the backend.
 
 ---
 
