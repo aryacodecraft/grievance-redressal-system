@@ -93,13 +93,20 @@ class InMemoryRepository:
         if user_id:
             docs = [d for d in docs if d.get("userId") == user_id]
 
-        weight = {"high": 3, "medium": 2, "low": 1}
+        # Ordering must match MongoRepository exactly (it is the production
+        # path, DEC-011): `(createdAt, id)` descending. A priority tie-break
+        # was removed here because Mongo never applied one, so dev and Atlas
+        # disagreed about which record came first.
+        #
+        # `limit <= 0` returns nothing rather than everything: a Python slice
+        # `docs[:0]` is empty, but pymongo reads `.limit(0)` as "no limit" —
+        # the same call returned 0 rows on one store and the whole collection
+        # on the other. The API rejects `limit < 1` before it gets here.
+        if limit <= 0:
+            return []
+
         docs.sort(
-            key=lambda d: (
-                d.get("createdAt") or "",
-                weight.get(str(d.get("priority", "low")).lower(), 1),
-                d.get("id", ""),
-            ),
+            key=lambda d: (d.get("createdAt") or "", d.get("id", "")),
             reverse=True,
         )
         return [dict(d) for d in docs[:limit]]
@@ -212,6 +219,12 @@ class MongoRepository:
     def list(
         self, user_id: Optional[str] = None, limit: int = 50
     ) -> list[dict[str, Any]]:
+        # See InMemoryRepository.list: `limit <= 0` must mean "no rows", but
+        # pymongo treats `.limit(0)` as *unlimited* and `.limit(-n)` as "take
+        # n and stop", so the guard has to happen before the cursor is built.
+        if limit <= 0:
+            return []
+
         query: dict[str, Any] = {"userId": user_id} if user_id else {}
         cursor = (
             self._col.find(query, {"_id": 0})
@@ -251,10 +264,16 @@ def _build_repository() -> GrievanceRepository:
         return InMemoryRepository()
 
     repo = MongoRepository(MONGODB_URI, MONGODB_DB)
+    # Set eagerly, not on ping success. It used to be assigned only after a
+    # successful ping, so a cluster that was down at boot left health reporting
+    # "in-memory" while `repository` above was already a MongoRepository — every
+    # request went to MongoDB and /health denied it was in use. `storage_mode()`
+    # describes what is *configured*; reachability is a separate question (and
+    # one /health deliberately does not answer — see its test).
+    _storage_mode = "mongodb"
     try:
         repo.ensure_indexes()
         if repo.ping():
-            _storage_mode = "mongodb"
             logger.info("Storage: MongoDB (%s)", MONGODB_DB)
         else:
             logger.error(

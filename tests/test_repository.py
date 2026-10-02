@@ -32,18 +32,8 @@ def _doc(**overrides) -> dict:
 
 
 # ── Shared contract (parametrised over both implementations) ────────────────
-
-
-@pytest.fixture(params=["memory", "mongo"])
-def repo(request):
-    """A repository of each kind; the Mongo param skips if unreachable.
-
-    `mongo_repository` is resolved lazily so the `memory` param runs even on
-    machines with no MongoDB at all.
-    """
-    if request.param == "memory":
-        return InMemoryRepository()
-    return request.getfixturevalue("mongo_repository")
+# The `repo` fixture lives in conftest.py so every test module can assert
+# against both implementations.
 
 
 def test_create_assigns_id_and_returns_it(repo):
@@ -92,6 +82,64 @@ def test_list_returns_newest_first(repo):
     newer = repo.create(_doc(title="newer"))
     ids = [d["id"] for d in repo.list()]
     assert ids.index(newer) < ids.index(older)
+
+
+# ── Contract: the two implementations must agree ────────────────────────────
+#
+# These exist because they diverged for real: `InMemoryRepository` and
+# `MongoRepository` returned different answers for the same call, so dev (no
+# MONGODB_URI) and production (Atlas) behaved differently. Mongo is the
+# production path (DEC-011), so Mongo's answer is the contract.
+
+
+def _freeze_created_at(repo, value: str) -> None:
+    """Give every stored record an identical `createdAt` to force a tie."""
+    if isinstance(repo, InMemoryRepository):
+        for doc in repo._docs.values():
+            doc["createdAt"] = value
+    else:
+        from datetime import datetime
+
+        repo._col.update_many({}, {"$set": {"createdAt": datetime.fromisoformat(value)}})
+        assert repo._col.count_documents({})  # sanity: rows really updated
+
+
+def test_list_limit_zero_returns_empty_not_everything(repo):
+    """`limit=0`.
+
+    pymongo reads `.limit(0)` as *no limit* (returns the whole collection) while
+    a Python slice `docs[:0]` returns nothing — so the same request returned 0
+    rows on the in-memory fallback and every row on MongoDB.
+    """
+    for i in range(5):
+        repo.create(_doc(userId=f"u{i}"))
+    assert repo.list(limit=0) == []
+
+
+def test_list_limit_negative_returns_empty(repo):
+    """Negative limits.
+
+    `.limit(-5)` in pymongo means "return 5 then close the cursor", while
+    `docs[:-5]` drops the last 5 — again, opposite answers from one contract.
+    """
+    for i in range(5):
+        repo.create(_doc(userId=f"u{i}"))
+    assert repo.list(limit=-5) == []
+
+
+def test_list_ties_break_by_id_desc(repo):
+    """Identical `createdAt` must order the same way in both implementations.
+
+    Mongo sorted `[createdAt desc, id desc]`; the in-memory fallback sorted by
+    `(createdAt, priority weight, id)`, so a tied record was ordered by its
+    priority on one store and ignored on the other. `id` is monotonic, which
+    makes `(createdAt, id)` a total order — priority has no place in it.
+    """
+    ids = [repo.create(_doc(userId=f"u{i}", priority=p))
+           for i, p in enumerate(("low", "high", "medium"))]
+    _freeze_created_at(repo, "2026-10-02T00:00:00+00:00")
+
+    assert [d["id"] for d in repo.list()] == list(reversed(ids))
 
 
 def test_update_persists_patch(repo):

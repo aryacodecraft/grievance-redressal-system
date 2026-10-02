@@ -110,3 +110,21 @@ def sample_payload() -> dict:
         "latitude": 18.5204,
         "longitude": 73.8567,
     }
+
+
+@pytest.fixture(params=["memory", "mongo"])
+def repo(request):
+    """A repository of each kind; the Mongo param skips if unreachable.
+
+    Lives here rather than in `test_repository.py` so every test module can
+    assert against both implementations — the in-memory fallback and MongoDB
+    must honour the same contract (see the divergence tests).
+
+    `mongo_repository` is resolved lazily so the `memory` param runs even on
+    machines with no MongoDB at all.
+    """
+    from backend.app.db import InMemoryRepository
+
+    if request.param == "memory":
+        return InMemoryRepository()
+    return request.getfixturevalue("mongo_repository")
