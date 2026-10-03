@@ -1,22 +1,86 @@
 import { z } from "zod";
-import type { ImageValidation, SubmitPayload, SubmitResult } from "./types";
+import type { AuthResponse, ImageValidation, SubmitPayload, SubmitResult } from "./types";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:10000";
 
+const ACCESS_TOKEN_KEY = "grievai-access-token";
+const REFRESH_TOKEN_KEY = "grievai-refresh-token";
+
+export function getStoredAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getStoredRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setStoredTokens(accessToken: string, refreshToken?: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  if (refreshToken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  }
+}
+
+export function clearStoredTokens(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+let _isRefreshing = false;
+
 async function requestJson<T>(
   path: string,
-  init: RequestInit
+  init: RequestInit,
+  retryOn401 = true
 ): Promise<T> {
+  const token = getStoredAccessToken();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(init.body ? { "Content-Type": "application/json" } : {}),
+    ...(init.headers as Record<string, string>),
+  };
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers,
-    },
+    headers,
     cache: "no-store",
   });
+
+  if (res.status === 401 && retryOn401 && !_isRefreshing) {
+    const refreshToken = getStoredRefreshToken();
+    if (refreshToken) {
+      _isRefreshing = true;
+      try {
+        const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+          cache: "no-store",
+        });
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          setStoredTokens(data.access_token);
+          _isRefreshing = false;
+          return requestJson<T>(path, init, false);
+        } else {
+          clearStoredTokens();
+        }
+      } catch {
+        clearStoredTokens();
+      } finally {
+        _isRefreshing = false;
+      }
+    }
+  }
+
   const json = await res.json().catch(() => null);
   if (!res.ok) {
     throw new Error(
@@ -196,3 +260,36 @@ export const CLOUDINARY_CLOUD_NAME =
   process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "";
 export const CLOUDINARY_UPLOAD_PRESET =
   process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? "";
+
+/* ── Authentication ──────────────────────────────────────────────────────── */
+
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<AuthResponse> {
+  const data = await postJson<AuthResponse>("/auth/login", { email, password });
+  setStoredTokens(data.access_token, data.refresh_token);
+  return data;
+}
+
+export async function registerUser(
+  email: string,
+  password: string,
+  fullName: string
+): Promise<AuthResponse> {
+  const data = await postJson<AuthResponse>("/auth/register", {
+    email,
+    password,
+    full_name: fullName,
+  });
+  setStoredTokens(data.access_token, data.refresh_token);
+  return data;
+}
+
+export async function getCurrentUser(): Promise<AuthResponse["user"]> {
+  return requestJson<AuthResponse["user"]>("/auth/me", { method: "GET" });
+}
+
+export function getGoogleAuthUrl(): string {
+  return `${API_URL}/auth/google`;
+}

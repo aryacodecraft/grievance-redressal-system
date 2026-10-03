@@ -28,7 +28,7 @@ export interface Grievance {
 export interface SubmitPayload {
   title: string;
   description: string;
-  userId: string;
+  userId?: string;
   latitude?: number;
   longitude?: number;
   imageUrl?: string;
@@ -38,6 +38,27 @@ export interface SubmitResult {
   message: string;
   grievanceId: string;
   hfEngine: HfEngine;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: "USER" | "ADMIN" | "RESOLVER" | "SUPERADMIN" | "citizen" | "admin" | string;
+  avatarUrl?: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    role: string;
+    avatar_url?: string;
+  };
 }
 
 export interface ImageValidation {

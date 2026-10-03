@@ -9,51 +9,142 @@ import {
   type ReactNode,
 } from "react";
 import { roleForEmail } from "./roles";
-import { useMocks } from "./api";
+import {
+  clearStoredTokens,
+  getCurrentUser,
+  getStoredAccessToken,
+  loginUser,
+  registerUser,
+  setStoredTokens,
+  useMocks,
+} from "./api";
+import type { AuthUser } from "./types";
 
-export interface DemoUser {
-  id: string;
-  name: string;
-  email: string;
-  role: "citizen" | "admin";
-}
+export interface DemoUser extends AuthUser {}
 
 const STORAGE_KEY = "grievai-demo-user";
 
 interface Session {
-  user: DemoUser | null;
+  user: AuthUser | null;
   /** True when the app talks to the real backend (NEXT_PUBLIC_USE_MOCKS=false). */
   liveMode: boolean;
-  signInDemo: (email: string, role?: DemoUser["role"], name?: string) => void;
+  isLoading: boolean;
+  signInDemo: (email: string, role?: AuthUser["role"], name?: string) => void;
+  login: (email: string, password: string) => Promise<AuthUser>;
+  register: (email: string, password: string, name: string) => Promise<AuthUser>;
+  setAuthSession: (user: AuthUser, accessToken: string, refreshToken?: string) => void;
   signOut: () => void;
 }
 
 const DemoUserContext = createContext<Session | null>(null);
 
-/**
- * Demo (localStorage) session provider.
- *
- * Real authentication is out of scope for this pass — see the migration plan.
- * The persisted user is the only identity the app has; the REST API is called
- * with that user's id.
- */
 export function DemoUserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<DemoUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const liveMode = !useMocks();
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw) as DemoUser);
-    } catch {
-      /* ignore corrupt storage */
+    let isMounted = true;
+
+    async function initSession() {
+      if (liveMode) {
+        const token = getStoredAccessToken();
+        if (token) {
+          try {
+            const profile = await getCurrentUser();
+            if (isMounted && profile) {
+              const authUser: AuthUser = {
+                id: profile.id,
+                email: profile.email,
+                name: profile.full_name || profile.email.split("@")[0] || "User",
+                role: profile.role,
+                avatarUrl: profile.avatar_url,
+              };
+              setUser(authUser);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
+            }
+          } catch {
+            if (isMounted) {
+              clearStoredTokens();
+              localStorage.removeItem(STORAGE_KEY);
+              setUser(null);
+            }
+          }
+        } else {
+          // If no token, check if there's any stale user object
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      } else {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw && isMounted) {
+            setUser(JSON.parse(raw) as AuthUser);
+          }
+        } catch {
+          /* ignore corrupt storage */
+        }
+      }
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
-  }, []);
+
+    initSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [liveMode]);
+
+  const setAuthSession = useCallback(
+    (authUser: AuthUser, accessToken: string, refreshToken?: string) => {
+      setStoredTokens(accessToken, refreshToken);
+      setUser(authUser);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
+      } catch {
+        /* ignore storage error */
+      }
+    },
+    []
+  );
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<AuthUser> => {
+      const res = await loginUser(email, password);
+      const authUser: AuthUser = {
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.full_name || res.user.email.split("@")[0] || "User",
+        role: res.user.role,
+        avatarUrl: res.user.avatar_url,
+      };
+      setAuthSession(authUser, res.access_token, res.refresh_token);
+      return authUser;
+    },
+    [setAuthSession]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, name: string): Promise<AuthUser> => {
+      const res = await registerUser(email, password, name);
+      const authUser: AuthUser = {
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.full_name || name || "User",
+        role: res.user.role,
+        avatarUrl: res.user.avatar_url,
+      };
+      setAuthSession(authUser, res.access_token, res.refresh_token);
+      return authUser;
+    },
+    [setAuthSession]
+  );
 
   const signInDemo = useCallback(
-    (email: string, role?: DemoUser["role"], name?: string) => {
+    (email: string, role?: AuthUser["role"], name?: string) => {
       const normalized = email.trim() || "demo@example.in";
-      const next: DemoUser = {
+      const next: AuthUser = {
         id: `demo-${normalized.toLowerCase()}`,
         name: name?.trim() || normalized.split("@")[0] || "Demo User",
         email: normalized,
@@ -71,6 +162,7 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     setUser(null);
+    clearStoredTokens();
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -80,7 +172,16 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
 
   return (
     <DemoUserContext.Provider
-      value={{ user, liveMode, signInDemo, signOut }}
+      value={{
+        user,
+        liveMode,
+        isLoading,
+        signInDemo,
+        login,
+        register,
+        setAuthSession,
+        signOut,
+      }}
     >
       {children}
     </DemoUserContext.Provider>
