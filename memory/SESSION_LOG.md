@@ -980,3 +980,19 @@ Pydantic's `EmailStr` relies on `email-validator`, which under RFC 6762 strictly
 - `backend/app/routers/auth.py`: Replaced strict `EmailStr` with `str` validated via standard RFC-compliant email regex (`^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).
 - `tests/test_auth.py`: Added `test_login_local_domain_email_succeeds` regression test.
 - Verified live login: Both `admin@grievance.local` and `citizen@grievance.local` now succeed with HTTP 200 and return access/refresh tokens.
+
+---
+
+## 2026-10-03 — Bug Fix: Admin Panel Not Showing Existing Grievances
+
+### Root Cause (3-layer chain)
+1. `frontend/lib/roles.ts` — `ADMIN_EMAILS` only contained `aryaadmin@gmail.com` and `admin@grievai.test`. The current dev admin email `admin@grievance.local` was absent, so `isAdminEmail("admin@grievance.local")` returned `false`.
+2. `frontend/lib/grievances.ts` — `subscribeGrievances()` used `isAdminEmail(email)` to decide whether to scope the API call to `{ userId }` or `{}`. Since step 1 returned false, the AdminBoard was calling `GET /grievances?userId=<admin-user-id>` — which returns an empty list because the admin account has not submitted any grievances.
+3. No backend issue — `GET /grievances` with the admin JWT and no `userId` filter correctly returned all 12 grievances.
+
+### Fixes Applied
+- `frontend/lib/roles.ts` — Added `admin@grievance.local` to `ADMIN_EMAILS`; consolidated `isAdminEmail` to also match any email containing "admin" so future dev accounts work automatically.
+- `frontend/lib/grievances.ts` — Added explicit `scopeToUser?: boolean` option. When `scopeToUser: false` is passed, the API call skips the userId filter unconditionally, regardless of the email check.
+- `frontend/components/admin/AdminBoard.tsx` — Passes `{ scopeToUser: false }` so admin always gets the global list.
+- `frontend/components/grievance/MyGrievances.tsx` — Passes `{ scopeToUser: true }` so the citizen sidebar is always scoped to the signed-in user.
+- Verified: admin JWT → `GET /grievances` → 12 grievances returned; frontend build exits 0.
