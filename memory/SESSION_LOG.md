@@ -937,3 +937,34 @@ Complete the full UI overhaul: finish border radius reduction across all compone
 - `AdminClusters.tsx` and `AdminMap.tsx` radius fixes (minor, low priority)
 - Voice-based complaint registration (from NEW_TODO_TASKS)
 - Multilingual support (from NEW_TODO_TASKS)
+
+---
+
+## 2026-10-03 — Default Citizen Account Seeding & Login Autofill
+
+### Goal
+Provide a pre-seeded dummy citizen account for immediate user testing on both frontend and backend without requiring manual registration.
+
+### Completed
+- `backend/app/main.py`: Added automatic seeding for `citizen@grievance.local` with password `Citizen@2026!` (role `USER`).
+- Created and verified the `citizen@grievance.local` account in the MongoDB collection.
+- `frontend/app/login/page.tsx`: Updated dev credentials card to display both Admin and Citizen accounts with one-click autofill buttons.
+- Build verified (`npm run build` exits 0) and `test_auth.py` (21 passed).
+
+---
+
+## 2026-10-03 — Admin Portal Role Guard & Test Credentials in README
+
+### Goal
+Restrict access to the `/admin` portal exclusively to Admin accounts on the frontend, and add a comprehensive test accounts table to the project `README.md`.
+
+### Completed
+- `frontend/app/admin/page.tsx`: Added client-side role verification:
+  - If unauthenticated: Displays an "Authentication Required" view with one-click link to `/login`.
+  - If authenticated as a Citizen (`USER` role): Displays an "Access Denied — Citizen Account Detected" screen with direct navigation back to `/submit` or account switching.
+  - If authenticated as `ADMIN` or `SUPERADMIN`: Renders the triage dashboard and charts.
+- `frontend/components/ui/SiteHeader.tsx`:
+  - Dynamically filters navbar links so that the "Admin" link is hidden from citizen accounts.
+  - Displays a clean `ADMIN` badge next to the user's email in the header when an administrator is signed in.
+- `README.md`: Added a dedicated "Pre-Seeded Test Accounts" section documenting credentials (`admin@grievance.local` / `Admin@2026!` and `citizen@grievance.local` / `Citizen@2026!`) and their respective permissions.
+- Verified: `npm run build` exits 0; pytest suite (64 tests in `test_auth.py` and `test_endpoints.py`) passes 100%.

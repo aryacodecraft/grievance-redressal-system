@@ -171,8 +171,23 @@ Open your browser to:
 
 - **Register complaints:** `/submit`
 - **Track grievance status:** `/track`
-- **Admin triage & control center:** `/admin`
+- **Admin triage & control center:** `/admin` (strictly restricted to Admin accounts)
 - **Sign in / Sign up:** `/login` & `/register`
+
+---
+
+## Pre-Seeded Test Accounts
+
+The backend automatically seeds ready-to-use testing accounts on startup:
+
+| Role | Email | Password | Access Scope |
+|---|---|---|---|
+| **Admin** (Municipal Officer) | `admin@grievance.local` | `Admin@2026!` | Full administrative access: `/admin` triage board, cluster maps, category/priority review, and officer assignment/status updates. |
+| **Citizen** (Standard User) | `citizen@grievance.local` | `Citizen@2026!` | Citizen portal access: `/submit` complaint registration, personal complaint tracking sidebar, `/track` lookup. Cannot access `/admin`. |
+
+> 💡 **Tip:** On the `/login` page, click the **Autofill** button next to either account to populate credentials with one click.
+>
+> You can also register any new citizen account on `/register` (minimum 8-character password).
 
 ---
 
