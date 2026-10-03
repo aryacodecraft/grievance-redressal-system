@@ -98,14 +98,25 @@ def _seed_admin() -> None:
     if not SEED_ADMIN_EMAIL or not SEED_ADMIN_PASSWORD:
         return
 
-    if users_repository.find_by_email(SEED_ADMIN_EMAIL):
-        return  # Already exists
+    # Seed admin account
+    if not users_repository.find_by_email(SEED_ADMIN_EMAIL):
+        hashed = _bcrypt.hashpw(SEED_ADMIN_PASSWORD.encode(), _bcrypt.gensalt(12)).decode()
+        users_repository.create({
+            "email": SEED_ADMIN_EMAIL.lower(),
+            "full_name": "Admin",
+            "hashed_password": hashed,
+            "role": "ADMIN",
+        })
+        logger.info("Seeded admin account: %s", SEED_ADMIN_EMAIL)
 
-    hashed = _bcrypt.hashpw(SEED_ADMIN_PASSWORD.encode(), _bcrypt.gensalt(12)).decode()
-    users_repository.create({
-        "email": SEED_ADMIN_EMAIL.lower(),
-        "full_name": "Admin",
-        "hashed_password": hashed,
-        "role": "ADMIN",
-    })
-    logger.info("Seeded admin account: %s", SEED_ADMIN_EMAIL)
+    # Seed default citizen account for testing/evaluation
+    demo_citizen_email = "citizen@grievance.local"
+    if not users_repository.find_by_email(demo_citizen_email):
+        citizen_hashed = _bcrypt.hashpw(b"Citizen@2026!", _bcrypt.gensalt(12)).decode()
+        users_repository.create({
+            "email": demo_citizen_email,
+            "full_name": "Demo Citizen",
+            "hashed_password": citizen_hashed,
+            "role": "USER",
+        })
+        logger.info("Seeded citizen account: %s", demo_citizen_email)
