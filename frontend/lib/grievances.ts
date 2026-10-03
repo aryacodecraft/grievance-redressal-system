@@ -7,10 +7,12 @@ import type { Grievance } from "./types";
 export interface SubscribeOptions {
   /** Poll interval in ms. */
   intervalMs?: number;
+  /** Force scoping to a specific user (true = citizen's own, false = all grievances for admin). */
+  scopeToUser?: boolean;
 }
 
 /**
- * Polling replacement for the old Firestore onSnapshot. Admins receive the
+ * Polling replacement for Firestore onSnapshot. Admins receive the
  * global newest-first list; citizens receive only their own grievances.
  * Returns an unsubscribe function compatible with useEffect cleanup.
  */
@@ -19,15 +21,15 @@ export function subscribeGrievances(
   email: string | null,
   onData: (items: Grievance[]) => void,
   onError: (message: string) => void,
-  { intervalMs = 15000 }: SubscribeOptions = {}
+  { intervalMs = 15000, scopeToUser }: SubscribeOptions = {}
 ): () => void {
   let cancelled = false;
 
   const load = async () => {
     try {
-      const items = await listGrievances(
-        isAdminEmail(email) ? {} : { userId }
-      );
+      const shouldScope =
+        scopeToUser !== undefined ? scopeToUser : !isAdminEmail(email);
+      const items = await listGrievances(shouldScope ? { userId } : {});
       if (!cancelled) onData(items);
     } catch (err) {
       if (!cancelled) {

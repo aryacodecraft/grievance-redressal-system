@@ -23,7 +23,8 @@ export function MyGrievances() {
       user.id,
       user.email,
       (data) => setLiveItems(data),
-      () => setLiveItems(null)
+      () => setLiveItems(null),
+      { scopeToUser: true }
     );
     return unsub;
   }, [user, liveMode]);

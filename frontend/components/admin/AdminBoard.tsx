@@ -76,7 +76,8 @@ export function AdminBoard() {
       (message) => {
         setLiveError(message);
         setLiveItems(null);
-      }
+      },
+      { scopeToUser: false }
     );
     return unsub;
   }, [live, user]);
