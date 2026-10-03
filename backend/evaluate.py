@@ -23,10 +23,14 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
-# Import project model (after our fixes, it already has canonical handling)
+# Import the project model — it lives in the serving package (DEC-010).
 import sys
-sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from grievance_model import GrievanceModel, clean_text, CATEGORY_RENAME
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))  # repository root
+from backend.app.services.grievance_model import (
+    GrievanceModel,
+    clean_text,
+    CATEGORY_RENAME,
+)
 
 def leak_free_split(df, test_size=0.2, seed=42):
     if 'clean_text' not in df.columns:

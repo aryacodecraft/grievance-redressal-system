@@ -64,21 +64,21 @@ node_modules/
 
 # dotenv environment variables file
 .env
+.env*.local
 
 # dataconnect generated files
 .dataconnect
 
-backend/serviceAccountKey.json
-
-
-
-serviceAccountKey.json
-
-backend/serviceAccountKey.json
+# Next.js
+.next/
+out/
 
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
 .venv/
-*.pyc
+venv/
+
+# Secrets
+serviceAccountKey.json
+backend/serviceAccountKey.json
