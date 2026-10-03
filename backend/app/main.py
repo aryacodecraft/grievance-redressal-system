@@ -16,20 +16,23 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import CORS_ORIGINS
+from .routers import auth as auth_router
 from .routers import grievances, health, images
 
 logging.basicConfig(level=logging.INFO)
 
+logger = logging.getLogger("grievance-api")
+
 app = FastAPI(
     title="Grievance Redressal API",
-    version="1.0.0",
-    description="AI-assisted grievance submission, triage and officer review.",
+    version="2.0.0",
+    description="AI-assisted grievance submission, triage and officer review. JWT auth required.",
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -72,6 +75,37 @@ async def request_validation_handler(
     )
 
 
+# ── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(health.router)
+app.include_router(auth_router.router)
 app.include_router(grievances.router)
 app.include_router(images.router)
+
+
+# ── Startup: seed admin account ───────────────────────────────────────────────
+@app.on_event("startup")
+def _seed_admin() -> None:
+    """Create the first ADMIN account at startup if env vars are set.
+
+    This runs once; if the email is already registered nothing happens.
+    Set SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD in backend/.env (locally)
+    or in Render environment variables.
+    """
+    from .config import SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD
+    from .users_db import users_repository
+    import bcrypt as _bcrypt
+
+    if not SEED_ADMIN_EMAIL or not SEED_ADMIN_PASSWORD:
+        return
+
+    if users_repository.find_by_email(SEED_ADMIN_EMAIL):
+        return  # Already exists
+
+    hashed = _bcrypt.hashpw(SEED_ADMIN_PASSWORD.encode(), _bcrypt.gensalt(12)).decode()
+    users_repository.create({
+        "email": SEED_ADMIN_EMAIL.lower(),
+        "full_name": "Admin",
+        "hashed_password": hashed,
+        "role": "ADMIN",
+    })
+    logger.info("Seeded admin account: %s", SEED_ADMIN_EMAIL)

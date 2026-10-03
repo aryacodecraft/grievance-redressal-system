@@ -1,13 +1,23 @@
-"""Grievance submission, listing, lookup and officer status updates."""
+"""Grievance submission, listing, lookup and officer status updates.
+
+Auth wiring (Phase 1):
+  - POST /submit-grievance  → any authenticated user (USER/RESOLVER/ADMIN)
+  - GET  /grievances        → any authenticated user; citizens auto-scoped to
+                              their own grievances, ADMIN/RESOLVER see all
+  - GET  /grievances/{id}   → authenticated; citizens may only see their own
+  - PATCH /grievances/{id}/status → ADMIN or RESOLVER only
+"""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
+from ..auth import get_current_user, get_optional_user, require_role
 from ..config import IMAGE_LLM_THRESHOLD
 from ..db import repository, to_api
 from ..models import StatusUpdateRequest, SubmitGrievanceRequest
@@ -31,16 +41,34 @@ router = APIRouter()
 
 
 @router.post("/submit-grievance")
-def submit_grievance(payload: SubmitGrievanceRequest):
+def submit_grievance(
+    payload: SubmitGrievanceRequest,
+    current: Annotated[dict | None, Depends(get_optional_user)] = None,
+):
     title = payload.title.strip()
     description = payload.description.strip()
-    user_id = payload.userId.strip()
 
-    if not title or not description or not user_id:
+    # Derive userId:
+    # 1. From verified JWT if available (cannot be spoofed from body)
+    if current:
+        user_id = current["user_id"]
+    else:
+        # 2. In unauthenticated / demo mode: require userId in body
+        raw_uid = payload.userId.strip() if payload.userId else ""
+        if not raw_uid:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "Missing required fields (title, description, userId)"
+                },
+            )
+        user_id = raw_uid
+
+    if not title or not description:
         return JSONResponse(
             status_code=400,
             content={
-                "error": "Missing required fields (title, description, userId)"
+                "error": "Missing required fields (title, description)"
             },
         )
 
@@ -183,29 +211,61 @@ def submit_grievance(payload: SubmitGrievanceRequest):
 def list_grievances(
     userId: str | None = None,
     limit: int = Query(50, ge=1, le=1000),
+    current: Annotated[dict | None, Depends(get_optional_user)] = None,
 ):
-    """Admins call with no `userId`; citizens pass their own id.
+    """List grievances with RBAC scoping.
 
-    `limit` is bounded to 1..1000. It used to accept anything: `?limit=0` meant
-    "unlimited" to pymongo and "nothing" to the in-memory fallback, so the same
-    URL returned every row on MongoDB and none on the fallback.
+    - ADMIN / RESOLVER → see all grievances (userId param is a filter, not a gate)
+    - USER → always scoped to their own grievances (userId from JWT, not the param)
+    - Unauthenticated (demo mode) → falls back to userId query param behaviour
+
+    ``limit`` is bounded 1..1000.
     """
-    docs = repository.list(user_id=userId, limit=limit)
+    if current:
+        role = current["role"]
+        if role in ("ADMIN", "SUPERADMIN", "RESOLVER"):
+            # Privileged: optional filter by userId param
+            scoped_user_id = userId
+        else:
+            # Citizen: always scoped to themselves
+            scoped_user_id = current["user_id"]
+    else:
+        # Demo mode fallback
+        scoped_user_id = userId
+
+    docs = repository.list(user_id=scoped_user_id, limit=limit)
     return [to_api(doc) for doc in docs]
 
 
 @router.get("/grievances/{grievance_id}")
-def get_grievance(grievance_id: str):
+def get_grievance(
+    grievance_id: str,
+    current: Annotated[dict | None, Depends(get_optional_user)] = None,
+):
     doc = repository.get(grievance_id.strip())
     if doc is None:
         return JSONResponse(
             status_code=404, content={"error": "Grievance not found"}
         )
-    return to_api(doc)
+    result = to_api(doc)
+
+    # Citizens may only see their own grievances
+    if current and current["role"] == "USER":
+        if result.get("userId") != current["user_id"]:
+            return JSONResponse(
+                status_code=404, content={"error": "Grievance not found"}
+            )
+
+    return result
 
 
 @router.patch("/grievances/{grievance_id}/status")
-def update_status(grievance_id: str, payload: StatusUpdateRequest):
+def update_status(
+    grievance_id: str,
+    payload: StatusUpdateRequest,
+    current: Annotated[dict, Depends(require_role(["ADMIN", "SUPERADMIN", "RESOLVER"]))],
+):
+    """Update grievance status / assignee.  Requires ADMIN, SUPERADMIN, or RESOLVER."""
     patch = {}
     if payload.status is not None:
         # Reject a blank status rather than storing it. An empty string used
