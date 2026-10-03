@@ -68,20 +68,24 @@ mongod --dbpath /path/to/data --port 27017
 
 ```bash
 # From the repository root
+# 1. (Optional) Create and activate virtual environment:
 python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+# Linux/macOS (Bash/Zsh): source venv/bin/activate
+# Linux (Fish):          source venv/bin/activate.fish
+# Windows (PowerShell):  .\venv\Scripts\Activate.ps1
+# Windows (cmd.exe):     venv\Scripts\activate.bat
+# (Skip venv creation if using Conda, Docker, or system Python)
 
-# Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt          # runtime — what Render installs
 pip install -r requirements-dev.txt      # runtime + pytest (local dev/tests)
-# backend/requirements.txt is a pinned snapshot of the same runtime deps
 
-# Configure environment
-cp backend/.env.example backend/.env
-# Edit backend/.env and fill in your values (MONGODB_URI at minimum)
+# 3. Configure environment
+cp backend/.env.example backend/.env    # Windows PowerShell: Copy-Item backend\.env.example backend\.env
+# Edit backend/.env and fill in your values (or leave blank to use in-memory mode)
 
-# Start development server
-uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 10000
+# 4. Start development server (universal python -m runner)
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 10000
 ```
 
 Backend API available at: `http://localhost:10000`

@@ -4,6 +4,18 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-03 — UI Overhaul & Universal Cross-Platform Setup Documentation
+
+### Modified — Frontend UI & Layout
+- Replaced emoji icons across the frontend with `lucide-react` SVG icons (`Droplets`, `Construction`, `Zap`, `Trash2`, `HeartPulse`, `Landmark`, `FolderOpen`, `FileText`, `BrainCircuit`, `CheckCircle2`) with proper TypeScript typing.
+- Halved corner radiuses across base UI components (`Button`, `Field`, `Card`, `Badge`, `Feedback`, `SiteHeader`, `SiteFooter`, `GrievanceCard`, `AdminBoard`).
+- Redesigned all page layouts to use full screen width instead of narrow centered columns (`max-w-3xl`/`max-w-6xl` removed; 50/50 split hero, sticky 2-column submit view, full-width tracking panel, and modern split auth page).
+
+### Modified — Documentation
+- `README.md` — Added universal cross-platform local setup guide covering Windows (PowerShell and cmd.exe), macOS, Linux (Bash, Zsh, Fish), with virtual environments (`venv`) and without virtual environments (Conda, Docker, direct Python). Added guidance on `NEXT_PUBLIC_USE_MOCKS` and MongoDB fallback.
+- `docs/DEVELOPMENT.md` — Harmonized backend setup commands with cross-shell activation and universal `python -m uvicorn` execution.
+- `memory/NEW_TODO_TASKS.md` — Updated strategic task checklist reflecting completed UI overhaul, layout, and icon items.
+
 ---
 
 ## 2026-10-03 — Phase 1: JWT Authentication, Google OAuth 2.0 & Server-Side RBAC (DEC-017)
