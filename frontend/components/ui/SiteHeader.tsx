@@ -12,6 +12,12 @@ const links = [
 
 export function SiteHeader() {
   const { user, signOut } = useDemoUser();
+  const role = user?.role?.toUpperCase();
+  const isAdmin = role === "ADMIN" || role === "SUPERADMIN";
+  const isCitizen = role === "USER";
+
+  // Hide the Admin link for citizen accounts
+  const visibleLinks = links.filter((l) => !(l.href === "/admin" && isCitizen));
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">
@@ -33,7 +39,7 @@ export function SiteHeader() {
           </span>
         </Link>
         <nav className="hidden items-center gap-0.5 md:flex" aria-label="Primary">
-          {links.map((l) => (
+          {visibleLinks.map((l) => (
             <Link
               key={l.href}
               href={l.href}
@@ -46,9 +52,16 @@ export function SiteHeader() {
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <span className="hidden max-w-40 truncate text-xs font-medium text-ink-500 sm:block">
-                {user.email}
-              </span>
+              <div className="hidden items-center gap-1.5 sm:flex">
+                <span className="max-w-40 truncate text-xs font-medium text-ink-600">
+                  {user.email}
+                </span>
+                {isAdmin && (
+                  <span className="rounded-sm bg-primary-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-700 border border-primary-200">
+                    Admin
+                  </span>
+                )}
+              </div>
               <button
                 onClick={signOut}
                 className="rounded-sm px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-950"
@@ -76,7 +89,7 @@ export function SiteHeader() {
         className="flex gap-0.5 overflow-x-auto border-t border-ink-100 px-4 py-1 md:hidden"
         aria-label="Primary mobile"
       >
-        {links.map((l) => (
+        {visibleLinks.map((l) => (
           <Link
             key={l.href}
             href={l.href}

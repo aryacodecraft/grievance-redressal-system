@@ -108,20 +108,43 @@ function LoginForm() {
 
           {showDevCreds && (
             <div className="mb-5 rounded-sm border border-dashed border-ink-400 bg-ink-50 p-3 text-xs text-ink-700">
-              <p className="font-semibold uppercase tracking-wider">
-                Dev credentials (Admin)
+              <p className="font-semibold uppercase tracking-wider text-ink-900">
+                Dev test credentials
               </p>
-              <p className="mt-1 font-mono">admin@grievance.local / Admin@2026!</p>
-              <button
-                type="button"
-                className="mt-2 font-medium text-primary-700 underline hover:text-primary-800"
-                onClick={() => {
-                  setEmail("admin@grievance.local");
-                  setPassword("Admin@2026!");
-                }}
-              >
-                Autofill admin credentials
-              </button>
+              <div className="mt-2 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 border-b border-ink-200/60 pb-2">
+                  <div>
+                    <span className="font-semibold text-ink-900">Admin:</span>{" "}
+                    <code className="font-mono text-[11px]">admin@grievance.local</code>
+                  </div>
+                  <button
+                    type="button"
+                    className="font-medium text-primary-700 underline hover:text-primary-800"
+                    onClick={() => {
+                      setEmail("admin@grievance.local");
+                      setPassword("Admin@2026!");
+                    }}
+                  >
+                    Autofill
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold text-ink-900">Citizen:</span>{" "}
+                    <code className="font-mono text-[11px]">citizen@grievance.local</code>
+                  </div>
+                  <button
+                    type="button"
+                    className="font-medium text-primary-700 underline hover:text-primary-800"
+                    onClick={() => {
+                      setEmail("citizen@grievance.local");
+                      setPassword("Citizen@2026!");
+                    }}
+                  >
+                    Autofill
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
