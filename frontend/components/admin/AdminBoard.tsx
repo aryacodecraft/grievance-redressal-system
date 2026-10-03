@@ -351,8 +351,8 @@ export function AdminBoard() {
                   }}
                   className={
                     g.id === selected?.id
-                      ? "w-full rounded-md border border-primary-600 bg-primary-50 p-3 text-left"
-                      : "w-full rounded-md border border-ink-200 p-3 text-left hover:border-primary-400"
+                      ? "w-full rounded-sm border border-primary-600 bg-primary-50 p-3 text-left"
+                      : "w-full rounded-sm border border-ink-200 p-3 text-left hover:border-primary-400"
                   }
                 >
                   <span className="flex items-start justify-between gap-2">
@@ -367,11 +367,11 @@ export function AdminBoard() {
                     <StatusBadge status={g.status} />
                     <PriorityBadge priority={g.priority} />
                     {g.hfEngine?.isUrgent && (
-                      <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                      <span className="rounded-sm bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                         Urgent
                       </span>
                     )}
-                    <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] text-ink-600">
+                    <span className="rounded-sm bg-ink-100 px-2 py-0.5 text-[11px] text-ink-600">
                       {g.category}
                     </span>
                   </span>

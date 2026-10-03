@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { useDemoUser } from "@/lib/session";
 import { roleForEmail } from "@/lib/roles";
 import { getGoogleAuthUrl } from "@/lib/api";
@@ -72,26 +71,50 @@ function LoginForm() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
-      <Card>
-        <CardHeader
-          title="Sign in"
-          subtitle={
-            liveMode
-              ? "Official portal access for citizens and officers."
-              : "Demo mode access (mock authentication)."
-          }
-        />
-        <CardBody>
+    <div className="flex min-h-[calc(100vh-4rem)]">
+      {/* Left branding panel */}
+      <div className="hidden lg:flex lg:flex-col lg:justify-between bg-ink-950 text-white px-12 py-16 lg:w-[420px] xl:w-[480px] flex-shrink-0">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-600 font-bold text-white">
+              G
+            </span>
+            <span className="text-base font-bold tracking-tight">GrievAI</span>
+          </div>
+          <h2 className="mt-10 text-3xl font-extrabold tracking-tight leading-[1.2]">
+            Transparent grievance resolution, powered by AI.
+          </h2>
+          <p className="mt-4 text-sm text-ink-400 leading-relaxed">
+            Submit, track, and resolve public complaints with AI-assisted
+            categorization and authorized officer oversight.
+          </p>
+        </div>
+        <p className="text-xs text-ink-600">
+          Research prototype — AI recommends, officers decide.
+        </p>
+      </div>
+
+      {/* Right: login form */}
+      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-8 lg:px-16">
+        <div className="w-full max-w-sm mx-auto">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-950">Sign in</h1>
+            <p className="mt-1 text-sm text-ink-500">
+              {liveMode
+                ? "Official portal access for citizens and officers."
+                : "Demo mode access (mock authentication)."}
+            </p>
+          </div>
+
           {showDevCreds && (
-            <div className="mb-4 rounded-md border border-dashed border-ink-400 bg-ink-50 p-3 text-xs text-ink-700 dark:border-ink-600 dark:bg-ink-900 dark:text-ink-300">
+            <div className="mb-5 rounded-sm border border-dashed border-ink-400 bg-ink-50 p-3 text-xs text-ink-700">
               <p className="font-semibold uppercase tracking-wider">
                 Dev credentials (Admin)
               </p>
               <p className="mt-1 font-mono">admin@grievance.local / Admin@2026!</p>
               <button
                 type="button"
-                className="mt-2 font-medium text-primary-700 underline hover:text-primary-800 dark:text-primary-300"
+                className="mt-2 font-medium text-primary-700 underline hover:text-primary-800"
                 onClick={() => {
                   setEmail("admin@grievance.local");
                   setPassword("Admin@2026!");
@@ -103,7 +126,7 @@ function LoginForm() {
           )}
 
           {error && (
-            <div className="mb-4">
+            <div className="mb-5">
               <Alert tone="error">{error}</Alert>
             </div>
           )}
@@ -138,12 +161,12 @@ function LoginForm() {
           </form>
 
           {liveMode && (
-            <div className="mt-4">
+            <div className="mt-5">
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-ink-200 dark:border-ink-700" />
+                  <div className="w-full border-t border-ink-200" />
                 </div>
-                <span className="relative bg-white px-2 text-xs uppercase text-ink-500 dark:bg-ink-950">
+                <span className="relative bg-white px-2 text-xs uppercase text-ink-500">
                   Or continue with
                 </span>
               </div>
@@ -178,25 +201,25 @@ function LoginForm() {
           )}
 
           {!liveMode && (
-            <div className="mt-4">
+            <div className="mt-5">
               <Alert>
-                Demo mode: any email works. Use an address containing “admin” to
+                Demo mode: any email works. Use an address containing "admin" to
                 preview the admin dashboard.
               </Alert>
             </div>
           )}
 
-          <p className="mt-4 text-center text-sm text-ink-500">
+          <p className="mt-6 text-center text-sm text-ink-500">
             New here?{" "}
             <Link
               href="/register"
-              className="font-medium text-primary-700 hover:underline dark:text-primary-300"
+              className="font-medium text-primary-700 hover:underline"
             >
               Create an account
             </Link>
           </p>
-        </CardBody>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
