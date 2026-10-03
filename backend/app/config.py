@@ -56,6 +56,19 @@ CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 
+# --- Authentication -------------------------------------------------------
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+# Seeds one admin account at startup (no-op if the account already exists).
+SEED_ADMIN_EMAIL = os.getenv("SEED_ADMIN_EMAIL", "")
+SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+# URL where the Next.js frontend is hosted (used for OAuth redirects)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 
 @lru_cache(maxsize=1)
 def get_groq_client():

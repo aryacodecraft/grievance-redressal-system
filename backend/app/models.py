@@ -12,7 +12,9 @@ from pydantic import BaseModel, Field
 class SubmitGrievanceRequest(BaseModel):
     title: str
     description: str
-    userId: str
+    # When a valid Bearer token is provided, userId is derived from the JWT (body is ignored).
+    # In unauthenticated / demo mode, userId from body is required for backwards compatibility.
+    userId: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     imageUrl: str | None = None
