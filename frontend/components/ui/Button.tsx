@@ -34,7 +34,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150",
+        "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-150",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
         "disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]",
         variants[variant],

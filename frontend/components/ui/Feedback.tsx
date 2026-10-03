@@ -24,8 +24,8 @@ export function EmptyState({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-ink-200 bg-white px-6 py-12 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-50 text-ink-400">
+    <div className="rounded-md border border-dashed border-ink-200 bg-white px-6 py-12 text-center">
+      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-sm bg-ink-50 text-ink-400">
         <svg
           className="h-5 w-5"
           fill="none"
@@ -61,7 +61,7 @@ export function Alert({
     <div
       role={tone === "error" ? "alert" : "status"}
       className={clsx(
-        "rounded-xl border px-4 py-3 text-xs leading-relaxed transition-all",
+        "rounded-md border px-4 py-3 text-xs leading-relaxed transition-all",
         tone === "info" &&
           "border-primary-200/80 bg-primary-50/70 text-primary-900 font-medium",
         tone === "error" &&

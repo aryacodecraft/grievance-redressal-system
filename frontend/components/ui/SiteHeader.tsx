@@ -15,35 +15,35 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3 group">
           <span
             aria-hidden
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-600 font-bold text-white shadow-xs transition-transform group-hover:scale-105"
+            className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs transition-transform group-hover:scale-105"
           >
             G
           </span>
           <span className="leading-tight">
-            <span className="block text-base font-bold tracking-tight text-ink-950">
+            <span className="block text-sm font-bold tracking-tight text-ink-950">
               GrievAI
             </span>
-            <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+            <span className="hidden text-[10px] font-semibold uppercase tracking-wider text-ink-500 sm:block">
               National Grievance Portal
             </span>
           </span>
         </Link>
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-0.5 md:flex" aria-label="Primary">
           {links.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100/70 hover:text-ink-950"
+              className="rounded-sm px-3 py-1.5 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-100/70 hover:text-ink-950"
             >
               {l.label}
             </Link>
           ))}
         </nav>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {user ? (
             <>
               <span className="hidden max-w-40 truncate text-xs font-medium text-ink-500 sm:block">
@@ -51,7 +51,7 @@ export function SiteHeader() {
               </span>
               <button
                 onClick={signOut}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-950"
+                className="rounded-sm px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-950"
               >
                 Sign out
               </button>
@@ -59,28 +59,28 @@ export function SiteHeader() {
           ) : (
             <Link
               href="/login"
-              className="hidden rounded-lg px-3 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-950 sm:block"
+              className="hidden rounded-sm px-3 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-950 sm:block"
             >
               Sign in
             </Link>
           )}
           <Link
             href="/submit"
-            className="rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-primary-700 hover:shadow-sm active:scale-[0.98]"
+            className="rounded-sm bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition-all hover:bg-primary-700 hover:shadow-sm active:scale-[0.98]"
           >
             File Grievance
           </Link>
         </div>
       </div>
       <nav
-        className="flex gap-1 overflow-x-auto border-t border-ink-100 px-4 py-1.5 md:hidden"
+        className="flex gap-0.5 overflow-x-auto border-t border-ink-100 px-4 py-1 md:hidden"
         aria-label="Primary mobile"
       >
         {links.map((l) => (
           <Link
             key={l.href}
             href={l.href}
-            className="whitespace-nowrap rounded-lg px-3 py-1 text-xs font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-950"
+            className="whitespace-nowrap rounded-sm px-3 py-1 text-xs font-medium text-ink-600 hover:bg-ink-100 hover:text-ink-950"
           >
             {l.label}
           </Link>

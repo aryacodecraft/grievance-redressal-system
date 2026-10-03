@@ -6,7 +6,7 @@ import type {
 import { clsx } from "clsx";
 
 const controlClass =
-  "w-full rounded-lg border border-ink-200 bg-white px-3.5 py-2 text-sm text-ink-900 placeholder:text-ink-400 " +
+  "w-full rounded-md border border-ink-200 bg-white px-3.5 py-2 text-sm text-ink-900 placeholder:text-ink-400 " +
   "shadow-2xs transition-all duration-150 " +
   "hover:border-ink-300 " +
   "focus:border-primary-600 focus:outline-none focus:ring-3 focus:ring-primary-500/15 " +
