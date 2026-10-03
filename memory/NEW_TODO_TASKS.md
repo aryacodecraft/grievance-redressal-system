@@ -2,7 +2,7 @@
 
 > **Created:** 2026-10-03  
 > **Source:** Direct owner instruction  
-> **Status:** QUEUED (Do not implement code until explicitly requested)
+> **Status tracking:** Items marked [x] are IMPLEMENTED. Items marked [ ] are PLANNED.
 
 ---
 
@@ -41,14 +41,14 @@
   - Account linking / auto-creation of citizen profile matching verified Google email.
 
 ### C. Facial Recognition Authentication (Advanced Biometric Layer)
-*(DEFERRED for future as requested)*
+*(DEFERRED — owner explicitly requested to leave for future)*
 - [ ] **Camera Capture & Liveness Detection**
   - WebRTC / HTML5 camera capture in frontend modal for biometric enrollment and verification.
   - Anti-spoofing / liveness check (e.g., blink or head turn verification).
 - [ ] **Face Embedding & Match Service**
   - Face feature extraction (e.g., FaceNet / InsightFace / MediaPipe FaceMesh).
   - Encrypted storage of 128/512-dimensional face embeddings in MongoDB.
-  - Cosine distance matching for 1:1 citizen verification (kiosk / high-trust complaint raising).
+  - Cosine distance matching for 1:1 citizen verification.
 
 ---
 
@@ -72,24 +72,44 @@
 
 ## 4. UI Overhaul & Departmental Portals
 
-- [ ] **Modern UI / UX Overhaul**
-  - Redesign design system with refined typography, state indicators, micro-interactions, and accessible contrast.
-  - Real-time status tracker with visual progress milestones (Submitted → Triage → Assigned → In-Progress → Resolved).
-- [ ] **Department-Specific Portals & Filtering**
-  - Dedicated views for individual civic departments:
-    - 🚰 Water Supply & Sewerage Board
-    - ⚡ Electricity & Power Distribution
-    - 🛣️ Roads, Traffic & Infrastructure
-    - 🧹 Sanitation & Solid Waste Management
-    - 🏥 Public Health & Medical Services
-    - 🚌 Public Transport
-    - 🏛️ Municipal Governance & Citizen Services
+### A. Design System *(Partially Completed: 2026-10-03)*
+- [x] **Border Radius Halved Across All Components**
+  - `Button`, `Field`, `Card`, `Badge`, `Feedback`, `SiteHeader`, `SiteFooter`, `GrievanceCard`, `AnalysisPanel`, `AdminBoard` queue items — all halved.
+  - CSS variables in `globals.css` (`--radius-lg: 4px` etc.) set baseline.
+- [x] **Full-Screen Width Layout**
+  - Removed all `max-w-3xl` / `max-w-6xl` centered column constraints from every page.
+  - Consistent `px-4 sm:px-6 lg:px-8` padding model across header, footer, all pages.
+- [x] **Professional Page Layouts**
+  - Home: true 50/50 hero split + 2×2 stats grid + icon department cards + joined step row.
+  - Submit: two-column `[1fr_380px]` — form left, MyGrievances sidebar right.
+  - Track: full-width search bar strip, two-panel results (grievance+AI left, timeline right), grid for recent.
+  - Admin: full-bleed, no max-w constraint.
+  - Login: dark branding panel left + form right (SaaS-style auth).
+- [x] **Real Icons — No Emojis**
+  - All emoji icons replaced with `lucide-react` SVG icons (Droplets, Construction, Zap, Trash2, HeartPulse, Landmark, FolderOpen, FileText, BrainCircuit, CheckCircle2).
+  - Department cards use styled icon containers with hover state color transitions.
+- [ ] **Micro-interactions & Polish**
+  - Real-time status tracker with visual progress milestones.
+  - Loading skeletons instead of spinners for async data.
+  - Toast notifications for submit/update actions.
+- [ ] **Register Page — Split Layout**
+  - Same dark-panel-left + form-right treatment as login page.
+
+### B. Department-Specific Portals *(PLANNED)*
+- [ ] **Dedicated Department Views**
+  - Water Supply & Sewerage Board
+  - Electricity & Power Distribution
+  - Roads, Traffic & Infrastructure
+  - Sanitation & Solid Waste Management
+  - Public Health & Medical Services
+  - Public Transport
+  - Municipal Governance & Citizen Services
 - [ ] **Dedicated Resolver / Officer Workspace**
   - Focused resolver queue showing only tickets assigned to their department/team.
-  - Resolution submission interface: before/after photographic proof upload, field notes, and closure summary.
+  - Resolution submission interface: before/after photo proof, field notes, closure summary.
   - Department performance metrics: average turnaround time, SLA compliance, escalation rates.
 - [ ] **Executive / Superadmin Oversight Dashboard**
-  - Cross-department heatmaps, grievance volume trends, AI automated triage accuracy, and SLA breach monitors.
+  - Cross-department heatmaps, grievance volume trends, AI triage accuracy, and SLA breach monitors.
 
 ---
 

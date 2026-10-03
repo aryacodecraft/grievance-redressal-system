@@ -900,3 +900,40 @@ Implement production-grade authentication and authorization: email/password + JW
 ### Decisions Made
 - **DEC-017**: Phase 1 JWT Authentication, Google OAuth 2.0 & RBAC Enforcement.
 
+
+---
+
+## 2026-10-03 — UI Overhaul Session (Part 2)
+
+### Goal
+Complete the full UI overhaul: finish border radius reduction across all components, and redesign all pages to use full-screen width rather than narrow centered columns.
+
+### Completed
+
+#### Border Radius Reduction (ALL DONE)
+- `Button.tsx` — `rounded-lg` → `rounded-md`
+- `Field.tsx` — `rounded-lg` → `rounded-md` on `controlClass`
+- `SiteHeader.tsx` — all `rounded-lg` → `rounded-sm` (nav links, logo, CTA)
+- `SiteFooter.tsx` — `rounded-md` → `rounded-sm`
+- `GrievanceCard.tsx` — `rounded-full` → `rounded-sm` on category badge; `rounded` → `rounded-sm` on ID chip
+- `AnalysisPanel` (in GrievanceCard.tsx) — `rounded-xl` → `rounded-md`; `rounded-full` → `rounded-sm` on all badge spans
+- `AdminBoard.tsx` — `rounded-md` → `rounded-sm` on queue item buttons; `rounded-full` → `rounded-sm` on Urgent and category badges
+- `Badge.tsx`, `Feedback.tsx`, `Card.tsx` — done in prior session
+
+#### Full-Width Layout Overhaul (ALL DONE)
+- **`SiteHeader.tsx`** — Removed `max-w-6xl` container; now uses full-width with `px-4 sm:px-6 lg:px-8`. Height reduced to `h-14`.
+- **`SiteFooter.tsx`** — Removed `max-w-6xl` container; full-width with consistent padding.
+- **`app/page.tsx` (Home)** — Complete rewrite: true 50/50 hero split (copy left, 2x2 stats panel right), How It Works uses a bordered joined row, Departments section uses icon+label grid cards. All `max-w-6xl` removed.
+- **`app/submit/page.tsx`** — Replaced single `max-w-3xl` column with `lg:grid-cols-[1fr_380px]`: form left, MyGrievances sidebar right.
+- **`app/track/page.tsx`** — Full-width header strip, full-width search bar, two-panel results layout, recent grievances in responsive grid.
+- **`app/admin/page.tsx`** — Removed `max-w-6xl`; full-bleed header strip, full-width content area.
+- **`app/login/page.tsx`** — Replaced narrow Card with two-column split: dark branding panel left, login form right.
+
+### Build Status
+`npm run build` — exit 0, 0 TypeScript errors, all 10 routes generate cleanly.
+
+### Next Steps
+- Register page (`app/register/page.tsx`) — could get the same split layout treatment as login
+- `AdminClusters.tsx` and `AdminMap.tsx` radius fixes (minor, low priority)
+- Voice-based complaint registration (from NEW_TODO_TASKS)
+- Multilingual support (from NEW_TODO_TASKS)
