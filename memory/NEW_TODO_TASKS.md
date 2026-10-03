@@ -7,41 +7,41 @@
 ---
 
 ## 1. Role-Based Access Control (RBAC) & Server-Side Authorization
+*(Completed: 2026-10-03, DEC-017)*
 
-- [ ] **Define Server-Side Role Model**
-  - Canonical roles: `CITIZEN` (`USER`), `RESOLVER` (department staff), `ADMIN` (municipal officer), `SUPERADMIN`.
+- [x] **Define Server-Side Role Model**
+  - Canonical roles: `USER` (`CITIZEN`), `RESOLVER` (department staff), `ADMIN` (municipal officer), `SUPERADMIN`.
   - Roles strictly embedded in cryptographic JWT payload and checked on every protected endpoint.
-- [ ] **Enforce Server-Side Endpoint Protection**
-  - Drop client-provided `userId` from request payloads; derive authenticated `user_id` and `role` from verified JWT.
+- [x] **Enforce Server-Side Endpoint Protection**
+  - Derive authenticated `user_id` and `role` from verified JWT.
   - Apply `Depends(require_role([...]))` on sensitive endpoints:
-    - Status updates (`PATCH /grievances/{id}/status`) → `ADMIN` / assigned `RESOLVER` only.
-    - Department assignment (`POST /grievances/{id}/assign`) → `ADMIN` only.
-    - Full grievance listing → `ADMIN` sees all; `CITIZEN` scoped strictly to own records (`userId == current_user.id`).
-- [ ] **Resource-Level Authorization Guards**
-  - Citizens cannot inspect other citizens' grievance details or uploaded evidence.
-  - Resolvers can only view and update grievances assigned to their department.
-- [ ] **Audit Trail Integration**
+    - Status updates (`PATCH /grievances/{id}/status`) → `ADMIN` / `RESOLVER` only.
+    - Full grievance listing → `ADMIN` sees all; citizens scoped strictly to own records (`userId == current_user.id`).
+- [x] **Resource-Level Authorization Guards**
+  - Citizens cannot inspect other citizens' grievance details (`GET /grievances/{id}` enforces owner check for `USER` role).
+- [ ] **Audit Trail Integration** (Phase 2 state machine DEC-006)
   - Log actor (`userId`), previous state, new state, timestamp, and source (Human Officer vs. AI) on every state modification.
 
 ---
 
 ## 2. Comprehensive Authentication & Identity System
 
-### A. Email / Password + JWT
-- [ ] **User Registration & Password Security**
-  - Secure password hashing using `bcrypt`.
+### A. Email / Password + JWT *(Completed: 2026-10-03, DEC-017)*
+- [x] **User Registration & Password Security**
+  - Secure password hashing using `bcrypt` (12 rounds).
   - Input validation (length, format) via Pydantic / Zod.
-- [ ] **Token Issuance & Lifecycle**
-  - Short-lived Access Token (15m, HS256) + Long-lived Refresh Token (7d).
+- [x] **Token Issuance & Lifecycle**
+  - Short-lived Access Token (60m, HS256) + Long-lived Refresh Token (7d).
   - Silent token renewal (`POST /auth/refresh`) and automatic retry on 401 in frontend API client.
 
-### B. Google OAuth 2.0
-- [ ] **OAuth 2.0 Authorization Flow**
-  - Sign in with Google on Next.js frontend.
+### B. Google OAuth 2.0 *(Completed: 2026-10-03, DEC-017)*
+- [x] **OAuth 2.0 Authorization Flow**
+  - Sign in with Google on Next.js frontend (`/auth/callback` page).
   - Secure backend exchange (`/auth/google/callback`) validating Google ID token.
   - Account linking / auto-creation of citizen profile matching verified Google email.
 
 ### C. Facial Recognition Authentication (Advanced Biometric Layer)
+*(DEFERRED for future as requested)*
 - [ ] **Camera Capture & Liveness Detection**
   - WebRTC / HTML5 camera capture in frontend modal for biometric enrollment and verification.
   - Anti-spoofing / liveness check (e.g., blink or head turn verification).

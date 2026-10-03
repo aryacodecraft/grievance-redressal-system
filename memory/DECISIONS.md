@@ -875,3 +875,45 @@ once would otherwise be re-litigated by every later agent:
 **Affected Components:** `backend/app/db.py`, `backend/app/routers/grievances.py`,
 `backend/app/main.py`, `frontend/lib/api.ts`, `render.yaml`,
 `backend/.env.example`, `tests/` (9 files), `frontend/scripts/check-contract.mjs`
+
+---
+
+## DEC-017 — Phase 1: JWT Authentication, Google OAuth 2.0 & RBAC Enforcement
+
+**ID:** DEC-017
+**Date:** 2026-10-03
+**Status:** ACCEPTED (IMPLEMENTED)
+
+**Context:**
+Prior to Phase 1, the backend had no authentication or authorization: `userId` was trusted from the request body, `PATCH /grievances/{id}/status` was accessible to any anonymous caller without role checks, and the frontend relied on demo localStorage data. Real authentication with RBAC and Google OAuth was requested.
+
+**Decision:**
+1. **Authentication Stack:**
+   - Stateless JWT tokens (HMAC-SHA256 via PyJWT).
+   - Access tokens (60 min expiry) contain `{sub: user_id, role: role, email: email, type: "access"}`.
+   - Refresh tokens (7 days expiry) contain `{sub: user_id, type: "refresh"}`.
+   - Password hashing with `bcrypt` (12 rounds) directly.
+   - Google OAuth 2.0 integration via redirect (`/auth/google`) and callback (`/auth/google/callback`) with token issuance.
+   - Startup seed hook in `backend/app/main.py` using `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` (idempotent).
+2. **Users Storage:**
+   - Follows repository pattern in `backend/app/users_db.py`: `MongoUsersRepository` when `MONGODB_URI` is set (`users` collection with unique index on `email`), falling back to `InMemoryUsersRepository` for local development and testing.
+3. **RBAC Rules (`DEC-007` implemented):**
+   - `POST /submit-grievance`: derives `userId` from verified JWT when authenticated (rejecting body spoofing); accepts body `userId` in unauthenticated/demo mode for backward-compatibility.
+   - `GET /grievances`: authenticated citizens (`USER`) are strictly scoped to their own grievances (`userId` derived from token); officers (`ADMIN`, `SUPERADMIN`, `RESOLVER`) can view all grievances or filter by query param.
+   - `GET /grievances/{id}`: authenticated citizens can only read their own grievances; admins/resolvers can read any.
+   - `PATCH /grievances/{id}/status`: protected with `require_role(["ADMIN", "SUPERADMIN", "RESOLVER"])` dependency; unauthorized callers receive 401/403.
+4. **Frontend Integration:**
+   - `frontend/lib/session.tsx`: full `Session` state with `login()`, `register()`, `signOut()`, auto-loading profile via `/auth/me` on mount.
+   - `frontend/lib/api.ts`: automatic `Authorization: Bearer <token>` injection into API requests; auto-refreshes on 401 using refresh token.
+   - UI pages: `app/login/page.tsx` and `app/register/page.tsx` wired to real live auth with Google sign-in button and demo mode fallback; `app/auth/callback/page.tsx` handles Google OAuth redirection.
+5. **Testing:**
+   - Created `tests/test_auth.py` covering registration, login, refresh, `/auth/me`, and RBAC permissions.
+   - Inverted `tests/test_security_baseline.py` to assert secure behavior (rejecting unauthenticated status updates and verifying JWT-derived identity).
+
+**Consequences:**
+- The highest-risk security gap documented in `docs/SECURITY.md` is resolved.
+- Endpoints enforce authorization server-side without relying on client claims.
+- The test suite remains green (202 passed, 27 skipped Mongo integration tests).
+
+**Affected Components:** `backend/app/auth.py`, `backend/app/users_db.py`, `backend/app/routers/auth.py`, `backend/app/routers/grievances.py`, `backend/app/config.py`, `backend/app/models.py`, `backend/app/main.py`, `frontend/lib/session.tsx`, `frontend/lib/api.ts`, `frontend/lib/types.ts`, `frontend/app/login/page.tsx`, `frontend/app/register/page.tsx`, `frontend/app/auth/callback/page.tsx`, `tests/test_auth.py`, `tests/test_security_baseline.py`, `tests/test_endpoints.py`.
+

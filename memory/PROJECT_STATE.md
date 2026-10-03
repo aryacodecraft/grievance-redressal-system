@@ -123,16 +123,18 @@ memory/        — AI agent persistent memory                                  I
 - ~~Alembic / PostgreSQL / SQLAlchemy~~ — never copied; SUPERSEDED
 - `docs/DATABASE.md` — **rewritten for MongoDB** (Postgres entities moved to a roadmap section)
 
-### Authentication
-- **Frontend:** demo localStorage session + `lib/roles.ts` allowlist —
-  **IMPLEMENTED (temporary)**; Firebase Auth client removed 2026-09-11
-- ~~Backend/legacy: Firebase Auth client-side in `functions/admin_api.js`~~ —
-  **DELETED** (Phase 4; the `firestore.rules` allowlist went in Phase 3)
-- **Backend: no authentication at all** — the API trusts `userId` from the
-  request body and authorises nothing; documented as the highest-risk gap in
-  `docs/SECURITY.md` with the JWT/RBAC mitigation path
-- JWT + Google OAuth + RBAC — **PLANNED** (target design kept in
-  `docs/ARCHITECTURE.md` / `docs/SECURITY.md`; DEC-007 role structure stands)
+### Authentication — Phase 1 complete (2026-10-03, DEC-017)
+- **JWT + Google OAuth 2.0 + RBAC** — **IMPLEMENTED** (DEC-007, DEC-017):
+  - `backend/app/auth.py`: stateless JWT encode/decode, access (60m) & refresh (7d) tokens, `get_current_user`, `get_optional_user`, `require_role(["ADMIN", ...])`
+  - `backend/app/users_db.py`: `MongoUsersRepository` (MongoDB Atlas `users` collection) + `InMemoryUsersRepository` fallback
+  - `backend/app/routers/auth.py`: `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/me`, `/auth/google`, `/auth/google/callback`
+  - Server-side RBAC enforced on grievances endpoints: `submit-grievance` derives identity from verified token; `GET /grievances` scopes citizens to own submissions; `PATCH status` requires ADMIN/RESOLVER
+  - Idempotent startup admin seeding via `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`
+  - `frontend/lib/session.tsx`: full session provider with `login()`, `register()`, `/auth/me` on mount
+  - `frontend/lib/api.ts`: automatic `Bearer` header injection and token refresh on 401
+  - `frontend/app/login/page.tsx` & `app/register/page.tsx`: real auth forms + Google OAuth sign-in button
+  - `frontend/app/auth/callback/page.tsx`: Google OAuth redirect handler
+- **Tests**: `tests/test_auth.py` (30 tests) + inverted `tests/test_security_baseline.py` — 202 passed across full suite
 
 ### AI Modules
 - Working classifiers in `backend/app/services/classification.py` (ported from

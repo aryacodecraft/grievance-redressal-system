@@ -6,6 +6,29 @@
 
 ---
 
+## 2026-10-03 — Phase 1: JWT Authentication, Google OAuth 2.0 & Server-Side RBAC (DEC-017)
+
+### Added — Backend
+- `backend/app/auth.py` — Stateless JWT utilities (PyJWT), access tokens (60m) & refresh tokens (7d), password hashing via `bcrypt`, FastAPI dependencies (`get_current_user`, `get_optional_user`, `require_role`)
+- `backend/app/users_db.py` — Users collection persistence (`MongoUsersRepository` with unique index on email, `InMemoryUsersRepository` fallback)
+- `backend/app/routers/auth.py` — `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/me`, `/auth/google`, `/auth/google/callback`
+- `tests/test_auth.py` — 21 unit & integration tests covering registration, duplicate rejection, login, token refresh, `/auth/me`, and RBAC enforcement on grievances endpoints
+
+### Added — Frontend
+- `frontend/app/auth/callback/page.tsx` — Handles Google OAuth redirect, exchanges query tokens, fetches user profile, and routes to appropriate portal
+- `frontend/lib/api.ts` — Authentication API helpers (`loginUser`, `registerUser`, `getCurrentUser`, `getGoogleAuthUrl`), token storage helpers, and automatic `Authorization: Bearer <token>` injection with transparent 401 refresh retry
+
+### Modified
+- `backend/app/routers/grievances.py` — Enforced RBAC: `POST /submit-grievance` derives citizen ID from verified JWT (prevents client spoofing); `GET /grievances` auto-scopes citizens to their own submissions; `PATCH /grievances/{id}/status` restricted to `ADMIN`, `SUPERADMIN`, `RESOLVER` roles
+- `backend/app/models.py` — Updated `SubmitGrievanceRequest`: `userId` made optional in payload (server extracts identity from verified JWT; body value accepted only in demo/mock mode for backward compatibility)
+- `backend/app/main.py` — Mounted auth router, enabled CORS credentials, added idempotent startup seeding for admin account (`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`)
+- `backend/app/config.py` & `backend/.env.example` — Added JWT secret, token expiry, admin seed, and Google OAuth configuration settings
+- `frontend/lib/session.tsx` — Replaced demo-only state with full authentication session (`login()`, `register()`, `signOut()`, auto `/auth/me` on mount) while preserving demo mock mode
+- `frontend/app/login/page.tsx` & `frontend/app/register/page.tsx` — Connected forms to real auth backend, added Google OAuth button, updated validation rules (8-char password)
+- `tests/test_security_baseline.py` — Inverted security baseline tests to assert secure behavior (401 on unauthenticated status updates, 403 on citizen role status updates, token-derived identity)
+
+---
+
 ## 2026-10-02 — Automated Test Suite (85 → 207), Six Divergences Fixed (DEC-016)
 
 ### Added — tests (all network-free; `conftest.py` still pins `MONGODB_URI=""`)

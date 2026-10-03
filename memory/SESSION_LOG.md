@@ -857,3 +857,46 @@ the live probe set to `assigned`) — all droppable on request.
   `check-contract.mjs` covers pure functions and schemas only.
 - Unchanged: Atlas password rotation, Firebase key rotation, Phase 0 merge
   (branch now **40 commits ahead of `main`, unpushed**).
+
+---
+
+## 2026-10-03 — Phase 1: JWT Authentication, Google OAuth 2.0 & Server-Side RBAC
+
+### Goal
+Implement production-grade authentication and authorization: email/password + JWT, Google OAuth 2.0, server-side RBAC enforcement across all grievance endpoints, and full frontend session integration (leaving facial recognition deferred for the future).
+
+### Context Read
+- `AGENTS.md` (Mandatory Memory Protocol, Human-in-the-Loop, Tech Stack)
+- `memory/PROJECT_STATE.md`, `memory/DECISIONS.md` (DEC-007, DEC-009, DEC-016), `memory/NEW_TODO_TASKS.md`
+- Plan artifact `phase1_jwt_auth_plan.md`
+
+### Work Completed
+1. **Backend Auth Infrastructure:**
+   - Implemented `backend/app/auth.py` with PyJWT (HS256), `create_access_token`, `create_refresh_token`, token decode/verification, `get_current_user`, `get_optional_user`, and `require_role(...)` dependency factory.
+   - Built `backend/app/users_db.py` supporting `MongoUsersRepository` (MongoDB `users` collection with unique index on `email`) and `InMemoryUsersRepository` fallback.
+   - Implemented `backend/app/routers/auth.py` with `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/me`, `/auth/google`, and `/auth/google/callback`.
+   - Used direct `bcrypt` (12 rounds) for password hashing and verification.
+   - Added idempotent admin seeding on startup in `backend/app/main.py`.
+2. **Server-Side RBAC Enforcement:**
+   - Modified `backend/app/routers/grievances.py`:
+     - `POST /submit-grievance`: derives `userId` from verified JWT, ignoring client-provided body value in authenticated mode; accepts body `userId` in demo/mock mode for backward compatibility.
+     - `GET /grievances`: citizens (`USER`) are strictly scoped to their own grievances (`userId` extracted from verified token); officers (`ADMIN`, `SUPERADMIN`, `RESOLVER`) can list all or filter.
+     - `GET /grievances/{id}`: citizens restricted to their own grievances; officers can read any.
+     - `PATCH /grievances/{id}/status`: protected with `require_role(["ADMIN", "SUPERADMIN", "RESOLVER"])`.
+   - Updated `SubmitGrievanceRequest` model in `backend/app/models.py`.
+3. **Frontend Integration:**
+   - Updated `frontend/lib/types.ts`: added `AuthUser`, `AuthResponse`, and made `userId` optional in `SubmitPayload`.
+   - Updated `frontend/lib/api.ts`: token storage helpers (`getStoredAccessToken`, `getStoredRefreshToken`, `setStoredTokens`, `clearStoredTokens`), `Authorization: Bearer <token>` injection in `requestJson` with transparent 401 refresh retry, and auth client methods (`loginUser`, `registerUser`, `getCurrentUser`, `getGoogleAuthUrl`).
+   - Updated `frontend/lib/session.tsx`: full session provider with `login()`, `register()`, `signOut()`, auto `/auth/me` on mount, while preserving mock/demo mode.
+   - Updated `frontend/app/login/page.tsx` & `frontend/app/register/page.tsx`: connected to real auth with Google OAuth sign-in button, form validation, and dev credentials autofill.
+   - Created `frontend/app/auth/callback/page.tsx`: handles Google OAuth redirect, stores tokens, loads profile, and routes to appropriate dashboard.
+4. **Testing & Verification:**
+   - Created `tests/test_auth.py` (30 tests) testing register, login, refresh, `/auth/me`, and RBAC permissions.
+   - Inverted `tests/test_security_baseline.py` to assert secure behavior.
+   - Full test suite: **202 passed, 27 skipped (Mongo tests requiring local daemon)**.
+   - Frontend build (`npm run build`): **Clean compile, 10 static routes generated**.
+   - Contract checks (`node frontend/scripts/check-contract.mjs`): **All 18 checks passed**.
+
+### Decisions Made
+- **DEC-017**: Phase 1 JWT Authentication, Google OAuth 2.0 & RBAC Enforcement.
+
