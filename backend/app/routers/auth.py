@@ -57,12 +57,25 @@ _GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 _FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
+import re
+
+_EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
+
 # ── Request / response models ────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     full_name: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _EMAIL_REGEX.match(v):
+            raise ValueError("value is not a valid email address")
+        return v
 
     @field_validator("password")
     @classmethod
@@ -80,8 +93,16 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _EMAIL_REGEX.match(v):
+            raise ValueError("value is not a valid email address")
+        return v
 
 
 class RefreshRequest(BaseModel):

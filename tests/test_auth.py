@@ -98,6 +98,12 @@ class TestLogin:
         res = _login(client, "CASE@X.COM", "Pass1234!")
         assert res.status_code == 200
 
+    def test_login_local_domain_email_succeeds(self, client):
+        _reg(client, "admin@grievance.local", "Pass1234!")
+        res = _login(client, "admin@grievance.local", "Pass1234!")
+        assert res.status_code == 200
+        assert res.json()["user"]["email"] == "admin@grievance.local"
+
 
 # ── /auth/me ─────────────────────────────────────────────────────────────────
 
