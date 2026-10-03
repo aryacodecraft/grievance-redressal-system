@@ -14,14 +14,22 @@ from __future__ import annotations
 
 import os
 
-# Must happen before any `backend.app` import (db.py builds its repository at
-# import time and load_dotenv() would otherwise pick up backend/.env).
+# Must happen before any `backend.app` import (db.py and users_db.py build
+# their repositories at import time and load_dotenv() would otherwise pick up
+# backend/.env).
 os.environ["MONGODB_URI"] = ""
 os.environ["MONGODB_DB"] = "grievance_test"
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
 # Force the deterministic keyword fallback — no HF/Groq network calls in tests.
 os.environ["GROQ_API_KEY"] = ""
 os.environ["HF_API_TOKEN"] = ""
+# JWT secret for tests — any stable value works; must be non-empty so tokens
+# are actually validated (auth.py disables verification when secret is "").
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-pytest-only-not-production")
+# Disable admin seeding in tests (the seed hash runs at app startup and would
+# fail if SEED_ADMIN_PASSWORD from backend/.env is too long for bcrypt).
+os.environ["SEED_ADMIN_EMAIL"] = ""
+os.environ["SEED_ADMIN_PASSWORD"] = ""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,21 +47,31 @@ def app():
 
 @pytest.fixture(autouse=True)
 def fresh_repository():
-    """Give every test a clean store.
+    """Give every test a clean grievance store AND a clean users store.
 
-    `db.repository` is module-global and `routers/grievances.py` binds it at
-    import time (`from ..db import repository`), so the router's name is the one
-    that has to be swapped — not `db.repository`.
+    Both `db.repository` and `users_db.users_repository` are module-global
+    and their routers bind them at import time, so the router's binding must
+    be swapped — not just the module globals.
     """
-    from backend.app import db
+    from backend.app import db, users_db
     from backend.app.routers import grievances as grievances_router
+    from backend.app.routers import auth as auth_router
 
-    previous = grievances_router.repository
+    prev_grievances = grievances_router.repository
+    prev_users = auth_router.users_repository
+
     grievances_router.repository = db.InMemoryRepository()
+    fresh_users = users_db.InMemoryUsersRepository()
+    auth_router.users_repository = fresh_users
+    # Also swap the module-level singleton so /auth/me etc. share the same store
+    users_db.users_repository = fresh_users
+
     try:
         yield
     finally:
-        grievances_router.repository = previous
+        grievances_router.repository = prev_grievances
+        auth_router.users_repository = prev_users
+        users_db.users_repository = prev_users
 
 
 @pytest.fixture()

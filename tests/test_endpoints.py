@@ -244,11 +244,19 @@ def test_grievance_optional_fields_are_null_tolerated(client, sample_payload):
 # ── Update ──────────────────────────────────────────────────────────────────
 
 
+def _admin_headers():
+    from backend.app.auth import create_access_token
+
+    token = create_access_token("admin-test", "ADMIN", "admin@example.com")
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_patch_status_and_assignee(client, sample_payload):
     gid = _create(client, sample_payload)
     res = client.patch(
         f"/grievances/{gid}/status",
         json={"status": "assigned", "assignee": "Roads Division — Zone 3"},
+        headers=_admin_headers(),
     )
     assert res.status_code == 200
     body = res.json()
@@ -261,7 +269,9 @@ def test_patch_status_and_assignee(client, sample_payload):
 
 def test_patch_unknown_grievance_404(client):
     res = client.patch(
-        "/grievances/GRV-1999-9999/status", json={"status": "resolved"}
+        "/grievances/GRV-1999-9999/status",
+        json={"status": "resolved"},
+        headers=_admin_headers(),
     )
     assert res.status_code == 404
     assert "error" in res.json()
@@ -269,7 +279,11 @@ def test_patch_unknown_grievance_404(client):
 
 def test_patch_partial_update_leaves_other_fields(client, sample_payload):
     gid = _create(client, sample_payload)
-    client.patch(f"/grievances/{gid}/status", json={"status": "resolved"})
+    client.patch(
+        f"/grievances/{gid}/status",
+        json={"status": "resolved"},
+        headers=_admin_headers(),
+    )
     body = client.get(f"/grievances/{gid}").json()
     assert body["status"] == "resolved"
     assert body["title"] == sample_payload["title"]
@@ -377,7 +391,11 @@ def test_blank_status_is_rejected(client, sample_payload):
     `StatusTimeline` pinned to step 0."""
     gid = _create(client, sample_payload)
     for blank in ("", "   ", "\t\n"):
-        res = client.patch(f"/grievances/{gid}/status", json={"status": blank})
+        res = client.patch(
+            f"/grievances/{gid}/status",
+            json={"status": blank},
+            headers=_admin_headers(),
+        )
         assert res.status_code == 400, repr(blank)
         assert "error" in res.json()
     assert client.get(f"/grievances/{gid}").json()["status"] == "open"
@@ -385,7 +403,11 @@ def test_blank_status_is_rejected(client, sample_payload):
 
 def test_blank_assignee_is_rejected(client, sample_payload):
     gid = _create(client, sample_payload)
-    res = client.patch(f"/grievances/{gid}/status", json={"assignee": "   "})
+    res = client.patch(
+        f"/grievances/{gid}/status",
+        json={"assignee": "   "},
+        headers=_admin_headers(),
+    )
     assert res.status_code == 400
     assert "assignee" in res.json()["error"]
 
@@ -393,7 +415,9 @@ def test_blank_assignee_is_rejected(client, sample_payload):
 def test_status_surrounding_whitespace_is_trimmed(client, sample_payload):
     gid = _create(client, sample_payload)
     res = client.patch(
-        f"/grievances/{gid}/status", json={"status": "  resolved  "}
+        f"/grievances/{gid}/status",
+        json={"status": "  resolved  "},
+        headers=_admin_headers(),
     )
     assert res.status_code == 200
     assert res.json()["status"] == "resolved"
@@ -401,11 +425,18 @@ def test_status_surrounding_whitespace_is_trimmed(client, sample_payload):
 
 def test_patch_without_any_field_is_rejected(client, sample_payload):
     gid = _create(client, sample_payload)
-    assert client.patch(f"/grievances/{gid}/status", json={}).status_code == 400
+    assert (
+        client.patch(
+            f"/grievances/{gid}/status", json={}, headers=_admin_headers()
+        ).status_code
+        == 400
+    )
     # Explicit nulls are "leave alone", so they must not count as a patch.
     assert (
         client.patch(
-            f"/grievances/{gid}/status", json={"status": None, "assignee": None}
+            f"/grievances/{gid}/status",
+            json={"status": None, "assignee": None},
+            headers=_admin_headers(),
         ).status_code
         == 400
     )
@@ -414,7 +445,9 @@ def test_patch_without_any_field_is_rejected(client, sample_payload):
 def test_patch_assignee_without_status(client, sample_payload):
     gid = _create(client, sample_payload)
     res = client.patch(
-        f"/grievances/{gid}/status", json={"assignee": "Drainage Cell"}
+        f"/grievances/{gid}/status",
+        json={"assignee": "Drainage Cell"},
+        headers=_admin_headers(),
     )
     assert res.status_code == 200
     body = client.get(f"/grievances/{gid}").json()
@@ -424,8 +457,16 @@ def test_patch_assignee_without_status(client, sample_payload):
 
 def test_patch_status_without_assignee(client, sample_payload):
     gid = _create(client, sample_payload)
-    client.patch(f"/grievances/{gid}/status", json={"assignee": "Roads Cell"})
-    client.patch(f"/grievances/{gid}/status", json={"status": "in_progress"})
+    client.patch(
+        f"/grievances/{gid}/status",
+        json={"assignee": "Roads Cell"},
+        headers=_admin_headers(),
+    )
+    client.patch(
+        f"/grievances/{gid}/status",
+        json={"status": "in_progress"},
+        headers=_admin_headers(),
+    )
     body = client.get(f"/grievances/{gid}").json()
     assert body["status"] == "in_progress"
     assert body["assignee"] == "Roads Cell"  # survives a status-only patch
@@ -440,7 +481,11 @@ def test_unknown_status_values_are_accepted_verbatim(client, sample_payload):
     """
     gid = _create(client, sample_payload)
     for value in ("Banana", "OPEN", "closed", "in_review", "escalated_to_cmo"):
-        res = client.patch(f"/grievances/{gid}/status", json={"status": value})
+        res = client.patch(
+            f"/grievances/{gid}/status",
+            json={"status": value},
+            headers=_admin_headers(),
+        )
         assert res.status_code == 200, value
         assert client.get(f"/grievances/{gid}").json()["status"] == value
 
@@ -456,6 +501,7 @@ def test_status_update_records_no_history_or_actor(client, sample_payload):
     body = client.patch(
         f"/grievances/{gid}/status",
         json={"status": "resolved", "assignee": "Ward 4"},
+        headers=_admin_headers(),
     ).json()
     for forbidden in ("history", "updatedAt", "updatedBy", "reason", "actor"):
         assert forbidden not in body, forbidden
