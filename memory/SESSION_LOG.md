@@ -968,3 +968,15 @@ Restrict access to the `/admin` portal exclusively to Admin accounts on the fron
   - Displays a clean `ADMIN` badge next to the user's email in the header when an administrator is signed in.
 - `README.md`: Added a dedicated "Pre-Seeded Test Accounts" section documenting credentials (`admin@grievance.local` / `Admin@2026!` and `citizen@grievance.local` / `Citizen@2026!`) and their respective permissions.
 - Verified: `npm run build` exits 0; pytest suite (64 tests in `test_auth.py` and `test_endpoints.py`) passes 100%.
+
+---
+
+## 2026-10-03 — Fix: Special-use .local Domain Email Validation in Auth Endpoints
+
+### Bug
+Pydantic's `EmailStr` relies on `email-validator`, which under RFC 6762 strictly disallows `.local` (and other reserved/special-use domains) with: `"value is not a valid email address: The part after the @-sign is a special-use or reserved name that cannot be used with email."` This broke login and registration for the default development accounts (`admin@grievance.local`, `citizen@grievance.local`).
+
+### Fix
+- `backend/app/routers/auth.py`: Replaced strict `EmailStr` with `str` validated via standard RFC-compliant email regex (`^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).
+- `tests/test_auth.py`: Added `test_login_local_domain_email_succeeds` regression test.
+- Verified live login: Both `admin@grievance.local` and `citizen@grievance.local` now succeed with HTTP 200 and return access/refresh tokens.
