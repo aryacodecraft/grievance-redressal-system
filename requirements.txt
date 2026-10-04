@@ -1,7 +1,8 @@
-flask
-flask-cors
-gunicorn
-firebase-admin
+fastapi
+uvicorn
+pydantic
+pymongo
+dnspython
 requests
 pillow
 numpy

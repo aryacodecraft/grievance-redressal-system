@@ -1,121 +1,186 @@
-# tools/recategorize.py
-import firebase_admin
-from firebase_admin import credentials, firestore
-from dotenv import load_dotenv
+#!/usr/bin/env python3
+"""Re-run AI classification over every stored grievance (MongoDB edition).
+
+Replaces the Firestore batch job; the classifier cascade now lives in
+`backend/app/services/classification.py`.
+
+Usage:
+    python tools/recategorize.py             # classify and apply updates
+    python tools/recategorize.py --dry-run   # classify and report only
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
 import os
 import sys
-import logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from dotenv import load_dotenv
 
-# Add root and backend directories to sys.path
-base_dir = os.path.dirname(__file__)
-sys.path.append(os.path.abspath(os.path.join(base_dir, '..')))
-sys.path.append(os.path.abspath(os.path.join(base_dir, '..', 'backend')))
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+logger = logging.getLogger("recategorize")
 
-# --- PATH SETUP & ENV LOADING ---
-dotenv_path = os.path.join(base_dir, "..", "backend", ".env")
-load_dotenv(dotenv_path=dotenv_path)
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+BACKEND_DIR = os.path.join(REPO_ROOT, "backend")
 
-from grievance_model import GrievanceModel
-from llm_fallback import predict_with_fallback
+# Load backend/.env before the app config module reads it.
+load_dotenv(os.path.join(BACKEND_DIR, ".env"))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    logger.warning("[WARNING] GROQ_API_KEY not set in backend/.env. LLM Fallback might fail if triggered.")
-
-# --- Firebase Admin init ---
-try:
-    service_account_path = os.path.join(base_dir, "..", "backend", "serviceAccountKey.json")
-    if os.path.exists(service_account_path):
-        cred = credentials.Certificate(service_account_path)
-    else:
-        cred = credentials.ApplicationDefault()
-
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(cred)
-    db = firestore.client()
-except Exception as e:
-    logger.error(f"[ERROR] Failed to initialize Firebase Admin: {e}")
-    sys.exit(1)
+from backend.app.config import MONGODB_DB, MONGODB_URI  # noqa: E402
+from backend.app.services.classification import (  # noqa: E402
+    CATEGORY_MODEL,
+    GROQ_MODEL,
+    PRIORITY_MODEL,
+    classify_category,
+    classify_priority,
+    extract_keywords,
+    find_urgent_matches,
+    infer_category_from_keywords,
+    refine_with_groq,
+)
 
 
-# --- MAIN RE-CATEGORIZATION ---
-def recategorize_all():
-    logger.info("[INFO] Initializing & Training GrievanceModel...")
-    model = GrievanceModel()
-    model.train()
-
-    logger.info("[INFO] Fetching all grievances from Firestore...")
+def classify(text: str) -> dict:
+    """One classification pass — mirrors the /submit-grievance cascade."""
     try:
-        snapshot = db.collection("grievances").stream()
-    except Exception as e:
-        logger.error(f"[ERROR] Failed to fetch documents: {e}")
-        return
+        cat_res = classify_category(text)
+    except Exception:
+        logger.exception("category classification failed")
+        cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
+    try:
+        pri_res = classify_priority(text)
+    except Exception:
+        logger.exception("priority classification failed")
+        pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
 
-    docs_to_reprocess = list(snapshot)
-    logger.info(f"[INFO] Found {len(docs_to_reprocess)} documents\n")
+    hf_priority = pri_res.get("priority", "low")
+    sentiment_raw = pri_res.get("sentiment", "neutral")
+    sentiment_score = pri_res.get("sentimentScore", 0.0)
+    urgent_matches = find_urgent_matches(text)
 
-    for doc_snap in docs_to_reprocess:
-        data = doc_snap.to_dict()
-        doc_id = doc_snap.id
+    hf_category = cat_res.get("category", "other")
+    keyword_category = infer_category_from_keywords(text)
+    if keyword_category:
+        hf_category = keyword_category
+    if hf_category == "sanitation" and hf_priority == "low":
+        hf_priority = "medium"
+
+    hf_raw_label = cat_res.get("rawLabel", "")
+    keywords = extract_keywords(text)
+
+    try:
+        groq_res = refine_with_groq(text, hf_category, hf_priority, hf_raw_label)
+    except Exception:
+        groq_res = None
+
+    if groq_res:
+        priority = groq_res.get("priority", hf_priority)
+        category = groq_res.get("category", hf_category)
+        explanation = groq_res.get("explanation", "Refined by Groq LLM.")
+    else:
+        priority = hf_priority
+        category = hf_category
+        explanation = (
+            f"Category '{category}' predicted from '{hf_raw_label}' "
+            f"(score: {float(cat_res.get('confidence', 0.0)):.2f}), "
+            f"Priority '{priority}' determined using sentiment ('{sentiment_raw}', "
+            f"score: {float(sentiment_score):.2f}) and urgency keywords."
+        )
+
+    return {
+        "category": category,
+        "priority": priority,
+        "isUrgent": priority == "high",
+        "keywords": keywords,
+        "explanation": explanation,
+        "rawCategoryLabel": hf_raw_label,
+        "categoryConfidence": float(cat_res.get("confidence", 0.0)),
+        "urgentMatches": urgent_matches,
+        "modelInfo": {
+            "categoryModel": CATEGORY_MODEL,
+            "priorityModel": PRIORITY_MODEL,
+            "sentimentLabel": sentiment_raw,
+            "sentimentScore": float(sentiment_score),
+            "groqModel": GROQ_MODEL if groq_res else "None",
+            "hfCategory": hf_category,
+            "hfPriority": hf_priority,
+        },
+    }
+
+
+def recategorize_all(dry_run: bool = False) -> int:
+    if not MONGODB_URI:
+        logger.error("MONGODB_URI is not set — export it or add it to backend/.env")
+        return 1
+
+    from pymongo import MongoClient
+
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=8000)
+    collection = client[MONGODB_DB]["grievances"]
+
+    docs = list(collection.find({}, {"_id": 1, "id": 1, "title": 1, "description": 1}))
+    logger.info("Found %d documents", len(docs))
+
+    updated = 0
+    for data in docs:
         text = f"{data.get('title', '')}\n{data.get('description', '')}".strip()
-
-        latitude = data.get('latitude')
-        longitude = data.get('longitude')
-
-        logger.info(f"Reprocessing {doc_id}")
-
         if not text:
-            logger.warning(f"   [WARNING] Skipping {doc_id}: No title or description.")
+            logger.warning("Skipping %s: no title/description", data.get("id"))
             continue
 
         try:
-            # Run prediction with Groq LLM fallback wrapper
-            classification = predict_with_fallback(model, text)
+            hf_engine = classify(text)
+        except Exception as exc:
+            logger.error("Failed for %s: %s", data.get("id"), exc)
+            continue
 
-            category = classification["category"]
-            priority = classification["priority"]
-            confidence = classification["confidence"]
-            source = classification["source"]
-            reason = classification["reason"]
+        logger.info(
+            "%s -> %s / %s",
+            data.get("id"),
+            hf_engine["category"],
+            hf_engine["priority"],
+        )
 
-            hf_engine = {
-                "category": category,
-                "priority": priority,
-                "isUrgent": priority.lower() == "high",
-                "confidence": confidence,
-                "source": source,
-                "explanation": reason,
-                "modelInfo": {
-                    "mlModel": "GrievanceModel (TF-IDF + LogisticRegression)",
-                    "fallbackModel": "Groq LLM (mixtral-8x7b-32768 / llama3-70b-8192)",
-                    "usedSource": source
+        if dry_run:
+            updated += 1
+            continue
+
+        collection.update_one(
+            {"_id": data["_id"]},
+            {
+                "$set": {
+                    "hfEngine": hf_engine,
+                    "category": hf_engine["category"],
+                    "priority": hf_engine["priority"],
                 }
-            }
+            },
+        )
+        updated += 1
 
-            update_data = {
-                "category": category,
-                "priority": priority,
-                "hfEngine": hf_engine
-            }
+    logger.info(
+        "%s %d of %d documents",
+        "Would update" if dry_run else "Updated",
+        updated,
+        len(docs),
+    )
+    return 0
 
-            if latitude is not None:
-                update_data['latitude'] = latitude
-            if longitude is not None:
-                update_data['longitude'] = longitude
 
-            # Update document in Firestore
-            doc_snap.reference.set(update_data, merge=True)
-            logger.info(f"   [OK] Updated: {doc_id} -> Category: {category}, Priority: {priority} (Source: {source})\n")
-
-        except Exception as e:
-            logger.error(f"   [ERROR] Failed for {doc_id}: {e}")
-
-    logger.info("\n[SUCCESS] Re-categorization complete!")
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Re-run AI classification over stored grievances."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Classify and log, but do not write anything",
+    )
+    args = parser.parse_args()
+    raise SystemExit(recategorize_all(dry_run=args.dry_run))
 
 
 if __name__ == "__main__":
-    recategorize_all()
+    main()
