@@ -54,7 +54,7 @@ export function Alert({
   tone = "info",
   children,
 }: {
-  tone?: "info" | "error";
+  tone?: "info" | "error" | "warning";
   children: ReactNode;
 }) {
   return (
@@ -65,7 +65,9 @@ export function Alert({
         tone === "info" &&
           "border-primary-200/80 bg-primary-50/70 text-primary-900 font-medium",
         tone === "error" &&
-          "border-rose-200 bg-rose-50 text-rose-900 font-medium"
+          "border-rose-200 bg-rose-50 text-rose-900 font-medium",
+        tone === "warning" &&
+          "border-amber-200 bg-amber-50 text-amber-900 font-medium"
       )}
     >
       {children}
