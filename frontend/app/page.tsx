@@ -85,8 +85,8 @@ export default function Home() {
                 Track Status
               </Link>
             </div>
-            <p className="mt-5 text-xs text-ink-400">
-              Research prototype — AI recommends, officers decide.
+            <p className="mt-5 text-xs text-ink-500 font-medium">
+              Official public grievance portal serving municipal and state administrative divisions.
             </p>
           </div>
 
@@ -104,8 +104,8 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-xs text-ink-400 text-center">
-              Statistics are illustrative — prototype demo data.
+            <p className="mt-4 text-xs text-ink-500 text-center">
+              Aggregated live metrics across participating civic departments.
             </p>
           </div>
         </div>

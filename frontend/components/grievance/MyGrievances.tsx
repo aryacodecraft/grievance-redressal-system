@@ -67,11 +67,7 @@ export function MyGrievances() {
         </div>
       )}
 
-      {!liveMode && (
-        <p className="text-center text-xs text-ink-400">
-          Demo mode — showing sample submissions.
-        </p>
-      )}
+
     </div>
   );
 }

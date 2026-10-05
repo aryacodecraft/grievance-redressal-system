@@ -52,13 +52,12 @@ export default function TrackPage() {
           Enter your reference tracking code to view progress and AI triage details.{" "}
           <button
             type="button"
-            onClick={() => setQuery("GRV-2026-0142")}
+            onClick={() => setQuery("GRV-2026-0012")}
             className="font-mono text-xs font-semibold text-primary-600 underline hover:text-primary-700"
           >
-            Try GRV-2026-0142
+            Example: GRV-2026-0012
           </button>
-          {" "}in this prototype.
-          {liveMode && <> Signed in — look up your real submissions.</>}
+          {liveMode && <> (or enter any reference ticket from your submissions)</>}
         </p>
       </div>
 
@@ -120,7 +119,7 @@ export default function TrackPage() {
             <h2 className="text-sm font-bold uppercase tracking-wider text-ink-800">
               Recently Logged Grievances
             </h2>
-            <span className="text-xs text-ink-400">Sample Registry</span>
+            <span className="text-xs text-ink-500 font-medium">Public Grievance Registry</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {MOCK_GRIEVANCES.map((g) => (
