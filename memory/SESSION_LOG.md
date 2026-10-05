@@ -996,3 +996,127 @@ Pydantic's `EmailStr` relies on `email-validator`, which under RFC 6762 strictly
 - `frontend/components/admin/AdminBoard.tsx` — Passes `{ scopeToUser: false }` so admin always gets the global list.
 - `frontend/components/grievance/MyGrievances.tsx` — Passes `{ scopeToUser: true }` so the citizen sidebar is always scoped to the signed-in user.
 - Verified: admin JWT → `GET /grievances` → 12 grievances returned; frontend build exits 0.
+
+---
+
+## 2026-10-04 — Admin Portal Overhaul, Resolver Action Center & Citizen Experience Elevation
+
+### Goal
+Implement major UI overhaul focusing primarily on the Admin Portal & Resolver workspace while elevating the Citizen experience for overall consistency.
+
+### Completed
+1. **Admin Department Portals & Live Metrics (`AdminBoard.tsx`)**:
+   - Added civic department portal tabs (`All Departments`, `Water Supply`, `Roads & Transport`, `Electricity`, `Sanitation`, `Health Services`, `Governance`, `Other`) with live ticket counts.
+   - Added executive command KPI bar: Total Cases, Urgent Attention (with pulse animation), Needs Triage / Unassigned, In Remediation, and Resolution Rate percentage.
+   - Added multi-criteria filter strip: instant search with clear button, priority filter, lifecycle status filter, and multi-mode sorting (Urgency first, Newest, Oldest).
+2. **Dedicated Resolver Action Center (`AdminBoard.tsx`)**:
+   - Dedicated officer command card with ticket reference, citizen ID, timestamp, and coordinates.
+   - Interactive workflow buttons: `Assign & Route`, `In Progress`, `Mark Resolved`, and `Reject / Close`.
+   - Department assignment selector with field memo / resolution notes recording.
+   - High-resolution photographic evidence preview.
+3. **Citizen Experience & Design Consistency**:
+   - `app/register/page.tsx`: Overhauled from centered card to full-height split-screen layout with dark branding panel left (`lg:w-[420px]`), establishing parity with `app/login/page.tsx`.
+   - `GrievanceCard.tsx` (`StatusTimeline`): Upgraded to a multi-step milestone progress tracker with state icons (`CheckCircle2`, `CircleDot`, `Clock`, `AlertCircle`) and descriptive step subtitles.
+   - `Feedback.tsx`: Extended `Alert` with `warning` tone support.
+   - `AdminClusters.tsx` & `AdminMap.tsx`: Updated border radii to `rounded-md` and `rounded-sm`.
+4. **Verification**:
+   - `npm run build`: Zero errors, all 10 routes compiled.
+   - `pytest tests/test_auth.py tests/test_endpoints.py`: 65 passed, 100% success.
+
+---
+
+## 2026-10-05 — Admin UI Restructuring (3-Part Modular Architecture, DEC-018)
+
+### Goal
+Implement the owner-approved `memory/ADMIN_UI_RESTRUCTURING_PLAN.md`: split the
+admin portal into a lean triage board, a centered review dialog, and a dedicated
+executive analytics page.
+
+### Context Read
+- `memory/ADMIN_UI_RESTRUCTURING_PLAN.md` (approved design + checklist)
+- `memory/NEW_TODO_TASKS.md` §4C (admin structural reorganisation, all `[ ]`)
+- `frontend/app/admin/page.tsx`, `frontend/components/admin/AdminBoard.tsx`,
+  `AdminMap.tsx`, `AdminClusters.tsx`, `frontend/components/charts/AdminCharts.tsx`,
+  `frontend/lib/{types,tfidf,api,grievances,mock}.ts`, `frontend/lib/session.tsx`,
+  and the `ui/` component primitives.
+
+### Work Completed
+1. **New `/admin/analytics` route** (`app/admin/analytics/page.tsx` +
+   `components/admin/AdminAnalytics.tsx`): macro metric cards, `AdminCharts`
+   distribution charts, geographic `AdminMap`, TF-IDF `AdminClusters`, and a CSV
+   report export button.
+2. **`GrievanceReviewModal.tsx`**: centered dialog with metadata, evidence photo,
+   `SinglePinMap`, `AnalysisPanel`, and lifecycle action buttons. The queue
+   remounts it per grievance via `key` so form state resets without an effect.
+3. **`AdminBoard.tsx` refactor**: full-width triage table (Ticket, Department,
+   Priority, Status, Assignee, SLA, Age) with row→modal trigger; removed the
+   inline map, cluster panel, resolver column, and chart section; kept KPI cards,
+   department tabs, filters, sorting, and pagination.
+4. **Shared chrome + data**: `AdminGate`, `AdminNav`/`AdminHeader`,
+   `useAdminGrievanceFeed`, shared `departments.ts`; `AdminCharts` accepts
+   `items`.
+5. **Prototype SLA indicator** (`lib/sla.ts`): deterministic
+   `createdAt + priority SLA days` → `Overdue` / `On Track` / `Closed`. Documented
+   as a stand-in for the not-yet-built SLA configuration (DEC-018, PRD OQ-005).
+
+### Verification
+- `npm run build`: zero errors; `/admin` and `/admin/analytics` prerender.
+- Smoke test under `next start` (port 3100): both routes return HTTP 200.
+- `npx eslint components/admin app/admin lib/sla.ts`: clean (fixed a
+  set-state-in-effect error and a `no-location-assign-relative-destination`
+  warning during the work).
+- `./venv/bin/python -m pytest -q`: **196 passed, 27 skipped, 7 failed**. The 7
+  failures are all in `tests/test_status_vocabularies.py` and are **pre-existing**:
+  they parse a `TIMELINE` array in `GrievanceCard.tsx` and a `Field label="Status"`
+  in `AdminBoard.tsx`, neither of which exists in the working tree as it stood at
+  the start of this session (HEAD still has both; the uncommitted UI overhaul had
+  already renamed/rewritten them). No new failures introduced by the admin
+  restructuring.
+
+### Next Recommended Step
+- Add coverage for the restructured admin surface (SLA helper unit test, modal
+  transition flow).
+- When Phase 9 SLA configuration lands, retire `frontend/lib/sla.ts` in favour of
+  the server-provided `due_date`.
+
+---
+
+## 2026-10-05 — Analytics Map Viewport Enlarged
+
+### Goal
+Improve the size of the Geographic Distribution map on `/admin/analytics` (user
+request: "improve the map size in analytics").
+
+### Context Read
+- `memory/README.md`, `PROJECT_STATE.md`, `DECISIONS.md` (HEAD of `DECISIONS.md`;
+  the file is large and was truncated), `CHANGELOG.md`
+- `frontend/app/admin/analytics/page.tsx`, `components/admin/AdminAnalytics.tsx`,
+  `AdminMap.tsx`, `SinglePinMap.tsx`, `components/charts/AdminCharts.tsx`
+- Confirmed via grep that `AdminMap` is only consumed by `AdminAnalytics`
+  (the review modal uses the separate `SinglePinMap`), so tailoring its size for
+  analytics has no side effects on the triage board.
+
+### Work Completed
+1. `AdminMap.tsx`: added an optional `heightClassName` prop defaulting to the
+   previous `"h-80"`, and applied it in the wrapper `className` so callers own
+   the viewport height.
+2. `AdminAnalytics.tsx`: passed `heightClassName="h-[24rem] sm:h-[30rem] lg:h-[34rem]"`
+   to the map and reduced the surrounding `CardBody` padding from `p-4` to `p-3`.
+   Net effect: map height 320px → 384px (mobile) / 480px (≥640px) / 544px (≥1024px).
+
+### Verification
+- `npx tsc --noEmit` — exit 0, no errors.
+- `npx eslint components/admin/AdminMap.tsx components/admin/AdminAnalytics.tsx`
+  — exit 0, no warnings/errors.
+- `npm run build` — exit 0; all 9 routes including `/admin/analytics` compile.
+- Inspected the built CSS chunk and confirmed the three arbitrary utilities are
+  present with the intended media queries (`.h-[24rem]` base,
+  `@media (min-width:40rem)` for `sm`, `@media (min-width:64rem)` for `lg`).
+- **Not run:** no headless browser/Playwright is installed here, and the
+  analytics route is `AdminGate`-protected, so the rendered pixel height was not
+  visually measured; verification is build + emitted-CSS based.
+
+### Next Recommended Step
+- If a browser becomes available, confirm the map resize across the `sm`/`lg`
+  breakpoints (Leaflet's `trackResize` handles window resizes, but a
+  `ResizeObserver` would be more robust for container-only changes).

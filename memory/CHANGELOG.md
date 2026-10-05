@@ -4,6 +4,71 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-05 — Analytics Map Viewport Enlarged
+
+### Changed
+- `frontend/components/admin/AdminMap.tsx` — added an optional
+  `heightClassName` prop (default `"h-80"`, preserving prior behaviour) so the
+  map viewport height is owned by the consuming page instead of hardcoded.
+- `frontend/components/admin/AdminAnalytics.tsx` — the Geographic Distribution
+  map now uses a larger, responsive height (`h-[24rem] sm:h-[30rem] lg:h-[34rem]`
+  = 384px / 480px / 544px, previously a fixed `h-80` = 320px) and tighter card
+  padding (`p-4` → `p-3`) to give the map more usable area.
+
+### Verification
+- `npx tsc --noEmit` — clean (exit 0).
+- `npx eslint components/admin/AdminMap.tsx components/admin/AdminAnalytics.tsx` — clean (exit 0).
+- `npm run build` — zero errors; all 9 routes compile, `/admin/analytics` included.
+- Confirmed Tailwind emitted the new arbitrary utilities in the production CSS
+  (`.h-[24rem]`, `@media (min-width:40rem){.sm:h-[30rem]}`, `@media (min-width:64rem){.lg:h-[34rem]}`) — they were not silently dropped.
+
+---
+
+## 2026-10-05 — Admin UI Restructuring (3-Part Modular Architecture)
+
+Implemented the owner-approved design in `memory/ADMIN_UI_RESTRUCTURING_PLAN.md`:
+one lean triage board, one centered review dialog, one executive analytics page.
+
+### Added
+- `frontend/app/admin/analytics/page.tsx` — new `/admin/analytics` route (auth-gated).
+- `frontend/components/admin/AdminAnalytics.tsx` — executive dashboard: macro metric cards, distribution charts, geographic map, TF-IDF clusters, and CSV report export.
+- `frontend/components/admin/GrievanceReviewModal.tsx` — centered review dialog with ticket metadata, evidence photo, single-pin map, AI triage panel, and officer action controls (`Assign & Route`, `In Progress`, `Mark Resolved`, `Reject / Close`).
+- `frontend/components/admin/SinglePinMap.tsx` — single-location Leaflet map for the review dialog.
+- `frontend/components/admin/AdminNav.tsx` — `AdminNav` sub-tabs (`Grievance Queue` | `Executive Analytics`) + shared `AdminHeader`.
+- `frontend/components/admin/AdminGate.tsx` — shared admin authorization wrapper (loading / unauthenticated / forbidden states).
+- `frontend/components/admin/useAdminGrievanceFeed.ts` — shared live/mock grievance feed hook for the queue and analytics pages.
+- `frontend/components/admin/departments.ts` — shared nodal department list.
+- `frontend/lib/sla.ts` — deterministic prototype SLA helper (`Overdue` / `On Track` / `Closed`); see DEC-018.
+
+### Changed
+- `frontend/components/admin/AdminBoard.tsx` — **refactored** from the 2-column queue + inline resolver workspace into a full-width triage **table** (Ticket, Department, Priority, Status, Assignee, SLA, Age). Inline map, TF-IDF clusters, and chart panel were removed from the triage board; clicking a row opens the review modal. KPI cards, department portal tabs, and filters retained.
+- `frontend/app/admin/page.tsx` — reduced to the shared `AdminGate` + `AdminHeader` + `AdminNav` shell; inline `AdminCharts` removed (moved to analytics).
+- `frontend/components/charts/AdminCharts.tsx` — accepts an optional `items` prop so the analytics page reflects live data (defaults to mock registry).
+
+### Verification
+- `npm run build` — zero errors; `/admin` and `/admin/analytics` compile and return 200 under `next start`.
+- `npx eslint components/admin app/admin lib/sla.ts` — clean.
+- `pytest -q` — 196 passed, 27 skipped; the 7 failures in `tests/test_status_vocabularies.py` are **pre-existing** (they parse a `TIMELINE` array in `GrievanceCard.tsx` and `Field label="Status"` in `AdminBoard.tsx`, both already absent in the working tree before this task) and are unrelated to the admin restructuring.
+
+---
+
+## 2026-10-04 — Admin Portal Overhaul, Resolver Action Center & Citizen Experience Elevation
+
+### Added / Upgraded — Admin Control Center
+- `frontend/components/admin/AdminBoard.tsx`:
+  - **Department Portal Tabs**: Interactive top navigation tab strip filtering the entire dashboard, metrics, queue, and map markers across all civic departments (Water, Roads, Power, Sanitation, Health, Governance, Other) with real-time ticket counters.
+  - **Executive Command Metrics**: Added real-time KPI overview (Total Grievances, Urgent Attention with pulse alert, Needs Triage/Assignment, In Remediation, and Verified Resolution rate percentage).
+  - **Dedicated Resolver Action Center**: Officer workspace supporting direct lifecycle updates (`Open` → `Assigned` → `In Progress` → `Resolved` → `Rejected`), department assignment routing, and official resolution memo recording.
+  - **Queue Filters & Sorting**: Instant search with clear button, priority filter, lifecycle status filter, and multi-mode sorting (Urgency first, Newest first, Oldest first).
+- `frontend/components/admin/AdminClusters.tsx` & `AdminMap.tsx`: Halved border radii (`rounded-lg` → `rounded-md`) for design system consistency.
+
+### Added / Upgraded — Citizen Experience
+- `frontend/app/register/page.tsx`: Overhauled to modern full-height split-screen layout with dark branding panel left (`lg:w-[420px]`), matching `app/login/page.tsx`.
+- `frontend/components/grievance/GrievanceCard.tsx`: Upgraded `StatusTimeline` into a milestone progress tracker with status icons (`CheckCircle2`, `CircleDot`, `Clock`, `AlertCircle`), descriptive step subtitles, and accurate status mapping (`open`/`submitted`, `triaged`, `assigned`, `in_progress`, `resolved`).
+- `frontend/components/ui/Feedback.tsx`: Added `warning` tone support for `Alert`.
+
+---
+
 ## 2026-10-03 — UI Overhaul & Universal Cross-Platform Setup Documentation
 
 ### Modified — Frontend UI & Layout

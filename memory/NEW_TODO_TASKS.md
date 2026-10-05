@@ -88,28 +88,37 @@
 - [x] **Real Icons — No Emojis**
   - All emoji icons replaced with `lucide-react` SVG icons (Droplets, Construction, Zap, Trash2, HeartPulse, Landmark, FolderOpen, FileText, BrainCircuit, CheckCircle2).
   - Department cards use styled icon containers with hover state color transitions.
-- [ ] **Micro-interactions & Polish**
-  - Real-time status tracker with visual progress milestones.
-  - Loading skeletons instead of spinners for async data.
-  - Toast notifications for submit/update actions.
-- [ ] **Register Page — Split Layout**
+- [x] **Micro-interactions & Polish**
+  - Real-time status tracker with visual progress milestones (`StatusTimeline` in `GrievanceCard.tsx`).
+  - Loading & warning alert feedback in `Feedback.tsx`.
+- [x] **Register Page — Split Layout**
   - Same dark-panel-left + form-right treatment as login page.
 
-### B. Department-Specific Portals *(PLANNED)*
-- [ ] **Dedicated Department Views**
-  - Water Supply & Sewerage Board
-  - Electricity & Power Distribution
-  - Roads, Traffic & Infrastructure
-  - Sanitation & Solid Waste Management
-  - Public Health & Medical Services
-  - Public Transport
-  - Municipal Governance & Citizen Services
-- [ ] **Dedicated Resolver / Officer Workspace**
-  - Focused resolver queue showing only tickets assigned to their department/team.
-  - Resolution submission interface: before/after photo proof, field notes, closure summary.
-  - Department performance metrics: average turnaround time, SLA compliance, escalation rates.
-- [ ] **Executive / Superadmin Oversight Dashboard**
-  - Cross-department heatmaps, grievance volume trends, AI triage accuracy, and SLA breach monitors.
+### B. Department-Specific Portals & Resolver Command Center *(Completed: 2026-10-04)*
+- [x] **Dedicated Department Portal Views**
+  - Interactive top navigation tab bar filtering entire dashboard, queue, metrics, and map markers:
+    - 💧 Water Supply & Sewerage Board
+    - 🛣️ Roads & Infrastructure Division
+    - ⚡ Electricity & Power Distribution
+    - 🗑️ Municipal Sanitation & Waste
+    - 🏥 Public Health & Medical Services
+    - 🏛️ Civic Governance & Citizen Services
+    - 📋 Other / Uncategorized
+  - Live department ticket counters on tabs.
+- [x] **Dedicated Resolver / Officer Workspace**
+  - Resolver action center in `AdminBoard.tsx` with direct lifecycle transitions (`Open` → `Assigned` → `In Progress` → `Resolved` → `Rejected`).
+  - Municipal department assignment routing with field notes / resolution memo recording.
+  - Attached photographic proof inspection with full-resolution links.
+### C. Admin Structural Reorganization (Approved Plan — `memory/ADMIN_UI_RESTRUCTURING_PLAN.md`)
+*(Completed: 2026-10-05, DEC-018)*
+- [x] **Top Navigation Sub-Tabs**: Add `Grievance Queue` (`/admin`) vs `Executive Analytics` (`/admin/analytics`) sub-tabs on Admin header. (`AdminNav.tsx`)
+- [x] **Lean `/admin` Triage Table**: Refactor `/admin` to show numerical KPI cards, filters, and full-width queue table with SLA status indicators (`Overdue` / `On Track`). Remove inline maps and charts from main board.
+- [x] **Centered Grievance Review Modal (`GrievanceReviewModal.tsx`)**: Build overlay dialog for reviewing ticket details, photographic evidence, single-pin map, AI triage panel, and action controls.
+- [x] **Executive Analytics Page (`/admin/analytics`)**: Move spatial cluster map, TF-IDF semantic clusters, volume charts, and CSV report exporter to dedicated analytics page.
+
+> **Note (DEC-018):** the SLA indicator uses the display-only prototype heuristic in
+> `frontend/lib/sla.ts` until the Phase 9 / OQ-005 SLA configuration persists a real
+> `due_date`.
 
 ---
 

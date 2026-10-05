@@ -2,10 +2,11 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-02 (automated test suite expanded 85 → 207 tests plus
-> 18 frontend contract checks; six divergences found and fixed — DEC-016.
-> MongoDB Atlas cutover verified; DEC-014 ids; DEC-015 env audit — migration
-> plan Phases 1–6 remain complete)
+> Last updated: 2026-10-05 (admin portal restructured into lean queue table +
+> centered review dialog + `/admin/analytics` — DEC-018. Prior: automated test
+> suite expanded 85 → 207 tests plus 18 frontend contract checks; six divergences
+> found and fixed — DEC-016. MongoDB Atlas cutover verified; DEC-014 ids;
+> DEC-015 env audit — migration plan Phases 1–6 remain complete)
 
 ---
 
@@ -65,7 +66,7 @@ memory/        — AI agent persistent memory                                  I
 
 ### Frontend (`frontend/`) — Phase 1 + 1.5 complete (2026-09-11)
 - Next.js 16 + TypeScript + Tailwind CSS v4 + ESLint — **IMPLEMENTED**
-- App Router routes: `/`, `/submit`, `/track`, `/admin`, `/login`, `/register` (9 build outputs)
+- App Router routes: `/`, `/submit`, `/track`, `/admin`, `/admin/analytics`, `/login`, `/register` (10 build outputs)
 - Packages: `axios`, `recharts`, `react-hook-form`, `zod`, `@tanstack/react-query`,
   `lucide-react`, `date-fns`, `clsx`, `tailwind-merge`, `leaflet` (+`@types/leaflet`);
   **`firebase` and `next-auth` removed**
@@ -74,8 +75,11 @@ memory/        — AI agent persistent memory                                  I
 - `lib/grievances.ts` — REST polling (15s) replacing Firestore `onSnapshot`
 - `lib/api.ts` — typed client: `submitGrievance`, `listGrievances`, `getGrievance`,
   `updateGrievanceStatus`, image + health helpers
-- `lib/tfidf.ts` + `components/admin/AdminMap.tsx` / `AdminClusters.tsx` — legacy parity
-- `components/admin/AdminBoard.tsx` — filters, search, pagination, map, clusters, stats, live assign/resolve
+- `lib/tfidf.ts` + `components/admin/AdminMap.tsx` / `AdminClusters.tsx` — legacy parity, now surfaced on `/admin/analytics` (DEC-018)
+- `lib/sla.ts` — prototype deterministic SLA indicator (`Overdue`/`On Track`/`Closed`); DEC-018
+- `components/admin/AdminBoard.tsx` — lean full-width triage **table** (KPI cards, department tabs, filters, SLA column, pagination); row opens `GrievanceReviewModal` for live assign/resolve
+- `components/admin/AdminAnalytics.tsx` + `app/admin/analytics/page.tsx` — executive dashboard (macro metrics, charts, map, clusters, CSV export)
+- `components/admin/{AdminGate,AdminNav,useAdminGrievanceFeed,departments}.tsx|ts` — shared admin chrome/data (DEC-018)
 - `components/grievance/MyGrievances.tsx` — citizen's own submissions on `/submit`
 - **`lib/firebase.ts` deleted** — frontend has no Firebase dependency
 - TypeScript check: **passes with no errors**; `npm run build` passes (9 routes)
@@ -144,8 +148,9 @@ memory/        — AI agent persistent memory                                  I
 - ~~AI stub files~~ — not copied; SUPERSEDED
 
 ### Analytics
-- Admin board in `frontend/components/admin/` (queue, filters, map, clusters,
-  stats) — **IMPLEMENTED**; standalone analytics views and AI-11 PLANNED
+- Admin board in `frontend/components/admin/` (queue table, filters, review modal,
+  stats) and `/admin/analytics` (charts, map, TF-IDF clusters, CSV export) —
+  **IMPLEMENTED** (DEC-018); AI-11 analytics PLANNED
 - ~~Legacy admin HTML (`functions/admin.html`, `functions/admin_ui.js`, root `adfbh`)~~ —
   **DELETED** (Phase 4); superseded by the Next.js admin board
 
@@ -206,7 +211,7 @@ memory/        — AI agent persistent memory                                  I
 - **PHASE 2 (SUPERSEDED):** ~~PostgreSQL schema, Alembic migrations, SQLAlchemy models~~
 - **PHASE 3 (SUPERSEDED):** ~~JWT + Google OAuth + RBAC (FastAPI)~~ — Firebase Auth is the temporary reality
 - **PHASE 4 (SUPERSEDED):** ~~Grievance CRUD + lifecycle state machine (original FastAPI plan)~~ — `/submit-grievance` (FastAPI `backend/app`) is the working path (the old Flask path was deleted in Phase 3)
-- **PHASE 5**: User / Resolver / Admin UI in Next.js — PARTIALLY IMPLEMENTED (submit + my-grievances, track, login/register demo auth, admin board with assignment/filters/map/clusters; resolver workflow and analytics views OPEN; backend wiring DONE in Phase 2)
+- **PHASE 5**: User / Resolver / Admin UI in Next.js — PARTIALLY IMPLEMENTED (submit + my-grievances, track, login/register demo auth, admin triage table + review modal + `/admin/analytics` dashboard with charts/map/clusters/CSV; dedicated multi-resolver workflow still OPEN; backend wiring DONE in Phase 2)
 - **PHASE 6**: AI analysis — PARTIALLY IMPLEMENTED via `backend/app/services/classification.py` (ported from the deleted `backend/server.py`; EXPERIMENTAL per DEC-005)
 - **PHASE 7**: Assignment recommendation — PLANNED
 - **PHASE 8**: Similarity — PARTIALLY IMPLEMENTED via `frontend/lib/tfidf.ts` (client-side); Sentence-Transformers path deferred
