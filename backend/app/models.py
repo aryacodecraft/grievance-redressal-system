@@ -57,3 +57,60 @@ class HfEngine(BaseModel):
     categoryConfidence: float = 0.0
     urgentMatches: list[str] = Field(default_factory=list)
     modelInfo: dict = Field(default_factory=dict)
+
+class StateTransitionRequest(BaseModel):
+    to_state: str
+    reason: str
+
+class AssignRequest(BaseModel):
+    departmentId: str
+    ownerId: str
+    dueDate: str | None = None
+    reason: str
+    overrideAi: bool = False
+
+class ReassignRequest(BaseModel):
+    ownerId: str
+    departmentId: str | None = None
+    reason: str
+
+class ProgressUpdateRequest(BaseModel):
+    bodyInternal: str
+    bodyCustomer: str | None = None
+    visibility: str = "internal"
+    kind: str = "note"
+    etaClass: str | None = None
+    workCompleted: str | None = None
+    currentSituation: str | None = None
+    nextAction: str | None = None
+
+class PriorityUpdateRequest(BaseModel):
+    priority: str
+    reason: str
+
+class DeadlineUpdateRequest(BaseModel):
+    dueDate: str
+    reason: str
+
+class EscalationRequest(BaseModel):
+    reason: str
+    targetDept: str | None = None
+
+class ResolutionRequest(BaseModel):
+    text: str
+    actions: list[str] = Field(default_factory=list)
+
+class CloseRequest(BaseModel):
+    reason: str
+
+class WithdrawRequest(BaseModel):
+    reason: str
+
+class ReopenRequest(BaseModel):
+    reason: str
+
+class RejectRequest(BaseModel):
+    reason: str
+
+class ReturnResolutionRequest(BaseModel):
+    reason: str

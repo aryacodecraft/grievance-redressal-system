@@ -50,8 +50,22 @@ class InMemoryUsersRepository:
         doc.update(patch)
         return dict(doc)
 
-    def list_all(self, limit: int = 100) -> list[dict]:
-        return [dict(v) for v in list(self._users.values())[:limit]]
+    def list_users(self, role: str | None = None, dept_id: str | None = None, q: str | None = None, limit: int = 100) -> list[dict]:
+        res = [dict(v) for v in self._users.values()]
+        if role:
+            res = [u for u in res if u.get("role") == role]
+        if dept_id:
+            res = [u for u in res if u.get("departmentId") == dept_id]
+        if q:
+            q_lower = q.lower()
+            res = [u for u in res if q_lower in u.get("full_name", "").lower() or q_lower in u.get("email", "").lower()]
+        return res[:limit]
+
+    def update_role(self, user_id: str, role: str) -> Optional[dict]:
+        return self.update(user_id, {"role": role})
+
+    def set_active(self, user_id: str, is_active: bool) -> Optional[dict]:
+        return self.update(user_id, {"isActive": is_active})
 
 
 # ── MongoDB-backed implementation ────────────────────────────────────────────
@@ -62,6 +76,8 @@ class MongoUsersRepository:
 
         self._col = MongoClient(uri)[db_name]["users"]
         self._col.create_index("email", unique=True, name="uniq_user_email")
+        self._col.create_index([("role", 1), ("departmentId", 1), ("isActive", 1)])
+        self._col.create_index("departmentId")
 
     @staticmethod
     def _out(raw: dict | None) -> Optional[dict]:
@@ -101,8 +117,25 @@ class MongoUsersRepository:
             return None
         return self._out(raw)
 
-    def list_all(self, limit: int = 100) -> list[dict]:
-        return [self._out(d) for d in self._col.find({}, {"_id": 1, "email": 1, "full_name": 1, "role": 1}).limit(limit)]
+    def list_users(self, role: str | None = None, dept_id: str | None = None, q: str | None = None, limit: int = 100) -> list[dict]:
+        from bson import ObjectId
+        query = {}
+        if role:
+            query["role"] = role
+        if dept_id:
+            query["departmentId"] = dept_id
+        if q:
+            query["$or"] = [
+                {"full_name": {"$regex": q, "$options": "i"}},
+                {"email": {"$regex": q, "$options": "i"}}
+            ]
+        return [self._out(d) for d in self._col.find(query).limit(limit)]
+
+    def update_role(self, user_id: str, role: str) -> Optional[dict]:
+        return self.update(user_id, {"role": role})
+
+    def set_active(self, user_id: str, is_active: bool) -> Optional[dict]:
+        return self.update(user_id, {"isActive": is_active})
 
 
 # ── Singleton factory ────────────────────────────────────────────────────────
