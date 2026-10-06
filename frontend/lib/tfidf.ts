@@ -1,5 +1,8 @@
 /**
- * Client-side TF-IDF + greedy clustering.
+ * Groups complaints whose wording is very similar ("many people reported
+ * the same problem"). Internally uses TF-IDF text similarity — a standard
+ * way to compare which words appear in each complaint — but the UI only
+ * ever shows the friendly concept, never the technique name.
  *
  * A faithful TypeScript port of the legacy `functions/tfidf.js`
  * (retired in Phase 4), kept
@@ -183,21 +186,24 @@ function topKeywords(
     .filter(Boolean);
 }
 
-/** Area label: stored area/locality → rounded coords → text detection. */
+/**
+ * Area label for a complaint: a stored locality name if present, otherwise
+ * a place name mentioned in the complaint text. Raw coordinates are never
+ * shown to users — they read like "13.035, 77.597" instead of "Indiranagar".
+ */
 function areaFor(g: Grievance, text: string): string | null {
   const rec = g as unknown as Record<string, unknown>;
   const hf = (rec.hfEngine ?? {}) as Record<string, unknown>;
   const explicit = rec.area ?? rec.locality ?? hf.area ?? hf.location;
   if (explicit) return String(explicit).trim();
-
-  if (g.latitude != null && g.longitude != null) {
-    return `${Number(g.latitude).toFixed(3)}, ${Number(g.longitude).toFixed(3)}`;
-  }
   return detectArea(text);
 }
 
-/** Cluster grievances by title+description similarity. Groups of size ≥ 2 only. */
-export function runTfidf(grievances: Grievance[]): TfidfCluster[] {
+/**
+ * Group complaints with very similar wording (size ≥ 2 only).
+ * Friendly name for the TF-IDF pipeline — same algorithm, human label.
+ */
+export function groupSimilarComplaints(grievances: Grievance[]): TfidfCluster[] {
   if (!grievances || !grievances.length) return [];
 
   const corpus = grievances.map((g) =>
@@ -236,3 +242,6 @@ export function runTfidf(grievances: Grievance[]): TfidfCluster[] {
   clusters.sort((a, b) => b.size - a.size);
   return clusters;
 }
+
+/** Backwards-compatible alias for the previous technical name. */
+export const runTfidf = groupSimilarComplaints;

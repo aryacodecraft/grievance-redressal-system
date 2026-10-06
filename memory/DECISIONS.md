@@ -917,3 +917,71 @@ Prior to Phase 1, the backend had no authentication or authorization: `userId` w
 
 **Affected Components:** `backend/app/auth.py`, `backend/app/users_db.py`, `backend/app/routers/auth.py`, `backend/app/routers/grievances.py`, `backend/app/config.py`, `backend/app/models.py`, `backend/app/main.py`, `frontend/lib/session.tsx`, `frontend/lib/api.ts`, `frontend/lib/types.ts`, `frontend/app/login/page.tsx`, `frontend/app/register/page.tsx`, `frontend/app/auth/callback/page.tsx`, `tests/test_auth.py`, `tests/test_security_baseline.py`, `tests/test_endpoints.py`.
 
+---
+
+## DEC-018 — Admin UI Restructuring & Prototype SLA Indicator
+
+**ID:** DEC-018
+**Date:** 2026-10-05
+**Status:** ACCEPTED (IMPLEMENTED)
+
+**Context:**
+The admin portal had grown into a single dense page: a two-column queue +
+inline resolver workspace, an embedded geographic map, an inline TF-IDF cluster
+panel, and a charts section — all on `/admin`. This made every triage action
+compete for space with analytics. The owner approved the modular 3-part design
+recorded in `memory/ADMIN_UI_RESTRUCTURING_PLAN.md`. The plan also requires an
+`Overdue` / `On Track` SLA indicator on the queue, but the backend has no SLA
+configuration yet (PRD OQ-005 is OPEN; monitoring is Phase 9 PLANNED), so no
+`due_date` is persisted.
+
+**Decision:**
+1. **Split the admin surface into three parts:**
+   - `/admin` — lean, full-width queue **table** with KPI cards, department tabs,
+     filters, and a row-triggered review dialog. No inline map or charts.
+   - `GrievanceReviewModal.tsx` — centered dialog owning ticket metadata,
+     evidence, a single-pin Leaflet map, AI triage panel, and officer actions.
+   - `/admin/analytics` — dedicated executive page for macro metrics,
+     distribution charts, the spatial map, TF-IDF clusters, and CSV export.
+2. **Shared admin chrome/hook:** `AdminGate` (authorization), `AdminNav` +
+   `AdminHeader`, `useAdminGrievanceFeed`, and a shared `DEPARTMENTS` list are
+   reused by both pages so the access/loading contracts do not diverge.
+3. **Prototype SLA heuristic (display-only):** `frontend/lib/sla.ts` derives a
+   deadline deterministically as `createdAt + DEFAULT_SLA_DAYS[priority]`
+   (high = 3d, medium = 7d, low = 14d). It is explicitly a stand-in and must be
+   replaced by the server's persisted `due_date` when the SLA configuration
+   module (Phase 9 / OQ-005) lands. It is deterministic (no AI), matching the
+   AGENTS rule that SLA deadline calculation is backend logic.
+4. **Human-in-the-loop preserved:** all transitions and routing remain explicit
+   officer actions in the dialog; AI output is presented as decision support
+   only (`AnalysisPanel`).
+
+**Alternatives Considered:**
+- Reuse the existing `AdminMap` for the single-pin modal view: rejected — its
+  fit-to-bounds/focus behaviour is designed for many markers and would need
+  callback stability gymnastics inside a dialog; a dedicated `SinglePinMap` is
+  simpler and isolated.
+- Keep the resolver panel inline and add the table around it: rejected — the
+  plan explicitly calls for a centered dialog to give the queue full width.
+- Compute a real SLA from a persisted `due_date`: not possible — the field does
+  not exist yet.
+
+**Consequences:**
+- `/admin` is now a high-throughput triage surface; analytics no longer slows it.
+- The `Overdue` count and `SLA Overdue` macro metric depend on the prototype
+  heuristic and will under/over-report until real SLA config ships.
+- `AdminCharts` gained an optional `items` prop (defaults to the mock registry).
+- `tests/test_status_vocabularies.py`'s `AdminBoard` status-filter extractor
+  (`Field label="Status"`) already did not match the working tree before this
+  change (the filter uses a plain `<label>`), so those failures pre-date DEC-018.
+
+**Affected Components:** `frontend/app/admin/page.tsx`,
+`frontend/app/admin/analytics/page.tsx`, `frontend/components/admin/AdminBoard.tsx`,
+`frontend/components/admin/AdminAnalytics.tsx`,
+`frontend/components/admin/GrievanceReviewModal.tsx`,
+`frontend/components/admin/SinglePinMap.tsx`, `frontend/components/admin/AdminNav.tsx`,
+`frontend/components/admin/AdminGate.tsx`,
+`frontend/components/admin/useAdminGrievanceFeed.ts`,
+`frontend/components/admin/departments.ts`, `frontend/components/charts/AdminCharts.tsx`,
+`frontend/lib/sla.ts`
+

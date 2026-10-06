@@ -1,26 +1,44 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  Droplets,
+  Construction,
+  Zap,
+  Trash2,
+  HeartPulse,
+  Landmark,
+  FolderOpen,
+  Layers,
+  Search,
+  Wrench,
+  X,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PriorityBadge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { Field, Input, Select } from "@/components/ui/Field";
-import { Alert, Spinner } from "@/components/ui/Feedback";
-import { AnalysisPanel } from "@/components/grievance/GrievanceCard";
-import { AdminClusters } from "./AdminClusters";
-import { AdminMap } from "./AdminMap";
-import { MOCK_GRIEVANCES } from "@/lib/mock";
-import { subscribeGrievances } from "@/lib/grievances";
-import { runTfidf } from "@/lib/tfidf";
+import { Card, CardBody } from "@/components/ui/Card";
+import { Input, Select } from "@/components/ui/Field";
+import { Spinner } from "@/components/ui/Feedback";
 import { updateGrievanceStatus } from "@/lib/api";
-import { useDemoUser } from "@/lib/session";
-import { CATEGORIES, type Grievance } from "@/lib/types";
+import { getSlaInfo } from "@/lib/sla";
+import type { Grievance } from "@/lib/types";
+import { GrievanceReviewModal } from "./GrievanceReviewModal";
+import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
 
-const DEPARTMENTS = [
-  "Roads Division — Zone 3",
-  "Water Supply Board — Sector 12",
-  "Power Utility — North Circle",
-  "Sanitation Dept — Ward 7",
+const DEPARTMENT_TABS: { key: string; label: string; Icon: LucideIcon }[] = [
+  { key: "all", label: "All Departments", Icon: Layers },
+  { key: "water", label: "Water Supply", Icon: Droplets },
+  { key: "roads", label: "Roads & Transport", Icon: Construction },
+  { key: "electricity", label: "Electricity", Icon: Zap },
+  { key: "sanitation", label: "Sanitation", Icon: Trash2 },
+  { key: "health", label: "Health Services", Icon: HeartPulse },
+  { key: "governance", label: "Governance", Icon: Landmark },
+  { key: "other", label: "Other", Icon: FolderOpen },
 ];
 
 const PAGE_SIZES = [5, 10, 20, 50];
@@ -31,67 +49,83 @@ function asEpoch(iso: string): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
-function formatDateTime(iso: string): string {
+function timeAgo(iso: string): string {
   try {
-    return new Date(iso).toLocaleString();
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return "Just now";
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
   } catch {
-    return iso;
+    return "";
   }
 }
 
+function categoryLabel(category: string): string {
+  const key = (category || "other").toLowerCase();
+  const tab = DEPARTMENT_TABS.find((t) => t.key === key);
+  if (tab) return tab.label;
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function SlaCell({ grievance }: { grievance: Grievance }) {
+  const sla = getSlaInfo(grievance);
+  const tone =
+    sla.state === "overdue"
+      ? "bg-rose-50 text-rose-700 border-rose-200"
+      : sla.state === "closed"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : "bg-amber-50 text-amber-700 border-amber-200";
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex w-fit items-center gap-1 rounded-sm border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
+        <Clock size={11} />
+        {sla.state === "overdue" ? "Overdue" : sla.state === "closed" ? "Closed" : "On Track"}
+      </span>
+      <span className="text-[10px] text-ink-400">{sla.label}</span>
+    </div>
+  );
+}
+
 export function AdminBoard() {
-  const { user, liveMode } = useDemoUser();
-  const live = Boolean(user && liveMode);
+  const { items: feedItems, loading, error, live } = useAdminGrievanceFeed();
+  const [overrides, setOverrides] = useState<Record<string, Partial<Grievance>>>({});
 
-  const [liveItems, setLiveItems] = useState<Grievance[] | null>(null);
-  const [liveError, setLiveError] = useState<string | null>(null);
-  const [overrides, setOverrides] = useState<
-    Record<string, Partial<Grievance>>
-  >({});
-
+  // Filtering & Sorting
+  const [selectedDeptTab, setSelectedDeptTab] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"urgency" | "newest" | "oldest">("urgency");
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
-  const [clusterIds, setClusterIds] = useState<Set<string> | null>(null);
-  const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
-
+  // Review modal
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [assignee, setAssignee] = useState(DEPARTMENTS[0]);
-  const [decision, setDecision] = useState<string | null>(null);
-  const [focusId, setFocusId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!live || !user) return;
-    const unsub = subscribeGrievances(
-      user.id,
-      user.email,
-      (data) => {
-        setLiveItems(data);
-        setLiveError(null);
-      },
-      (message) => {
-        setLiveError(message);
-        setLiveItems(null);
-      },
-      { scopeToUser: false }
-    );
-    return unsub;
-  }, [live, user]);
-
-  const base = live ? liveItems : MOCK_GRIEVANCES;
   const items = useMemo(
-    () =>
-      (base ?? []).map((g) =>
-        overrides[g.id] ? { ...g, ...overrides[g.id] } : g
-      ),
-    [base, overrides]
+    () => feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g)),
+    [feedItems, overrides]
   );
 
-  const loading = live && liveItems === null && !liveError;
+  const selected = useMemo(
+    () => items.find((g) => g.id === selectedId) ?? null,
+    [items, selectedId]
+  );
+
+  // Department counts for top portal tabs
+  const deptCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: items.length };
+    for (const tab of DEPARTMENT_TABS) {
+      if (tab.key !== "all") counts[tab.key] = 0;
+    }
+    items.forEach((g) => {
+      const cat = (g.category || "other").toLowerCase();
+      if (counts[cat] !== undefined) counts[cat]++;
+      else counts.other = (counts.other || 0) + 1;
+    });
+    return counts;
+  }, [items]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -99,473 +133,446 @@ export function AdminBoard() {
       const p = (g.priority || "low").toLowerCase();
       const c = (g.category || "other").toLowerCase();
       const s = (g.status || "open").toLowerCase();
+
+      if (selectedDeptTab !== "all" && c !== selectedDeptTab) return false;
       if (priorityFilter !== "all" && p !== priorityFilter) return false;
-      if (categoryFilter !== "all" && c !== categoryFilter) return false;
-      if (statusFilter !== "all" && s !== statusFilter) return false;
-      if (q) {
-        const blob = `${g.title || ""} ${g.description || ""}`.toLowerCase();
-        if (!blob.includes(q)) return false;
+      if (statusFilter !== "all") {
+        if (statusFilter === "open" && s !== "open" && s !== "submitted") return false;
+        if (statusFilter !== "open" && s !== statusFilter) return false;
       }
-      return true;
+
+      if (!q) return true;
+      return (
+        g.title.toLowerCase().includes(q) ||
+        g.description.toLowerCase().includes(q) ||
+        g.id.toLowerCase().includes(q) ||
+        (g.userId && g.userId.toLowerCase().includes(q))
+      );
     });
 
-    if (clusterIds && clusterIds.size) {
-      list = list.filter((g) => clusterIds.has(g.id));
-    }
-
-    return list.slice().sort((a, b) => {
-      const ta = asEpoch(a.createdAt);
-      const tb = asEpoch(b.createdAt);
-      if (ta !== tb) return tb - ta;
-      const pa = PRIORITY_WEIGHT[(a.priority || "low").toLowerCase()] ?? 1;
-      const pb = PRIORITY_WEIGHT[(b.priority || "low").toLowerCase()] ?? 1;
-      if (pa !== pb) return pb - pa;
-      return String(b.id).localeCompare(String(a.id));
+    list = [...list].sort((a, b) => {
+      if (sortBy === "urgency") {
+        const uA = a.hfEngine?.isUrgent ? 1 : 0;
+        const uB = b.hfEngine?.isUrgent ? 1 : 0;
+        if (uA !== uB) return uB - uA;
+        const pDiff = (PRIORITY_WEIGHT[b.priority] || 1) - (PRIORITY_WEIGHT[a.priority] || 1);
+        if (pDiff !== 0) return pDiff;
+        return asEpoch(b.createdAt) - asEpoch(a.createdAt);
+      }
+      if (sortBy === "newest") return asEpoch(b.createdAt) - asEpoch(a.createdAt);
+      return asEpoch(a.createdAt) - asEpoch(b.createdAt);
     });
-  }, [items, priorityFilter, categoryFilter, statusFilter, search, clusterIds]);
+
+    return list;
+  }, [items, selectedDeptTab, priorityFilter, statusFilter, search, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pageItems = filtered.slice(
-    (safePage - 1) * pageSize,
-    safePage * pageSize
-  );
-
-  const pageNumbers = useMemo(() => {
-    const maxButtons = Math.min(7, totalPages);
-    const start = Math.max(1, safePage - 3);
-    const end = Math.min(totalPages, start + maxButtons - 1);
-    const arr: number[] = [];
-    for (let i = start; i <= end; i++) arr.push(i);
-    return arr;
-  }, [safePage, totalPages]);
+  const pageItems = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, safePage, pageSize]);
 
   const stats = useMemo(() => {
-    let highOpen = 0;
-    let medOpen = 0;
+    let urgentCount = 0;
+    let unassigned = 0;
+    let inProgress = 0;
     let resolved = 0;
+
     items.forEach((g) => {
       const s = (g.status || "open").toLowerCase();
-      const p = (g.priority || "low").toLowerCase();
-      if (s === "resolved") resolved++;
-      else {
-        if (p === "high") highOpen++;
-        if (p === "medium") medOpen++;
+      if (s === "resolved" || s === "closed") {
+        resolved++;
+      } else {
+        if (g.hfEngine?.isUrgent || (g.priority || "").toLowerCase() === "high") urgentCount++;
+        if (!g.assignee || s === "open" || s === "submitted") unassigned++;
+        if (s === "in_progress" || s === "assigned") inProgress++;
       }
     });
-    return { total: items.length, highOpen, medOpen, resolved };
+
+    const resolutionRate = items.length > 0 ? Math.round((resolved / items.length) * 100) : 0;
+    return { total: items.length, urgentCount, unassigned, inProgress, resolved, resolutionRate };
   }, [items]);
-
-  const clusters = useMemo(() => runTfidf(items), [items]);
-
-  const selected: Grievance | undefined =
-    items.find((g) => g.id === selectedId) ?? filtered[0] ?? items[0];
-
-  function applyCluster(clusterId: string) {
-    const cluster = clusters.find((c) => c.clusterId === clusterId);
-    if (!cluster) return;
-    const ids = new Set(
-      cluster.ids
-        .map((i) => items[i]?.id)
-        .filter((v): v is string => Boolean(v))
-    );
-    setClusterIds(ids);
-    setActiveClusterId(clusterId);
-    setPage(1);
-  }
-
-  function clearCluster() {
-    setClusterIds(null);
-    setActiveClusterId(null);
-    setPage(1);
-  }
 
   function patchLocal(id: string, patch: Partial<Grievance>) {
     setOverrides((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
-  async function markResolved(id: string) {
-    if (live) {
-      try {
-        await updateGrievanceStatus(id, { status: "resolved" });
-      } catch (err) {
-        setLiveError(
-          err instanceof Error ? err.message : "Failed to update status."
-        );
-        return;
-      }
-    }
-    patchLocal(id, { status: "resolved" });
-    setDecision(`Marked ${id} as resolved.`);
-  }
-
-  async function assign(kind: "approve" | "override") {
+  async function handleStatusTransition(status: string, assignedDept?: string) {
     if (!selected) return;
-    const label = kind === "approve" ? "Approved" : "Overridden";
-    const verb = kind === "approve" ? "assigned" : "reassigned";
-    if (live) {
-      try {
-        await updateGrievanceStatus(selected.id, {
-          status: "assigned",
-          assignee,
-        });
-      } catch (err) {
-        setLiveError(err instanceof Error ? err.message : "Assignment failed.");
-        return;
-      }
-    }
-    patchLocal(selected.id, { status: "assigned", assignee });
-    setDecision(`${label}: ${selected.id} ${verb} to ${assignee}.`);
-  }
+    const patch: { status: string; assignee?: string } = { status };
+    if (assignedDept) patch.assignee = assignedDept;
 
-  const statCards: [string, number][] = [
-    ["Total grievances", stats.total],
-    ["High priority open", stats.highOpen],
-    ["Medium priority open", stats.medOpen],
-    ["Resolved", stats.resolved],
-  ];
+    if (live) {
+      await updateGrievanceStatus(selected.id, patch);
+    }
+    patchLocal(selected.id, patch);
+  }
 
   return (
     <div className="space-y-6">
-      {!live && (
-        <Alert>
-          Showing demo data. Start the backend and set{" "}
-          <span className="font-mono">NEXT_PUBLIC_USE_MOCKS=false</span> to
-          review live grievances.
-        </Alert>
-      )}
-      {liveError && <Alert tone="error">Live data failed: {liveError}</Alert>}
+      {/* ── Department Portal Navigation Tabs ─────────────────────────── */}
+      <div className="border-b border-ink-200/80 bg-white pt-1">
+        <div className="pb-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-ink-700">
+            Department Portals
+          </h2>
+          <p className="text-xs text-ink-500">
+            Switch between departments to see each team&apos;s own complaints and progress.
+          </p>
+        </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map(([label, value]) => (
-          <Card key={label}>
-            <CardBody>
-              <p className="text-2xl font-bold text-ink-900">{value}</p>
-              <p className="mt-1 text-xs uppercase tracking-wide text-ink-500">
-                {label}
-              </p>
-            </CardBody>
-          </Card>
-        ))}
+        <div className="flex gap-1.5 overflow-x-auto pb-2">
+          {DEPARTMENT_TABS.map(({ key, label, Icon }) => {
+            const isSelected = selectedDeptTab === key;
+            const count = deptCounts[key] ?? 0;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setSelectedDeptTab(key);
+                  setPage(1);
+                }}
+                className={`flex shrink-0 items-center gap-2 rounded-sm border px-3 py-2 text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "border-primary-600 bg-primary-50/80 text-primary-900 shadow-2xs"
+                    : "border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:bg-ink-50/60 hover:text-ink-950"
+                }`}
+              >
+                <Icon size={14} className={isSelected ? "text-primary-700" : "text-ink-400"} />
+                <span>{label}</span>
+                <span
+                  className={`rounded-sm px-1.5 py-0.2 text-[10px] font-bold ${
+                    isSelected ? "bg-primary-600 text-white" : "bg-ink-100 text-ink-600"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardBody className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Priority">
+      {/* ── Executive Command Metrics Bar ─────────────────────────────── */}
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
+        <Card className="border-ink-200/80 shadow-2xs">
+          <CardBody className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+                Total Grievances
+              </span>
+              <Layers size={16} className="text-ink-400" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.total}</p>
+            <p className="mt-0.5 text-[11px] text-ink-400">Received in total</p>
+          </CardBody>
+        </Card>
+
+        <Card className="border-rose-200/80 bg-rose-50/20 shadow-2xs">
+          <CardBody className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">
+                Urgent Attention
+              </span>
+              <AlertTriangle size={16} className="text-rose-600" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-2xl font-bold tracking-tight text-rose-950">{stats.urgentCount}</p>
+              {stats.urgentCount > 0 && (
+                <span className="rounded-sm bg-rose-600 px-1.5 py-0.2 text-[10px] font-bold uppercase text-white animate-pulse">
+                  Action Needed
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-[11px] text-rose-600">Needs a decision right away</p>
+          </CardBody>
+        </Card>
+
+        <Card className="border-amber-200/80 bg-amber-50/20 shadow-2xs">
+          <CardBody className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
+                Unassigned
+              </span>
+              <Clock size={16} className="text-amber-600" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.unassigned}</p>
+            <p className="mt-0.5 text-[11px] text-amber-700">Waiting for a team to take charge</p>
+          </CardBody>
+        </Card>
+
+        <Card className="border-blue-200/80 bg-blue-50/20 shadow-2xs">
+          <CardBody className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-800">
+                Work Underway
+              </span>
+              <Wrench size={16} className="text-blue-600" />
+            </div>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.inProgress}</p>
+            <p className="mt-0.5 text-[11px] text-blue-700">Repairs or checks happening now</p>
+          </CardBody>
+        </Card>
+
+        <Card className="border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
+          <CardBody className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                Resolved
+              </span>
+              <CheckCircle2 size={16} className="text-emerald-600" />
+            </div>
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="text-2xl font-bold tracking-tight text-emerald-950">{stats.resolved}</p>
+              <span className="text-xs font-semibold text-emerald-700">({stats.resolutionRate}%)</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-emerald-700">              Fixed and closed
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* ── Search, Filters, and Sort Strip ───────────────────────────── */}
+      <Card className="border-ink-200/80 shadow-2xs">
+        <CardBody className="p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
+                Search Complaints
+              </label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-3 text-ink-400" />
+                <Input
+                  placeholder="Ticket ID, keyword, citizen..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-8"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2.5 top-2.5 text-ink-400 hover:text-ink-700"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
+                Priority Filter
+              </label>
+              <Select
+                value={priorityFilter}
+                onChange={(e) => {
+                  setPriorityFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">All Priorities</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
+                Status
+              </label>
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">All Statuses</option>
+                <option value="open">Open / Unassigned</option>
+                <option value="assigned">Assigned</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
+                Sort Order
+              </label>
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as "urgency" | "newest" | "oldest")}
+              >
+                <option value="urgency">Urgency &amp; Priority (Default)</option>
+                <option value="newest">Newest Submissions First</option>
+                <option value="oldest">Oldest Pending First</option>
+              </Select>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {loading && <Spinner label="Loading complaints…" />}
+      {error && <p className="text-sm text-rose-600">{error}</p>}
+
+      {/* ── Full-width Grievance Queue Table ──────────────────────────── */}
+      <Card className="border-ink-200/80 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-6 py-4">
+          <div>
+            <h2 className="text-base font-semibold tracking-tight text-ink-900">Grievance Queue</h2>
+            <p className="mt-0.5 text-xs text-ink-500">
+              {selectedDeptTab === "all"
+                ? "All departments combined"
+                : `${DEPARTMENT_TABS.find((t) => t.key === selectedDeptTab)?.label} complaints`}
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-ink-500">
+            {filtered.length} ticket{filtered.length === 1 ? "" : "s"} · page {safePage} of {totalPages}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-ink-200 text-left text-[11px] uppercase tracking-wider text-ink-500">
+                <th className="px-6 py-3 font-semibold">Ticket</th>
+                <th className="px-4 py-3 font-semibold">Department</th>
+                <th className="px-4 py-3 font-semibold">Priority</th>
+                <th className="px-4 py-3 font-semibold">Status</th>
+                <th className="hidden px-4 py-3 font-semibold lg:table-cell">Assignee</th>
+                <th className="px-4 py-3 font-semibold">Fix-by Date</th>
+                <th className="hidden px-4 py-3 font-semibold sm:table-cell">Age</th>
+                <th className="w-10 px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((g) => {
+                const isUrgent =
+                  g.hfEngine?.isUrgent || (g.priority || "").toLowerCase() === "high";
+                return (
+                  <tr
+                    key={g.id}
+                    tabIndex={0}
+                    onClick={() => setSelectedId(g.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedId(g.id);
+                      }
+                    }}
+                    className="cursor-pointer border-b border-ink-100 transition-colors last:border-b-0 hover:bg-primary-50/40 focus:bg-primary-50/40 focus:outline-none"
+                  >
+                    <td className="max-w-xs px-6 py-3.5">
+                      <div className="flex items-start gap-2">
+                        {isUrgent && (
+                          <span
+                            title="Urgent ticket"
+                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-600 animate-pulse"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-ink-900">{g.title}</p>
+                          <p className="mt-0.5 font-mono text-[10px] font-medium text-ink-400">
+                            {g.id}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3.5 text-xs text-ink-600">
+                      {categoryLabel(g.category)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <PriorityBadge priority={g.priority} />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StatusBadge status={g.status} />
+                    </td>
+                    <td className="hidden max-w-[180px] truncate px-4 py-3.5 text-xs text-ink-600 lg:table-cell">
+                      {g.assignee || <span className="text-ink-400">Unassigned</span>}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <SlaCell grievance={g} />
+                    </td>
+                    <td className="hidden whitespace-nowrap px-4 py-3.5 text-xs text-ink-500 sm:table-cell">
+                      {timeAgo(g.createdAt)}
+                    </td>
+                    <td className="px-4 py-3.5 text-ink-300">
+                      <ChevronRight size={16} />
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {pageItems.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center">
+                    <p className="text-sm font-semibold text-ink-700">No grievances found</p>
+                    <p className="mt-1 text-xs text-ink-400">
+                      Try adjusting your filters or department selection.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 px-6 py-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-ink-500">Rows per page:</span>
             <Select
-              value={priorityFilter}
+              value={String(pageSize)}
               onChange={(e) => {
-                setPriorityFilter(e.target.value);
+                setPageSize(Number(e.target.value) || 10);
                 setPage(1);
               }}
+              className="w-18 py-1 text-xs"
             >
-              <option value="all">All</option>
-              <option value="high">High only</option>
-              <option value="medium">Medium only</option>
-              <option value="low">Low only</option>
-            </Select>
-          </Field>
-          <Field label="Category">
-            <Select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setPage(1);
-              }}
-            >
-              <option value="all">All</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c[0].toUpperCase() + c.slice(1)}
+              {PAGE_SIZES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
                 </option>
               ))}
             </Select>
-          </Field>
-          <Field label="Status">
-            <Select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={safePage <= 1}
+              onClick={() => setPage(safePage - 1)}
             >
-              <option value="all">All</option>
-              <option value="open">Open</option>
-              <option value="assigned">Assigned</option>
-              <option value="in_progress">In progress</option>
-              <option value="resolved">Resolved</option>
-            </Select>
-          </Field>
-          <Field label="Search">
-            <Input
-              placeholder="Search title/description…"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </Field>
-        </CardBody>
+              Previous
+            </Button>
+            <span className="px-2 font-medium text-ink-600">
+              {safePage} / {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(safePage + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </Card>
 
-      {/* Map */}
-      <Card>
-        <CardHeader
-          title="Map"
-          subtitle="Markers reflect current filters"
-        />
-        <CardBody>
-          <AdminMap
-            items={filtered}
-            focusId={focusId}
-            onFocusHandled={() => setFocusId(null)}
-          />
-        </CardBody>
-      </Card>
-
-      {loading && <Spinner label="Loading live grievances…" />}
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Queue */}
-        <Card>
-          <CardHeader
-            title="Grievance queue"
-            subtitle={live ? "Live from the API." : "Demo data."}
-            action={
-              <span className="whitespace-nowrap text-xs text-ink-500">
-                {filtered.length} item{filtered.length === 1 ? "" : "s"} · page{" "}
-                {safePage} of {totalPages}
-              </span>
-            }
-          />
-          <CardBody className="space-y-3">
-            <div className="max-h-[520px] space-y-2 overflow-y-auto">
-              {pageItems.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => {
-                    setSelectedId(g.id);
-                    setDecision(null);
-                  }}
-                  className={
-                    g.id === selected?.id
-                      ? "w-full rounded-sm border border-primary-600 bg-primary-50 p-3 text-left"
-                      : "w-full rounded-sm border border-ink-200 p-3 text-left hover:border-primary-400"
-                  }
-                >
-                  <span className="flex items-start justify-between gap-2">
-                    <span className="text-sm font-semibold text-ink-900">
-                      {g.title}
-                    </span>
-                    <span className="font-mono text-[11px] text-ink-400">
-                      {g.id}
-                    </span>
-                  </span>
-                  <span className="mt-2 flex flex-wrap items-center gap-2">
-                    <StatusBadge status={g.status} />
-                    <PriorityBadge priority={g.priority} />
-                    {g.hfEngine?.isUrgent && (
-                      <span className="rounded-sm bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                        Urgent
-                      </span>
-                    )}
-                    <span className="rounded-sm bg-ink-100 px-2 py-0.5 text-[11px] text-ink-600">
-                      {g.category}
-                    </span>
-                  </span>
-                  <span className="mt-2 flex flex-wrap gap-3 text-[11px] text-ink-400">
-                    <span>Created: {formatDateTime(g.createdAt)}</span>
-                    <span>User: {g.userId || "—"}</span>
-                  </span>
-                </button>
-              ))}
-              {pageItems.length === 0 && (
-                <p className="py-6 text-center text-sm text-ink-500">
-                  No grievances match these filters.
-                </p>
-              )}
-            </div>
-
-            {/* Pagination */}
-            <div className="flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
-              <label className="text-xs font-semibold uppercase tracking-wider text-ink-700">
-                Page size
-              </label>
-              <Select
-                value={String(pageSize)}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value) || 10);
-                  setPage(1);
-                }}
-                className="w-20"
-              >
-                {PAGE_SIZES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-              <div className="ml-auto flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage <= 1}
-                  onClick={() => setPage(safePage - 1)}
-                >
-                  Prev
-                </Button>
-                {pageNumbers.map((n) => (
-                  <Button
-                    key={n}
-                    size="sm"
-                    variant={n === safePage ? "primary" : "outline"}
-                    onClick={() => setPage(n)}
-                  >
-                    {n}
-                  </Button>
-                ))}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setPage(safePage + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        {/* Detail + actions */}
-        <Card>
-          <CardHeader
-            title="Review & action"
-            subtitle="AI recommends — the officer decides."
-          />
-          <CardBody className="space-y-4">
-            {!selected && (
-              <p className="text-sm text-ink-500">
-                Select a grievance from the queue.
-              </p>
-            )}
-            {selected && (
-              <>
-                <div>
-                  <p className="text-base font-semibold text-ink-900">
-                    {selected.title}
-                  </p>
-                  <p className="mt-1 text-sm text-ink-600">
-                    {selected.description}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs text-ink-600">
-                  <p>
-                    <span className="font-semibold text-ink-700">Created:</span>{" "}
-                    {formatDateTime(selected.createdAt)}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-ink-700">User:</span>{" "}
-                    {selected.userId || "—"}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-ink-700">Lat/Lon:</span>{" "}
-                    {selected.latitude != null && selected.longitude != null
-                      ? `${Number(selected.latitude).toFixed(6)}, ${Number(
-                          selected.longitude
-                        ).toFixed(6)}`
-                      : "Not provided"}
-                  </p>
-                  <p>
-                    <span className="font-semibold text-ink-700">
-                      Assignee:
-                    </span>{" "}
-                    {selected.assignee || "—"}
-                  </p>
-                </div>
-
-                {selected.imageUrl && (
-                  <div className="space-y-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selected.imageUrl}
-                      alt="Grievance evidence"
-                      className="max-h-48 rounded-md border border-ink-200 object-contain"
-                    />
-                    <a
-                      href={selected.imageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium text-primary-700 underline"
-                    >
-                      Open original
-                    </a>
-                  </div>
-                )}
-
-                {selected.hfEngine && (
-                  <AnalysisPanel hfEngine={selected.hfEngine} />
-                )}
-
-                <Field label="Assign to department">
-                  <Select
-                    value={assignee}
-                    onChange={(e) => setAssignee(e.target.value)}
-                  >
-                    {DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-
-                {decision && <Alert>{decision}</Alert>}
-
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => void assign("approve")}>
-                    Approve assignment
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => void assign("override")}
-                  >
-                    Override
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={
-                      selected.status.toLowerCase() === "resolved"
-                    }
-                    onClick={() => void markResolved(selected.id)}
-                  >
-                    Mark Resolved
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={
-                      selected.latitude == null || selected.longitude == null
-                    }
-                    onClick={() => setFocusId(selected.id)}
-                  >
-                    Open on Map
-                  </Button>
-                </div>
-              </>
-            )}
-          </CardBody>
-        </Card>
-      </div>
-
-      <AdminClusters
-        clusters={clusters}
-        activeClusterId={activeClusterId}
-        onSelect={applyCluster}
-        onClear={clearCluster}
+      <GrievanceReviewModal
+        key={selected?.id ?? "none"}
+        grievance={selected}
+        onClose={() => setSelectedId(null)}
+        onStatusTransition={handleStatusTransition}
       />
     </div>
   );

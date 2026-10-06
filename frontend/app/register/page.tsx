@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { useDemoUser } from "@/lib/session";
 import { getGoogleAuthUrl } from "@/lib/api";
 
@@ -52,15 +51,44 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12 sm:px-6">
-      <Card>
-        <CardHeader
-          title="Create an account"
-          subtitle="One account for registering and tracking grievances."
-        />
-        <CardBody>
+    <div className="flex min-h-[calc(100vh-4rem)]">
+      {/* Left branding panel */}
+      <div className="hidden lg:flex lg:flex-col lg:justify-between bg-ink-950 text-white px-12 py-16 lg:w-[420px] xl:w-[480px] flex-shrink-0">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs">
+              G
+            </span>
+            <span className="text-base font-bold tracking-tight">GrievAI</span>
+          </div>
+          <h2 className="mt-10 text-3xl font-extrabold tracking-tight leading-[1.2]">
+            Join the transparent civic redressal network.
+          </h2>
+          <p className="mt-4 text-sm text-ink-400 leading-relaxed">
+            Create an official account to submit grievances, receive real-time status notifications, and track decisions directly to closure.
+          </p>
+        </div>
+        <p className="text-xs text-ink-500 font-medium">
+          National Public Grievance Redressal and Citizen Support System.
+        </p>
+      </div>
+
+      {/* Right: registration form */}
+      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-8 lg:px-16">
+        <div className="w-full max-w-sm mx-auto">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight text-ink-950">
+              Create an account
+            </h1>
+            <p className="mt-1 text-sm text-ink-500">
+              {liveMode
+                ? "Official citizen account registration."
+                : "Sign up for official citizen portal access."}
+            </p>
+          </div>
+
           {error && (
-            <div className="mb-4">
+            <div className="mb-5">
               <Alert tone="error">{error}</Alert>
             </div>
           )}
@@ -103,12 +131,12 @@ export default function RegisterPage() {
           </form>
 
           {liveMode && (
-            <div className="mt-4">
+            <div className="mt-5">
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-ink-200 dark:border-ink-700" />
+                  <div className="w-full border-t border-ink-200" />
                 </div>
-                <span className="relative bg-white px-2 text-xs uppercase text-ink-500 dark:bg-ink-950">
+                <span className="relative bg-white px-2 text-xs uppercase text-ink-500">
                   Or continue with
                 </span>
               </div>
@@ -142,17 +170,17 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <p className="mt-4 text-center text-sm text-ink-500">
+          <p className="mt-6 text-center text-sm text-ink-500">
             Already registered?{" "}
             <Link
               href="/login"
-              className="font-medium text-primary-700 hover:underline dark:text-primary-300"
+              className="font-medium text-primary-700 hover:underline"
             >
               Sign in
             </Link>
           </p>
-        </CardBody>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

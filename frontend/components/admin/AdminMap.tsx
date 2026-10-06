@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FeatureGroup, Map as LeafletMap, Marker } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Grievance } from "@/lib/types";
+import { reverseGeocode } from "@/lib/location";
 
 function escapeHtml(s: string): string {
   return String(s)
@@ -23,10 +24,13 @@ export function AdminMap({
   items,
   focusId,
   onFocusHandled,
+  heightClassName = "h-80",
 }: {
   items: Grievance[];
   focusId: string | null;
   onFocusHandled: () => void;
+  /** Tailwind height classes for the map viewport (caller-owned sizing). */
+  heightClassName?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -93,10 +97,22 @@ export function AdminMap({
             (g.imageUrl
               ? `<br/><img src="${escapeHtml(g.imageUrl)}" style="max-width:180px;max-height:120px;display:block;margin-top:6px;border-radius:6px;">`
               : "") +
-            `<br/>${escapeHtml(g.userId || "-")}`
+            `<br/><span data-loc="${lat},${lon}" style="color:#64748b;font-size:11px;">${escapeHtml(g.userId || "-")}</span>`
         );
         markersRef.current[g.id] = marker;
         pts.push([lat, lon]);
+
+        // Upgrade the popup's last line from the reporter id to a real place
+        // name once reverse geocoding resolves (coordinates as fallback).
+        void reverseGeocode(lat, lon).then((place) => {
+          if (!place || cancelled) return;
+          const popupEl = (marker.getPopup()?.getElement() as HTMLElement | null)?.querySelector(
+            `[data-loc="${lat},${lon}"]`
+          );
+          if (popupEl) {
+            popupEl.textContent = place.name;
+          }
+        });
       });
 
       if (pts.length) {
@@ -135,7 +151,7 @@ export function AdminMap({
   return (
     <div
       ref={containerRef}
-      className="h-80 w-full overflow-hidden rounded-lg border border-ink-200"
+      className={`${heightClassName} w-full overflow-hidden rounded-md border border-ink-200`}
       role="application"
       aria-label="Grievance locations map"
     />

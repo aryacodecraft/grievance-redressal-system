@@ -1,20 +1,20 @@
 "use client";
 
-import { AdminBoard } from "@/components/admin/AdminBoard";
+import { AdminAnalytics } from "@/components/admin/AdminAnalytics";
 import { AdminGate } from "@/components/admin/AdminGate";
 import { AdminHeader, AdminNav } from "@/components/admin/AdminNav";
 
-export default function AdminPage() {
+export default function AdminAnalyticsPage() {
   return (
     <AdminGate>
       <div className="bg-white min-h-[calc(100vh-4rem)]">
         <AdminHeader
           title="Administrative Control Centre"
-          subtitle="Review new complaints, see the AI's suggestion, and hand each case to the right department team."
+          subtitle="The big picture: complaint numbers, common problems, and where they're happening."
         />
         <AdminNav />
         <div className="px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-          <AdminBoard />
+          <AdminAnalytics />
         </div>
       </div>
     </AdminGate>

@@ -61,7 +61,7 @@ export function SubmitForm() {
       const res = await submitGrievance({
         title: values.title,
         description: values.description,
-        userId: user?.id ?? "demo-user",
+        userId: user?.id ?? "citizen-portal",
         latitude: coords.latitude,
         longitude: coords.longitude,
         ...(image?.url ? { imageUrl: image.url } : {}),
@@ -74,7 +74,7 @@ export function SubmitForm() {
       setError(
         e instanceof Error
           ? e.message
-          : "Submission failed. Is the backend running?"
+          : "Submission failed. Please verify your connection or try again."
       );
     } finally {
       setSubmitting(false);
@@ -86,7 +86,7 @@ export function SubmitForm() {
       <Card className="border-ink-200/80 shadow-xs">
         <CardHeader
           title="Complaint Details"
-          subtitle="Fields marked * are mandatory. The AI classifier automatically infers or validates the department."
+          subtitle="All fields marked * are mandatory. Automated triage assigns the appropriate department and priority."
         />
         <CardBody>
           <form
@@ -115,7 +115,7 @@ export function SubmitForm() {
             </Field>
             <Field
               label="Intended Department (Optional)"
-              hint="Suggested hint. The AI model will verify and determine canonical routing."
+              hint="You may suggest a department. Automated triage will verify and confirm the final routing."
             >
               <Select {...register("categoryHint")} defaultValue="">
                 <option value="">Let system auto-classify</option>
