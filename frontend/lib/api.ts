@@ -155,6 +155,7 @@ const grievanceSchema = z.object({
   description: z.string().default(""),
   userId: z.string().nullish(),
   status: z.string().default("open"),
+  state: z.string().optional(),
   category: z.string().default("other"),
   priority: z.string().default("low"),
   createdAt: z.string(),
@@ -163,6 +164,12 @@ const grievanceSchema = z.object({
   longitude: z.number().nullish(),
   hfEngine: hfEngineSchema.nullish(),
   assignee: z.string().nullish(),
+  departmentId: z.string().nullish(),
+  ownerId: z.string().nullish(),
+  managerId: z.string().nullish(),
+  dueDate: z.string().nullish(),
+  resolvedAt: z.string().nullish(),
+  closedAt: z.string().nullish(),
   // `to_api()` emits this whenever an image was attached, and lib/types.ts
   // declares it on Grievance detail views need it back — without it here the
   // stored verdict is stripped by zod before any component can read it.
@@ -191,22 +198,20 @@ export async function listGrievances(params?: {
   return grievanceListSchema.parse(raw);
 }
 
-/** Fetch a single grievance; returns null on 404. */
+/** Fetch a single grievance; returns null on 404. Sends Bearer so private docs stay private. */
 export async function getGrievance(
   id: string
 ): Promise<z.infer<typeof grievanceSchema> | null> {
-  const res = await fetch(
-    `${API_URL}/grievances/${encodeURIComponent(id.trim())}`,
-    { headers: { Accept: "application/json" }, cache: "no-store" }
-  );
-  if (res.status === 404) return null;
-  const json = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new Error(
-      (json && (json.error as string)) || `Request failed (${res.status})`
+  try {
+    const raw = await requestJson<unknown>(
+      `/grievances/${encodeURIComponent(id.trim())}`,
+      { method: "GET" }
     );
+    return grievanceSchema.parse(raw);
+  } catch (err) {
+    if (err instanceof Error && (/\(404\)/.test(err.message) || /Grievance not found/.test(err.message))) return null;
+    throw err;
   }
-  return grievanceSchema.parse(json);
 }
 
 /** Officer action: update status and/or assignee. */
@@ -219,6 +224,58 @@ export async function updateGrievanceStatus(
     patch
   );
   return grievanceSchema.parse(raw);
+}
+
+/* ── RBAC workflow (Phase 0-3) ─────────────────────────────────────────── */
+
+export async function assignGrievance(
+  id: string,
+  body: { departmentId: string; ownerId: string; dueDate?: string; reason: string }
+): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/assign`, body);
+}
+
+export async function transitionGrievanceState(
+  id: string,
+  body: { to_state: string; reason: string }
+): Promise<unknown> {
+  return patchJson(`/grievances/${encodeURIComponent(id.trim())}/state`, body);
+}
+
+export async function addProgressUpdate(
+  id: string,
+  body: { bodyInternal: string; bodyCustomer?: string; visibility?: string; kind?: string }
+): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/progress`, body);
+}
+
+export async function getGrievanceHistory(id: string): Promise<unknown[]> {
+  const raw = await requestJson<unknown>(
+    `/grievances/${encodeURIComponent(id.trim())}/history`,
+    { method: "GET" }
+  );
+  return raw as unknown[];
+}
+
+export async function listUsers(): Promise<unknown[]> {
+  const raw = await requestJson<unknown>(`/users`, { method: "GET" });
+  return raw as unknown[];
+}
+
+export async function listDepartments(): Promise<unknown[]> {
+  const raw = await requestJson<unknown>(`/departments`, { method: "GET" });
+  return raw as unknown[];
+}
+
+export async function listAudit(entity?: string): Promise<unknown[]> {
+  const qs = entity ? `?entity=${encodeURIComponent(entity)}` : "";
+  const raw = await requestJson<unknown>(`/audit${qs}`, { method: "GET" });
+  return raw as unknown[];
+}
+
+export async function listNotifications(): Promise<unknown[]> {
+  const raw = await requestJson<unknown>(`/notifications`, { method: "GET" });
+  return raw as unknown[];
 }
 
 /* ── Images ──────────────────────────────────────────────────────────────── */
