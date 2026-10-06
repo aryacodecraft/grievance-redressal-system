@@ -211,29 +211,41 @@ def submit_grievance(
 def list_grievances(
     userId: str | None = None,
     limit: int = Query(50, ge=1, le=1000),
+    state: str | None = None,
+    dept: str | None = None,
+    overdue: bool = False,
     current: Annotated[dict | None, Depends(get_optional_user)] = None,
 ):
-    """List grievances with RBAC scoping.
-
-    - ADMIN / RESOLVER → see all grievances (userId param is a filter, not a gate)
-    - USER → always scoped to their own grievances (userId from JWT, not the param)
-    - Unauthenticated (demo mode) → falls back to userId query param behaviour
-
-    ``limit`` is bounded 1..1000.
-    """
     if current:
         role = current["role"]
-        if role in ("ADMIN", "SUPERADMIN", "RESOLVER"):
-            # Privileged: optional filter by userId param
-            scoped_user_id = userId
+        if role == "SUPERADMIN":
+            scoped_user = userId
+            scoped_owner = None
+            scoped_dept = dept
+        elif role in ("ADMIN", "MANAGER"):
+            scoped_user = userId
+            scoped_owner = None
+            scoped_dept = dept or current.get("departmentId")
+        elif role in ("RESOLVER", "EMPLOYEE"):
+            scoped_user = userId
+            scoped_owner = current["user_id"]
+            scoped_dept = dept
         else:
-            # Citizen: always scoped to themselves
-            scoped_user_id = current["user_id"]
+            scoped_user = current["user_id"]
+            scoped_owner = None
+            scoped_dept = dept
     else:
-        # Demo mode fallback
-        scoped_user_id = userId
+        scoped_user = userId
+        scoped_owner = None
+        scoped_dept = dept
 
-    docs = repository.list(user_id=scoped_user_id, limit=limit)
+    docs = repository.list(
+        user_id=scoped_user, limit=limit,
+        state=state.upper() if state else None,
+        dept_id=scoped_dept,
+        owner_id=scoped_owner,
+        overdue=overdue
+    )
     return [to_api(doc) for doc in docs]
 
 
@@ -249,12 +261,12 @@ def get_grievance(
         )
     result = to_api(doc)
 
-    # Citizens may only see their own grievances
-    if current and current["role"] == "USER":
-        if result.get("userId") != current["user_id"]:
-            return JSONResponse(
-                status_code=404, content={"error": "Grievance not found"}
-            )
+    if current:
+        role = current["role"]
+        if role == "USER" and result.get("userId") != current["user_id"]:
+            return JSONResponse(status_code=404, content={"error": "Grievance not found"})
+        if role in ("RESOLVER", "EMPLOYEE") and result.get("ownerId") != current["user_id"]:
+            return JSONResponse(status_code=403, content={"error": "Forbidden: not assigned to you"})
 
     return result
 

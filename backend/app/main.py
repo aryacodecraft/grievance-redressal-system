@@ -18,6 +18,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .config import CORS_ORIGINS
 from .routers import auth as auth_router
 from .routers import grievances, health, images
+from .routers import users as users_router
+from .routers import departments as dept_router
+from .routers import progress as progress_router
+from .routers import assignments as assignment_router
+from .routers import admin as admin_router
+from .routers import audit as audit_router
+from .routers import notifications as notif_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -80,36 +87,52 @@ app.include_router(health.router)
 app.include_router(auth_router.router)
 app.include_router(grievances.router)
 app.include_router(images.router)
+app.include_router(users_router.router)
+app.include_router(dept_router.router)
+app.include_router(progress_router.router)
+app.include_router(assignment_router.router)
+app.include_router(admin_router.router)
+app.include_router(audit_router.router)
+app.include_router(notif_router.router)
 
 
-# ── Startup: seed admin account ───────────────────────────────────────────────
+# ── Startup ───────────────────────────────────────────────────────────────────
 @app.on_event("startup")
-def _seed_admin() -> None:
-    """Create the first ADMIN account at startup if env vars are set.
+def _seed_on_startup() -> None:
+    """Seed admin / SUPERADMIN accounts at startup if env vars are set.
 
-    This runs once; if the email is already registered nothing happens.
-    Set SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD in backend/.env (locally)
-    or in Render environment variables.
+    Repositories already initialise their own indexes at import time (each
+    singleton factory calls ensure_indexes on the Mongo path). The startup
+    hook only handles data seeding that needs the full app context.
     """
-    from .config import SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD
-    from .users_db import users_repository
     import bcrypt as _bcrypt
 
-    if not SEED_ADMIN_EMAIL or not SEED_ADMIN_PASSWORD:
-        return
+    from .config import (
+        SEED_ADMIN_EMAIL,
+        SEED_ADMIN_PASSWORD,
+        SEED_SUPERADMIN_EMAIL,
+        SEED_SUPERADMIN_PASSWORD,
+    )
+    from .users_db import users_repository
 
-    # Seed admin account
-    if not users_repository.find_by_email(SEED_ADMIN_EMAIL):
-        hashed = _bcrypt.hashpw(SEED_ADMIN_PASSWORD.encode(), _bcrypt.gensalt(12)).decode()
-        users_repository.create({
-            "email": SEED_ADMIN_EMAIL.lower(),
-            "full_name": "Admin",
-            "hashed_password": hashed,
-            "role": "ADMIN",
-        })
-        logger.info("Seeded admin account: %s", SEED_ADMIN_EMAIL)
+    def _seed(email: str, password: str, role: str, name: str) -> None:
+        if not email or not password:
+            return
+        if not users_repository.find_by_email(email):
+            hashed = _bcrypt.hashpw(password.encode(), _bcrypt.gensalt(12)).decode()
+            users_repository.create({
+                "email": email.lower(),
+                "full_name": name,
+                "hashed_password": hashed,
+                "role": role,
+                "isActive": True,
+            })
+            logger.info("Seeded %s account: %s", role, email)
 
-    # Seed default citizen account for testing/evaluation
+    _seed(SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, "ADMIN", "Admin")
+    _seed(SEED_SUPERADMIN_EMAIL, SEED_SUPERADMIN_PASSWORD, "SUPERADMIN", "SuperAdmin")
+
+    # Seed demo citizen for testing/evaluation
     demo_citizen_email = "citizen@grievance.local"
     if not users_repository.find_by_email(demo_citizen_email):
         citizen_hashed = _bcrypt.hashpw(b"Citizen@2026!", _bcrypt.gensalt(12)).decode()
@@ -118,5 +141,6 @@ def _seed_admin() -> None:
             "full_name": "Demo Citizen",
             "hashed_password": citizen_hashed,
             "role": "USER",
+            "isActive": True,
         })
         logger.info("Seeded citizen account: %s", demo_citizen_email)
