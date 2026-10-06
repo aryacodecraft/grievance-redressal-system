@@ -13,6 +13,7 @@ which skips cleanly when no test database is reachable.
 from __future__ import annotations
 
 import os
+from typing import Any
 
 # Must happen before any `backend.app` import (db.py and users_db.py build
 # their repositories at import time and load_dotenv() would otherwise pick up
@@ -47,31 +48,78 @@ def app():
 
 @pytest.fixture(autouse=True)
 def fresh_repository():
-    """Give every test a clean grievance store AND a clean users store.
+    """Isolate every test from all module-global stores.
 
-    Both `db.repository` and `users_db.users_repository` are module-global
-    and their routers bind them at import time, so the router's binding must
-    be swapped — not just the module globals.
+    Routers bind repositories at import (`from ..db import repository`,
+    `from ..repositories.audit import audit_repository`, ...), so swapping
+    only `db.repository` leaves the other bindings pointing at the previous
+    test's store. Rebind every known attribute on every router module.
     """
     from backend.app import db, users_db
-    from backend.app.routers import grievances as grievances_router
-    from backend.app.routers import auth as auth_router
+    from backend.app.repositories import audit as audit_repo_mod
+    from backend.app.repositories import progress as progress_repo_mod
+    from backend.app.repositories import notifications as notif_repo_mod
+    from backend.app.repositories import departments as dept_repo_mod
+    from backend.app.repositories import sla_config as sla_repo_mod
 
-    prev_grievances = grievances_router.repository
-    prev_users = auth_router.users_repository
-
-    grievances_router.repository = db.InMemoryRepository()
+    fresh_grievances = db.InMemoryRepository()
     fresh_users = users_db.InMemoryUsersRepository()
-    auth_router.users_repository = fresh_users
-    # Also swap the module-level singleton so /auth/me etc. share the same store
-    users_db.users_repository = fresh_users
+    fresh_audit = audit_repo_mod.InMemoryAuditRepository()
+    fresh_progress = progress_repo_mod.InMemoryProgressRepository()
+    fresh_notif = notif_repo_mod.InMemoryNotificationRepository()
+    fresh_dept = dept_repo_mod.InMemoryDepartmentRepository()
+    fresh_sla = sla_repo_mod.InMemorySlaConfigRepository()
+
+    # Remember previous values for restore.
+    saved: list[tuple[Any, str, Any]] = []
+
+    def _swap(obj: Any, attr: str, fresh: Any) -> None:
+        if hasattr(obj, attr):
+            saved.append((obj, attr, getattr(obj, attr)))
+            setattr(obj, attr, fresh)
+
+    import backend.app.routers.grievances as rg
+    import backend.app.routers.assignments as ra
+    import backend.app.routers.progress as rp
+    import backend.app.routers.admin as rad
+    import backend.app.routers.users as ru
+    import backend.app.routers.departments as rd
+    import backend.app.routers.audit as rau
+    import backend.app.routers.notifications as rn
+    import backend.app.routers.auth as rauth
+
+    # Grievance store on every router that reads/writes grievances.
+    for mod in (rg, ra, rp, rad):
+        _swap(mod, "repository", fresh_grievances)
+    # Users store.
+    _swap(rauth, "users_repository", fresh_users)
+    _swap(ru, "users_repository", fresh_users)
+    _swap(users_db, "users_repository", fresh_users)
+    # Side-effect stores (singletons + direct router bindings).
+    _swap(audit_repo_mod, "audit_repository", fresh_audit)
+    _swap(progress_repo_mod, "progress_repository", fresh_progress)
+    _swap(notif_repo_mod, "notif_repository", fresh_notif)
+    _swap(dept_repo_mod, "dept_repository", fresh_dept)
+    _swap(sla_repo_mod, "sla_repository", fresh_sla)
+    for mod in (ra, rp, rau, rd):
+        _swap(mod, "audit_repository", fresh_audit)
+    for mod in (ra, rp, rn):
+        _swap(mod, "notif_repository", fresh_notif)
+    for mod in (rp,):
+        _swap(mod, "progress_repository", fresh_progress)
+    for mod in (rd,):
+        _swap(mod, "dept_repository", fresh_dept)
+    for mod in (ra,):
+        _swap(mod, "sla_repository", fresh_sla)
 
     try:
         yield
     finally:
-        grievances_router.repository = prev_grievances
-        auth_router.users_repository = prev_users
-        users_db.users_repository = prev_users
+        for obj, attr, prev in reversed(saved):
+            try:
+                setattr(obj, attr, prev)
+            except Exception:
+                pass
 
 
 @pytest.fixture()

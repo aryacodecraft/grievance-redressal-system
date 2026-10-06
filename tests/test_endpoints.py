@@ -236,7 +236,7 @@ def test_grievance_optional_fields_are_null_tolerated(client, sample_payload):
     body = client.get(f"/grievances/{_create(client, sample_payload)}").json()
     # Optional fields may be absent or null; `createdAt` and `status` must exist.
     assert isinstance(body["createdAt"], str)
-    assert body["status"] in {"open", "submitted"}
+    assert body["status"] in {"SUBMITTED"}
     for key in ("imageUrl", "latitude", "longitude", "assignee", "hfEngine"):
         assert body.get(key) in (None, "") or key in body
 
@@ -260,11 +260,11 @@ def test_patch_status_and_assignee(client, sample_payload):
     )
     assert res.status_code == 200
     body = res.json()
-    assert body["status"] == "assigned"
+    assert body["status"] == "ASSIGNED"
     assert body["assignee"] == "Roads Division — Zone 3"
 
     # Persisted, not just echoed back.
-    assert client.get(f"/grievances/{gid}").json()["status"] == "assigned"
+    assert client.get(f"/grievances/{gid}").json()["status"] == "ASSIGNED"
 
 
 def test_patch_unknown_grievance_404(client):
@@ -285,7 +285,7 @@ def test_patch_partial_update_leaves_other_fields(client, sample_payload):
         headers=_admin_headers(),
     )
     body = client.get(f"/grievances/{gid}").json()
-    assert body["status"] == "resolved"
+    assert body["status"] == "RESOLVED"
     assert body["title"] == sample_payload["title"]
     assert body["userId"] == sample_payload["userId"]
 
@@ -398,7 +398,7 @@ def test_blank_status_is_rejected(client, sample_payload):
         )
         assert res.status_code == 400, repr(blank)
         assert "error" in res.json()
-    assert client.get(f"/grievances/{gid}").json()["status"] == "open"
+    assert client.get(f"/grievances/{gid}").json()["status"] == "SUBMITTED"
 
 
 def test_blank_assignee_is_rejected(client, sample_payload):
@@ -420,7 +420,7 @@ def test_status_surrounding_whitespace_is_trimmed(client, sample_payload):
         headers=_admin_headers(),
     )
     assert res.status_code == 200
-    assert res.json()["status"] == "resolved"
+    assert res.json()["status"] == "RESOLVED"
 
 
 def test_patch_without_any_field_is_rejected(client, sample_payload):
@@ -452,7 +452,7 @@ def test_patch_assignee_without_status(client, sample_payload):
     assert res.status_code == 200
     body = client.get(f"/grievances/{gid}").json()
     assert body["assignee"] == "Drainage Cell"
-    assert body["status"] == "open"  # untouched
+    assert body["status"] == "SUBMITTED"  # untouched
 
 
 def test_patch_status_without_assignee(client, sample_payload):
@@ -468,26 +468,34 @@ def test_patch_status_without_assignee(client, sample_payload):
         headers=_admin_headers(),
     )
     body = client.get(f"/grievances/{gid}").json()
-    assert body["status"] == "in_progress"
+    assert body["status"] == "IN_PROGRESS"
     assert body["assignee"] == "Roads Cell"  # survives a status-only patch
 
 
 def test_unknown_status_values_are_accepted_verbatim(client, sample_payload):
-    """BASELINE for Phase 2 (DEC-006), not an endorsement.
+    """Migrated for Phase 2 (canonical UPPER on read).
 
-    `PATCH` validates that a status is *present*, nothing more: any non-empty
-    string is stored. The 12-state machine, transition rules, actor and audit
-    history do not exist yet, so this documents the behaviour Phase 2 replaces.
+    `PATCH /status` still stores the trimmed string verbatim, but `to_api()`
+    normalises to the canonical UPPER state on read (`open`→`SUBMITTED`,
+    unknown→`upper()`). Strict transition validation lives on the new
+    `PATCH /grievances/{id}/state` (see `state_machine.transition_state`).
     """
     gid = _create(client, sample_payload)
-    for value in ("Banana", "OPEN", "closed", "in_review", "escalated_to_cmo"):
+    expected = {
+        "Banana": "BANANA",
+        "OPEN": "SUBMITTED",
+        "closed": "CLOSED",
+        "in_review": "IN_REVIEW",
+        "escalated_to_cmo": "ESCALATED_TO_CMO",
+    }
+    for value, canonical in expected.items():
         res = client.patch(
             f"/grievances/{gid}/status",
             json={"status": value},
             headers=_admin_headers(),
         )
         assert res.status_code == 200, value
-        assert client.get(f"/grievances/{gid}").json()["status"] == value
+        assert client.get(f"/grievances/{gid}").json()["status"] == canonical
 
 
 def test_status_update_records_no_history_or_actor(client, sample_payload):
@@ -528,7 +536,7 @@ def test_unknown_submit_fields_are_ignored(client, sample_payload):
     )
     assert res.status_code == 200
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
-    assert stored["status"] == "open"  # not the client-supplied "resolved"
+    assert stored["status"] == "SUBMITTED"  # not the client-supplied "resolved"
     for banned in ("role", "isAdmin", "bogus"):
         assert banned not in stored, banned
 
