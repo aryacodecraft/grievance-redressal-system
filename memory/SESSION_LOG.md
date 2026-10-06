@@ -1120,3 +1120,71 @@ request: "improve the map size in analytics").
 - If a browser becomes available, confirm the map resize across the `sm`/`lg`
   breakpoints (Leaflet's `trackResize` handles window resizes, but a
   `ResizeObserver` would be more robust for container-only changes).
+
+---
+
+## 2026-10-06 — RBAC Spec Suite (`memory/rbac/`, 12 files)
+
+### Goal
+Write the implementation-ready RBAC/workflow spec suite the owner asked for ("go"), including the SUPERADMIN-over-ADMIN hierarchy, without touching serving code.
+
+### Context Read
+- `AGENTS.md`, `memory/{README,PROJECT_STATE,DECISIONS,CHANGELOG,NEW_TODO_TASKS,SESSION_LOG}.md`
+- `backend/app/{auth.py,config.py,main.py,models.py,db.py,users_db.py}`, `routers/{auth,grievances}.py`
+- `frontend/lib/{roles.ts,types.ts,session.tsx,api.ts,sla.ts}`, `docs/{API,ARCHITECTURE,DATABASE,WORKFLOWS,SECURITY}.md`, `PRD.md`
+
+### Work Completed
+- Created `memory/rbac/` with 12 docs: index + RBAC (with SUPERADMIN powers + permission matrix), AUTHENTICATION (existing JWT/OAuth reality + hardening list), ROLE_INTERFACES, GRIEVANCE_WORKFLOW (canonical UPPER states + transition table), PROGRESS_FLOW (visibility enum + customer timeline), TICKET_MANAGEMENT (ownership/assignment/priority/deadline), BACKEND_ARCHITECTURE (router→service→repo), API_CONTRACTS, DATABASE_CHANGES (no migration), NOTIFICATION_FLOW (+audit+IDOR/SSRF risks), IMPLEMENTATION_CHECKLIST (Phase 0–6, dependency-ordered).
+- Every proposal tagged `[EXISTING]/[MODIFY]/[NEW]/[DEPRECATED]`; stale `docs/SECURITY.md` + `docs/API.md` "no auth" headers flagged for Phase 0 fix.
+- Updated `memory/CHANGELOG.md` (this entry), `memory/PROJECT_STATE.md` next-steps pointer, `memory/NEW_TODO_TASKS.md` §6 pointer.
+
+### Verification
+- `ls memory/rbac` → 12 `.md`; `wc -l` 510 total; no serving code touched (`git status` shows only `memory/` additions expected).
+- Content grounded in cited `file:line` refs; no new secrets; no fabricated metrics.
+
+### Next Recommended Step
+- Owner confirms the 5 open points in `memory/rbac/README.md` + `RBAC.md` (role-name mapping, department model, UPPER-state canonical, demo-mode flag, who publishes customer updates), then Phase 0 build per `IMPLEMENTATION_CHECKLIST.md`.
+
+---
+
+## 2026-10-06 — RBAC test alignment + smoke verification
+
+### Goal
+Resolve the 12 non-vocab test failures after the canonical UPPER-state migration (`permissions.py`/`state_machine.py` already correct) and verify backend wiring.
+
+### Context Read
+- `backend/app/{permissions.py,state_machine.py,auth.py,db.py,config.py,main.py}`, `routers/{grievances,assignments,progress}.py`, `repositories/*`
+- `tests/{test_auth,test_endpoints,test_repository,test_config_drift,test_status_vocabularies}.py`, `tests/conftest.py`, `backend/.env.example`
+
+### Findings
+- `permissions.py:21-83` already keyed by `USER/RESOLVER/ADMIN/SUPERADMIN` with `find_by_email` (`permissions.py:109`) — no rewrite needed. `state_machine.py:32-36,41-96` already uses `_US/_RE/_AD/_SA` — no rewrite needed.
+- `app.routes` len 15 is normal: 4 docs routes + 11 `_IncludedRouter` entries; real routes total 46 across 11 routers (verified per-router counts).
+- 20 failures → 12 real (canonical UPPER vs lowercase asserts + 3 missing env keys) + 8 pre-existing vocab parser failures (TIMELINE/filter gone in DEC-018).
+
+### Work Completed
+- `backend/.env.example` added `SEED_SUPERADMIN_EMAIL/PASSWORD`, `ALLOW_DEMO_SUBMIT`.
+- `backend/app/db.py` restored `assignee` passthrough for legacy `/status` compat.
+- Updated `tests/test_auth.py`, `tests/test_endpoints.py` (incl. unknown-status canonicalisation), `tests/test_repository.py`.
+- Hardened `tests/conftest.py` isolation for new routers + side-effect repos.
+
+### Verification
+- Targeted: 100 passed, 20 skipped. Full: 195 passed, 27 skipped, 8 failed (all `test_status_vocabularies.py` parser issues, pre-existing).
+- TestClient: `/health` ok, `/departments`/`/users` 401, unknown id 404.
+
+### Next
+- Frontend Phase 4 (`/resolver`, dept `/admin`, `/superadmin`, customer timeline) + Phase 6 hardening; vocab suite rewrite deferred until frontend migrates to UPPER states.
+
+---
+
+## 2026-10-06 — RBAC workflow tests + frontend Bearer fix
+
+### Work Completed
+- Added `tests/test_rbac_workflow.py` (11 passed): assign guards, full assign→progress→resolution→approve→close with citizen visibility projection, 403s, SUPERADMIN-only role/dept changes, audit + notification fan-out.
+- Fixed `tests/conftest.py` leakage: fresh stores rebound on all router modules (assignments wrote old audit/notif singletons while reads used fresh ones — caught by lifecycle smoke showing audit n=1, notif n=0).
+- Fixed `frontend/lib/api.ts` IDOR: `getGrievance` via `requestJson` (Bearer), extended `grievanceSchema` with workflow fields, added 8 workflow client helpers. `tsc` clean, contract checks pass.
+- Full suite now 206 passed (was 195), same 8 pre-existing vocab failures.
+
+### Next
+- Build `/resolver`, dept-scoped `/admin`, `/superadmin` pages on the new clients; then Phase 6 hardening (image-route auth, SSRF guard, Google sig verify, rate-limit) + vocab rewrite.
+
+

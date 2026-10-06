@@ -134,3 +134,11 @@
 - [ ] **Multilingual AI / NLP Pipeline Support**
   - Ensure the classification cascade (ML model, HF DeBERTa, Groq, keyword fallback) seamlessly handles multilingual inputs either via translation-before-classification or multilingual embeddings (e.g., IndicBERT / IndicTrans2 / Google Cloud Translation / Bhashini API).
   - Multilingual sentiment and urgency keyword detection (Hinglish/Hindi/regional idioms like "paani nahi hai", "bijli gul", "sadak tuti hai").
+
+---
+
+## 6. RBAC Spec Suite (`memory/rbac/`, docs-only, 2026-10-06)
+
+- [x] **Spec suite written** — 12 files in `memory/rbac/` (index, RBAC + SUPERADMIN-over-ADMIN matrix, auth reality, role interfaces, workflow/state machine, progress flow + customer timeline, ticket/assignment/priority/deadline, backend layers, API contracts, DB deltas, notification/audit/risks, phased checklist).
+- [ ] **Owner confirmations** — role-name mapping (`RESOLVER`→EMPLOYEE etc.), department model (enum vs collection), UPPER-state canonical, demo-mode flag, who publishes customer updates.
+- [ ] **Phase 0 build** — follow `memory/rbac/IMPLEMENTATION_CHECKLIST.md` order (0→6); fix stale `docs/SECURITY.md` / `docs/API.md` auth headers during build.

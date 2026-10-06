@@ -4,6 +4,46 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-06 — RBAC workflow coverage + frontend auth fix
+
+### Added
+- `tests/test_rbac_workflow.py` (11 tests): assign RBAC, full resolve→close lifecycle with visibility filtering, unassigned-history 403, cross-citizen escalate 403, users/roles, departments, audit + notifications fan-out.
+- `frontend/lib/api.ts` workflow clients: `assignGrievance`, `transitionGrievanceState`, `addProgressUpdate`, `getGrievanceHistory`, `listUsers`, `listDepartments`, `listAudit`, `listNotifications`; schema extended with `state/departmentId/ownerId/managerId/dueDate/resolvedAt/closedAt`.
+
+### Fixed
+- `frontend/lib/api.ts:194-210` IDOR: `getGrievance()` now uses authenticated `requestJson` (Bearer + refresh) instead of raw `fetch`; 404 still returns `null` (matches `check-contract.mjs:184-187`).
+- `tests/conftest.py` isolation: `fresh_repository` rebinds grievance/users/audit/progress/notification/department/SLA stores on every router module (fixes cross-test leakage where assignments wrote old singletons while reads used fresh ones).
+
+### Verified
+- `pytest tests/test_rbac_workflow.py tests/test_auth.py` → 33 passed. Full suite → 206 passed, 27 skipped, 8 pre-existing `test_status_vocabularies.py` parser failures (DEC-018 restructuring).
+- `npx tsc --noEmit` clean; `node scripts/check-contract.mjs` passed.
+
+---
+
+## 2026-10-06 — RBAC Phase 0-2 test alignment (canonical UPPER states)
+
+### Fixed
+- `backend/.env.example` — added `SEED_SUPERADMIN_EMAIL/PASSWORD`, `ALLOW_DEMO_SUBMIT` (closes `test_config_drift` gap: keys read by `backend/app/config.py:66-68` were undocumented).
+- `backend/app/db.py:361-368` — restored `assignee` in `to_api()` passthrough (legacy `PATCH /status` compat; new code uses `ownerId/departmentId`).
+- `tests/test_auth.py`, `tests/test_endpoints.py`, `tests/test_repository.py` — updated to canonical UPPER states (`SUBMITTED/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED`) emitted by `to_api()`; unknown-status test now asserts canonicalisation (`Banana`→`BANANA`, `OPEN`→`SUBMITTED`).
+- `tests/conftest.py` — `fresh_repository` now swaps `db.repository` on `assignments/progress/admin` routers and resets in-memory audit/progress/notification/department/SLA stores (prevents cross-test leakage on new endpoints).
+
+### Verified
+- `pytest tests/test_auth.py tests/test_endpoints.py tests/test_repository.py tests/test_config_drift.py` → 100 passed, 20 skipped.
+- Full `pytest` → 195 passed, 27 skipped, 8 failed — all 8 in `tests/test_status_vocabularies.py` are pre-existing parser failures (TIMELINE/filter restructured in DEC-018, noted 2026-10-05), not regressions.
+- TestClient smoke: `/health` 200 `in-memory`, `/departments` + `/users` 401 unauthenticated, unknown grievance 404.
+
+---
+
+## 2026-10-06 — RBAC Spec Suite (`memory/rbac/`)
+
+### Added
+- `memory/rbac/` (12 files): `README`, `RBAC`, `AUTHENTICATION`, `ROLE_INTERFACES`, `GRIEVANCE_WORKFLOW`, `PROGRESS_FLOW`, `TICKET_MANAGEMENT`, `BACKEND_ARCHITECTURE`, `API_CONTRACTS`, `DATABASE_CHANGES`, `NOTIFICATION_FLOW`, `IMPLEMENTATION_CHECKLIST`.
+- SUPERADMIN vs ADMIN split per owner spec (admin/role/permission/department management → SUPERADMIN only); CUSTOMER/EMPLOYEE/MANAGER mapping to `USER/RESOLVER/ADMIN`; all proposals tagged `[EXISTING]/[MODIFY]/[NEW]/[DEPRECATED]` grounded in `backend/app/auth.py`, `routers/grievances.py`, `routers/auth.py`, `db.py`, `users_db.py`, `frontend/lib/roles.ts|session.tsx|api.ts|sla.ts`.
+- No code migrated; docs-only. Stale-auth headers (`docs/SECURITY.md`, `docs/API.md`) flagged for Phase 0 fix, not edited here.
+
+---
+
 ## 2026-10-05 — Analytics Map Viewport Enlarged
 
 ### Changed

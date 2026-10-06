@@ -2,11 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-05 (admin portal restructured into lean queue table +
-> centered review dialog + `/admin/analytics` — DEC-018. Prior: automated test
-> suite expanded 85 → 207 tests plus 18 frontend contract checks; six divergences
-> found and fixed — DEC-016. MongoDB Atlas cutover verified; DEC-014 ids;
-> DEC-015 env audit — migration plan Phases 1–6 remain complete)
+> Last updated: 2026-10-06 (RBAC workflow coverage: 11 new lifecycle/RBAC tests, frontend Bearer fix + workflow clients; suite 206 passed / 8 pre-existing vocab failures. Prior: Phase 0-2 UPPER alignment + `memory/rbac/` suite)
 
 ---
 
