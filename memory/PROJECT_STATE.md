@@ -196,6 +196,8 @@ memory/        — AI agent persistent memory                                  I
 
 ## Partially Implemented
 
+- **Worker workflow** — IN PROGRESS: resolver dashboard now includes workload metrics, owner-scoped task details, assignment acknowledgement, hold reasons, daily updates, structured escalation tickets, completion submission for manager review, and activity history. Manager ticket response actions and browser validation remain.
+
 *(None — scaffolding is complete but no business logic yet)*
 
 ---

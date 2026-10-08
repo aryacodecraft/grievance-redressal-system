@@ -755,6 +755,16 @@ one lean triage board, one centered review dialog, one executive analytics page.
 - Added coordinate-based area clustering for geographic hotspot analysis.
 - Added hotspot cards showing location, volume, high-priority count, and open count.
 
+## 2026-10-08 — Department Review Assignment Workflow
+
+### Changed
+- New grievances now persist their classified department and enter
+  `PENDING_ASSIGNMENT` automatically.
+- Admin review now assigns or confirms only the department; officer selection
+  was removed from the admin modal.
+- Employee assignment remains available to the department manager workflow.
+- Corrected department identifiers so assignment uses canonical department keys.
+
 ## 2026-10-08 — Track View Switcher Alignment
 
 ### Changed
@@ -778,6 +788,14 @@ one lean triage board, one centered review dialog, one executive analytics page.
 - Removed national-platform claims, government-style contact details, toll-free
   numbers, and unsupported certification claims from the footer.
 - Replaced them with accurate prototype and local civic-workflow messaging.
+
+## 2026-10-08 — Citizen Multilingual UI
+
+### Added
+- Added persisted language selection for citizen-facing layouts.
+- Added English plus Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada,
+  Malayalam, Punjabi, and Odia translations for shared navigation and core
+  authentication, tracking, and complaint-form labels.
 
 ## 2026-10-08 — Corrected Non-Normal Navigation Scope
 
@@ -810,3 +828,38 @@ one lean triage board, one centered review dialog, one executive analytics page.
 ### Fixed
 - Made sidebar link keys unique by combining each link label and destination,
   preventing duplicate-key warnings when multiple staff links share a route.
+## 2026-10-08 — Worker workflow foundation
+
+- Added the `ACCEPTED` state and owner-only assignment acknowledgement.
+- Expanded resolver workspace into a worker dashboard with workload metrics,
+  progress percentage, task details, location/evidence, hold reasons, daily
+  updates, structured escalation, completion submission, and activity history.
+- Extended escalation and completion API payloads while preserving manager
+  review as the final resolution authority.
+
+## 2026-10-08 — Legacy department backfill command
+
+- Added `tools/backfill_departments.py` to populate missing `departmentId`
+  values from existing grievance categories without changing workflow state or
+  employee ownership.
+
+## 2026-10-08 — Department manager scoping
+
+- Department managers now see only their own department in the grievance queue
+  and analytics, including demo-mode fallback data.
+- Removed redundant department portal filters from the manager view; the
+  cross-department selector remains available to superadmins.
+
+## 2026-10-08 — Automatic legacy department routing repair
+
+- Added a startup backfill for grievances missing `departmentId`, using their
+  existing classified category and preserving state/worker ownership.
+- Added an API compatibility fallback so legacy records are immediately
+  exposed with their category as department even before backend restart.
+
+## 2026-10-08 — Department reassignment after initial assignment
+
+- Admin department review can now change the department of active grievances,
+  including assigned, accepted, in-progress, blocked, and escalated records.
+- Reassignment preserves the current workflow state and employee owner; only
+  the department routing and manager audit record change.

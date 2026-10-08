@@ -121,6 +121,8 @@
 > `due_date`.
 
 ### D. Frontend workflow completion (in progress)
+- [x] Expand resolver workspace into worker dashboard with assignment acknowledgement, progress/hold updates, structured escalation, completion submission, and timeline.
+- [ ] Add manager-facing escalation ticket response controls and notification inbox.
 - [x] Resolver workbench at `/resolver` with assigned queue, state actions, progress notes, resolution submission, and activity history.
 - [x] Superadmin overview at `/superadmin` with users, departments, and audit data.
 - [x] Citizen tracking consumes live recent grievances and history updates when authenticated.
@@ -166,3 +168,4 @@
 - [x] **Sign-in surface** — `frontend/lib/testAccounts.ts` + `/login` dev box lists all 19 accounts with Autofill (gated by `NEXT_PUBLIC_SHOW_DEV_CREDS`); `frontend/.env.example` + `README.md` updated.
 - [x] **Tests** — `tests/test_seed_accounts.py` (matrix, idempotency, untouched-existing, cross-department 403 flow); `tests/conftest.py` pins seed flags off.
 - [ ] **Owner run** — set `SEED_TEST_ACCOUNTS=true` in `backend/.env` and `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`, restart both, verify logins.
+- [ ] Run `python tools/backfill_departments.py` against the configured MongoDB deployment for legacy grievances missing `departmentId`.

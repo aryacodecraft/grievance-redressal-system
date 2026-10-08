@@ -1461,6 +1461,17 @@ navigation is handled by the left-side drawer.
 ### Verification
 - Frontend TypeScript check and ESLint passed.
 
+## 2026-10-08 — Citizen Multilingual UI
+
+### Work Completed
+- Added a reusable client-side i18n provider with localStorage persistence.
+- Added 10 major Indian language options plus English.
+- Wired translated labels into the citizen header, footer language control,
+  sign-in, sign-up, Track Status, and complaint form surfaces.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
+
 ## 2026-10-08 — Test Account Login Fix
 
 ### Diagnosis
@@ -1503,6 +1514,18 @@ navigation is handled by the left-side drawer.
 - Added a dedicated spatial-analysis wrapper around the complaint map.
 - Added deterministic nearby-coordinate area clustering and a hotspot analysis
   UI for complaint volume, priority, and open workload.
+
+## 2026-10-08 — Department Review Assignment Workflow
+
+### Work Completed
+- Submission now auto-routes the persisted grievance to its classified
+  department while leaving employee ownership empty.
+- Admin review no longer requests an officer and records department review only.
+- Assignment API accepts department-only assignment; manager-level employee
+  allocation remains separate.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
 
 ## 2026-10-08 — Track View Switcher Alignment
 
@@ -1561,3 +1584,34 @@ navigation is handled by the left-side drawer.
 ### Fixed
 - Updated sidebar link keys to include both label and destination, removing the
   duplicate `/admin` React key warning.
+## 2026-10-08 — Worker module implementation
+
+- Read repository memory and existing workflow contracts before editing.
+- Implemented the first complete worker execution slice across the FastAPI
+  state machine/API and the Next.js resolver workspace.
+- Validation: backend `compileall`, frontend ESLint (0 errors; one image
+  optimization warning), and TypeScript all pass.
+- Next: implement manager-side escalation response UI/notifications and run
+  browser-level role workflow validation.
+## 2026-10-08 — Department manager analytics scope
+
+- Scoped manager queue and analytics to the authenticated user's department.
+- Hid department switching controls for managers while preserving the
+  superadmin cross-department overview.
+- Frontend lint and TypeScript checks passed; one existing image optimization
+  warning remains in the worker workspace.
+
+## 2026-10-08 — Legacy department routing repair
+
+- Diagnosed the remaining assignment issue as an unapplied migration on older
+  records.
+- Added startup persistence plus response-level fallback for missing
+  `departmentId` values.
+- Backend compile and frontend lint/TypeScript checks passed.
+
+## 2026-10-08 — Active grievance department reassignment
+
+- Extended the admin assignment endpoint to allow department changes after
+  initial assignment without resetting active work or removing the worker.
+- Added distinct reassignment audit action while preserving the existing
+  review UI.
