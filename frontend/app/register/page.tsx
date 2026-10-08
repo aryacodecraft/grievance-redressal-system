@@ -51,31 +51,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)]">
-      {/* Left branding panel */}
-      <div className="hidden lg:flex lg:flex-col lg:justify-between bg-ink-950 text-white px-12 py-16 lg:w-[420px] xl:w-[480px] flex-shrink-0">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs">
-              G
-            </span>
-            <span className="text-base font-bold tracking-tight">GrievAI</span>
-          </div>
-          <h2 className="mt-10 text-3xl font-extrabold tracking-tight leading-[1.2]">
-            Join the transparent civic redressal network.
-          </h2>
-          <p className="mt-4 text-sm text-ink-400 leading-relaxed">
-            Create an official account to submit grievances, receive real-time status notifications, and track decisions directly to closure.
-          </p>
-        </div>
-        <p className="text-xs text-ink-500 font-medium">
-          National Public Grievance Redressal and Citizen Support System.
-        </p>
-      </div>
-
-      {/* Right: registration form */}
-      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-8 lg:px-16">
-        <div className="w-full max-w-sm mx-auto">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
+      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight text-ink-950">
               Create an account
@@ -180,7 +157,6 @@ export default function RegisterPage() {
             </Link>
           </p>
         </div>
-      </div>
     </div>
   );
 }

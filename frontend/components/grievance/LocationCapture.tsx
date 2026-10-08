@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
 
 export interface Coords {
   latitude: number;
@@ -16,6 +17,7 @@ export function LocationCapture({
   const [state, setState] = useState<"idle" | "busy" | "done" | "denied">(
     "idle"
   );
+  const [coords, setCoords] = useState<Coords | null>(null);
 
   function capture() {
     if (!navigator.geolocation) {
@@ -25,13 +27,16 @@ export function LocationCapture({
     setState("busy");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        onChange({
+        const next = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
-        });
+        };
+        setCoords(next);
+        onChange(next);
         setState("done");
       },
       () => {
+        setCoords(null);
         onChange(null);
         setState("denied");
       }
@@ -39,10 +44,11 @@ export function LocationCapture({
   }
 
   return (
-    <div>
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-700">
-        Geo-Location <span className="text-primary-600">*</span>
-      </span>
+    <Field
+      label="Incident location"
+      required
+      hint="Pin where the issue happened, not necessarily where you are now. Your coordinates help the right team find it faster."
+    >
       <div className="flex flex-col gap-2">
         <Button
           type="button"
@@ -50,7 +56,7 @@ export function LocationCapture({
           size="md"
           onClick={capture}
           disabled={state === "busy"}
-          className="w-full justify-start text-xs font-medium"
+          className="h-10 w-full justify-start text-xs font-medium"
         >
           {state === "busy" && "Acquiring GPS coordinates…"}
           {state === "idle" && "Pin My Current Location"}
@@ -59,7 +65,7 @@ export function LocationCapture({
         </Button>
         {state === "done" && (
           <span className="text-[11px] font-medium text-emerald-600">
-            Coordinates captured accurately
+            Location pinned: {coords?.latitude.toFixed(5)}, {coords?.longitude.toFixed(5)}
           </span>
         )}
         {state === "denied" && (
@@ -68,6 +74,6 @@ export function LocationCapture({
           </span>
         )}
       </div>
-    </div>
+    </Field>
   );
 }

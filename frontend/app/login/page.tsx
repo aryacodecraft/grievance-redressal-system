@@ -7,8 +7,6 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  BrainCircuit,
-  MapPin,
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -20,24 +18,6 @@ import { TEST_ACCOUNTS } from "@/lib/testAccounts";
 import { getGoogleAuthUrl } from "@/lib/api";
 
 const REMEMBER_KEY = "grievai.remembered-email";
-
-const highlights = [
-  {
-    Icon: BrainCircuit,
-    title: "AI-assisted triage",
-    text: "Automatic categorization and priority routing.",
-  },
-  {
-    Icon: MapPin,
-    title: "Location-aware reporting",
-    text: "Pin issues on a live map for faster dispatch.",
-  },
-  {
-    Icon: ShieldCheck,
-    title: "Audited accountability",
-    text: "Every status change is verified and logged.",
-  },
-];
 
 function LoginForm() {
   const router = useRouter();
@@ -56,6 +36,7 @@ function LoginForm() {
   const [remember, setRemember] = useState(initialEmail !== "");
 
   const urlError = searchParams.get("error");
+  const nextPath = searchParams.get("next") || "";
   const [error, setError] = useState<string | null>(
     urlError
       ? urlError === "google_denied"
@@ -89,11 +70,11 @@ function LoginForm() {
       if (liveMode) {
         const user = await login(email, password);
         const role = user.role.toUpperCase();
-        router.push(role === "SUPERADMIN" ? "/superadmin" : role === "ADMIN" ? "/admin" : role === "RESOLVER" ? "/resolver" : "/submit");
+        router.push(nextPath.startsWith("/") ? nextPath : role === "SUPERADMIN" ? "/superadmin" : role === "ADMIN" ? "/admin" : role === "RESOLVER" ? "/resolver" : "/submit");
       } else {
         const role = roleForEmail(email);
         signInDemo(email, role);
-        router.push(role === "superadmin" ? "/superadmin" : role === "resolver" ? "/resolver" : role === "admin" ? "/admin" : "/submit");
+        router.push(nextPath.startsWith("/") ? nextPath : role === "superadmin" ? "/superadmin" : role === "resolver" ? "/resolver" : role === "admin" ? "/admin" : "/submit");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid email or password.");
@@ -107,65 +88,8 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)]">
-      {/* Left branding panel */}
-      <div className="relative hidden flex-shrink-0 overflow-hidden bg-ink-950 text-white lg:flex lg:w-[440px] xl:w-[500px] lg:flex-col lg:justify-between px-12 py-14">
-        {/* Decorative dot grid + primary glow */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-50"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary-600/25 blur-3xl"
-        />
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs">
-              G
-            </span>
-            <span className="text-base font-bold tracking-tight">GrievAI</span>
-          </div>
-
-          <h2 className="mt-10 text-3xl font-extrabold tracking-tight leading-[1.2]">
-            Transparent grievance resolution, powered by AI.
-          </h2>
-          <p className="mt-4 text-sm text-ink-400 leading-relaxed">
-            Submit, track, and resolve public complaints with AI-assisted
-            categorization and authorized officer oversight.
-          </p>
-
-          <div className="mt-10 space-y-5 border-t border-white/10 pt-8">
-            {highlights.map(({ Icon, title, text }) => (
-              <div key={title} className="flex items-start gap-3.5">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-white/5 text-primary-300 ring-1 ring-white/10">
-                  <Icon size={17} strokeWidth={1.75} />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-white">{title}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
-                    {text}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative z-10 text-xs text-ink-500 font-medium">
-          National Public Grievance Redressal and Citizen Support System.
-        </p>
-      </div>
-
-      {/* Right: login form */}
-      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-8 lg:px-16">
-        <div className="w-full max-w-sm mx-auto">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
+      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-8">
             <span className="inline-flex items-center gap-1.5 rounded-sm bg-primary-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-700 ring-1 ring-primary-200">
               <ShieldCheck size={12} strokeWidth={2} />
@@ -347,7 +271,6 @@ function LoginForm() {
             </Link>
           </p>
         </div>
-      </div>
     </div>
   );
 }

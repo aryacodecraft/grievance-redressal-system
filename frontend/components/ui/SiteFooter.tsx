@@ -1,18 +1,15 @@
 import Link from "next/link";
 import {
   MapPin,
-  Phone,
   Mail,
-  Clock,
   ShieldCheck,
-  Globe,
 } from "lucide-react";
 
 const quickLinks = [
   { href: "/", label: "Home" },
   { href: "/submit", label: "Register Complaint" },
   { href: "/track", label: "Track Status" },
-  { href: "/login", label: "Officer Sign In" },
+  { href: "/login", label: "Sign In" },
   { href: "/register", label: "Create Account" },
 ];
 
@@ -21,14 +18,11 @@ const citizenServices = [
   "Track grievance status & timeline",
   "Officer assignment & resolution",
   "AI-assisted categorization",
-  "Escalation & deadline monitoring",
 ];
 
 const contact = [
-  { Icon: MapPin, text: "National Grievance Secretariat, New Delhi — 110001" },
-  { Icon: Phone, text: "Helpline: 1800-111-555 (toll-free, 24×7)" },
-  { Icon: Mail, text: "support@grievai.gov.in" },
-  { Icon: Clock, text: "Office hours: Mon–Sat, 9:00 AM – 6:00 PM IST" },
+  { Icon: MapPin, text: "Location-aware civic issue reporting" },
+  { Icon: Mail, text: "support@grievai.example" },
 ];
 
 export function SiteFooter() {
@@ -42,11 +36,11 @@ export function SiteFooter() {
             Audited &amp; tamper-evident records
           </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
-            <Globe size={14} className="text-primary-600" />
-            Serving all states &amp; UTs
+            <MapPin size={14} className="text-primary-600" />
+            Built for local civic workflows
           </span>
           <span className="text-[11px] font-semibold text-ink-600">
-            ISO 27001-aligned data practices
+            Academic research prototype
           </span>
         </div>
       </div>
@@ -64,8 +58,7 @@ export function SiteFooter() {
             </p>
           </div>
           <p className="mt-2.5 text-xs leading-relaxed text-ink-500">
-            National AI-enabled public grievance redressal and decision support platform,
-            accelerating civic resolution with accountability and transparency.
+            AI-assisted grievance redressal and decision-support prototype for transparent civic workflows.
           </p>
         </div>
 
@@ -124,15 +117,14 @@ export function SiteFooter() {
           <span className="font-semibold uppercase tracking-wider text-ink-600">
             Accountability:
           </span>{" "}
-          All department actions, status transitions, and resolutions are cryptographically
-          audited and verified by authorized administrative officers.
+          Department actions and status transitions are recorded for accountable human review.
         </p>
       </div>
 
       {/* Copyright */}
       <div className="border-t border-ink-100 py-4 bg-white">
         <p className="px-4 text-xs text-ink-400 sm:px-6 lg:px-8">
-          © {new Date().getFullYear()} GrievAI — National Public Grievance Redressal System. All rights reserved.
+          © {new Date().getFullYear()} GrievAI — Civic grievance redressal prototype.
         </p>
       </div>
     </footer>

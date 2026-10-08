@@ -1,193 +1,49 @@
+"use client";
+
 import Link from "next/link";
-import {
-  Droplets,
-  Construction,
-  Zap,
-  Trash2,
-  HeartPulse,
-  Landmark,
-  FolderOpen,
-  FileText,
-  BrainCircuit,
-  CheckCircle2,
-} from "lucide-react";
+import { ArrowRight, BrainCircuit, CheckCircle2, ClipboardCheck, Construction, Droplets, FileText, FolderOpen, HeartPulse, Landmark, MapPin, ShieldCheck, Users, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import type { LucideIcon } from "lucide-react";
+import { RequestLifecycle } from "@/components/home/RequestLifecycle";
+import { useAdminGrievanceFeed } from "@/components/admin/useAdminGrievanceFeed";
+import { useDemoUser } from "@/lib/session";
+import type { AuthUser } from "@/lib/types";
 
-const steps: { n: string; title: string; text: string; Icon: LucideIcon }[] = [
-  {
-    n: "01",
-    Icon: FileText,
-    title: "Register your grievance",
-    text: "Describe the issue, attach a photo, and pin the location. It takes less than two minutes.",
-  },
-  {
-    n: "02",
-    Icon: BrainCircuit,
-    title: "AI-assisted triage",
-    text: "The system suggests a category and priority so your report reaches the right desk faster.",
-  },
-  {
-    n: "03",
-    Icon: CheckCircle2,
-    title: "Track to resolution",
-    text: "Follow status changes on a public timeline. Every decision is made by an authorized officer.",
-  },
+const departments: { label: string; description: string; Icon: LucideIcon }[] = [
+  { label: "Water & sanitation", description: "Leaks, drainage, supply, and waste", Icon: Droplets },
+  { label: "Roads & transport", description: "Roads, traffic, transit, and signals", Icon: Construction },
+  { label: "Electricity", description: "Outages, streetlights, and distribution", Icon: Zap },
+  { label: "Health services", description: "Public health and medical facilities", Icon: HeartPulse },
+  { label: "Civic governance", description: "Certificates, services, and public offices", Icon: Landmark },
+  { label: "Other public issues", description: "Anything affecting your community", Icon: FolderOpen },
 ];
 
-const categories: { label: string; Icon: LucideIcon }[] = [
-  { label: "Water Supply", Icon: Droplets },
-  { label: "Roads & Transport", Icon: Construction },
-  { label: "Electricity", Icon: Zap },
-  { label: "Sanitation", Icon: Trash2 },
-  { label: "Health Services", Icon: HeartPulse },
-  { label: "Governance", Icon: Landmark },
-  { label: "Other", Icon: FolderOpen },
+const principles = [
+  { Icon: MapPin, title: "Location-aware", text: "Pin the place where the issue happened so the right local team can act." },
+  { Icon: BrainCircuit, title: "Assisted triage", text: "AI helps organize the report; authorized officers remain responsible for decisions." },
+  { Icon: ShieldCheck, title: "Human-reviewed", text: "Every assignment, update, and resolution stays under accountable human control." },
 ];
 
-const stats = [
-  { value: "1,284", label: "Total registered", sub: "All time" },
-  { value: "962", label: "Resolved", sub: "75% rate" },
-  { value: "4.2d", label: "Avg. cycle time", sub: "Business days" },
-  { value: "12", label: "Active departments", sub: "Participating" },
-];
+function StaffHomeOverview({ role, user }: { role: string; user: AuthUser }) {
+  const { items, loading } = useAdminGrievanceFeed(role === "RESOLVER");
+  const scopedItems = items.filter((item) => role === "ADMIN" ? !user.departmentId || item.departmentId === user.departmentId : role === "RESOLVER" ? item.ownerId === user.id || item.assignee === user.id : true);
+  const resolved = scopedItems.filter((item) => ["resolved", "closed"].includes((item.status ?? "").toLowerCase())).length;
+  const urgent = scopedItems.filter((item) => item.priority?.toLowerCase() === "high" || item.hfEngine?.isUrgent).length;
+  const open = scopedItems.length - resolved;
+  const roleName = role === "SUPERADMIN" ? "System administrator" : role === "ADMIN" ? "Department administrator" : "Resolver";
+  const actions = role === "SUPERADMIN" ? [{ href: "/superadmin", label: "System administration", detail: "Manage users, departments, and audit records." }, { href: "/admin", label: "Grievance queue", detail: "Review, assign, and progress incoming complaints." }, { href: "/admin/analytics", label: "Executive analytics", detail: "Inspect service performance and spatial hotspots." }] : role === "ADMIN" ? [{ href: "/admin", label: "Grievance queue", detail: "Review and assign complaints for your department." }, { href: "/admin/analytics", label: "Executive analytics", detail: "Review trends, deadlines, and area concentrations." }] : [{ href: "/resolver", label: "My work", detail: "Open assigned grievances and record progress." }];
+  return <div className="min-h-[calc(100vh-4rem)] bg-ink-50/30 px-4 py-8 sm:px-8 lg:px-12"><div className="mx-auto max-w-6xl"><div className="border-b border-ink-200 pb-6"><p className="text-xs font-bold uppercase tracking-wider text-primary-600">Staff overview</p><h1 className="mt-2 text-3xl font-bold tracking-tight text-ink-950">Operational dashboard</h1><p className="mt-2 text-sm text-ink-600">{roleName}. Use the workspace links below to manage today&apos;s grievance operations.</p></div><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[{ value: loading ? "—" : scopedItems.length, label: "Visible complaints", sub: role === "SUPERADMIN" ? "Across the system" : role === "ADMIN" ? "In your department" : "Assigned to you" }, { value: loading ? "—" : open, label: "Open workload", sub: "Requires action" }, { value: loading ? "—" : resolved, label: "Resolved", sub: "Closed successfully" }, { value: loading ? "—" : urgent, label: "High priority", sub: "Needs attention" }].map(({ value, label, sub }) => <div key={label} className="rounded-md border border-ink-200 bg-white p-5 shadow-2xs"><p className="text-2xl font-bold tracking-tight text-ink-950">{value}</p><p className="mt-1 text-sm font-semibold text-ink-700">{label}</p><p className="mt-1 text-xs text-ink-500">{sub}</p></div>)}</div><section className="mt-8"><h2 className="text-sm font-bold uppercase tracking-wider text-ink-700">Workspaces</h2><div className="mt-3 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{actions.map((action) => <Link key={action.href} href={action.href} className="rounded-md border border-ink-200 bg-white p-5 transition-colors hover:border-primary-300 hover:bg-primary-50/30"><p className="text-sm font-bold text-ink-950">{action.label} <span className="text-primary-600">→</span></p><p className="mt-2 text-xs leading-5 text-ink-500">{action.detail}</p></Link>)}</div></section></div></div>;
+}
 
 export default function Home() {
-  return (
-    <div className="bg-white">
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="border-b border-ink-100">
-        <div className="grid min-h-[480px] lg:grid-cols-2">
-          {/* Left copy */}
-          <div className="flex flex-col justify-center px-4 py-16 sm:px-8 lg:px-12 xl:px-16">
-            <Badge tone="blue" className="w-fit px-3 py-1 font-semibold">
-              Official citizen portal
-            </Badge>
-            <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-ink-950 sm:text-5xl leading-[1.12]">
-              National Grievance<br className="hidden sm:block" /> Redressal Portal
-            </h1>
-            <p className="mt-5 max-w-lg text-base text-ink-600 leading-relaxed">
-              A transparent, accountable platform to register and resolve public
-              grievances. AI-assisted categorization and routing with authorized
-              officer verification.
-            </p>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="/submit"
-                className="inline-flex items-center justify-center rounded-md bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-xs transition-all hover:bg-primary-700 hover:shadow-sm active:scale-[0.98]"
-              >
-                Register Complaint
-              </Link>
-              <Link
-                href="/track"
-                className="inline-flex items-center justify-center rounded-md border border-ink-200 bg-white px-6 py-3 text-sm font-semibold text-ink-800 shadow-2xs transition-all hover:border-ink-300 hover:bg-ink-50 active:scale-[0.98]"
-              >
-                Track Status
-              </Link>
-            </div>
-            <p className="mt-5 text-xs text-ink-500 font-medium">
-              Official public grievance portal serving municipal and state administrative divisions.
-            </p>
-          </div>
-
-          {/* Right: stats panel */}
-          <div className="border-l border-ink-100 bg-ink-50/40 flex flex-col justify-center px-6 py-12 sm:px-10">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-500 mb-6">
-              System Live Statistics
-            </p>
-            <div className="grid grid-cols-2 gap-px bg-ink-200/50 border border-ink-200/50 rounded-md overflow-hidden">
-              {stats.map(({ value, label, sub }) => (
-                <div key={label} className="bg-white px-5 py-6">
-                  <p className="text-3xl font-bold tracking-tight text-ink-950">{value}</p>
-                  <p className="mt-1 text-sm font-semibold text-ink-700">{label}</p>
-                  <p className="text-xs text-ink-400">{sub}</p>
-                </div>
-              ))}
-            </div>
-            <p className="mt-4 text-xs text-ink-500 text-center">
-              Aggregated live metrics across participating civic departments.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── How it works ─────────────────────────────────────── */}
-      <section className="border-b border-ink-100">
-        <div className="px-4 py-14 sm:px-8 lg:px-12 xl:px-16">
-          <div className="mb-10 flex items-end justify-between gap-4">
-            <div>
-              <Badge tone="grey" className="mb-3">Standard Protocol</Badge>
-              <h2 className="text-2xl font-bold tracking-tight text-ink-950">
-                How Redressal Works
-              </h2>
-              <p className="mt-1.5 text-sm text-ink-500 max-w-lg">
-                Fast, transparent 3-step lifecycle ensuring accountability from report to closure.
-              </p>
-            </div>
-            <Link
-              href="/submit"
-              className="hidden sm:inline-flex items-center text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline whitespace-nowrap"
-            >
-              File a complaint →
-            </Link>
-          </div>
-
-          <div className="grid gap-0 border border-ink-200/70 rounded-md overflow-hidden sm:grid-cols-3">
-            {steps.map((s, i) => (
-              <div
-                key={s.n}
-                className={`flex gap-5 p-7 ${i < steps.length - 1 ? "border-b border-ink-100 sm:border-b-0 sm:border-r sm:border-ink-100" : ""}`}
-              >
-                <span className="flex-shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-md bg-primary-50 text-primary-600 border border-primary-100">
-                  <s.Icon size={18} strokeWidth={1.75} />
-                </span>
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-ink-400">{s.n}</p>
-                  <h3 className="mt-0.5 text-sm font-semibold tracking-tight text-ink-900">{s.title}</h3>
-                  <p className="mt-2 text-xs leading-relaxed text-ink-500">{s.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Departments ──────────────────────────────────────── */}
-      <section className="px-4 py-14 sm:px-8 lg:px-12 xl:px-16">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-ink-950">
-              Participating Departments
-            </h2>
-            <p className="mt-1 text-sm text-ink-500">
-              Municipal and administrative categories handled by the AI classifier.
-            </p>
-          </div>
-          <Link
-            href="/submit"
-            className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline whitespace-nowrap"
-          >
-            Submit in any department →
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-          {categories.map(({ label, Icon }) => (
-            <Link
-              key={label}
-              href="/submit"
-              className="group flex flex-col items-center gap-3 rounded-md border border-ink-200 bg-white p-5 text-center transition-all hover:border-primary-300 hover:bg-primary-50/40 hover:shadow-xs"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-ink-100/70 text-ink-600 transition-colors group-hover:bg-primary-100 group-hover:text-primary-700">
-                <Icon size={20} strokeWidth={1.5} />
-              </span>
-              <span className="text-xs font-semibold text-ink-700 group-hover:text-primary-700 leading-snug">
-                {label}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+  const { user } = useDemoUser();
+  const role = user?.role?.toUpperCase();
+  if (role === "ADMIN" || role === "RESOLVER" || role === "SUPERADMIN") return <StaffHomeOverview role={role} user={user!} />;
+  return <div className="overflow-hidden bg-white text-ink-950">
+    <section className="relative border-b border-ink-200 bg-primary-50"><div className="absolute inset-0 opacity-50" aria-hidden style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(2,107,199,0.10) 1px, transparent 0)", backgroundSize: "28px 28px" }} /><div className="relative mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:px-12 lg:py-24"><div><Badge tone="blue" className="border-primary-200 bg-white px-3 py-1 font-semibold text-primary-700">National public grievance portal</Badge><h1 className="mt-6 max-w-3xl text-4xl font-extrabold leading-[1.05] tracking-tight text-ink-950 sm:text-6xl">Make your community better, one request at a time.</h1><p className="mt-6 max-w-2xl text-base leading-7 text-ink-600 sm:text-lg">Report a civic issue with the details that matter, see where it goes, and follow its progress through a transparent, human-reviewed process.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="/submit" className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700">Register a complaint <ArrowRight size={16} /></Link><Link href="/track" className="inline-flex items-center gap-2 rounded-md border border-ink-200 bg-white px-5 py-3 text-sm font-bold text-ink-800 transition hover:border-primary-300 hover:bg-primary-50">Track a request</Link></div><div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs font-medium text-ink-500"><span className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-600" />Free to use</span><span className="flex items-center gap-2"><MapPin size={14} className="text-emerald-600" />Location-aware</span><span className="flex items-center gap-2"><Users size={14} className="text-emerald-600" />Human decisions</span></div></div><div className="rounded-lg border border-primary-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-center gap-3 border-b border-ink-100 pb-5"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-50 text-primary-700"><ClipboardCheck size={20} /></span><div><p className="text-sm font-bold text-ink-950">A clearer path to resolution</p><p className="mt-0.5 text-xs text-ink-500">What happens after you submit</p></div></div><div className="space-y-5 pt-5">{[{ Icon: FileText, title: "You share the facts", text: "Issue, evidence, and exact location." }, { Icon: BrainCircuit, title: "The request is organized", text: "AI-assisted triage suggests routing and priority." }, { Icon: ClipboardCheck, title: "An officer takes responsibility", text: "A human team reviews, acts, and updates you." }].map(({ Icon, title, text }, index) => <div key={title} className="flex gap-3"><span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700"><Icon size={15} />{index < 2 && <span className="absolute left-1/2 top-8 h-5 w-px bg-ink-200" />}</span><div><p className="text-sm font-semibold text-ink-900">{title}</p><p className="mt-1 text-xs leading-5 text-ink-500">{text}</p></div></div>)}</div></div></div></section>
+    <section className="border-b border-ink-100 bg-ink-50/45"><div className="mx-auto grid max-w-7xl gap-4 px-4 py-8 sm:grid-cols-3 sm:px-8 lg:px-12">{principles.map(({ Icon, title, text }) => <div key={title} className="flex gap-3 rounded-md border border-ink-200/70 bg-white p-4"><Icon className="mt-0.5 shrink-0 text-primary-600" size={19} /><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs leading-5 text-ink-500">{text}</p></div></div>)}</div></section>
+    <RequestLifecycle />
+    <section className="border-b border-ink-100"><div className="mx-auto max-w-7xl px-4 py-16 sm:px-8 lg:px-12"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><Badge tone="grey" className="mb-3">Start with the right details</Badge><h2 className="text-3xl font-bold tracking-tight">What can you report?</h2><p className="mt-2 max-w-xl text-sm leading-6 text-ink-500">Choose the closest category or simply describe the issue. The system helps route it to the appropriate civic department.</p></div><Link href="/submit" className="inline-flex items-center gap-1 text-sm font-bold text-primary-600 hover:text-primary-700">View registration form <ArrowRight size={15} /></Link></div><div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{departments.map(({ Icon, label, description }) => <Link href="/submit" key={label} className="group flex items-center gap-4 rounded-md border border-ink-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-sm"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary-600 transition group-hover:bg-primary-100"><Icon size={21} /></span><span><span className="block text-sm font-bold text-ink-900">{label}</span><span className="mt-1 block text-xs leading-5 text-ink-500">{description}</span></span><ArrowRight size={15} className="ml-auto shrink-0 text-ink-300 transition group-hover:text-primary-600" /></Link>)}</div></div></section>
+    <section><div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-8 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:px-12"><div><p className="text-xs font-bold uppercase tracking-wider text-primary-600">Built for accountability</p><h2 className="mt-3 text-3xl font-bold tracking-tight">Every request should have a next step.</h2><p className="mt-4 max-w-xl text-sm leading-6 text-ink-600">Your reference ID connects the original report to its status updates. Location, evidence, and progress notes help public teams understand the issue and make better decisions.</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-md border border-ink-200 bg-ink-50/50 p-5"><p className="text-2xl font-bold text-ink-950">01</p><p className="mt-2 text-sm font-bold">Keep your reference ID</p><p className="mt-1 text-xs leading-5 text-ink-500">Use it to find a request anytime.</p></div><div className="rounded-md border border-ink-200 bg-ink-50/50 p-5"><p className="text-2xl font-bold text-ink-950">02</p><p className="mt-2 text-sm font-bold">Watch the timeline</p><p className="mt-1 text-xs leading-5 text-ink-500">See meaningful status changes.</p></div></div></div></section>
+  </div>;
 }
