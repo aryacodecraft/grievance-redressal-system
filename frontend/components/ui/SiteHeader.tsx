@@ -17,7 +17,11 @@ export function SiteHeader() {
   const isCitizen = role === "USER";
 
   // Hide the Admin link for citizen accounts
-  const visibleLinks = links.filter((l) => !(l.href === "/admin" && isCitizen));
+  const visibleLinks = [
+    ...links.filter((l) => !(l.href === "/admin" && isCitizen)),
+    ...(role === "RESOLVER" ? [{ href: "/resolver", label: "My Work" }] : []),
+    ...(role === "SUPERADMIN" ? [{ href: "/superadmin", label: "System Admin" }] : []),
+  ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">

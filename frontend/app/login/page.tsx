@@ -89,15 +89,11 @@ function LoginForm() {
       if (liveMode) {
         const user = await login(email, password);
         const role = user.role.toUpperCase();
-        if (role === "ADMIN" || role === "SUPERADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/submit");
-        }
+        router.push(role === "SUPERADMIN" ? "/superadmin" : role === "ADMIN" ? "/admin" : role === "RESOLVER" ? "/resolver" : "/submit");
       } else {
         const role = roleForEmail(email);
         signInDemo(email, role);
-        router.push(role === "admin" ? "/admin" : "/submit");
+        router.push(role === "superadmin" ? "/superadmin" : role === "resolver" ? "/resolver" : role === "admin" ? "/admin" : "/submit");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid email or password.");
