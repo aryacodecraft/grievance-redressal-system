@@ -20,7 +20,7 @@ import {
 } from "./api";
 import type { AuthUser } from "./types";
 
-export interface DemoUser extends AuthUser {}
+export type DemoUser = AuthUser;
 
 const STORAGE_KEY = "grievai-demo-user";
 
@@ -59,6 +59,7 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
                 name: profile.full_name || profile.email.split("@")[0] || "User",
                 role: profile.role,
                 avatarUrl: profile.avatar_url,
+                departmentId: profile.departmentId,
               };
               setUser(authUser);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
@@ -118,6 +119,7 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
         name: res.user.full_name || res.user.email.split("@")[0] || "User",
         role: res.user.role,
         avatarUrl: res.user.avatar_url,
+        departmentId: res.user.departmentId,
       };
       setAuthSession(authUser, res.access_token, res.refresh_token);
       return authUser;
@@ -134,6 +136,7 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
         name: res.user.full_name || name || "User",
         role: res.user.role,
         avatarUrl: res.user.avatar_url,
+        departmentId: res.user.departmentId,
       };
       setAuthSession(authUser, res.access_token, res.refresh_token);
       return authUser;
