@@ -146,13 +146,13 @@ export function StatusTimeline({ status }: { status: string }) {
   // "in_progress" -> index 3
   // "resolved" / "closed" -> index 4
   let activeIndex = 0;
-  if (norm === "open" || norm === "submitted") {
+  if (norm === "open" || norm === "submitted" || norm === "ai_processing" || norm === "pending_assignment") {
     activeIndex = 1;
   } else if (norm === "triaged") {
     activeIndex = 1;
   } else if (norm === "assigned") {
     activeIndex = 2;
-  } else if (norm === "in_progress") {
+  } else if (norm === "in_progress" || norm === "blocked" || norm === "escalated" || norm === "resolution_submitted" || norm === "under_review") {
     activeIndex = 3;
   } else if (norm === "resolved" || norm === "closed") {
     activeIndex = 4;
@@ -163,8 +163,6 @@ export function StatusTimeline({ status }: { status: string }) {
       {MILESTONES.map((step, i) => {
         const isCompleted = i < activeIndex;
         const isCurrent = i === activeIndex;
-        const isPending = i > activeIndex;
-
         return (
           <li key={step.key} className="flex gap-3 pb-5 last:pb-0">
             {/* Left indicator column with line */}

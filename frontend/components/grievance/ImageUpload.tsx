@@ -28,6 +28,17 @@ export function ImageUpload({
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!allowed.has(file.type)) {
+      setNote("Please choose a JPG, PNG, or WebP image.");
+      onChange(null);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setNote("Image must be smaller than 10 MB.");
+      onChange(null);
+      return;
+    }
     if (!configured) {
       setNote("Image upload is not configured in this demo — continuing without a photo.");
       return;

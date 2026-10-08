@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -12,6 +12,7 @@ import {
 } from "@/components/grievance/GrievanceCard";
 import { MOCK_GRIEVANCES, findMockGrievance } from "@/lib/mock";
 import { fetchGrievanceById } from "@/lib/grievances";
+import { getGrievanceHistory, listGrievances } from "@/lib/api";
 import { useDemoUser } from "@/lib/session";
 import type { Grievance } from "@/lib/types";
 
@@ -21,13 +22,23 @@ export default function TrackPage() {
   const [searched, setSearched] = useState(false);
   const [found, setFound] = useState<Grievance | null>(null);
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<Record<string, unknown>[]>([]);
+  const [recent, setRecent] = useState<Grievance[]>([]);
+
+  useEffect(() => {
+    if (!liveMode) return;
+    void listGrievances().then((rows) => setRecent(rows as Grievance[])).catch(() => setRecent([]));
+  }, [liveMode]);
+  const displayedRecent = liveMode ? recent : MOCK_GRIEVANCES;
 
   async function search() {
     setBusy(true);
     setSearched(false);
     try {
       if (liveMode) {
-        setFound(await fetchGrievanceById(query));
+        const result = await fetchGrievanceById(query);
+        setFound(result);
+        setHistory(result ? (await getGrievanceHistory(result.id)) as Record<string, unknown>[] : []);
       } else {
         await new Promise((r) => setTimeout(r, 400));
         setFound(findMockGrievance(query) ?? null);
@@ -100,7 +111,8 @@ export default function TrackPage() {
                 subtitle="Updated as officers take actions"
               />
               <CardBody>
-                <StatusTimeline status={found.status} />
+              <StatusTimeline status={found.state ?? found.status} />
+              {history.length > 0 && <div className="mt-5 space-y-2 border-t border-ink-100 pt-4">{history.map((entry, index) => <div key={index} className="rounded bg-ink-50 p-2 text-xs text-ink-700"><span className="font-semibold">{String(entry.kind ?? "Update")}</span> · {String(entry.bodyCustomer ?? entry.reason ?? "Status updated")}</div>)}</div>}
               </CardBody>
             </Card>
           </div>
@@ -122,7 +134,7 @@ export default function TrackPage() {
             <span className="text-xs text-ink-500 font-medium">Public Grievance Registry</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {MOCK_GRIEVANCES.map((g) => (
+            {displayedRecent.map((g) => (
               <GrievanceCard key={g.id} grievance={g} />
             ))}
           </div>
