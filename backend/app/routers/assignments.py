@@ -58,8 +58,9 @@ def assign_grievance(
     
     doc = _get_doc_or_404(grievance_id)
     state = _canon_state(doc)
-    if state not in ("PENDING_ASSIGNMENT", "SUBMITTED"):
-        return JSONResponse(status_code=422, content={"error": f"Cannot assign in state {state}. Must be PENDING_ASSIGNMENT or SUBMITTED."})
+    assignable_states = {"PENDING_ASSIGNMENT", "SUBMITTED", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "BLOCKED", "ESCALATED"}
+    if state not in assignable_states:
+        return JSONResponse(status_code=422, content={"error": f"Cannot change department in terminal/review state {state}."})
     
     # Calculate dueDate from SLA config
     category = doc.get("category", "other")
@@ -79,25 +80,32 @@ def assign_grievance(
         "at": now,
     }
     
+    # Department reassignment must not erase an active worker assignment or
+    # reset work already in progress. Initial review still moves the ticket to
+    # ASSIGNED, while later department changes preserve its current state.
+    is_initial_assignment = state in ("PENDING_ASSIGNMENT", "SUBMITTED")
     patch = {
-        "state": "ASSIGNED",
-        "status": "assigned",  # compat
         "departmentId": payload.departmentId,
-        "ownerId": payload.ownerId,
         "managerId": current["user_id"],
         "dueDate": due_date,
         "updatedAt": now,
     }
+    if is_initial_assignment:
+        patch.update({"state": "ASSIGNED", "status": "assigned"})
+    if payload.ownerId:
+        patch["ownerId"] = payload.ownerId
     repository.update(grievance_id, patch)
     try:
         repository.append_history(grievance_id, "assignmentHistory", assignment_entry)
-        repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "ASSIGNED", "by": current["user_id"], "byRole": role, "reason": payload.reason, "at": now, "source": "HUMAN"})
+        if is_initial_assignment:
+            repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "ASSIGNED", "by": current["user_id"], "byRole": role, "reason": payload.reason, "at": now, "source": "HUMAN"})
     except Exception:
         pass
     
-    _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been assigned")
-    _emit_audit(current, "grievance.assigned", grievance_id, {"state": state, "ownerId": doc.get("ownerId")}, {"state": "ASSIGNED", "ownerId": payload.ownerId, "departmentId": payload.departmentId}, payload.reason)
-    return {"message": "Grievance assigned", "grievanceId": grievance_id, "dueDate": due_date}
+    _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been routed to the {payload.departmentId} department")
+    action = "grievance.department_reviewed" if is_initial_assignment else "grievance.department_reassigned"
+    _emit_audit(current, action, grievance_id, {"state": state, "departmentId": doc.get("departmentId")}, {"state": "ASSIGNED" if is_initial_assignment else state, "ownerId": payload.ownerId or doc.get("ownerId"), "departmentId": payload.departmentId}, payload.reason)
+    return {"message": "Grievance assigned" if is_initial_assignment else "Grievance department reassigned", "grievanceId": grievance_id, "dueDate": due_date, "state": "ASSIGNED" if is_initial_assignment else state}
 
 
 @router.post("/grievances/{grievance_id}/reassign")
@@ -229,9 +237,14 @@ def escalate_grievance(
         return JSONResponse(status_code=422, content={"error": f"Cannot escalate in terminal state {state}"})
     
     now = datetime.now(timezone.utc).isoformat()
-    repository.update(grievance_id, {"state": "ESCALATED", "status": "escalated", "updatedAt": now})
+    ticket = {"issueType": payload.issueType or "Other", "reason": payload.reason,
+              "description": payload.description or payload.reason,
+              "suggestedAction": payload.suggestedAction, "evidenceUrl": payload.evidenceUrl,
+              "targetDept": payload.targetDept, "by": actor_id, "at": now, "status": "OPEN"}
+    repository.update(grievance_id, {"state": "ESCALATED", "status": "escalated", "escalation": ticket, "updatedAt": now})
     try:
         repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "ESCALATED", "by": actor_id, "byRole": role, "reason": payload.reason, "at": now, "source": "HUMAN"})
+        repository.append_history(grievance_id, "escalationHistory", ticket)
     except Exception:
         pass
     
@@ -256,11 +269,13 @@ def propose_resolution(
         return JSONResponse(status_code=403, content={"error": "Insufficient permissions"})
     
     state = _canon_state(doc)
-    if state not in ("IN_PROGRESS", "BLOCKED", "ASSIGNED"):
+    if state not in ("IN_PROGRESS", "BLOCKED", "ASSIGNED", "ACCEPTED"):
         return JSONResponse(status_code=422, content={"error": f"Cannot submit resolution in state {state}"})
     
     now = datetime.now(timezone.utc).isoformat()
-    resolution = {"text": payload.text, "actions": payload.actions, "by": actor_id, "at": now}
+    resolution = {"text": payload.text, "actions": payload.actions, "by": actor_id, "at": now,
+                  "completionPhotoUrl": payload.completionPhotoUrl,
+                  "supportingDocumentUrl": payload.supportingDocumentUrl}
     repository.update(grievance_id, {"state": "RESOLUTION_SUBMITTED", "status": "resolution_submitted", "resolution": resolution, "updatedAt": now})
     try:
         repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "RESOLUTION_SUBMITTED", "by": actor_id, "byRole": role, "reason": "Resolution proposed", "at": now, "source": "HUMAN"})
@@ -270,6 +285,24 @@ def propose_resolution(
     _notify(doc.get("managerId"), "grievance.resolution_proposed", grievance_id, f"Grievance {grievance_id} resolution submitted for review")
     _emit_audit(current, "grievance.resolution_proposed", grievance_id, {"state": state}, {"state": "RESOLUTION_SUBMITTED"}, "Resolution proposed")
     return {"message": "Resolution submitted for review"}
+
+
+@router.post("/grievances/{grievance_id}/accept")
+def accept_assignment(grievance_id: str, current: Annotated[dict, Depends(get_current_user)]):
+    """Worker acknowledgement; completion still requires manager review."""
+    if current["role"] != "RESOLVER":
+        return JSONResponse(status_code=403, content={"error": "Requires RESOLVER"})
+    doc = _get_doc_or_404(grievance_id)
+    if doc.get("ownerId") != current["user_id"]:
+        return JSONResponse(status_code=403, content={"error": "Not your assigned grievance"})
+    state = _canon_state(doc)
+    transition_state(state, "ACCEPTED", "RESOLVER")
+    now = datetime.now(timezone.utc).isoformat()
+    repository.update(grievance_id, {"state": "ACCEPTED", "status": "accepted", "updatedAt": now})
+    repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "ACCEPTED", "by": current["user_id"], "byRole": "RESOLVER", "reason": "Assignment accepted", "at": now, "source": "HUMAN"})
+    _notify(doc.get("managerId"), "grievance.assignment_accepted", grievance_id, f"{grievance_id} assignment accepted")
+    _emit_audit(current, "grievance.assignment_accepted", grievance_id, {"state": state}, {"state": "ACCEPTED"}, "Assignment accepted")
+    return {"message": "Assignment accepted", "state": "ACCEPTED"}
 
 
 @router.post("/grievances/{grievance_id}/approve-resolution")
