@@ -14,7 +14,7 @@ from ..repositories.notifications import notif_repository
 router = APIRouter(tags=["progress"])
 
 _ACTIVE_STATES = {
-    "IN_PROGRESS", "ASSIGNED", "BLOCKED", "RESOLUTION_SUBMITTED",
+    "IN_PROGRESS", "ASSIGNED", "ACCEPTED", "BLOCKED", "RESOLUTION_SUBMITTED",
     "UNDER_REVIEW", "ESCALATED", "REOPENED", "PENDING_ASSIGNMENT"
 }
 
