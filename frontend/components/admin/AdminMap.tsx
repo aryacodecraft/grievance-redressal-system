@@ -151,7 +151,10 @@ export function AdminMap({
   return (
     <div
       ref={containerRef}
-      className={`${heightClassName} w-full overflow-hidden rounded-md border border-ink-200`}
+      // `relative z-0` forms a stacking context so Leaflet's internal
+      // panes (z-index 200–1000) can never paint above the sticky site
+      // header (`z-40`) or the review modal (`z-50`) when scrolled.
+      className={`${heightClassName} relative z-0 w-full overflow-hidden rounded-md border border-ink-200`}
       role="application"
       aria-label="Grievance locations map"
     />

@@ -12,6 +12,7 @@ import type { Grievance } from "@/lib/types";
 import { AdminClusters } from "./AdminClusters";
 import { AdminMap } from "./AdminMap";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
+import { useClusterLocations } from "./useClusterLocations";
 
 function csvEscape(value: unknown): string {
   const s = value == null ? "" : String(value);
@@ -91,6 +92,7 @@ export function AdminAnalytics() {
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
+  const clusterLocations = useClusterLocations(items, clusters);
 
   const macro = useMemo(() => {
     let resolved = 0;
@@ -206,6 +208,7 @@ export function AdminAnalytics() {
         activeClusterId={activeClusterId}
         onSelect={(id) => setActiveClusterId(id)}
         onClear={() => setActiveClusterId(null)}
+        locations={clusterLocations}
       />
     </div>
   );

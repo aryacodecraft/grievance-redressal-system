@@ -16,6 +16,39 @@ export interface PlaceNameResult {
   precise: boolean;
 }
 
+/** Structured city/state split, for labels like "Bengaluru, Karnataka". */
+export interface CityState {
+  city: string | null;
+  state: string | null;
+}
+
+/**
+ * Pure parser: Nominatim address dict → city/state. Kept separate from the
+ * network lookup so contract checks can pin it without a browser or backend.
+ */
+export function parseCityState(
+  address: Record<string, string> | undefined | null
+): CityState {
+  const a = address ?? {};
+  const city =
+    a.city ||
+    a.town ||
+    a.village ||
+    a.district ||
+    a.state_district ||
+    a.county ||
+    null;
+  const state = a.state || null;
+  return { city, state };
+}
+
+/** "Bengaluru, Karnataka" — city alone, state alone, or null when neither. */
+export function formatCityState(cs: CityState | null | undefined): string | null {
+  if (!cs) return null;
+  if (cs.city && cs.state) return `${cs.city}, ${cs.state}`;
+  return cs.city ?? cs.state;
+}
+
 const cache = new Map<string, PlaceNameResult>();
 const inFlight = new Map<string, Promise<PlaceNameResult | null>>();
 
@@ -106,4 +139,59 @@ export function reverseGeocode(
 
   inFlight.set(key, p);
   return p;
+}
+
+const addressCache = new Map<string, Record<string, string> | null>();
+const addressInFlight = new Map<string, Promise<Record<string, string> | null>>();
+
+async function lookupAddress(
+  lat: number,
+  lon: number
+): Promise<Record<string, string> | null> {
+  const url =
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2` +
+    `&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10`;
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: timeoutSignal(5000),
+    });
+    if (!res.ok) return null;
+    const data: { address?: Record<string, string> } = await res.json();
+    return data.address ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve coordinates to a structured city/state pair for group labels
+ * like "Bengaluru, Karnataka". Shares nothing with the popup lookup except
+ * the network — results are cached per rounded coordinate. Resolves `null`
+ * on any failure; callers keep their text-based fallback.
+ */
+export function reverseCityState(
+  lat: number,
+  lon: number
+): Promise<CityState | null> {
+  const key = `cs:${lat.toFixed(4)},${lon.toFixed(4)}`;
+  const hit = addressCache.get(key);
+  if (hit !== undefined) {
+    return Promise.resolve(hit ? parseCityState(hit) : null);
+  }
+
+  const pending = addressInFlight.get(key);
+  if (pending) {
+    return pending.then((address) => (address ? parseCityState(address) : null));
+  }
+
+  const p = lookupAddress(lat, lon).then((address) => {
+    addressCache.set(key, address);
+    return address;
+  }).finally(() => {
+    addressInFlight.delete(key);
+  });
+
+  addressInFlight.set(key, p);
+  return p.then((address) => (address ? parseCityState(address) : null));
 }

@@ -264,4 +264,43 @@ await assert.rejects(
 );
 log("BASELINE a 'detail'-shaped error degrades to a generic message");
 
+/* ── 4. parseCityState / formatCityState ─────────────────────────────────── */
+// Pure Nominatim-address parsing for similar-complaint "City, State" labels.
+// No network involved, so these run offline like the rest of this script.
+const location = await import("../lib/location.ts");
+
+// Full address: city + state win over district-level fallbacks.
+assert.deepEqual(
+  location.parseCityState({
+    suburb: "Koramangala",
+    city: "Bengaluru",
+    state: "Karnataka",
+  }),
+  { city: "Bengaluru", state: "Karnataka" }
+);
+// Town/village/district fallbacks when no `city` key exists.
+assert.deepEqual(
+  location.parseCityState({ town: "Dharampeth", state: "Maharashtra" }),
+  { city: "Dharampeth", state: "Maharashtra" }
+);
+assert.deepEqual(
+  location.parseCityState({ state_district: "Pune", state: "Maharashtra" }),
+  { city: "Pune", state: "Maharashtra" }
+);
+// Missing halves degrade gracefully instead of printing "null".
+assert.deepEqual(location.parseCityState({ state: "Goa" }), {
+  city: null,
+  state: "Goa",
+});
+assert.deepEqual(location.parseCityState({}), { city: null, state: null });
+assert.deepEqual(location.parseCityState(null), { city: null, state: null });
+assert.equal(
+  location.formatCityState({ city: "Bengaluru", state: "Karnataka" }),
+  "Bengaluru, Karnataka"
+);
+assert.equal(location.formatCityState({ city: null, state: "Goa" }), "Goa");
+assert.equal(location.formatCityState({ city: "Panaji", state: null }), "Panaji");
+assert.equal(location.formatCityState(null), null);
+log("parseCityState/formatCityState city-state labels");
+
 console.log("\ncontract checks passed");
