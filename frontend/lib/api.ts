@@ -242,7 +242,7 @@ export async function updateGrievanceStatus(
 
 export async function assignGrievance(
   id: string,
-  body: { departmentId: string; ownerId: string; dueDate?: string; reason: string }
+  body: { departmentId: string; ownerId?: string; dueDate?: string; reason: string }
 ): Promise<unknown> {
   return postJson(`/grievances/${encodeURIComponent(id.trim())}/assign`, body);
 }
@@ -256,9 +256,17 @@ export async function transitionGrievanceState(
 
 export async function addProgressUpdate(
   id: string,
-  body: { bodyInternal: string; bodyCustomer?: string; visibility?: string; kind?: string; etaClass?: string; workCompleted?: string; currentSituation?: string; nextAction?: string }
+  body: { bodyInternal: string; bodyCustomer?: string; visibility?: string; kind?: string; etaClass?: string; workCompleted?: string; currentSituation?: string; nextAction?: string; attachmentUrl?: string }
 ): Promise<unknown> {
   return postJson(`/grievances/${encodeURIComponent(id.trim())}/progress`, body);
+}
+
+export async function acceptAssignment(id: string): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/accept`, {});
+}
+
+export async function escalateGrievance(id: string, body: { reason: string; issueType: string; description: string; suggestedAction?: string; evidenceUrl?: string }): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/escalate`, body);
 }
 
 export async function reassignGrievance(id: string, body: { ownerId: string; departmentId?: string; reason: string }): Promise<unknown> {
@@ -269,8 +277,8 @@ export async function updatePriority(id: string, priority: string, reason: strin
   return patchJson(`/grievances/${encodeURIComponent(id.trim())}/priority`, { priority, reason });
 }
 
-export async function submitResolution(id: string, text: string, actions: string[] = []): Promise<unknown> {
-  return postJson(`/grievances/${encodeURIComponent(id.trim())}/resolution`, { text, actions });
+export async function submitResolution(id: string, text: string, actions: string[] = [], completionPhotoUrl?: string): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/resolution`, { text, actions, completionPhotoUrl });
 }
 
 export async function approveResolution(id: string, reason: string): Promise<unknown> {
