@@ -368,6 +368,12 @@ def to_api(doc: dict[str, Any]) -> dict[str, Any]:
         if value is not None:
             payload[key] = value
 
+    # Compatibility for records written before department routing was added.
+    # Startup persists this value; this fallback keeps the API useful during
+    # the short interval before a restart/backfill has run.
+    if "departmentId" not in payload:
+        payload["departmentId"] = payload["category"]
+
     if hf:
         payload["hfEngine"] = hf
 
