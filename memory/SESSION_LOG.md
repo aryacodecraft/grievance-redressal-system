@@ -1235,6 +1235,117 @@ Fix the analytics map painting over the navbar on scroll, and show proper
 ### Next
 - Visual scroll check on `/admin/analytics` in a browser (no desktop browser connected here); confirm cluster labels read as "City, State" for pinned groups.
 
+---
+
+## 2026-10-08 — Doc cleanup: retired plan docs, single TODO (DEC-020)
+
+### Goal
+Remove useless md docs and leave context minimal without losing anything.
+
+### Work Completed
+- Deleted (via `git rm`, history kept): `UNIFIED_MIGRATION_PLAN.md` (all
+  phases ✅), `memory/ADMIN_UI_RESTRUCTURING_PLAN.md` (all [x], outcome in
+  DEC-018), `frontend/README.md` (stock boilerplate, zero references).
+- Slimmed `INTEGRATION.md` to a historical pointer (kept: linked from
+  `README.md` + DEC-008).
+- `git mv memory/NEW_TODO_TASKS.md memory/TODO.md` — the name `AGENTS.md`
+  mandates; §4C link repointed to DEC-018.
+- `docs/WORKFLOWS.md` points at `memory/rbac/GRIEVANCE_WORKFLOW.md` as
+  normative; fixed dead `UNIFIED_MIGRATION_CHECKLIST.md` link in
+  `PROJECT_STATE.md` (that file never existed — link was already broken).
+- DEC-020 close-out: records the verdicts (model files KEPT — live imports
+  in `classification.py`; archive-in-git-history over `docs/archive/`).
+- Kept `frontend/AGENTS.md` + `CLAUDE.md`: `next dev` regenerates them on
+  deletion, so removing is futile.
+
+### Verification
+- Full `pytest`: 210 passed, same 8 pre-existing vocab failures;
+  contract checks pass. Live-doc grep confirms zero references to removed
+  files outside append-only history.
+
+### Next
+- Commit the cleanup on `moksh/rbac` (suggest one commit: `docs: retire
+  completed plan docs, canonical TODO.md (DEC-020)`).
 
 
 
+
+## 2026-10-08 — Geolocated demo data and attachments
+
+### Work Completed
+- Added an idempotent backend demo-data seeder covering water, roads,
+  transport, electricity, sanitation, health, governance, and other.
+- Added eight generated civic-issue images, one per category, in the frontend
+  public assets directory.
+- Added README usage instructions and documented the change in the changelog.
+
+### Verification
+- Confirmed the generated asset set contains eight PNG files.
+- Pending: run the seeder against the configured Atlas database and verify the
+  records render in `/admin` and `/admin/analytics`.
+
+---
+
+## 2026-10-08 — Frontend workflow surfaces
+
+### Work Completed
+- Added `/resolver` with assigned-ticket queue, canonical state transitions,
+  progress updates, resolution submission, and activity history.
+- Added `/superadmin` with user, department, and audit overview panels.
+- Expanded typed API helpers for workflow actions and grievance list filters.
+- Updated tracking to use live recent grievances and customer-visible history.
+- Fixed the existing session lint error and removed unused frontend variables.
+
+### Verification
+- TypeScript, ESLint, and offline contract checks pass.
+- Next production build was attempted but is blocked in this sandbox by a
+  Turbopack process/port permission error while processing Leaflet CSS.
+
+### Remaining
+- Full department-manager CRUD and resolver assignment controls.
+- Browser-level role/workflow tests and visual validation.
+
+### Follow-up Work
+- Added explicit superadmin controls for user roles, active state, and
+  department create/enable operations.
+- Removed client-side substring privilege escalation and made live/mock config
+  parsing tolerant of common false values.
+- Added frontend image type/size checks and expanded canonical timeline states.
+- TypeScript, ESLint, and contract checks pass. Production build still hits
+  the environment's Next/Turbopack worker-port permission failure.
+
+### Final follow-up
+- Department managers now receive `departmentId` in JWT/profile data; admin
+  feeds are filtered server-side and the review modal assigns to actual
+  resolver accounts through `/grievances/{id}/assign`.
+- Frontend verification remains green: TypeScript, ESLint, and contract checks.
+
+---
+
+## 2026-10-08 — Commit sequence: workflow surfaces, demo data, doc cleanup
+
+### Goal
+Commit the accumulated `moksh/rbac` work as multiple one-line commits instead
+of one giant commit.
+
+### Work Completed
+- Committed in 8 one-line commits (oldest first): doc cleanup DEC-020
+  (deletions + `INTEGRATION.md` slim + `NEW_TODO_TASKS.md` → `TODO.md` rename
+  + `WORKFLOWS.md` pointer + DEC-020); resolver/superadmin surfaces with
+  role routing; `departmentId` in JWT/profile; workflow API clients with
+  dept-scoped feed and officer assignment (full `lib/api.ts` staged here —
+  its `useMocks`/history hunks ride along rather than hunk-split);
+  explicit role mapping + contract checks; live track history, canonical
+  timeline, image validation; geolocated demo seeder + bundled images;
+  memory record (CHANGELOG/PROJECT_STATE/this log).
+- Left untracked (throwaway, not committed): `backend/patch_db.py`,
+  `backend/write_repos.py`. Demo PNGs committed as-is (~26MB); compress or
+  move to LFS later if repo size becomes a concern.
+- Fixed a `new blank line at EOF` whitespace warning in `memory/DECISIONS.md`.
+
+### Verification
+- `git diff --check` clean; `git status` shows only the two excluded
+  throwaway scripts as untracked after the sequence.
+
+### Next
+- Push `moksh/rbac` (8 commits ahead of `origin/moksh/rbac`) after review.

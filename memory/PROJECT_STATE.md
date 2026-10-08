@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-08 (testing-phase seed accounts per DEC-019: superadmin + 8 managers + 8 employees behind SEED_TEST_ACCOUNTS, /login dev box lists all 19. Prior: RBAC workflow coverage + frontend Bearer fix)
+> Last updated: 2026-10-08 (frontend resolver/superadmin workflow surfaces, live history, role hardening, and demo image validation)
 
 ---
 
@@ -16,7 +16,7 @@
 - Phase 5 docs/config alignment — `cfdb7d1`, `4e52990`, `4686f81`
 - Phase 6 pytest suite + end-to-end verification — `f6e2890`, `98ec1f3`
 
-(see `UNIFIED_MIGRATION_CHECKLIST.md` for the per-item record)
+(per-item record in git history and `memory/CHANGELOG.md`)
 
 Per DEC-010/DEC-011: `backend/app/` (FastAPI, `uvicorn backend.app.main:app`)
 is the serving path; persistence is `MongoRepository` when `MONGODB_URI` is
@@ -25,8 +25,9 @@ protocol. `backend/server.py`, `functions/`, `adfbh`, `firebase.json`,
 `.firebaserc`, `firestore.rules` and `firestore.indexes.json` are **deleted**.
 
 **Remaining backlog** is no longer migration work: ~~MongoDB Atlas setup (owner)~~
-**done 2026-10-02**, Firebase key rotation, real auth, resolver/analytics UI,
-AI evaluation. See `INTEGRATION.md` at repo root for the source map.
+**done 2026-10-02**, Firebase key rotation, deeper department-manager controls,
+browser workflow validation, and AI evaluation. Resolver, superadmin, analytics,
+live history, and core role-routing surfaces are now present.
 
 ---
 
@@ -207,7 +208,7 @@ memory/        — AI agent persistent memory                                  I
 - **PHASE 2 (SUPERSEDED):** ~~PostgreSQL schema, Alembic migrations, SQLAlchemy models~~
 - **PHASE 3 (SUPERSEDED):** ~~JWT + Google OAuth + RBAC (FastAPI)~~ — Firebase Auth is the temporary reality
 - **PHASE 4 (SUPERSEDED):** ~~Grievance CRUD + lifecycle state machine (original FastAPI plan)~~ — `/submit-grievance` (FastAPI `backend/app`) is the working path (the old Flask path was deleted in Phase 3)
-- **PHASE 5**: User / Resolver / Admin UI in Next.js — PARTIALLY IMPLEMENTED (submit + my-grievances, track, login/register demo auth, admin triage table + review modal + `/admin/analytics` dashboard with charts/map/clusters/CSV; dedicated multi-resolver workflow still OPEN; backend wiring DONE in Phase 2)
+- **PHASE 5**: User / Resolver / Admin UI in Next.js — IN PROGRESS (citizen, admin, resolver `/resolver`, superadmin `/superadmin`, tracking history, and analytics are present; department-manager assignment controls and browser validation remain)
 - **PHASE 6**: AI analysis — PARTIALLY IMPLEMENTED via `backend/app/services/classification.py` (ported from the deleted `backend/server.py`; EXPERIMENTAL per DEC-005)
 - **PHASE 7**: Assignment recommendation — PLANNED
 - **PHASE 8**: Similarity — PARTIALLY IMPLEMENTED via `frontend/lib/tfidf.ts` (client-side); Sentence-Transformers path deferred
@@ -220,7 +221,7 @@ memory/        — AI agent persistent memory                                  I
 
 **Unification follow-ups (this branch's backlog):**
 1. ~~Owner confirms canonical backend/DB/auth stack; update `AGENTS.md` + `docs/ARCHITECTURE.md`~~ — **DONE 2026-10-01** (Phase 5; auth stack itself still open)
-2. ~~Firebase-removal branch (see INTEGRATION.md §3)~~ — **DONE** (Phase 4 removed `functions/` + `adfbh`; only the key in git history remains)
+2. ~~Firebase-removal branch~~ — **DONE** (Phase 4 removed `functions/` + `adfbh`; only the key in git history remains)
 3. ~~Wire Next.js frontend to backend~~ — **DONE** (`lib/api.ts` ↔ `backend/app`, both on `:10000`; smoke-tested 2026-09-11)
 4. Hygiene — ~~`.gitignore`/`__pycache__`/UTF-16 requirements~~ DONE (all three verified; `backend/requirements.txt` rewritten as ASCII in Phase 3); ~~decide `adfbh`~~ DONE (deleted Phase 4); remaining: **rotate the hardcoded Firebase key**
 5. ~~New root README describing the unified repo~~ — DONE 2026-09-11 (root `README.md`)
@@ -252,9 +253,9 @@ memory/        — AI agent persistent memory                                  I
   Phase 1 input validation.
 - **`/delete-cloudinary` / `/sign-cloudinary` are unauthenticated** — any
   caller can delete or sign assets on the project's Cloudinary account. Phase 1.
-- `roleForEmail` in `frontend/lib/roles.ts` promotes any address *containing*
-  `"admin"` (`notadmin@example.com` → `admin`) — client-side demo auth only
-  (DEC-009), pinned as `BASELINE`, replaced wholesale by Phase 1.
+- Client-side demo auth remains available when mocks are enabled; `roleForEmail`
+  now uses explicit account patterns and no longer promotes arbitrary
+  addresses containing `admin`.
 - `/health` reports **configuration, not reachability** (DEC-016 §4): a cluster
   that dies after boot keeps reporting `storage: mongodb`, and a repository that
   cannot answer still yields `status: "ok"`. Intentional — a ping would stall
