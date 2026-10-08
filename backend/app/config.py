@@ -63,6 +63,16 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 # Seeds one admin account at startup (no-op if the account already exists).
 SEED_ADMIN_EMAIL = os.getenv("SEED_ADMIN_EMAIL", "")
 SEED_ADMIN_PASSWORD = os.getenv("SEED_ADMIN_PASSWORD", "")
+SEED_SUPERADMIN_EMAIL = os.getenv("SEED_SUPERADMIN_EMAIL", "")
+SEED_SUPERADMIN_PASSWORD = os.getenv("SEED_SUPERADMIN_PASSWORD", "")
+ALLOW_DEMO_SUBMIT = os.getenv("ALLOW_DEMO_SUBMIT", "true").lower() == "true"
+# Testing-phase accounts: when true, startup seeds one MANAGER (ADMIN) and one
+# EMPLOYEE (RESOLVER) per grievance department plus default superadmin/citizen
+# (all idempotent — existing emails are left untouched). Keep false in production.
+SEED_TEST_ACCOUNTS = os.getenv("SEED_TEST_ACCOUNTS", "false").lower() == "true"
+# Shared dev password for the per-department test accounts. Empty means the
+# documented built-in defaults are used (see seed_test_accounts.py / README).
+SEED_TEST_PASSWORD = os.getenv("SEED_TEST_PASSWORD", "")
 # Google OAuth (optional)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")

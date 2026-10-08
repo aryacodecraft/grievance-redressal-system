@@ -28,12 +28,16 @@ class GrievanceRepository(Protocol):
     def get(self, grievance_id: str) -> Optional[dict[str, Any]]: ...
 
     def list(
-        self, user_id: Optional[str] = None, limit: int = 50
+        self, user_id: Optional[str] = None, limit: int = 50,
+        state: Optional[str] = None, dept_id: Optional[str] = None,
+        owner_id: Optional[str] = None, overdue: bool = False,
     ) -> list[dict[str, Any]]: ...
 
     def update(
         self, grievance_id: str, patch: dict[str, Any]
     ) -> Optional[dict[str, Any]]: ...
+
+    def append_history(self, grievance_id: str, history_key: str, entry: dict[str, Any]) -> None: ...
 
 
 def _id_for(year: int, seq: int) -> str:
@@ -85,13 +89,25 @@ class InMemoryRepository:
             return dict(doc) if doc else None
 
     def list(
-        self, user_id: Optional[str] = None, limit: int = 50
+        self, user_id: Optional[str] = None, limit: int = 50,
+        state: Optional[str] = None, dept_id: Optional[str] = None,
+        owner_id: Optional[str] = None, overdue: bool = False,
     ) -> list[dict[str, Any]]:
         with self._lock:
             docs = list(self._docs.values())
 
         if user_id:
             docs = [d for d in docs if d.get("userId") == user_id]
+        if state:
+            docs = [d for d in docs if (d.get("state") == state or d.get("status") == (state.lower() if state else ""))]
+        if dept_id:
+            docs = [d for d in docs if d.get("departmentId") == dept_id]
+        if owner_id:
+            docs = [d for d in docs if d.get("ownerId") == owner_id]
+        if overdue:
+            from datetime import datetime, timezone
+            now_str = datetime.now(timezone.utc).isoformat()
+            docs = [d for d in docs if d.get("dueDate") and d["dueDate"] < now_str and d.get("state") not in ("CLOSED", "RESOLVED", "REJECTED", "WITHDRAWN")]
 
         # Ordering must match MongoRepository exactly (it is the production
         # path, DEC-011): `(createdAt, id)` descending. A priority tie-break
@@ -121,6 +137,14 @@ class InMemoryRepository:
             doc.update({k: v for k, v in patch.items() if v is not None})
             return dict(doc)
 
+    def append_history(self, grievance_id: str, history_key: str, entry: dict[str, Any]) -> None:
+        with self._lock:
+            doc = self._docs.get(grievance_id)
+            if doc is not None:
+                if history_key not in doc:
+                    doc[history_key] = []
+                doc[history_key].append(entry)
+
 
 class MongoRepository:
     """MongoDB-backed implementation (Atlas in production)."""
@@ -145,6 +169,9 @@ class MongoRepository:
             [(("userId"), ASCENDING), (("createdAt"), DESCENDING)],
             name="user_created",
         )
+        self._col.create_index([("departmentId", ASCENDING), ("state", ASCENDING), ("dueDate", ASCENDING)], name="dept_state_due")
+        self._col.create_index([("ownerId", ASCENDING), ("state", ASCENDING)], name="owner_state")
+        self._col.create_index([("state", ASCENDING), ("dueDate", ASCENDING)], name="state_due")
 
     def ping(self) -> bool:
         try:
@@ -217,7 +244,9 @@ class MongoRepository:
         return self._from_storage(doc) if doc else None
 
     def list(
-        self, user_id: Optional[str] = None, limit: int = 50
+        self, user_id: Optional[str] = None, limit: int = 50,
+        state: Optional[str] = None, dept_id: Optional[str] = None,
+        owner_id: Optional[str] = None, overdue: bool = False,
     ) -> list[dict[str, Any]]:
         # See InMemoryRepository.list: `limit <= 0` must mean "no rows", but
         # pymongo treats `.limit(0)` as *unlimited* and `.limit(-n)` as "take
@@ -226,6 +255,13 @@ class MongoRepository:
             return []
 
         query: dict[str, Any] = {"userId": user_id} if user_id else {}
+        if state: query["state"] = state
+        if dept_id: query["departmentId"] = dept_id
+        if owner_id: query["ownerId"] = owner_id
+        if overdue:
+            from datetime import datetime, timezone
+            query["dueDate"] = {"$lt": datetime.now(timezone.utc).isoformat()}
+            query["state"] = {"$nin": ["CLOSED", "RESOLVED", "REJECTED", "WITHDRAWN"]}
         cursor = (
             self._col.find(query, {"_id": 0})
             .sort([("createdAt", -1), ("id", -1)])
@@ -245,6 +281,9 @@ class MongoRepository:
             return_document=ReturnDocument.AFTER,
         )
         return self._from_storage(doc) if doc else None
+
+    def append_history(self, grievance_id: str, history_key: str, entry: dict[str, Any]) -> None:
+        self._col.update_one({"id": grievance_id}, {"$push": {history_key: entry}})
 
 
 _storage_mode = "in-memory"
@@ -293,37 +332,47 @@ def storage_mode() -> str:
 
 
 def to_api(doc: dict[str, Any]) -> dict[str, Any]:
-    """Normalise a stored record to the shape the frontend zod schema expects.
-
-    Optional fields are omitted entirely rather than sent as `null`, so plain
-    `z.string().optional()` style schemas validate cleanly.
-    """
+    """Normalise a stored record to the shape the frontend zod schema expects."""
     created = doc.get("createdAt")
     if isinstance(created, datetime):
         created = created.astimezone(timezone.utc).isoformat()
 
     hf = doc.get("hfEngine") or {}
+    
+    _STATUS_COMPAT = {
+        "open": "SUBMITTED", "assigned": "ASSIGNED", "in_progress": "IN_PROGRESS",
+        "resolved": "RESOLVED", "closed": "CLOSED", "escalated": "ESCALATED",
+        "rejected": "REJECTED",
+    }
+    raw_status = doc.get("status", "open")
+    canonical_state = doc.get("state") or _STATUS_COMPAT.get(raw_status.lower(), raw_status.upper() if raw_status else "SUBMITTED")
+    
     payload: dict[str, Any] = {
         "id": doc.get("id", ""),
         "title": doc.get("title", "Untitled"),
         "description": doc.get("description", ""),
-        "status": doc.get("status", "open"),
+        "status": canonical_state,
+        "state": canonical_state,
         "category": doc.get("category") or hf.get("category") or "other",
         "priority": doc.get("priority") or hf.get("priority") or "low",
         "createdAt": created or datetime.now(timezone.utc).isoformat(),
     }
 
     for key in (
-        "userId",
-        "imageUrl",
-        "imageValidation",
-        "latitude",
-        "longitude",
+        "userId", "imageUrl", "imageValidation", "latitude", "longitude",
         "assignee",
+        "departmentId", "ownerId", "managerId", "dueDate", "resolvedAt", "closedAt",
+        "stateHistory", "assignmentHistory", "priorityHistory", "deadlineHistory"
     ):
         value = doc.get(key)
         if value is not None:
             payload[key] = value
+
+    # Compatibility for records written before department routing was added.
+    # Startup persists this value; this fallback keeps the API useful during
+    # the short interval before a restart/backfill has run.
+    if "departmentId" not in payload:
+        payload["departmentId"] = payload["category"]
 
     if hf:
         payload["hfEngine"] = hf

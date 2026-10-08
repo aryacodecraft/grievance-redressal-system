@@ -1,5 +1,9 @@
 # WORKFLOWS.md — Grievance Lifecycle Workflows
 
+> Implementation delta: `memory/rbac/GRIEVANCE_WORKFLOW.md` is the normative
+> spec (canonical UPPER states, transition table, legacy lowercase adapter).
+> This document keeps the narrative workflows and actor step tables.
+>
 > Labels used throughout:
 > **[SYSTEM]** — Automated action
 > **[AI]** — AI recommendation or analysis (not a final decision)
@@ -226,3 +230,11 @@ All transitions are enforced server-side. Invalid transitions return HTTP 422.
 | ANY | REJECTED | ADMIN |
 | SUBMITTED | WITHDRAWN | USER, ADMIN |
 | IN_PROGRESS | WITHDRAWN | USER (with admin approval), ADMIN |
+## Worker execution workflow
+
+Workers are represented by the existing `RESOLVER` role. A department manager
+assigns an owner; the worker can acknowledge `ASSIGNED → ACCEPTED`, start work,
+post daily updates, place work on hold with a required reason, or raise a
+structured escalation ticket. Completion is submitted as
+`RESOLUTION_SUBMITTED`, preserving the required manager approval step before
+the grievance becomes `RESOLVED`.

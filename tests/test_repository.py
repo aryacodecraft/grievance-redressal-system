@@ -287,7 +287,7 @@ def test_to_api_omits_absent_optional_fields():
     from backend.app.db import to_api
 
     payload = to_api({"id": "GRV-2026-0001", "title": "t"})
-    assert payload["status"] == "open"
+    assert payload["status"] == "SUBMITTED"
     assert payload["category"] == "other"
     assert payload["priority"] == "low"
     for key in ("assignee", "imageUrl", "latitude", "longitude"):

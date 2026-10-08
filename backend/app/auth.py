@@ -25,11 +25,12 @@ _bearer = HTTPBearer(auto_error=False)
 
 # ── Token creation ───────────────────────────────────────────────────────────
 
-def create_access_token(user_id: str, role: str, email: str) -> str:
+def create_access_token(user_id: str, role: str, email: str, department_id: str | None = None) -> str:
     payload = {
         "sub": user_id,
         "role": role,
         "email": email,
+        "departmentId": department_id,
         "type": "access",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_EXPIRE_MINUTES),
         "iat": datetime.now(timezone.utc),
@@ -82,6 +83,7 @@ def get_current_user(
         "user_id": payload["sub"],
         "role": payload.get("role", "USER"),
         "email": payload.get("email", ""),
+        "departmentId": payload.get("departmentId"),
     }
 
 

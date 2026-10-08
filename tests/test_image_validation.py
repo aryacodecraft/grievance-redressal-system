@@ -17,6 +17,14 @@ import pytest
 from backend.app.config import IMAGE_LLM_THRESHOLD
 
 
+def _auth_headers(user_id: str = "citizen-test-1", role: str = "USER"):
+    """Submission identity comes from the JWT — attach a token to post."""
+    from backend.app.auth import create_access_token
+
+    token = create_access_token(user_id, role, f"{user_id}@example.com")
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture
 def fake_verdict(monkeypatch):
     """Replace the LLM/heuristic scorer in both routers that call it."""
@@ -110,6 +118,7 @@ def test_submit_rejects_an_image_below_threshold(client, sample_payload, fake_ve
     res = client.post(
         "/submit-grievance",
         json={**sample_payload, "imageUrl": "https://x/bad.jpg"},
+        headers=_auth_headers(),
     )
     assert res.status_code == 400
     body = res.json()
@@ -125,6 +134,7 @@ def test_submit_accepts_an_image_at_the_threshold(client, sample_payload, fake_v
     res = client.post(
         "/submit-grievance",
         json={**sample_payload, "imageUrl": "https://x/ok.jpg"},
+        headers=_auth_headers(),
     )
     assert res.status_code == 200, res.text
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
@@ -133,7 +143,7 @@ def test_submit_accepts_an_image_at_the_threshold(client, sample_payload, fake_v
 
 
 def test_submit_without_an_image_never_calls_the_scorer(client, sample_payload, fake_verdict):
-    res = client.post("/submit-grievance", json=sample_payload)
+    res = client.post("/submit-grievance", json=sample_payload, headers=_auth_headers())
     assert res.status_code == 200
     assert fake_verdict["calls"] == []
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
@@ -151,6 +161,7 @@ def test_submit_survives_a_scorer_exception(client, sample_payload, monkeypatch)
     res = client.post(
         "/submit-grievance",
         json={**sample_payload, "imageUrl": "https://x/y.jpg"},
+        headers=_auth_headers(),
     )
     assert res.status_code == 500
     assert "error" in res.json()

@@ -33,7 +33,7 @@ export function useAdminGrievanceFeed(scopeToUser = false) {
         setLiveError(message);
         setLiveItems(null);
       },
-      { scopeToUser }
+      { scopeToUser, departmentId: user.role.toUpperCase() === "ADMIN" ? user.departmentId ?? undefined : undefined }
     );
     return unsub;
   }, [live, user, scopeToUser]);

@@ -1120,3 +1120,498 @@ request: "improve the map size in analytics").
 - If a browser becomes available, confirm the map resize across the `sm`/`lg`
   breakpoints (Leaflet's `trackResize` handles window resizes, but a
   `ResizeObserver` would be more robust for container-only changes).
+
+---
+
+## 2026-10-06 — RBAC Spec Suite (`memory/rbac/`, 12 files)
+
+### Goal
+Write the implementation-ready RBAC/workflow spec suite the owner asked for ("go"), including the SUPERADMIN-over-ADMIN hierarchy, without touching serving code.
+
+### Context Read
+- `AGENTS.md`, `memory/{README,PROJECT_STATE,DECISIONS,CHANGELOG,NEW_TODO_TASKS,SESSION_LOG}.md`
+- `backend/app/{auth.py,config.py,main.py,models.py,db.py,users_db.py}`, `routers/{auth,grievances}.py`
+- `frontend/lib/{roles.ts,types.ts,session.tsx,api.ts,sla.ts}`, `docs/{API,ARCHITECTURE,DATABASE,WORKFLOWS,SECURITY}.md`, `PRD.md`
+
+### Work Completed
+- Created `memory/rbac/` with 12 docs: index + RBAC (with SUPERADMIN powers + permission matrix), AUTHENTICATION (existing JWT/OAuth reality + hardening list), ROLE_INTERFACES, GRIEVANCE_WORKFLOW (canonical UPPER states + transition table), PROGRESS_FLOW (visibility enum + customer timeline), TICKET_MANAGEMENT (ownership/assignment/priority/deadline), BACKEND_ARCHITECTURE (router→service→repo), API_CONTRACTS, DATABASE_CHANGES (no migration), NOTIFICATION_FLOW (+audit+IDOR/SSRF risks), IMPLEMENTATION_CHECKLIST (Phase 0–6, dependency-ordered).
+- Every proposal tagged `[EXISTING]/[MODIFY]/[NEW]/[DEPRECATED]`; stale `docs/SECURITY.md` + `docs/API.md` "no auth" headers flagged for Phase 0 fix.
+- Updated `memory/CHANGELOG.md` (this entry), `memory/PROJECT_STATE.md` next-steps pointer, `memory/NEW_TODO_TASKS.md` §6 pointer.
+
+### Verification
+- `ls memory/rbac` → 12 `.md`; `wc -l` 510 total; no serving code touched (`git status` shows only `memory/` additions expected).
+- Content grounded in cited `file:line` refs; no new secrets; no fabricated metrics.
+
+### Next Recommended Step
+- Owner confirms the 5 open points in `memory/rbac/README.md` + `RBAC.md` (role-name mapping, department model, UPPER-state canonical, demo-mode flag, who publishes customer updates), then Phase 0 build per `IMPLEMENTATION_CHECKLIST.md`.
+
+---
+
+## 2026-10-06 — RBAC test alignment + smoke verification
+
+### Goal
+Resolve the 12 non-vocab test failures after the canonical UPPER-state migration (`permissions.py`/`state_machine.py` already correct) and verify backend wiring.
+
+### Context Read
+- `backend/app/{permissions.py,state_machine.py,auth.py,db.py,config.py,main.py}`, `routers/{grievances,assignments,progress}.py`, `repositories/*`
+- `tests/{test_auth,test_endpoints,test_repository,test_config_drift,test_status_vocabularies}.py`, `tests/conftest.py`, `backend/.env.example`
+
+### Findings
+- `permissions.py:21-83` already keyed by `USER/RESOLVER/ADMIN/SUPERADMIN` with `find_by_email` (`permissions.py:109`) — no rewrite needed. `state_machine.py:32-36,41-96` already uses `_US/_RE/_AD/_SA` — no rewrite needed.
+- `app.routes` len 15 is normal: 4 docs routes + 11 `_IncludedRouter` entries; real routes total 46 across 11 routers (verified per-router counts).
+- 20 failures → 12 real (canonical UPPER vs lowercase asserts + 3 missing env keys) + 8 pre-existing vocab parser failures (TIMELINE/filter gone in DEC-018).
+
+### Work Completed
+- `backend/.env.example` added `SEED_SUPERADMIN_EMAIL/PASSWORD`, `ALLOW_DEMO_SUBMIT`.
+- `backend/app/db.py` restored `assignee` passthrough for legacy `/status` compat.
+- Updated `tests/test_auth.py`, `tests/test_endpoints.py` (incl. unknown-status canonicalisation), `tests/test_repository.py`.
+- Hardened `tests/conftest.py` isolation for new routers + side-effect repos.
+
+### Verification
+- Targeted: 100 passed, 20 skipped. Full: 195 passed, 27 skipped, 8 failed (all `test_status_vocabularies.py` parser issues, pre-existing).
+- TestClient: `/health` ok, `/departments`/`/users` 401, unknown id 404.
+
+### Next
+- Frontend Phase 4 (`/resolver`, dept `/admin`, `/superadmin`, customer timeline) + Phase 6 hardening; vocab suite rewrite deferred until frontend migrates to UPPER states.
+
+---
+
+## 2026-10-06 — RBAC workflow tests + frontend Bearer fix
+
+### Work Completed
+- Added `tests/test_rbac_workflow.py` (11 passed): assign guards, full assign→progress→resolution→approve→close with citizen visibility projection, 403s, SUPERADMIN-only role/dept changes, audit + notification fan-out.
+- Fixed `tests/conftest.py` leakage: fresh stores rebound on all router modules (assignments wrote old audit/notif singletons while reads used fresh ones — caught by lifecycle smoke showing audit n=1, notif n=0).
+- Fixed `frontend/lib/api.ts` IDOR: `getGrievance` via `requestJson` (Bearer), extended `grievanceSchema` with workflow fields, added 8 workflow client helpers. `tsc` clean, contract checks pass.
+- Full suite now 206 passed (was 195), same 8 pre-existing vocab failures.
+
+### Next
+- Build `/resolver`, dept-scoped `/admin`, `/superadmin` pages on the new clients; then Phase 6 hardening (image-route auth, SSRF guard, Google sig verify, rate-limit) + vocab rewrite.
+
+---
+
+## 2026-10-08 — Testing-phase seed accounts (DEC-019)
+
+### Goal
+Generate one test login per department (manager + employee) plus admin/superadmin, idempotently, and surface them on sign-in for the testing phase.
+
+### Context Read
+- `AGENTS.md`, `memory/{README,PROJECT_STATE,DECISIONS,NEW_TODO_TASKS}.md`, `SESSION_LOG.md` tail
+- `backend/app/{main,config,users_db}.py`, `repositories/departments.py`, `services/classification.py` (`CATEGORY_KEYS`), `tests/conftest.py`, `tests/test_config_drift.py`
+- `frontend/app/login/page.tsx`, `frontend/lib/testAccounts.ts` (new), `frontend/.env.example`, `README.md` test-accounts section
+
+### Work Completed
+- `backend/app/seed_test_accounts.py` (new): superadmin + 8× (`ADMIN` manager + `RESOLVER` employee) with `departmentId`, departments auto-created; taxonomy pinned to `CATEGORY_KEYS`; existing emails never touched. Gated by `SEED_TEST_ACCOUNTS` (default false) + `SEED_TEST_PASSWORD` override (`config.py`, `.env.example`).
+- `backend/app/main.py`: startup calls seeder when the flag is true.
+- `frontend/lib/testAccounts.ts` (new, 19 entries) + `/login` dev box lists all accounts with Autofill (still behind `NEXT_PUBLIC_SHOW_DEV_CREDS`).
+- `tests/test_seed_accounts.py` (4 tests) + `tests/conftest.py` seed-flag pinning; `README.md`, `frontend/.env.example`, `memory/DECISIONS.md` DEC-019, `NEW_TODO_TASKS.md` §7.
+
+### Verification
+- `pytest tests/test_seed_accounts.py` → 4 passed. `npx tsc --noEmit` clean, `node scripts/check-contract.mjs` passed.
+- Live TestClient smoke earlier confirmed assign→progress→resolve→close; seed flow covered by the new tests (incl. roads-vs-water 403).
+
+### Next
+- Owner run: `SEED_TEST_ACCOUNTS=true` in `backend/.env`, `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`, restart both, click through the 19 logins. Keep both flags off in production.
+
+---
+
+## 2026-10-08 — Analytics map stacking + cluster city/state labels
+
+### Goal
+Fix the analytics map painting over the navbar on scroll, and show proper
+"City, State" location names in the Similar Complaint Groups panel.
+
+### Context Read
+- `frontend/components/ui/SiteHeader.tsx` (`sticky top-0 z-40`), `components/admin/GrievanceReviewModal.tsx:130` (`fixed inset-0 z-50`)
+- `components/admin/AdminMap.tsx`, `SinglePinMap.tsx`, `AdminAnalytics.tsx`, `AdminClusters.tsx`, `lib/tfidf.ts` (`areaFor`/`groupSimilarComplaints`), `lib/location.ts`, `lib/types.ts`
+
+### Work Completed
+- Map containers (`AdminMap`, `SinglePinMap`) form their own stacking context (`relative z-0`); header left at `z-40` so it stays under the `z-50` modal.
+- New `useClusterLocations.ts`: per-group "City, State" by majority vote of member coords through cached `reverseCityState` (new in `lib/location.ts` alongside pure `parseCityState`/`formatCityState`); rendered with a MapPin line in `AdminClusters.tsx` (omitted until lookups settle / when no pins). Display-only — no backend city/state migration.
+- 10 new offline `check-contract.mjs` assertions for the parsers.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean (touched files), `node scripts/check-contract.mjs` passed, `npm run build` 9 routes green.
+
+### Next
+- Visual scroll check on `/admin/analytics` in a browser (no desktop browser connected here); confirm cluster labels read as "City, State" for pinned groups.
+
+---
+
+## 2026-10-08 — Doc cleanup: retired plan docs, single TODO (DEC-020)
+
+### Goal
+Remove useless md docs and leave context minimal without losing anything.
+
+### Work Completed
+- Deleted (via `git rm`, history kept): `UNIFIED_MIGRATION_PLAN.md` (all
+  phases ✅), `memory/ADMIN_UI_RESTRUCTURING_PLAN.md` (all [x], outcome in
+  DEC-018), `frontend/README.md` (stock boilerplate, zero references).
+- Slimmed `INTEGRATION.md` to a historical pointer (kept: linked from
+  `README.md` + DEC-008).
+- `git mv memory/NEW_TODO_TASKS.md memory/TODO.md` — the name `AGENTS.md`
+  mandates; §4C link repointed to DEC-018.
+- `docs/WORKFLOWS.md` points at `memory/rbac/GRIEVANCE_WORKFLOW.md` as
+  normative; fixed dead `UNIFIED_MIGRATION_CHECKLIST.md` link in
+  `PROJECT_STATE.md` (that file never existed — link was already broken).
+- DEC-020 close-out: records the verdicts (model files KEPT — live imports
+  in `classification.py`; archive-in-git-history over `docs/archive/`).
+- Kept `frontend/AGENTS.md` + `CLAUDE.md`: `next dev` regenerates them on
+  deletion, so removing is futile.
+
+### Verification
+- Full `pytest`: 210 passed, same 8 pre-existing vocab failures;
+  contract checks pass. Live-doc grep confirms zero references to removed
+  files outside append-only history.
+
+### Next
+- Commit the cleanup on `moksh/rbac` (suggest one commit: `docs: retire
+  completed plan docs, canonical TODO.md (DEC-020)`).
+
+
+
+
+## 2026-10-08 — Geolocated demo data and attachments
+
+### Work Completed
+- Added an idempotent backend demo-data seeder covering water, roads,
+  transport, electricity, sanitation, health, governance, and other.
+- Added eight generated civic-issue images, one per category, in the frontend
+  public assets directory.
+- Added README usage instructions and documented the change in the changelog.
+
+### Verification
+- Confirmed the generated asset set contains eight PNG files.
+- Pending: run the seeder against the configured Atlas database and verify the
+  records render in `/admin` and `/admin/analytics`.
+
+---
+
+## 2026-10-08 — Frontend workflow surfaces
+
+### Work Completed
+- Added `/resolver` with assigned-ticket queue, canonical state transitions,
+  progress updates, resolution submission, and activity history.
+- Added `/superadmin` with user, department, and audit overview panels.
+- Expanded typed API helpers for workflow actions and grievance list filters.
+- Updated tracking to use live recent grievances and customer-visible history.
+- Fixed the existing session lint error and removed unused frontend variables.
+
+### Verification
+- TypeScript, ESLint, and offline contract checks pass.
+
+---
+
+## 2026-10-08 — Require sign-in before complaint submission
+
+### Work Completed
+- Added an authenticated gate to `/submit` with a return-to-submit login path.
+- Required JWT authentication on `POST /submit-grievance` and derived ownership
+  from the verified token.
+- Updated API/security documentation and removed the client body fallback user ID.
+
+### Verification
+- Backend Python syntax, TypeScript, and ESLint checks pass.
+
+---
+
+## 2026-10-08 — Two-tab grievance tracking
+
+### Work Completed
+- Restructured `/track` into `My grievances` and `Search by ID` tabs.
+- Added centered reference-ID search and department totals below the search area.
+- Kept live data scoped through the existing authorization-aware API behavior.
+
+### Verification
+- TypeScript, ESLint, and offline frontend contract checks pass.
+
+### Follow-up
+- Added the privacy-preserving aggregate department-count endpoint and wired
+  the search tab cards to registry totals.
+
+### Final adjustment
+- The personal tracking tab now shows “Sign in to check status” for signed-out
+  visitors and does not expose personal grievance cards.
+- Next production build was attempted but is blocked in this sandbox by a
+  Turbopack process/port permission error while processing Leaflet CSS.
+
+### Remaining
+- Full department-manager CRUD and resolver assignment controls.
+- Browser-level role/workflow tests and visual validation.
+
+### Follow-up Work
+- Added explicit superadmin controls for user roles, active state, and
+  department create/enable operations.
+- Removed client-side substring privilege escalation and made live/mock config
+  parsing tolerant of common false values.
+- Added frontend image type/size checks and expanded canonical timeline states.
+- TypeScript, ESLint, and contract checks pass. Production build still hits
+  the environment's Next/Turbopack worker-port permission failure.
+
+### Final follow-up
+- Department managers now receive `departmentId` in JWT/profile data; admin
+  feeds are filtered server-side and the review modal assigns to actual
+  resolver accounts through `/grievances/{id}/assign`.
+- Frontend verification remains green: TypeScript, ESLint, and contract checks.
+
+---
+
+## 2026-10-08 — Citizen home and navigation usability
+
+### Work Completed
+- Reworked the home hero copy and calls to action around the citizen journey.
+- Added an interactive, auto-progressing five-stage request lifecycle explainer.
+- Improved navbar active-state styling, role labels, and role-specific links.
+- Clarified the required incident location capture and displayed coordinates after
+  successful geolocation.
+
+### Verification
+- TypeScript, ESLint, and offline contract checks pass.
+
+---
+
+## 2026-10-08 — Commit sequence: workflow surfaces, demo data, doc cleanup
+
+### Goal
+Commit the accumulated `moksh/rbac` work as multiple one-line commits instead
+of one giant commit.
+
+### Work Completed
+- Committed in 8 one-line commits (oldest first): doc cleanup DEC-020
+  (deletions + `INTEGRATION.md` slim + `NEW_TODO_TASKS.md` → `TODO.md` rename
+  + `WORKFLOWS.md` pointer + DEC-020); resolver/superadmin surfaces with
+  role routing; `departmentId` in JWT/profile; workflow API clients with
+  dept-scoped feed and officer assignment (full `lib/api.ts` staged here —
+  its `useMocks`/history hunks ride along rather than hunk-split);
+  explicit role mapping + contract checks; live track history, canonical
+  timeline, image validation; geolocated demo seeder + bundled images;
+  memory record (CHANGELOG/PROJECT_STATE/this log).
+- Left untracked (throwaway, not committed): `backend/patch_db.py`,
+  `backend/write_repos.py`. Demo PNGs committed as-is (~26MB); compress or
+  move to LFS later if repo size becomes a concern.
+- Fixed a `new blank line at EOF` whitespace warning in `memory/DECISIONS.md`.
+
+### Verification
+- `git diff --check` clean; `git status` shows only the two excluded
+  throwaway scripts as untracked after the sequence.
+
+### Next
+- Push `moksh/rbac` (8 commits ahead of `origin/moksh/rbac`) after review.
+
+---
+
+## 2026-10-08 — Navbar: CTA removal + staff side drawer
+
+### Goal
+Improve navbar UI, drop the header "File Grievance" button, and give every
+non-citizen account (ADMIN / RESOLVER / SUPERADMIN) a left-side navigation —
+final shape per owner: no header, no burger; a sticky left sidebar.
+
+### Context Read
+- `frontend/components/ui/SiteHeader.tsx` (on-disk version already carried
+  uncommitted parallel-session navbar polish — kept its active-state styling
+  and role-label work), `frontend/lib/roles.ts`, `frontend/lib/session.tsx`,
+  `frontend/lib/types.ts` (role vocab), `AdminGate` / `ResolverGate` /
+  `SuperadminGate` role gates, `backend/app/seed_test_accounts.py`
+  (ADMIN/RESOLVER/SUPERADMIN role values), `frontend/AGENTS.md` Next docs.
+
+### Work Completed
+- Removed the `File Grievance` button; `/submit` remains reachable via the
+  citizen nav ("Register Complaint"), home-page CTAs, and `SiteFooter`.
+- Role-split header: citizens/logged-out keep Home / Register Complaint /
+  Track Status (+ sign in/out); staff get a lean bar with role chip and a
+  menu button (aria-expanded) opening the new drawer.
+- Superseded intermediates: the right drawer, its left-side flip, and the
+  burger sub-strip were all replaced (owner iterating on the design) by the
+  final architecture — `AppShell.tsx` (role-based chrome) +
+  `StaffSidebar.tsx` (always-visible sticky sidebar, icon rail below `sm`);
+  `StaffDrawer.tsx` deleted, `SiteHeader.tsx` reduced to citizen-only chrome,
+  `app/layout.tsx` now renders `<AppShell>` instead of header/main/footer.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` on both files clean,
+  `node scripts/check-contract.mjs` passed, `npm run build` green.
+- No desktop browser connected — visual/aria pass still owed.
+
+### Next
+- Eyeball the staff sidebar (sticky, icon rail below `sm`, active states,
+  sign out) and the citizen header once a browser is connected; commit
+  alongside the still-uncommitted home rework when the owner asks.
+
+## 2026-10-08 — Staff Navbar Simplification
+
+### Request
+Remove navigation buttons from the navbar for non-citizen roles because staff
+navigation is handled by the left-side drawer.
+
+### Work Completed
+- Removed staff Home and Track Status links from `SiteHeader`.
+- Retained the drawer menu trigger and role-specific drawer links.
+- Preserved public navigation for signed-out and citizen users.
+
+### Verification
+- `npx tsc --noEmit` passed.
+- `npm run lint` passed.
+
+## 2026-10-08 — Authenticated Navbar Sign Out
+
+### Work Completed
+- Added a rightmost Sign out button to the staff navbar.
+- Kept the existing citizen sign out action and staff drawer sign out action.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
+
+## 2026-10-08 — Citizen Multilingual UI
+
+### Work Completed
+- Added a reusable client-side i18n provider with localStorage persistence.
+- Added 10 major Indian language options plus English.
+- Wired translated labels into the citizen header, footer language control,
+  sign-in, sign-up, Track Status, and complaint form surfaces.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
+
+## 2026-10-08 — Test Account Login Fix
+
+### Diagnosis
+- `frontend/.env.local` exposed the testing credentials panel while
+  `backend/.env` left `SEED_TEST_ACCOUNTS` unset, so the newly listed accounts
+  were never created in MongoDB.
+
+### Fix
+- Enabled `SEED_TEST_ACCOUNTS=true` in the local backend environment.
+
+### Note
+- Backend restart is required to run the idempotent startup seeding hook.
+
+## 2026-10-08 — Complaint Form Alignment
+
+### Work Completed
+- Centered the complaint registration card with a responsive `max-w-3xl`
+  content column.
+- Standardized the location field label, hint, button height, and spacing with
+  the shared form-field styling.
+- Aligned the desktop form toward the adjacent grievance-history panel to
+  reduce the visual gap between the two sections.
+- Bounded and centered the complete two-column module so it no longer sits too
+  far to the right on wide screens.
+
+## 2026-10-08 — Guest Home Navigation
+
+### Work Completed
+- Signed-out visitors now see only Home and Register Complaint in the navbar.
+- Authenticated citizens retain Track Status navigation.
+- Guest home content omits the authenticated request-lifecycle and workflow
+  sections, leaving a concise public dashboard.
+
+### Verification
+- Frontend TypeScript check and ESLint passed after the layout changes.
+
+## 2026-10-08 — Spatial Analytics Section
+
+### Work Completed
+- Added a dedicated spatial-analysis wrapper around the complaint map.
+- Added deterministic nearby-coordinate area clustering and a hotspot analysis
+  UI for complaint volume, priority, and open workload.
+
+## 2026-10-08 — Department Review Assignment Workflow
+
+### Work Completed
+- Submission now auto-routes the persisted grievance to its classified
+  department while leaving employee ownership empty.
+- Admin review no longer requests an officer and records department review only.
+- Assignment API accepts department-only assignment; manager-level employee
+  allocation remains separate.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
+
+## 2026-10-08 — Track View Switcher Alignment
+
+### Changed
+- Centered the tracking tab switcher so both views share a balanced page
+  alignment.
+
+## 2026-10-08 — Public Homepage Redesign
+
+### Work Completed
+- Rebuilt the public home page around meaningful civic-service content instead
+  of placeholder statistics.
+- Added a stronger hero, clear actions, service principles, lifecycle context,
+  department cards, and accountability guidance.
+- Kept staff roles on their operational overview dashboard.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
+
+## 2026-10-08 — Sign-in and Footer Accuracy
+
+### Work Completed
+- Restyled sign-in branding into a light, consistent prototype experience.
+- Removed unsupported national scope, toll number, government address, and
+  certification language from the public footer.
+
+### Verification
+- Frontend TypeScript check and ESLint passed.
+
+## 2026-10-08 — Corrected Non-Normal Navigation Scope
+
+### Correction
+- The previous guest restriction was too broad. Signed-out and normal citizen
+  experiences now retain Track Status and the full home page.
+- Staff roles alone use the basic home dashboard and no Track Status sidebar
+  link.
+
+## 2026-10-08 — Staff Home Overview
+
+### Work Completed
+- Added a separate staff operational dashboard for admin, resolver, and
+  superadmin roles.
+- Included role-specific workspace actions and summary metrics; the citizen
+  homepage remains unchanged for normal and signed-out users.
+- Staff overview metrics now scope to department admins, resolver assignments,
+  or the full system for superadmins.
+
+## 2026-10-08 — Staff Sidebar Home Routing
+
+### Fixed
+- Replaced the shared staff `/` Home link with role-specific destinations so
+  staff navigation stays within the appropriate operational workspace.
+
+## 2026-10-08 — Staff Sidebar React Key Fix
+
+### Fixed
+- Updated sidebar link keys to include both label and destination, removing the
+  duplicate `/admin` React key warning.
+## 2026-10-08 — Worker module implementation
+
+- Read repository memory and existing workflow contracts before editing.
+- Implemented the first complete worker execution slice across the FastAPI
+  state machine/API and the Next.js resolver workspace.
+- Validation: backend `compileall`, frontend ESLint (0 errors; one image
+  optimization warning), and TypeScript all pass.
+- Next: implement manager-side escalation response UI/notifications and run
+  browser-level role workflow validation.
+## 2026-10-08 — Department manager analytics scope
+
+- Scoped manager queue and analytics to the authenticated user's department.
+- Hid department switching controls for managers while preserving the
+  superadmin cross-department overview.
+- Frontend lint and TypeScript checks passed; one existing image optimization
+  warning remains in the worker workspace.
+
+## 2026-10-08 — Legacy department routing repair
+
+- Diagnosed the remaining assignment issue as an unapplied migration on older
+  records.
+- Added startup persistence plus response-level fallback for missing
+  `departmentId` values.
+- Backend compile and frontend lint/TypeScript checks passed.
+
+## 2026-10-08 — Active grievance department reassignment
+
+- Extended the admin assignment endpoint to allow department changes after
+  initial assignment without resetting active work or removing the worker.
+- Added distinct reassignment audit action while preserving the existing
+  review UI.

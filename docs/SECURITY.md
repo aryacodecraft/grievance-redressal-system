@@ -4,10 +4,10 @@
 
 ## Authentication
 
-> **Status: PLANNED — not implemented.** The running prototype uses a demo
-> localStorage session in the frontend and performs **no server-side
-> authentication**; see "Known Prototype Limitations" at the end of this
-> document. The design below is the target.
+> **Status: PARTIALLY IMPLEMENTED.** The running prototype uses JWT
+> authentication for protected grievance submission and workflow routes. The
+> frontend demo/localStorage mode remains available for offline previews. The
+> design below covers remaining hardening work.
 
 ### JWT-Based Authentication
 
@@ -175,16 +175,10 @@ AI-originated actions are clearly tagged as `action_source = AI_RECOMMENDATION` 
 
 ## Known Prototype Limitations
 
-- **No server-side authentication on the API (highest-risk gap).** The backend
-  performs no token check and trusts the `userId` field supplied in the
-  `POST /submit-grievance` request body, and `GET /grievances?userId=` /
-  `PATCH /grievances/{id}/status` perform no authorization. Any caller can
-  therefore read or reassign any grievance. The frontend's demo localStorage
-  session and email allowlist (`frontend/lib/roles.ts`) are **client-side only
-  and provide no security**. This is deliberate for the prototype stage —
-  **must be closed before any deployment that handles real data.** Mitigation
-  path: implement the JWT/RBAC design in the Authentication section above and
-  make the server derive `userId` from the verified token.
+- **Legacy route hardening remains.** Grievance submission now requires a
+  verified JWT and derives ownership from the token; the frontend also gates
+  `/submit` behind sign-in. Image signing/deletion and legacy compatibility
+  routes still require the remaining authorization and SSRF work below.
 - The MongoDB Atlas cluster requires a strong `MONGODB_URI` secret; the
   in-memory fallback is non-persistent and must not be used in production.
 - No email verification flow implemented yet

@@ -10,8 +10,10 @@ import { groupSimilarComplaints } from "@/lib/tfidf";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { AdminClusters } from "./AdminClusters";
+import { AdminAreaClusters, buildAreaClusters } from "./AdminAreaClusters";
 import { AdminMap } from "./AdminMap";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
+import { useClusterLocations } from "./useClusterLocations";
 
 function csvEscape(value: unknown): string {
   const s = value == null ? "" : String(value);
@@ -87,10 +89,19 @@ function MetricCard({
  * the spatial grievance map, and CSV report export.
  */
 export function AdminAnalytics() {
-  const { items, loading, error } = useAdminGrievanceFeed();
+  const { items: feedItems, loading, error, user } = useAdminGrievanceFeed();
+  const userRole = user?.role?.toUpperCase();
+  const departmentId = user?.departmentId;
+  const isDepartmentManager = userRole === "ADMIN";
+  const items = useMemo(() => {
+    if (!isDepartmentManager || !departmentId) return feedItems;
+    return feedItems.filter((g) => (g.departmentId ?? g.category).toLowerCase() === departmentId.toLowerCase());
+  }, [feedItems, isDepartmentManager, departmentId]);
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
+  const clusterLocations = useClusterLocations(items, clusters);
+  const areaClusters = useMemo(() => buildAreaClusters(items), [items]);
 
   const macro = useMemo(() => {
     let resolved = 0;
@@ -131,7 +142,7 @@ export function AdminAnalytics() {
             Executive Analytics &amp; Oversight
           </h2>
           <p className="text-xs text-ink-500">
-            Macro metrics, complaint patterns, and where problems are happening — across all areas.
+            {isDepartmentManager ? `Complaint patterns and workload for ${user?.departmentId ?? "your department"}.` : "Macro metrics, complaint patterns, and where problems are happening — across all areas."}
           </p>
         </div>
         <Button
@@ -184,6 +195,12 @@ export function AdminAnalytics() {
       {/* Distribution charts */}
       <AdminCharts items={items} />
 
+      <div className="space-y-4 border-t border-ink-100 pt-6">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-ink-700">Spatial analysis</h3>
+          <p className="text-xs text-ink-500">Explore complaint locations and identify geographic hotspots.</p>
+        </div>
+
       {/* Map of complaint locations */}
       <Card className="border-ink-200/80 shadow-2xs">
         <CardHeader
@@ -200,12 +217,16 @@ export function AdminAnalytics() {
         </CardBody>
       </Card>
 
+      <AdminAreaClusters clusters={areaClusters} />
+      </div>
+
       {/* Groups of similar complaints */}
       <AdminClusters
         clusters={clusters}
         activeClusterId={activeClusterId}
         onSelect={(id) => setActiveClusterId(id)}
         onClear={() => setActiveClusterId(null)}
+        locations={clusterLocations}
       />
     </div>
   );

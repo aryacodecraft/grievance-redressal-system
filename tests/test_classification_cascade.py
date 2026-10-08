@@ -17,6 +17,14 @@ import pytest
 from backend.app.services import classification as clf
 
 
+def _auth_headers(user_id: str = "citizen-test-1", role: str = "USER"):
+    """Submission identity comes from the JWT — attach a token to post."""
+    from backend.app.auth import create_access_token
+
+    token = create_access_token(user_id, role, f"{user_id}@example.com")
+    return {"Authorization": f"Bearer {token}"}
+
+
 # ── Category cascade ────────────────────────────────────────────────────────
 
 
@@ -195,7 +203,9 @@ def test_submit_reports_the_model_that_actually_ran(client, sample_payload, monk
     monkeypatch.setattr(clf, "_classify_with_groq_category", lambda text: None)
     monkeypatch.setattr(clf, "_classify_priority_with_groq", lambda text: None)
 
-    body = client.post("/submit-grievance", json=sample_payload).json()
+    body = client.post(
+        "/submit-grievance", json=sample_payload, headers=_auth_headers()
+    ).json()
     info = body["hfEngine"]["modelInfo"]
     assert info["categoryModel"] == clf.CATEGORY_MODEL
     assert info["priorityModel"] == clf.PRIORITY_MODEL
@@ -207,7 +217,9 @@ def test_submit_always_returns_a_valid_category_and_priority(
 ):
     # Disable ML model so the test uses the deterministic keyword path
     monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
-    body = client.post("/submit-grievance", json=sample_payload).json()
+    body = client.post(
+        "/submit-grievance", json=sample_payload, headers=_auth_headers()
+    ).json()
     engine = body["hfEngine"]
     assert engine["category"] in {"other", "roads"}  # keyword path
     assert engine["priority"] in {"low", "medium", "high"}
@@ -227,7 +239,7 @@ def test_submit_never_fails_because_a_provider_is_down(client, sample_payload, m
     ):
         monkeypatch.setattr(clf, name, _raiser(name))
 
-    res = client.post("/submit-grievance", json=sample_payload)
+    res = client.post("/submit-grievance", json=sample_payload, headers=_auth_headers())
     assert res.status_code == 200, res.text
     engine = res.json()["hfEngine"]
     assert engine["category"] in {"other", "roads"}
@@ -302,8 +314,8 @@ def test_sanitation_at_low_priority_is_escalated_to_medium():
             json={
                 "title": "Garbage not collected",
                 "description": "The garbage is not collected in our area",
-                "userId": "u1",
             },
+            headers=_auth_headers(),
         )
         assert res.status_code == 200
         engine = res.json()["hfEngine"]

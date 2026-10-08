@@ -8,6 +8,7 @@ import {
   deleteCloudinaryAsset,
   validateImage,
 } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export interface UploadedImage {
   url: string;
@@ -20,6 +21,7 @@ export function ImageUpload({
 }: {
   onChange: (img: UploadedImage | null) => void;
 }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const configured = Boolean(
@@ -28,12 +30,23 @@ export function ImageUpload({
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!allowed.has(file.type)) {
+      setNote(t("imgBadType"));
+      onChange(null);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setNote(t("imgTooBig"));
+      onChange(null);
+      return;
+    }
     if (!configured) {
-      setNote("Image upload is not configured in this demo — continuing without a photo.");
+      setNote(t("imgNotConfigured"));
       return;
     }
     setBusy(true);
-    setNote("Uploading…");
+    setNote(t("imgUploading"));
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -46,7 +59,7 @@ export function ImageUpload({
       if (!up.ok || !upJson.secure_url) {
         throw new Error(upJson?.error?.message ?? "Upload failed");
       }
-      setNote("Validating image…");
+      setNote(t("imgValidating"));
       const verdict = await validateImage(upJson.secure_url as string);
       if (!verdict.ok) {
         await deleteCloudinaryAsset(upJson.public_id as string).catch(
@@ -54,7 +67,9 @@ export function ImageUpload({
         );
         onChange(null);
         setNote(
-          `Image rejected: ${verdict.explanation ?? "not relevant to a public grievance"}. Try another photo.`
+          t("imgRejected", {
+            reason: verdict.explanation ?? t("imgRejectedDefault"),
+          })
         );
         return;
       }
@@ -64,18 +79,24 @@ export function ImageUpload({
         score: verdict.llm_score,
       });
       setNote(
-        `Image accepted${verdict.llm_score !== undefined ? ` (validation score ${verdict.llm_score})` : ""}.`
+        verdict.llm_score !== undefined
+          ? t("imgAcceptedScore", { score: verdict.llm_score })
+          : t("imgAccepted")
       );
     } catch (e) {
       onChange(null);
-      setNote(`Upload failed: ${e instanceof Error ? e.message : "unknown error"}`);
+      setNote(
+        e instanceof Error
+          ? t("imgUploadFailed", { message: e.message })
+          : t("imgUploadUnknown")
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Field label="Evidence Photograph" hint="Optional. JPG or PNG, max 10 MB.">
+    <Field label={t("imgLabel")} hint={t("imgHint")}>
       <div className="flex flex-col gap-1.5">
         <Input
           type="file"
@@ -86,7 +107,7 @@ export function ImageUpload({
         />
       </div>
       {busy && (
-        <span className="mt-1.5 block text-xs font-medium text-primary-600">Processing image validation…</span>
+        <span className="mt-1.5 block text-xs font-medium text-primary-600">{t("imgProcessing")}</span>
       )}
       {note && !busy && (
         <span className="mt-1.5 block text-xs text-ink-500">

@@ -117,13 +117,14 @@ def _user_to_profile(user: dict) -> dict:
         "email": user["email"],
         "full_name": user.get("full_name", ""),
         "role": user.get("role", "USER"),
+        "departmentId": user.get("departmentId"),
         "avatar_url": user.get("avatar_url"),
     }
 
 
 def _token_response(user: dict) -> dict:
     return {
-        "access_token": create_access_token(user["id"], user["role"], user["email"]),
+        "access_token": create_access_token(user["id"], user["role"], user["email"], user.get("departmentId")),
         "refresh_token": create_refresh_token(user["id"]),
         "token_type": "bearer",
         "user": _user_to_profile(user),
@@ -167,7 +168,7 @@ def refresh(payload: RefreshRequest):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return {
-        "access_token": create_access_token(user["id"], user["role"], user["email"]),
+        "access_token": create_access_token(user["id"], user["role"], user["email"], user.get("departmentId")),
         "token_type": "bearer",
     }
 
@@ -288,7 +289,7 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
         users_repository.update(user["id"], {"google_id": google_sub, "avatar_url": avatar_url})
         user = users_repository.get(user["id"])
 
-    access_token = create_access_token(user["id"], user["role"], user["email"])
+    access_token = create_access_token(user["id"], user["role"], user["email"], user.get("departmentId"))
     refresh_token = create_refresh_token(user["id"])
 
     # Redirect back to the frontend with tokens in the query string.

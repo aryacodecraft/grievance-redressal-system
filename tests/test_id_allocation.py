@@ -24,6 +24,14 @@ import pytest
 
 from backend.app.db import InMemoryRepository, _id_for, _sequence_of
 
+
+def _auth_headers(user_id: str = "citizen-test-1", role: str = "USER"):
+    """Submission identity comes from the JWT — attach a token to post."""
+    from backend.app.auth import create_access_token
+
+    token = create_access_token(user_id, role, f"{user_id}@example.com")
+    return {"Authorization": f"Bearer {token}"}
+
 BASE_DOC = {
     "title": "Streetlight out",
     "description": "The streetlight near the bus stop has been dark for weeks.",
@@ -134,13 +142,15 @@ def test_submit_after_an_existing_zero_padded_id(client, sample_payload):
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
 
-    res = client.post("/submit-grievance", json=sample_payload)
+    res = client.post("/submit-grievance", json=sample_payload, headers=_auth_headers())
     assert res.status_code == 200, res.text
     assert res.json()["grievanceId"] == f"GRV-{YEAR}-0002"
 
 
 def test_repeated_submits_never_reissue_an_id(client, sample_payload):
     for i in range(1, 6):
-        res = client.post("/submit-grievance", json=sample_payload)
+        res = client.post(
+            "/submit-grievance", json=sample_payload, headers=_auth_headers()
+        )
         assert res.status_code == 200, res.text
         assert res.json()["grievanceId"] == f"GRV-{YEAR}-{i:04d}"

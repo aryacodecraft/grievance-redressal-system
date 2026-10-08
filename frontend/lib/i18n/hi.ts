@@ -1,0 +1,313 @@
+import type { Messages } from "./en";
+
+const hi: Messages = {
+  // ── Header ──
+  home: "होम",
+  register: "शिकायत दर्ज करें",
+  track: "स्थिति देखें",
+  signIn: "साइन इन",
+  signOut: "साइन आउट",
+  createAccount: "खाता बनाएं",
+  submit: "शिकायत जमा करें",
+  language: "भाषा",
+  brandTagline: "राष्ट्रीय शिकायत पोर्टल",
+
+  // ── Footer ──
+  footerTrustRecords: "ऑडिटेड और छेड़छाड़-पहचान योग्य रिकॉर्ड",
+  footerTrustLocal: "स्थानीय नागरिक कार्यप्रणाली के लिए बनाया गया",
+  footerTrustPrototype: "शैक्षणिक अनुसंधान प्रोटोटाइप",
+  footerAbout:
+    "पारदर्शी नागरिक कार्यप्रणाली के लिए AI-सहायता वाला शिकायत निवारण और निर्णय-सहायता प्रोटोटाइप।",
+  footerSignIn: "साइन इन",
+  footerCreateAccount: "खाता बनाएं",
+  footerQuickLinks: "त्वरित लिंक",
+  footerServicesHeading: "नागरिक सेवाएं",
+  footerContactHeading: "संपर्क और सहायता",
+  svcRegister: "सार्वजनिक शिकायत दर्ज करें",
+  svcTrack: "शिकायत की स्थिति और समयरेखा देखें",
+  svcAssign: "अधिकारी आवंटन और समाधान",
+  svcAi: "AI-सहायता से वर्गीकरण",
+  contactLocation: "स्थान-आधारित नागरिक समस्या रिपोर्टिंग",
+  accountabilityLabel: "जवाबदेही:",
+  accountabilityText:
+    "विभागीय कार्रवाई और स्थिति परिवर्तन जवाबदेह मानवीय समीक्षा के लिए दर्ज किए जाते हैं।",
+  copyright: "GrievAI — नागरिक शिकायत निवारण प्रोटोटाइप।",
+
+  // ── Home: hero ──
+  homeBadge: "राष्ट्रीय सार्वजनिक शिकायत पोर्टल",
+  homeTitle: "हर अनुरोध के साथ अपने समुदाय को बेहतर बनाएं।",
+  homeSubtitle:
+    "महत्वपूर्ण विवरण के साथ नागरिक समस्या दर्ज करें, देखें कि वह आगे कहां जाती है, और एक पारदर्शी, मानवीय समीक्षा प्रक्रिया के माध्यम से उसकी प्रगति देखें।",
+  homeCtaRegister: "शिकायत दर्ज करें",
+  homeCtaTrack: "अनुरोध देखें",
+  homeFree: "निःशुल्क",
+  homeLocation: "स्थान-आधारित",
+  homeHuman: "मानवीय निर्णय",
+  homePathTitle: "समाधान तक स्पष्ट रास्ता",
+  homePathSub: "जमा करने के बाद क्या होता है",
+  homeStep1Title: "आप तथ्य साझा करते हैं",
+  homeStep1Text: "समस्या, प्रमाण और सटीक स्थान।",
+  homeStep2Title: "अनुरोध को व्यवस्थित किया जाता है",
+  homeStep2Text: "AI-सहायता वाली ट्राइएज रूटिंग और प्राथमिकता सुझाती है।",
+  homeStep3Title: "एक अधिकारी जिम्मेदारी लेता है",
+  homeStep3Text: "मानवीय टीम समीक्षा करती है, कार्रवाई करती है और आपको अपडेट देती है।",
+
+  // ── Home: principles ──
+  principle1Title: "स्थान-आधारित",
+  principle1Text:
+    "समस्या की जगह पिन करें ताकि सही स्थानीय टीम उस पर कार्रवाई कर सके।",
+  principle2Title: "सहायक ट्राइएज",
+  principle2Text:
+    "AI रिपोर्ट को व्यवस्थित करने में मदद करता है; निर्णय अधिकृत अधिकारियों के जिम्मे रहते हैं।",
+  principle3Title: "मानवीय समीक्षा",
+  principle3Text:
+    "हर आवंटन, अपडेट और समाधान जवाबदेह मानवीय नियंत्रण में रहता है।",
+
+  // ── Home: categories ──
+  reportBadge: "सही विवरण से शुरुआत करें",
+  reportTitle: "आप क्या शिकायत कर सकते हैं?",
+  reportText:
+    "सबसे नज़दीकी श्रेणी चुनें या बस समस्या का वर्णन करें। प्रणाली उसे उचित नागरिक विभाग तक पहुंचाने में मदद करती है।",
+  reportLink: "पंजीकरण फ़ॉर्म देखें",
+  deptWaterLabel: "जल और स्वच्छता",
+  deptWaterDesc: "रिसाव, जल निकासी, आपूर्ति और कचरा",
+  deptRoadsLabel: "सड़क और परिवहन",
+  deptRoadsDesc: "सड़कें, यातायात, परिवहन और सिग्नल",
+  deptElectricityLabel: "बिजली",
+  deptElectricityDesc: "ब्लैकआउट, स्ट्रीटलाइट और वितरण",
+  deptHealthLabel: "स्वास्थ्य सेवाएं",
+  deptHealthDesc: "सार्वजनिक स्वास्थ्य और चिकित्सा सुविधाएं",
+  deptGovLabel: "नागरिक शासन",
+  deptGovDesc: "प्रमाणपत्र, सेवाएं और सार्वजनिक कार्यालय",
+  deptOtherLabel: "अन्य सार्वजनिक मुद्दे",
+  deptOtherDesc: "आपके समुदाय को प्रभावित करने वाली कोई भी बात",
+
+  // ── Home: accountability ──
+  accBadge: "जवाबदेही के लिए बनाया गया",
+  accTitle: "हर अनुरोध का अगला कदम होना चाहिए।",
+  accText:
+    "आपका संदर्भ ID मूल रिपोर्ट को उसके स्थिति अपडेट से जोड़ता है। स्थान, प्रमाण और प्रगति नोट्स सार्वजनिक टीमों को समस्या समझने और बेहतर निर्णय लेने में मदद करते हैं।",
+  accStep1Title: "अपना संदर्भ ID सुरक्षित रखें",
+  accStep1Text: "कभी भी अनुरोध खोजने के लिए इसका उपयोग करें।",
+  accStep2Title: "समयरेखा देखें",
+  accStep2Text: "महत्वपूर्ण स्थिति परिवर्तन देखें।",
+
+  // ── Request lifecycle ──
+  lifeBadge: "रिपोर्ट से समाधान तक स्पष्ट रास्ता",
+  lifeTitle: "जानें आगे क्या होता है",
+  lifeText:
+    "आपका अनुरोध एक दृश्यमान जीवनचक्र से गुजरता है। AI अधिकारियों की कतार व्यवस्थित करने में मदद करता है; आवंटन, कार्रवाई और समाप्ति की जिम्मेदारी लोगों के पास रहती है।",
+  lifeStageOf: "चरण {n} / {total}",
+  lifeStageAria: "लाइफसाइकल चरण दिखाएं: {label}",
+  life1Label: "जमा किया गया",
+  life1Short: "आप बताते हैं",
+  life1Text: "क्या हुआ साझा करें, फ़ोटो जोड़ें और सटीक स्थान पिन करें।",
+  life2Label: "समीक्षित",
+  life2Short: "हम समझते हैं",
+  life2Text: "AI-सहायता वाली ट्राइएज अधिकारी समीक्षा के लिए श्रेणी और तात्कालिकता सुझाती है।",
+  life3Label: "आवंटित",
+  life3Short: "टीम लेती है",
+  life3Text: "अधिकृत विभाग प्रबंधक आपका अनुरोध सही अधिकारी तक पहुंचाता है।",
+  life4Label: "प्रगति में",
+  life4Short: "काम शुरू",
+  life4Text: "आवंटित टीम अपडेट, अगले कदम और अपेक्षित समय दर्ज करती है।",
+  life5Label: "हल हो गया",
+  life5Short: "आप परिणाम देखते हैं",
+  life5Text: "समाधान की समीक्षा होती है और अंतिम स्थिति आपके लिए दृश्यमान रहती है।",
+
+  // ── Submit form ──
+  complaintDetails: "शिकायत का विवरण",
+  formSubtitle:
+    "* से चिह्नित सभी फ़ील्ड अनिवार्य हैं। स्वचालित ट्राइएज उचित विभाग और प्राथमिकता निर्धारित करती है।",
+  formTitleLabel: "विषय / संक्षिप्त शीर्षक",
+  formTitlePlaceholder: "जैसे: सेक्टर 12 के पास टूटी पाइपलाइन से जलभराव",
+  formDescLabel: "विस्तृत विवरण",
+  formDescPlaceholder:
+    "बताएं कि क्या हुआ, सटीक सड़क या लैंडमार्क, समस्या की अवधि, और निवासियों पर प्रभाव...",
+  formDeptLabel: "इच्छित विभाव (वैकल्पिक)",
+  formDeptHint:
+    "आप विभाग का सुझाव दे सकते हैं। स्वचालित ट्राइएज अंतिम रूटिंग सत्यापित और पुष्टि करेगी।",
+  formAutoClassify: "प्रणाली द्वारा स्वतः वर्गीकरण",
+  errTitleShort: "एक छोटा, विशिष्ट शीर्षक दें (न्यूनतम 5 अक्षर)।",
+  errDescShort: "समस्या का वर्णन कम से कम 20 अक्षरों में करें।",
+  errLocationRequired: "स्थान अनिवार्य है — “मेरा स्थान दर्ज करें” पर क्लिक करें।",
+  errSubmitFailed: "जमा विफल रही। कृपया अपना कनेक्शन जांचें या पुनः प्रयास करें।",
+  btnSubmitting: "जमा और वर्गीकरण हो रहा है…",
+  resultTitle: "शिकायत सफलतापूर्वक दर्ज हुई",
+  resultSubtitle: "अपनी शिकायत ट्रैक करने के लिए यह संदर्भ ID सुरक्षित रखें।",
+  refIdLabel: "संदर्भ टिकट ID",
+
+  // ── Image upload ──
+  imgLabel: "प्रमाण फ़ोटो",
+  imgHint: "वैकल्पिक। JPG या PNG, अधिकतम 10 MB।",
+  imgBadType: "कृपया JPG, PNG या WebP छवि चुनें।",
+  imgTooBig: "छवि 10 MB से छोटी होनी चाहिए।",
+  imgNotConfigured: "इस डेमो में छवि अपलोड कॉन्फ़िगर नहीं है — बिना फ़ोटो जारी रखा जा रहा है।",
+  imgUploading: "अपलोड हो रहा है…",
+  imgValidating: "छवि सत्यापित हो रही है…",
+  imgProcessing: "छवि सत्यापन प्रसंस्करण हो रहा है…",
+  imgRejected: "छवि अस्वीकृत: {reason}। दूसरी फ़ोटो आज़माएं।",
+  imgRejectedDefault: "सार्वजनिक शिकायत से संबंधित नहीं",
+  imgAccepted: "छवि स्वीकृत।",
+  imgAcceptedScore: "छवि स्वीकृत (सत्यापन स्कोर {score})।",
+  imgUploadFailed: "अपलोड विफल: {message}",
+  imgUploadUnknown: "अपलोड विफल: अज्ञात त्रुटि",
+
+  // ── Location capture ──
+  incidentLocation: "घटना का स्थान",
+  locHint:
+    "वह स्थान पिन करें जहां समस्या हुई, ज़रूरी नहीं कि आप अभी जहां हैं। आपके निर्देशांक सही टीम को जल्दी खोजने में मदद करते हैं।",
+  locBusy: "GPS निर्देशांक प्राप्त हो रहे हैं…",
+  locPin: "मेरा वर्तमान स्थान दर्ज करें",
+  locPinned: "✓ स्थान सत्यापित और पिन किया गया",
+  locRetry: "स्थान पुनः आज़माएं",
+  locPinnedLabel: "स्थान पिन किया गया:",
+  locDenied: "अनुमति अस्वीकृत — ब्राउज़र में स्थान एक्सेस की अनुमति दें।",
+  locCaptured: "✓ वर्तमान स्थान कैप्चर किया गया",
+  locCloseMap: "मैप बंद करें",
+  locChooseMap: "शिकायत स्थान चुनें (वैकल्पिक)",
+  locPopupOrigin: "आपका वर्तमान स्थान",
+  locPopupDrag: "सटीक शिकायत स्थान के लिए इस पिन को खींचें",
+  locClickMap: "पिन रखने के लिए मैप पर क्लिक करें।",
+  locDragPin: "सटीकता के लिए पिन को खींचें।",
+  locOutOfRange: "अपने वर्तमान स्थान के {km} किमी के दायरे में शिकायत स्थान चुनें।",
+  locExact: "सटीक शिकायत स्थान: {coords}",
+  locNotSelected: "कोई अलग शिकायत स्थान नहीं चुना गया; आपका वर्तमान स्थान उपयोग होगा।",
+  locCaptureFirst: "वैकल्पिक शिकायत-स्थान चयनकर्ता सक्षम करने के लिए पहले अपना वर्तमान स्थान कैप्चर करें।",
+
+  // ── Track page ──
+  trackTitle: "शिकायत की स्थिति देखें",
+  trackSubtitle:
+    "अपनी दर्ज शिकायतें एक जगह देखें, या किसी अधिकृत अनुरोध को खोजने के लिए संदर्भ ID का उपयोग करें।",
+  myGrievances: "मेरी शिकायतें",
+  searchById: "आईडी से खोजें",
+  search: "खोजें",
+  trackFindTitle: "संदर्भ ID से शिकायत खोजें",
+  trackFindHint: "पावती से प्राप्त ID का उपयोग करें, जैसे",
+  btnSearching: "खोजा जा रहा है…",
+  trackQuerying: "शिकायत डेटाबेस की क्वेरी हो रही है…",
+  timelineTitle: "समाधान समयरेखा",
+  timelineSubtitle: "अधिकारियों की कार्रवाई के साथ अपडेट होता है",
+  trackNotFoundTitle: "इस संदर्भ ID पर कोई शिकायत नहीं मिली",
+  trackNotFoundHint:
+    "पावती से मिला सटीक संदर्भ कोड जांचें। आप केवल वे अनुरोध देख सकते हैं जो आपके खाते को देखने की अनुमति है।",
+  byDeptTitle: "विभाग के अनुसार अनुरोध",
+  byDeptText:
+    "रजिस्ट्री में कुल अनुरोध। व्यक्तिगत अनुरोध विवरण एक्सेस-नियंत्रित रहते हैं।",
+  requestOne: "अनुरोध",
+  requestMany: "अनुरोध",
+  signinTrackTitle: "स्थिति देखने के लिए साइन इन करें",
+  signinTrackText:
+    "आपका व्यक्तिगत शिकायत इतिहास साइन इन के बाद उपलब्ध होता है। इससे आपके अनुरोध और अपडेट निजी रहते हैं।",
+  signinTrackBtn: "मेरी शिकायतें देखने के लिए साइन इन करें",
+  myGrievancesText: "आपके जमा किए गए अनुरोध और उनकी नवीनतम स्थिति।",
+  totalLabel: "कुल",
+  noGrievancesTitle: "कोई शिकायत नहीं मिली",
+  noGrievancesHint: "शिकायत जमा करने पर वह यहां दिखाई देगी।",
+  myByDeptTitle: "विभाग के अनुसार शिकायतें",
+  myByDeptText: "आपके खाते में उपलब्ध अनुरोधों की त्वरित झलक।",
+
+  // ── Department names ──
+  dnameWater: "जल",
+  dnameRoads: "सड़क",
+  dnameTransport: "परिवहन",
+  dnameElectricity: "बिजली",
+  dnameSanitation: "स्वच्छता",
+  dnameHealth: "स्वास्थ्य",
+  dnameGovernance: "शासन",
+  dnameOther: "अन्य",
+
+  // ── My grievances (submit page) ──
+  mySigninTitle: "अपनी शिकायतें देखने के लिए साइन इन करें",
+  mySigninHint: "आपके प्रस्तुत और उनकी लाइव स्थिति यहां दिखाई देंगी।",
+  yourGrievances: "आपकी शिकायतें",
+  trackByRef: "संदर्भ ID से ट्रैक करें →",
+  noGrievYetTitle: "अभी कोई शिकायत नहीं",
+  noGrievYetHint: "आपकी जमा शिकायतें यहां दिखाई देंगी।",
+  checkingSession: "साइन-इन जाँचा जा रहा है…",
+  signinToSubmitTitle: "शिकायत दर्ज करने के लिए साइन इन करें",
+  signinToSubmitText:
+    "आपका खाता अनुरोध को आपसे जोड़ता है और उसकी प्रगति सुरक्षित रूप से दिखाता है।",
+  signinToContinue: "जारी रखने के लिए साइन इन करें",
+  signinToSubmitHint: "नए हैं? एक मिनट से भी कम समय में खाता बना सकते हैं।",
+  registerSubtitle: "सार्वजनिक शिकायत दर्ज करें",
+  submitPageDesc:
+    "समस्या का विवरण दें, प्रमाण संलग्न करें और स्थान पिन करें। AI-सहायित रूटिंग सुनिश्चित करती है कि आपकी शिकायत सही विभाग तक पहुंचे।",
+
+  // ── Login ──
+  securePortal: "सुरक्षित पोर्टल",
+  loginSubLive: "नागरिकों और अधिकारियों के लिए आधिकारिक पोर्टल एक्सेस।",
+  loginSubDemo: "अपने आधिकारिक खाता क्रेडेंशियल से साइन इन करें।",
+  errEnterCreds: "अपना ईमेल और पासवर्ड दर्ज करें।",
+  nameLabel: "पूरा नाम",
+  emailLabel: "ईमेल पता",
+  passwordLabel: "पासवर्ड",
+  rememberMe: "मुझे याद रखें",
+  errInvalidCreds: "ईमेल या पासवर्ड अमान्य है।",
+  errGoogleCancelled: "Google प्रमाणीकरण रद्द कर दिया गया।",
+  errGoogleFailed: "Google से क्रेडेंशियल सत्यापित करने में विफल।",
+  errSignIn: "साइन-इन त्रुटि: {reason}",
+  forgotPassword: "पासवर्ड भूल गए?",
+  btnSigningIn: "साइन इन हो रहा है...",
+  orContinueWith: "या इससे जारी रखें",
+  googleSignIn: "Google से साइन इन करें",
+  googleSignUp: "Google से साइन अप करें",
+  newHere: "नए हैं?",
+  showPassword: "पासवर्ड दिखाएं",
+  hidePassword: "पासवर्ड छिपाएं",
+  loading: "लोड हो रहा है...",
+
+  // ── Register ──
+  regSubLive: "आधिकारिक नागरिक खाता पंजीकरण।",
+  regSubDemo: "आधिकारिक नागरिक पोर्टल एक्सेस के लिए साइन अप करें।",
+  errFillAll: "खाता बनाने के लिए सभी फ़ील्ड भरें।",
+  errPasswordLen: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।",
+  errRegisterFailed: "खाता पंजीकरण विफल रहा।",
+  passwordHint: "न्यूनतम 8 अक्षर।",
+  btnCreating: "खाता बनाया जा रहा है...",
+  btnCreateAccount: "खाता बनाएं",
+  alreadyRegistered: "पहले से पंजीकृत हैं?",
+
+  // ── AI analysis panel ──
+  aiSuggestion: "AI सुझाव",
+  autoGenerated: "स्वतः निर्मित",
+  aiSure: "AI {pct}% सुनिश्चित है",
+  keyWordsSpotted: "पहचाने गए मुख्य शब्द:",
+
+  // ── Status timeline ──
+  progressTimeline: "प्रगति समयरेखा",
+  rejectedTitle: "टिकट अस्वीकृत / बिना कार्रवाई बंद",
+  rejectedText:
+    "यह प्रस्तुति नगरपालिका सत्यापन मानदंडों को पूरा नहीं करती या इसे डुप्लिकेट चिह्नित किया गया।",
+  msSubmittedTitle: "शिकायत दर्ज हुई",
+  msSubmittedDesc: "पावती दी गई और नगरपालिका रजिस्ट्री में दर्ज की गई।",
+  msTriagedTitle: "AI ट्राइएज और वर्गीकरण",
+  msTriagedDesc: "विभागीय रूटिंग, प्राथमिकता और भावना का मूल्यांकन।",
+  msAssignedTitle: "अधिकारी आवंटित",
+  msAssignedDesc: "निर्धारित नोडल अधिकारी या विभागीय टीम को आवंटित।",
+  msInProgressTitle: "उपचार प्रगति में",
+  msInProgressDesc: "फील्ड निरीक्षण, स्थल पर मरम्मत या नागरिक कार्रवाई जारी।",
+  msResolvedTitle: "हल और सत्यापित",
+  msResolvedDesc: "उपचार सत्यापित और अधिकृत अधिकारी द्वारा टिकट बंद।",
+
+  // ── Badges ──
+  priorityHigh: "उच्च प्राथमिकता",
+  priorityMedium: "मध्यम प्राथमिकता",
+  priorityLow: "निम्न प्राथमिकता",
+  statusSubmitted: "जमा किया गया",
+  statusOpen: "खुला",
+  statusTriaged: "ट्राइएज हुआ",
+  statusPendingAssignment: "आवंटन बाकी",
+  statusAiProcessing: "AI प्रसंस्करण",
+  statusAssigned: "आवंटित",
+  statusInProgress: "प्रगति में",
+  statusBlocked: "रुका हुआ",
+  statusEscalated: "स्तरोन्नत",
+  statusUnderReview: "समीक्षा में",
+  statusResolutionSubmitted: "समाधान जमा",
+  statusResolved: "हल हो गया",
+  statusClosed: "बंद",
+  statusRejected: "अस्वीकृत",
+};
+
+export default hi;

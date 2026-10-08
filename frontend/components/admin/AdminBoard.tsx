@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Feedback";
-import { updateGrievanceStatus } from "@/lib/api";
+import { assignGrievance, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
@@ -88,7 +88,10 @@ function SlaCell({ grievance }: { grievance: Grievance }) {
 }
 
 export function AdminBoard() {
-  const { items: feedItems, loading, error, live } = useAdminGrievanceFeed();
+  const { items: feedItems, loading, error, live, user } = useAdminGrievanceFeed();
+  const userRole = user?.role?.toUpperCase();
+  const departmentId = user?.departmentId;
+  const isDepartmentManager = userRole === "ADMIN";
   const [overrides, setOverrides] = useState<Record<string, Partial<Grievance>>>({});
 
   // Filtering & Sorting
@@ -102,11 +105,11 @@ export function AdminBoard() {
 
   // Review modal
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const items = useMemo(
-    () => feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g)),
-    [feedItems, overrides]
-  );
+  const items = useMemo(() => {
+    const merged = feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g));
+    if (!isDepartmentManager || !departmentId) return merged;
+    return merged.filter((g) => (g.departmentId ?? g.category).toLowerCase() === departmentId.toLowerCase());
+  }, [feedItems, overrides, isDepartmentManager, departmentId]);
 
   const selected = useMemo(
     () => items.find((g) => g.id === selectedId) ?? null,
@@ -204,7 +207,15 @@ export function AdminBoard() {
     if (assignedDept) patch.assignee = assignedDept;
 
     if (live) {
-      await updateGrievanceStatus(selected.id, patch);
+      if (status === "assigned" && assignedDept) {
+        await assignGrievance(selected.id, { departmentId: assignedDept, reason: "Department assignment reviewed by admin" });
+      } else if (status === "in_progress") {
+        await transitionGrievanceState(selected.id, { to_state: "IN_PROGRESS", reason: "Officer started work" });
+      } else if (status === "resolved") {
+        await transitionGrievanceState(selected.id, { to_state: "RESOLVED", reason: "Officer marked resolved" });
+      } else {
+        await updateGrievanceStatus(selected.id, patch);
+      }
     }
     patchLocal(selected.id, patch);
   }
@@ -212,7 +223,7 @@ export function AdminBoard() {
   return (
     <div className="space-y-6">
       {/* ── Department Portal Navigation Tabs ─────────────────────────── */}
-      <div className="border-b border-ink-200/80 bg-white pt-1">
+      {!isDepartmentManager && <div className="border-b border-ink-200/80 bg-white pt-1">
         <div className="pb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-ink-700">
             Department Portals
@@ -253,7 +264,7 @@ export function AdminBoard() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* ── Executive Command Metrics Bar ─────────────────────────────── */}
       <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">

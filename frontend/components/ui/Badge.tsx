@@ -1,4 +1,7 @@
+"use client";
+
 import { clsx } from "clsx";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 
 type Tone = "blue" | "dark" | "grey" | "outline" | "emerald" | "amber" | "rose";
 
@@ -35,19 +38,39 @@ export function Badge({
 }
 
 export function PriorityBadge({ priority }: { priority: string }) {
+  const { t } = useI18n();
   const p = priority.toLowerCase();
-  if (p === "high") return <Badge tone="rose">High priority</Badge>;
-  if (p === "medium") return <Badge tone="amber">Medium priority</Badge>;
-  return <Badge tone="grey">Low priority</Badge>;
+  if (p === "high") return <Badge tone="rose">{t("priorityHigh")}</Badge>;
+  if (p === "medium") return <Badge tone="amber">{t("priorityMedium")}</Badge>;
+  return <Badge tone="grey">{t("priorityLow")}</Badge>;
 }
 
+const STATUS_KEYS: Record<string, MessageKey> = {
+  submitted: "statusSubmitted",
+  open: "statusOpen",
+  triaged: "statusTriaged",
+  pending_assignment: "statusPendingAssignment",
+  ai_processing: "statusAiProcessing",
+  assigned: "statusAssigned",
+  in_progress: "statusInProgress",
+  blocked: "statusBlocked",
+  escalated: "statusEscalated",
+  under_review: "statusUnderReview",
+  resolution_submitted: "statusResolutionSubmitted",
+  resolved: "statusResolved",
+  closed: "statusClosed",
+  rejected: "statusRejected",
+};
+
 export function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
   const s = status.toLowerCase();
+  const key = STATUS_KEYS[s];
+  const label = key ? t(key) : status.replace("_", " ");
   if (s === "resolved" || s === "closed")
-    return <Badge tone="emerald">{status}</Badge>;
-  if (s === "open" || s === "submitted")
-    return <Badge tone="blue">{status}</Badge>;
+    return <Badge tone="emerald">{label}</Badge>;
+  if (s === "open" || s === "submitted") return <Badge tone="blue">{label}</Badge>;
   if (s === "in_progress" || s === "assigned")
-    return <Badge tone="amber">{status.replace("_", " ")}</Badge>;
-  return <Badge tone="outline">{status}</Badge>;
+    return <Badge tone="amber">{label}</Badge>;
+  return <Badge tone="outline">{label}</Badge>;
 }

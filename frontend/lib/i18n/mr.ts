@@ -1,0 +1,318 @@
+import type { Messages } from "./en";
+
+const mr: Messages = {
+  // ── Header ──
+  home: "मुख्यपृष्ठ",
+  register: "तक्रार नोंदणी",
+  track: "स्थिती पहा",
+  signIn: "साइन इन",
+  signOut: "साइन आउट",
+  createAccount: "खाते तयार करा",
+  submit: "तक्रार सादर करा",
+  language: "भाषा",
+  brandTagline: "राष्ट्रीय तक्रार पोर्टल",
+
+  // ── Footer ──
+  footerTrustRecords: "ऑडिट केलेले व छेडछाड ओळखता येणारे रेकॉर्ड",
+  footerTrustLocal: "स्थानिक नागरी कार्यपद्धतीसाठी बनवलेले",
+  footerTrustPrototype: "शैक्षणिक संशोधन प्रोटोटाइप",
+  footerAbout:
+    "पारदर्शक नागरी कार्यपद्धतीसाठी AI-सहाय्यतायुक्त तक्रार निराकरण व निर्णय-सहाय्य प्रोटोटाइप.",
+  footerSignIn: "साइन इन",
+  footerCreateAccount: "खाते तयार करा",
+  footerQuickLinks: "द्रुत लिंक",
+  footerServicesHeading: "नागरी सेवा",
+  footerContactHeading: "संपर्क व मदत",
+  svcRegister: "सार्वजनिक तक्रार नोंदणी करा",
+  svcTrack: "तक्रारीची स्थिती व कालरेखा पहा",
+  svcAssign: "अधिकारी वाटप व निराकरण",
+  svcAi: "AI-सहाय्यतायुक्त वर्गीकरण",
+  contactLocation: "स्थान-आधारित नागरी समस्या नोंद",
+  accountabilityLabel: "जवाबदारी:",
+  accountabilityText:
+    "विभागीय कृती व स्थिती बदल जवाबदार मानवीय पुनरावलोकनासाठी नोंदवले जातात.",
+  copyright: "GrievAI — नागरी तक्रार निराकरण प्रोटोटाइप.",
+
+  // ── Home: hero ──
+  homeBadge: "राष्ट्रीय सार्वजनिक तक्रार पोर्टल",
+  homeTitle: "प्रत्येक विनंतीसोबत आपल्या समुदायाला अधिक चांगले करा.",
+  homeSubtitle:
+    "महत्त्वाचे तपशील देऊन नागरी समस्या नोंदवा, ती पुढे कुठे जाते हे पहा आणि पारदर्शक, मानवीय पुनरावलोकनाच्या प्रक्रियेतून त्याची प्रगती पाहा.",
+  homeCtaRegister: "तक्रार नोंदणी करा",
+  homeCtaTrack: "विनंती पहा",
+  homeFree: "मोफत",
+  homeLocation: "स्थान-आधारित",
+  homeHuman: "मानवीय निर्णय",
+  homePathTitle: "निराकरणापर्यंत स्पष्ट मार्ग",
+  homePathSub: "सादर केल्यानंतर काय होते",
+  homeStep1Title: "आपण तथ्य शेअर करता",
+  homeStep1Text: "समस्या, पुरावा आणि अचूक स्थान.",
+  homeStep2Title: "विनंती व्यवस्थित केली जाते",
+  homeStep2Text: "AI-सहाय्यतायुक्त ट्रायेज राउटिंग व प्राधान्य सुचवते.",
+  homeStep3Title: "एखादा अधिकारी जबाबदारी घेतो",
+  homeStep3Text: "मानवीय टीम पुनरावलोकन करते, कृती करते आणि आपल्याला अपडेट देते.",
+
+  // ── Home: principles ──
+  principle1Title: "स्थान-आधारित",
+  principle1Text:
+    "समस्या घडलेली जिथे तिथे पिन करा जेणेकरून योग्य स्थानिक टीम कृती करू शकेल.",
+  principle2Title: "सहाय्यक ट्रायेज",
+  principle2Text:
+    "AI अहवाल व्यवस्थित करण्यात मदत करतो; निर्णय अधिकृत अधिकाऱ्यांच्याच जबाबदारीवर राहतात.",
+  principle3Title: "मानवीय पुनरावलोकन",
+  principle3Text:
+    "प्रत्येक वाटप, अपडेट व निराकरण जवाबदार मानवीय नियंत्रणात राहते.",
+
+  // ── Home: categories ──
+  reportBadge: "योग्य तपशीलांनी सुरुवात करा",
+  reportTitle: "आपण काय नोंदवू शकता?",
+  reportText:
+    "जवळचा श्रेणी निवडा किंवा फक्त समस्येचे वर्णन करा. प्रणाली ती योग्य नागरी विभागापर्यंत पोहोचण्यात मदत करते.",
+  reportLink: "नोंदणी फॉर्म पहा",
+  deptWaterLabel: "पाणी व स्वच्छता",
+  deptWaterDesc: "गळत्या, पाण्याची निचरा, पुरवठा व कचरा",
+  deptRoadsLabel: "मार्ग व वाहतूक",
+  deptRoadsDesc: "रस्ते, वाहतूक, वाहतूक व सिग्नल",
+  deptElectricityLabel: "वीज",
+  deptElectricityDesc: "वीजतडी, रस्त्यावरील दिवे व वितरण",
+  deptHealthLabel: "आरोग्य सेवा",
+  deptHealthDesc: "सार्वजनिक आरोग्य व वैद्यकीय सुविधा",
+  deptGovLabel: "नागरी शासन",
+  deptGovDesc: "प्रमाणपत्रे, सेवा व सरकारी कार्यालये",
+  deptOtherLabel: "इतर सार्वजनिक मुद्दे",
+  deptOtherDesc: "आपल्या समुदायाला प्रभावित करणारे कोणतेही विषय",
+
+  // ── Home: accountability ──
+  accBadge: "जवाबदारीसाठी बनवलेले",
+  accTitle: "प्रत्येक विनंतीला पुढील पाऊल असायला हवे.",
+  accText:
+    "आपला संदर्भ ID मूळ अहवालाला त्याच्या स्थिती अपडेटशी जोडतो. स्थान, पुरावा व प्रगती नोंदी सार्वजनिक टीमांना समस्या समजून अधिक चांगले निर्णय घेण्यात मदत करतात.",
+  accStep1Title: "संदर्भ ID जतन करा",
+  accStep1Text: "कधीही विनंती शोधण्यासाठी ते वापरा.",
+  accStep2Title: "कालरेखा पहा",
+  accStep2Text: "महत्त्वाचे स्थिती बदल पहा.",
+
+  // ── Request lifecycle ──
+  lifeBadge: "अहवालातून निराकरणापर्यंत स्पष्ट मार्ग",
+  lifeTitle: "पुढे काय होते हे जाणून घ्या",
+  lifeText:
+    "आपली विनंती दिसणाऱ्या आयुष्यचक्रातून जाते. AI अधिकाऱ्यांची रांग व्यवस्थित करण्यात मदत करते; वाटप, कृती व बंदीची जबाबदारी माणसाकडे राहते.",
+  lifeStageOf: "टप्पा {n} / {total}",
+  lifeStageAria: "जीवनचक्र टप्पा दाखवा: {label}",
+  life1Label: "सादर केले",
+  life1Short: "आपण सांगता",
+  life1Text: "काय घडले ते शेअर करा, फोटो जोडा आणि अचूक स्थान पिन करा.",
+  life2Label: "पुनरावलोकन केले",
+  life2Short: "आम्ही समजून घेतो",
+  life2Text:
+    "AI-सहाय्यतायुक्त ट्रायेज अधिकारी पुनरावलोकनासाठी श्रेणी व तातडीचे सुचवते.",
+  life3Label: "वाटप केले",
+  life3Short: "टीम घेते",
+  life3Text:
+    "अधिकृत विभाग व्यवस्थापक आपली विनंती योग्य अधिकाऱ्यापर्यंत पोहोचवतो.",
+  life4Label: "प्रगतीत",
+  life4Short: "काम सुरू",
+  life4Text: "वाटप केलेली टीम अपडेट, पुढील पाऊले व अपेक्षित वेळ नोंदवते.",
+  life5Label: "निराकरण झाले",
+  life5Short: "आपण परिणाम पाहता",
+  life5Text:
+    "निराकरणाचे पुनरावलोकन होते आणि अंतिम स्थिती आपल्यासाठी दिसत राहते.",
+
+  // ── Submit form ──
+  complaintDetails: "तक्रारीचे तपशील",
+  formSubtitle:
+    "* चिन्हांकित सर्व क्षेत्रे आवश्यक आहेत. स्वयंचलित ट्रायेज योग्य विभाग व प्राधान्य नेमते.",
+  formTitleLabel: "विषय / छोटे शीर्षक",
+  formTitlePlaceholder: "उदा. सेक्टर १२ जवळ फुटलेल्या पाईपमुळे पाणी जमा",
+  formDescLabel: "सविस्तर वर्णन",
+  formDescPlaceholder:
+    "काय घडले, विशिष्ट रस्ता किंवा लँडमार्क, समस्येचा कालावधी आणि रहिवाशांवरील परिणाम लिहा...",
+  formDeptLabel: "इच्छित विभाग (पर्यायी)",
+  formDeptHint:
+    "आपण विभागाचा सूचन देऊ शकता. स्वयंचलित ट्रायेज अंतिम राउटिंग पडताळून निश्चित करेल.",
+  formAutoClassify: "प्रणालीद्वारे स्वयं वर्गीकरण",
+  errTitleShort: "छोटे, विशिष्ट शीर्षक द्या (किमान ५ अक्षरे).",
+  errDescShort: "समस्येचे वर्णन किमान २० अक्षरांत करा.",
+  errLocationRequired: "स्थान आवश्यक आहे — “माझे स्थान नोंदवा” यावर क्लिक करा.",
+  errSubmitFailed: "सादर करणे अपयशी झाले. कृपया आपले कनेक्शन तपासा किंवा पुन्हा प्रयत्न करा.",
+  btnSubmitting: "सादर करणे व वर्गीकरण सुरू आहे…",
+  resultTitle: "तक्रार यशस्वीरित्या नोंदवली",
+  resultSubtitle: "आपली तक्रार ट्रॅक करण्यासाठी हा संदर्भ ID जतन करा.",
+  refIdLabel: "संदर्भ तिकीट ID",
+
+  // ── Image upload ──
+  imgLabel: "पुरावा फोटो",
+  imgHint: "पर्यायी. JPG किंवा PNG, कमाल १० MB.",
+  imgBadType: "कृपया JPG, PNG किंवा WebP प्रत निवडा.",
+  imgTooBig: "प्रत १० MB पेक्षा लहान असायला हवी.",
+  imgNotConfigured:
+    "या डेमोमध्ये प्रत अपलोड कॉन्फिगर केलेले नाही — फोटोशिवाय पुढे जात आहे.",
+  imgUploading: "अपलोड होत आहे…",
+  imgValidating: "प्रत तपासली जात आहे…",
+  imgProcessing: "प्रत तपासणी प्रक्रिया सुरू आहे…",
+  imgRejected: "प्रत नाकारली: {reason}. दुसरा फोटो वापरा.",
+  imgRejectedDefault: "सार्वजनिक तक्रारशी संबंधित नाही",
+  imgAccepted: "प्रत स्वीकारली.",
+  imgAcceptedScore: "प्रत स्वीकारली (तपासणी स्कोअर {score}).",
+  imgUploadFailed: "अपलोड अपयशी: {message}",
+  imgUploadUnknown: "अपलोड अपयशी: अज्ञात त्रुटी",
+
+  // ── Location capture ──
+  incidentLocation: "घटनाचे ठिकाण",
+  locHint:
+    "आपण आत्ता जिथे आहात तेथे नाही, तर समस्या घडलेली जिथे तिथे पिन करा. आपले निर्देशांक योग्य टीमला लवकर शोधण्यात मदत करतात.",
+  locBusy: "GPS निर्देशांक मिळवत आहे…",
+  locPin: "माझे सध्याचे स्थान नोंदवा",
+  locPinned: "✓ स्थान पडताळून पिन केले",
+  locRetry: "स्थान पुन्हा प्रयत्न करा",
+  locPinnedLabel: "स्थान पिन केले:",
+  locDenied: "परवानगी नाकारली — ब्राउझरमध्ये स्थान ऍक्सेसला परवानगी द्या.",
+  locCaptured: "✓ सध्याचे स्थान कॅप्चर केले",
+  locCloseMap: "नकाशा बंद करा",
+  locChooseMap: "तक्रार स्थान निवडा (पर्यायी)",
+  locPopupOrigin: "तुमचे सध्याचे स्थान",
+  locPopupDrag: "अचूक तक्रार स्थानासाठी हा पिन ओढा",
+  locClickMap: "पिन ठेवण्यासाठी नकाशावर क्लिक करा.",
+  locDragPin: "अचूकतेसाठी पिन ओढा.",
+  locOutOfRange: "तुमच्या सध्याच्या स्थानापासून {km} किमी अंतरातील तक्रार स्थान निवडा.",
+  locExact: "अचूक तक्रार स्थान: {coords}",
+  locNotSelected: "वेगळे तक्रार स्थान निवडले नाही; तुमचे सध्याचे स्थान वापरले जाईल.",
+  locCaptureFirst: "पर्यायी तक्रार-स्थान निवडक सक्षम करण्यासाठी आधी तुमचे सध्याचे स्थान कॅप्चर करा.",
+
+  // ── Track page ──
+  trackTitle: "तक्रारीची स्थिती पहा",
+  trackSubtitle:
+    "आपल्या सादर केलेल्या तक्रारी एकाच ठिकाणी पहा, किंवा पहण्यास अधिकृत अनुरोध शोधण्यासाठी संदर्भ ID वापरा.",
+  myGrievances: "माझ्या तक्रारी",
+  searchById: "ID ने शोधा",
+  search: "शोधा",
+  trackFindTitle: "संदर्भ ID ने तक्रार शोधा",
+  trackFindHint: "पावतीतून मिळालेल्या ID चा वापर करा, उदा.",
+  btnSearching: "शोधत आहे…",
+  trackQuerying: "तक्रार डेटाबेस क्वेरी करत आहे…",
+  timelineTitle: "निराकरण कालरेखा",
+  timelineSubtitle: "अधिकाऱ्यांच्या कृतीसह अपडेट होते",
+  trackNotFoundTitle: "या संदर्भ ID वर कोणतीही तक्रार आढळली नाही",
+  trackNotFoundHint:
+    "पावतीतून मिळालेला अचूक संदर्भ कोड तपासा. आपण फक्त ती अनुरोधे पाहू शकता जी पाहण्यास आपल्या खात्याला परवानगी आहे.",
+  byDeptTitle: "विभागानुसार अनुरोध",
+  byDeptText:
+    "रजिस्टरमधील एकूण अनुरोध. वैयक्तिक अनुरोध तपशील ॲक्सेस-नियंत्रित राहतात.",
+  requestOne: "अनुरोध",
+  requestMany: "अनुरोध",
+  signinTrackTitle: "स्थिती पाहण्यासाठी साइन इन करा",
+  signinTrackText:
+    "साइन इन केल्यानंतर आपला वैयक्तिक तक्रार इतिहास उपलब्ध होतो. यामुळे आपली अनुरोधे व अपडेट खाजगी राहतात.",
+  signinTrackBtn: "माझ्या तक्रारी पाहण्यासाठी साइन इन करा",
+  myGrievancesText: "आपल्या सादर केलेली अनुरोधे व त्यांची नवीनतम माहीत स्थिती.",
+  totalLabel: "एकूण",
+  noGrievancesTitle: "कोणतीही तक्रार आढळली नाही",
+  noGrievancesHint: "तक्रार सादर केल्यावर ती येथे दिसेल.",
+  myByDeptTitle: "विभागानुसार तक्रारी",
+  myByDeptText: "आपल्या खात्यात उपलब्ध अनुरोधांचे झडपी दृश्य.",
+
+  // ── Department names ──
+  dnameWater: "पाणी",
+  dnameRoads: "मार्ग",
+  dnameTransport: "वाहतूक",
+  dnameElectricity: "वीज",
+  dnameSanitation: "स्वच्छता",
+  dnameHealth: "आरोग्य",
+  dnameGovernance: "शासन",
+  dnameOther: "इतर",
+
+  // ── My grievances (submit page) ──
+  mySigninTitle: "माझ्या तक्रारी पाहण्यासाठी साइन इन करा",
+  mySigninHint: "आपल्या सादर केलेल्या तक्रारी व त्यांची थेट स्थिती येथे दिसेल.",
+  yourGrievances: "आपल्या तक्रारी",
+  trackByRef: "संदर्भ ID ने ट्रॅक करा →",
+  noGrievYetTitle: "अजून कोणतीही तक्रार नाही",
+  noGrievYetHint: "आपण सादर केलेल्या तक्रारी येथे दिसतील.",
+  checkingSession: "साइन-इन तपासत आहे…",
+  signinToSubmitTitle: "तक्रार नोंदवण्यासाठी साइन इन करा",
+  signinToSubmitText:
+    "आपले खाते अनुरोध आपल्याशी जोडण्यास आणि त्याची प्रगती सुरक्षितपणे दाखवण्यास मदत करते.",
+  signinToContinue: "पुढे जाण्यासाठी साइन इन करा",
+  signinToSubmitHint: "नवीन आहात? एका मिनिटापेक्षा कमी वेळात खाते तयार करू शकता.",
+  registerSubtitle: "सार्वजनिक तक्रार नोंदणी करा",
+  submitPageDesc:
+    "समस्येचे वर्णन द्या, पुरावे संलग्न करा आणि स्थान पिन करा. AI-सहाय्यित रूटिंग तुमची तक्रार योग्य विभागापर्यंत पोहोचेल याची खात्री करते.",
+
+  // ── Login ──
+  securePortal: "सुरक्षित पोर्टल",
+  loginSubLive: "नागरिकांसाठी व अधिकाऱ्यांसाठी अधिकृत पोर्टल ॲक्सेस.",
+  loginSubDemo: "आपल्या अधिकृत खाता क्रेडेंशियलसह साइन इन करा.",
+  errEnterCreds: "आपला ईमेल व पासवर्ड टाका.",
+  nameLabel: "पूर्ण नाव",
+  emailLabel: "ईमेल पत्ता",
+  passwordLabel: "पासवर्ड",
+  rememberMe: "मला आठवून ठेवा",
+  errInvalidCreds: "ईमेल किंवा पासवर्ड अवैध आहे.",
+  errGoogleCancelled: "Google प्रमाणीकरण रद्द केले.",
+  errGoogleFailed: "Google कडून क्रेडेंशियल पडताळण्यात अपयश.",
+  errSignIn: "साइन-इन त्रुटी: {reason}",
+  forgotPassword: "पासवर्ड विसरलात?",
+  btnSigningIn: "साइन इन होत आहे...",
+  orContinueWith: "किंवा यासह पुढे जा",
+  googleSignIn: "Google सह साइन इन करा",
+  googleSignUp: "Google सह साइन अप करा",
+  newHere: "नवीन आहात?",
+  showPassword: "पासवर्ड दाखवा",
+  hidePassword: "पासवर्ड लपवा",
+  loading: "लोड होत आहे...",
+
+  // ── Register ──
+  regSubLive: "अधिकृत नागरिक खाते नोंदणी.",
+  regSubDemo: "अधिकृत नागरिक पोर्टल ॲक्सेससाठी साइन अप करा.",
+  errFillAll: "खाते तयार करण्यासाठी सर्व क्षेत्रे भरा.",
+  errPasswordLen: "पासवर्ड किमान ८ अक्षरांचा असावा.",
+  errRegisterFailed: "खाते नोंदणी अपयशी झाली.",
+  passwordHint: "किमान ८ अक्षरे.",
+  btnCreating: "खाते तयार होत आहे...",
+  btnCreateAccount: "खाते तयार करा",
+  alreadyRegistered: "आधीच नोंदणी केली आहे?",
+
+  // ── AI analysis panel ──
+  aiSuggestion: "AI सूचना",
+  autoGenerated: "स्वयं निर्मित",
+  aiSure: "AI {pct}% खात्रीशीर आहे",
+  keyWordsSpotted: "ओळखलेली मुख्य शब्दे:",
+
+  // ── Status timeline ──
+  progressTimeline: "प्रगती कालरेखा",
+  rejectedTitle: "तिकीट नाकारले / कृतीशिवाय बंद",
+  rejectedText:
+    "ही सादरी नगरपालिका पडताळणी निकषांना पूर्ण झाली नाही किंवा ती डुप्लिकेट म्हणून चिन्हांकित केली.",
+  msSubmittedTitle: "तक्रार नोंदवली",
+  msSubmittedDesc: "पावती दिली आणि नगरपालिका रजिस्टरमध्ये नोंदवली.",
+  msTriagedTitle: "AI ट्रायेज व वर्गीकरण",
+  msTriagedDesc: "विभागीय राउटिंग, प्राधान्य व भावना मूल्यांकन.",
+  msAssignedTitle: "अधिकारी नेमले",
+  msAssignedDesc: "नियुक्त नोडल अधिकारी किंवा विभागीय टीमला वाटप.",
+  msInProgressTitle: "उपाय प्रगतीत",
+  msInProgressDesc: "क्षेत्र पाहणी, जागेवर दुरुस्ती किंवा नागरी कृती सुरू.",
+  msResolvedTitle: "निराकरण झाले व पडताळले",
+  msResolvedDesc:
+    "उपाय पडताळला आणि अधिकृत अधिकाऱ्याने तिकीट बंद केले.",
+
+  // ── Badges ──
+  priorityHigh: "उच्च प्राधान्य",
+  priorityMedium: "मध्यम प्राधान्य",
+  priorityLow: "कमी प्राधान्य",
+  statusSubmitted: "सादर केले",
+  statusOpen: "उघडे",
+  statusTriaged: "ट्रायेज केले",
+  statusPendingAssignment: "वाटप प्रलंबित",
+  statusAiProcessing: "AI प्रक्रिया",
+  statusAssigned: "वाटप केले",
+  statusInProgress: "प्रगतीत",
+  statusBlocked: "अडवले",
+  statusEscalated: "वरच्या पातळीवर पाठवले",
+  statusUnderReview: "पुनरावलोकनात",
+  statusResolutionSubmitted: "निराकरण सादर केले",
+  statusResolved: "निराकरण झाले",
+  statusClosed: "बंद",
+  statusRejected: "नाकारले",
+};
+
+export default mr;

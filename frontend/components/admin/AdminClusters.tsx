@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import type { TfidfCluster } from "@/lib/tfidf";
@@ -14,11 +15,14 @@ export function AdminClusters({
   activeClusterId,
   onSelect,
   onClear,
+  locations = {},
 }: {
   clusters: TfidfCluster[];
   activeClusterId: string | null;
   onSelect: (clusterId: string) => void;
   onClear: () => void;
+  /** Resolved "City, State" per group (see useClusterLocations). Absent until lookups settle. */
+  locations?: Record<string, string>;
 }) {
   return (
     <Card>
@@ -52,6 +56,12 @@ export function AdminClusters({
               <p className="truncate text-sm font-semibold text-ink-900">
                 {c.area || "Unknown area"}
               </p>
+              {locations[c.clusterId] && (
+                <p className="mt-0.5 flex items-center gap-1 truncate text-xs font-medium text-ink-600">
+                  <MapPin size={12} className="shrink-0 text-ink-400" />
+                  {locations[c.clusterId]}
+                </p>
+              )}
               <p className="mt-1 truncate text-xs text-ink-500">
                 Common words: {c.keywords.join(", ")}
               </p>

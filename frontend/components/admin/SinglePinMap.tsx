@@ -76,7 +76,9 @@ export function SinglePinMap({
   return (
     <div
       ref={containerRef}
-      className="h-56 w-full overflow-hidden rounded-md border border-ink-200"
+      // Same stacking-context containment as AdminMap: Leaflet's panes
+      // must stay inside the modal, below its own overlay chrome.
+      className="relative z-0 h-56 w-full overflow-hidden rounded-md border border-ink-200"
       role="application"
       aria-label="Grievance location map"
     />

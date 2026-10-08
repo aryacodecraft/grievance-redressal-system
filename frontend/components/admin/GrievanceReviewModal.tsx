@@ -65,7 +65,7 @@ export function GrievanceReviewModal({
 }) {
   // The queue remounts this dialog (via `key`) per grievance, so the action
   // form state initialises fresh from the opened record without an effect.
-  const [assignee, setAssignee] = useState(grievance?.assignee || DEPARTMENTS[0]);
+  const [assignee, setAssignee] = useState(grievance?.departmentId || grievance?.category || DEPARTMENTS[0].key);
   const [notes, setNotes] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -267,8 +267,8 @@ Attached Photo
                   disabled={submitting}
                 >
                   {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                    <option key={d.key} value={d.key}>
+                      {d.label}
                     </option>
                   ))}
                 </Select>
@@ -297,7 +297,7 @@ Attached Photo
                   className="flex items-center justify-center gap-1.5"
                 >
                   <Building2 size={14} />
-                  Assign &amp; Route
+                  Review department assignment
                 </Button>
 
                 <Button

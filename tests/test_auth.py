@@ -210,7 +210,7 @@ class TestGrievanceRBAC:
             headers=_bearer(admin_token),
         )
         assert res.status_code == 200
-        assert res.json()["status"] == "resolved"
+        assert res.json()["status"] == "RESOLVED"
 
     def test_resolver_can_patch_status(self, client, sample_payload):
         user_data = _reg(client, "cit_res@x.com").json()

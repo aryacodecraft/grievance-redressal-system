@@ -1,4 +1,4 @@
-# NEW_TODO_TASKS.md — Strategic Feature Roadmap & Tasks
+# TODO.md — Strategic Feature Roadmap & Tasks
 
 > **Created:** 2026-10-03  
 > **Source:** Direct owner instruction  
@@ -109,7 +109,7 @@
   - Resolver action center in `AdminBoard.tsx` with direct lifecycle transitions (`Open` → `Assigned` → `In Progress` → `Resolved` → `Rejected`).
   - Municipal department assignment routing with field notes / resolution memo recording.
   - Attached photographic proof inspection with full-resolution links.
-### C. Admin Structural Reorganization (Approved Plan — `memory/ADMIN_UI_RESTRUCTURING_PLAN.md`)
+### C. Admin Structural Reorganization (Completed: 2026-10-05, DEC-018)
 *(Completed: 2026-10-05, DEC-018)*
 - [x] **Top Navigation Sub-Tabs**: Add `Grievance Queue` (`/admin`) vs `Executive Analytics` (`/admin/analytics`) sub-tabs on Admin header. (`AdminNav.tsx`)
 - [x] **Lean `/admin` Triage Table**: Refactor `/admin` to show numerical KPI cards, filters, and full-width queue table with SLA status indicators (`Overdue` / `On Track`). Remove inline maps and charts from main board.
@@ -119,6 +119,23 @@
 > **Note (DEC-018):** the SLA indicator uses the display-only prototype heuristic in
 > `frontend/lib/sla.ts` until the Phase 9 / OQ-005 SLA configuration persists a real
 > `due_date`.
+
+### D. Frontend workflow completion (in progress)
+- [x] Expand resolver workspace into worker dashboard with assignment acknowledgement, progress/hold updates, structured escalation, completion submission, and timeline.
+- [ ] Add manager-facing escalation ticket response controls and notification inbox.
+- [x] Resolver workbench at `/resolver` with assigned queue, state actions, progress notes, resolution submission, and activity history.
+- [x] Superadmin overview at `/superadmin` with users, departments, and audit data.
+- [x] Citizen tracking consumes live recent grievances and history updates when authenticated.
+- [x] Add superadmin user role/active-state and department create/enable controls.
+- [x] Add department-manager resolver assignment controls to the frontend.
+- [ ] Add browser-level role/workflow tests and visual validation.
+
+### E. Citizen experience
+- [x] Improve home page guidance and request lifecycle explanation.
+- [x] Improve navbar active states and role-specific labels.
+- [x] Clarify and display required incident location capture in the complaint form.
+- [x] Require authentication before lodging a complaint in both frontend and API.
+- [x] Split tracking into personal grievances and reference-ID search tabs with department totals.
 
 ---
 
@@ -134,3 +151,21 @@
 - [ ] **Multilingual AI / NLP Pipeline Support**
   - Ensure the classification cascade (ML model, HF DeBERTa, Groq, keyword fallback) seamlessly handles multilingual inputs either via translation-before-classification or multilingual embeddings (e.g., IndicBERT / IndicTrans2 / Google Cloud Translation / Bhashini API).
   - Multilingual sentiment and urgency keyword detection (Hinglish/Hindi/regional idioms like "paani nahi hai", "bijli gul", "sadak tuti hai").
+
+---
+
+## 6. RBAC Spec Suite (`memory/rbac/`, docs-only, 2026-10-06)
+
+- [x] **Spec suite written** — 12 files in `memory/rbac/` (index, RBAC + SUPERADMIN-over-ADMIN matrix, auth reality, role interfaces, workflow/state machine, progress flow + customer timeline, ticket/assignment/priority/deadline, backend layers, API contracts, DB deltas, notification/audit/risks, phased checklist).
+- [ ] **Owner confirmations** — role-name mapping (`RESOLVER`→EMPLOYEE etc.), department model (enum vs collection), UPPER-state canonical, demo-mode flag, who publishes customer updates.
+- [ ] **Phase 0 build** — follow `memory/rbac/IMPLEMENTATION_CHECKLIST.md` order (0→6); fix stale `docs/SECURITY.md` / `docs/API.md` auth headers during build.
+
+---
+
+## 7. Testing-Phase Seed Accounts (2026-10-08, DEC-019)
+
+- [x] **Backend matrix** — `backend/app/seed_test_accounts.py` (superadmin + 8 managers + 8 employees, idempotent, departments auto-created, taxonomy == `CATEGORY_KEYS`); wired into startup behind `SEED_TEST_ACCOUNTS` + `SEED_TEST_PASSWORD` (`backend/app/config.py`, `backend/app/main.py`, `backend/.env.example`).
+- [x] **Sign-in surface** — `frontend/lib/testAccounts.ts` + `/login` dev box lists all 19 accounts with Autofill (gated by `NEXT_PUBLIC_SHOW_DEV_CREDS`); `frontend/.env.example` + `README.md` updated.
+- [x] **Tests** — `tests/test_seed_accounts.py` (matrix, idempotency, untouched-existing, cross-department 403 flow); `tests/conftest.py` pins seed flags off.
+- [ ] **Owner run** — set `SEED_TEST_ACCOUNTS=true` in `backend/.env` and `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`, restart both, verify logins.
+- [ ] Run `python tools/backfill_departments.py` against the configured MongoDB deployment for legacy grievances missing `departmentId`.

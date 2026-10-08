@@ -7,8 +7,6 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  BrainCircuit,
-  MapPin,
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -16,32 +14,17 @@ import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
 import { useDemoUser } from "@/lib/session";
 import { roleForEmail } from "@/lib/roles";
+import { TEST_ACCOUNTS } from "@/lib/testAccounts";
 import { getGoogleAuthUrl } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 const REMEMBER_KEY = "grievai.remembered-email";
-
-const highlights = [
-  {
-    Icon: BrainCircuit,
-    title: "AI-assisted triage",
-    text: "Automatic categorization and priority routing.",
-  },
-  {
-    Icon: MapPin,
-    title: "Location-aware reporting",
-    text: "Pin issues on a live map for faster dispatch.",
-  },
-  {
-    Icon: ShieldCheck,
-    title: "Audited accountability",
-    text: "Every status change is verified and logged.",
-  },
-];
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { signInDemo, login, liveMode } = useDemoUser();
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,13 +38,14 @@ function LoginForm() {
   const [remember, setRemember] = useState(initialEmail !== "");
 
   const urlError = searchParams.get("error");
+  const nextPath = searchParams.get("next") || "";
   const [error, setError] = useState<string | null>(
     urlError
       ? urlError === "google_denied"
-        ? "Google authentication was cancelled."
+        ? t("errGoogleCancelled")
         : urlError === "google_token_failed" || urlError === "no_id_token"
-          ? "Failed to verify credentials with Google."
-          : `Sign in error: ${urlError}`
+          ? t("errGoogleFailed")
+          : t("errSignIn", { reason: urlError })
       : null
   );
 
@@ -72,7 +56,7 @@ function LoginForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) {
-      setError("Enter your email and password.");
+      setError(t("errEnterCreds"));
       return;
     }
     setError(null);
@@ -88,18 +72,18 @@ function LoginForm() {
       if (liveMode) {
         const user = await login(email, password);
         const role = user.role.toUpperCase();
-        if (role === "ADMIN" || role === "SUPERADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/submit");
-        }
+        const staffHome = role === "SUPERADMIN" ? "/superadmin" : role === "ADMIN" ? "/admin" : role === "RESOLVER" ? "/resolver" : null;
+        const safeNext = nextPath.startsWith("/") && nextPath !== "/submit" ? nextPath : null;
+        router.push(staffHome ?? safeNext ?? "/submit");
       } else {
         const role = roleForEmail(email);
         signInDemo(email, role);
-        router.push(role === "admin" ? "/admin" : "/submit");
+        const staffHome = role === "superadmin" ? "/superadmin" : role === "resolver" ? "/resolver" : role === "admin" ? "/admin" : null;
+        const safeNext = nextPath.startsWith("/") && nextPath !== "/submit" ? nextPath : null;
+        router.push(staffHome ?? safeNext ?? "/submit");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid email or password.");
+      setError(err instanceof Error ? err.message : t("errInvalidCreds"));
     } finally {
       setIsSubmitting(false);
     }
@@ -110,77 +94,18 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)]">
-      {/* Left branding panel */}
-      <div className="relative hidden flex-shrink-0 overflow-hidden bg-ink-950 text-white lg:flex lg:w-[440px] xl:w-[500px] lg:flex-col lg:justify-between px-12 py-14">
-        {/* Decorative dot grid + primary glow */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-50"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)",
-            backgroundSize: "22px 22px",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary-600/25 blur-3xl"
-        />
-
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs">
-              G
-            </span>
-            <span className="text-base font-bold tracking-tight">GrievAI</span>
-          </div>
-
-          <h2 className="mt-10 text-3xl font-extrabold tracking-tight leading-[1.2]">
-            Transparent grievance resolution, powered by AI.
-          </h2>
-          <p className="mt-4 text-sm text-ink-400 leading-relaxed">
-            Submit, track, and resolve public complaints with AI-assisted
-            categorization and authorized officer oversight.
-          </p>
-
-          <div className="mt-10 space-y-5 border-t border-white/10 pt-8">
-            {highlights.map(({ Icon, title, text }) => (
-              <div key={title} className="flex items-start gap-3.5">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-white/5 text-primary-300 ring-1 ring-white/10">
-                  <Icon size={17} strokeWidth={1.75} />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-white">{title}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-ink-400">
-                    {text}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative z-10 text-xs text-ink-500 font-medium">
-          National Public Grievance Redressal and Citizen Support System.
-        </p>
-      </div>
-
-      {/* Right: login form */}
-      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-8 lg:px-16">
-        <div className="w-full max-w-sm mx-auto">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
+      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-8">
             <span className="inline-flex items-center gap-1.5 rounded-sm bg-primary-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-700 ring-1 ring-primary-200">
               <ShieldCheck size={12} strokeWidth={2} />
-              Secure portal
+              {t("securePortal")}
             </span>
             <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950">
-              Sign in
+              {t("signIn")}
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              {liveMode
-                ? "Official portal access for citizens and officers."
-                : "Sign in with your official account credentials."}
+              {liveMode ? t("loginSubLive") : t("loginSubDemo")}
             </p>
           </div>
 
@@ -189,39 +114,34 @@ function LoginForm() {
               <p className="font-semibold uppercase tracking-wider text-ink-900">
                 Dev test credentials
               </p>
-              <div className="mt-2 space-y-2.5">
-                <div className="flex items-center justify-between gap-2 border-b border-ink-200/60 pb-2">
-                  <div>
-                    <span className="font-semibold text-ink-900">Admin:</span>{" "}
-                    <code className="font-mono text-[11px]">admin@grievance.local</code>
-                  </div>
-                  <button
-                    type="button"
-                    className="font-medium text-primary-700 underline hover:text-primary-800"
-                    onClick={() => {
-                      setEmail("admin@grievance.local");
-                      setPassword("Admin@2026!");
-                    }}
+              <p className="mt-1 text-[11px] text-ink-500">
+                Seeded when the backend runs with SEED_TEST_ACCOUNTS=true.
+                Click Autofill to populate the form.
+              </p>
+              <div className="mt-2 max-h-64 space-y-2.5 overflow-y-auto pr-1">
+                {TEST_ACCOUNTS.map((acct) => (
+                  <div
+                    key={acct.email}
+                    className="flex items-center justify-between gap-2 border-b border-ink-200/60 pb-2 last:border-0 last:pb-0"
                   >
-                    Autofill
-                  </button>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <span className="font-semibold text-ink-900">Citizen:</span>{" "}
-                    <code className="font-mono text-[11px]">citizen@grievance.local</code>
+                    <div className="min-w-0">
+                      <span className="font-semibold text-ink-900">{acct.label}:</span>{" "}
+                      <code className="font-mono text-[11px] break-all">
+                        {acct.email}
+                      </code>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 font-medium text-primary-700 underline hover:text-primary-800"
+                      onClick={() => {
+                        setEmail(acct.email);
+                        setPassword(acct.password);
+                      }}
+                    >
+                      Autofill
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="font-medium text-primary-700 underline hover:text-primary-800"
-                    onClick={() => {
-                      setEmail("citizen@grievance.local");
-                      setPassword("Citizen@2026!");
-                    }}
-                  >
-                    Autofill
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
           )}
@@ -233,7 +153,7 @@ function LoginForm() {
           )}
 
           <form onSubmit={submit} className="space-y-4">
-            <Field label="Email address" required>
+            <Field label={t("emailLabel")} required>
               <Input
                 type="email"
                 name="email"
@@ -244,7 +164,7 @@ function LoginForm() {
                 disabled={isSubmitting}
               />
             </Field>
-            <Field label="Password" required>
+            <Field label={t("passwordLabel")} required>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
@@ -258,7 +178,7 @@ function LoginForm() {
                 />
                 <button
                   type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? t("hidePassword") : t("showPassword")}
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-ink-400 transition-colors hover:text-ink-700"
                 >
@@ -275,13 +195,13 @@ function LoginForm() {
                   onChange={(e) => setRemember(e.target.checked)}
                   className="h-3.5 w-3.5 rounded border-ink-300 accent-primary-600"
                 />
-                Remember me
+                {t("rememberMe")}
               </label>
               <Link
                 href="mailto:support@grievai.gov.in?subject=Password%20reset%20request"
                 className="text-xs font-medium text-primary-700 hover:underline"
               >
-                Forgot password?
+                {t("forgotPassword")}
               </Link>
             </div>
 
@@ -291,7 +211,7 @@ function LoginForm() {
               className="w-full"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Signing in..." : "Sign in"}
+              {isSubmitting ? t("btnSigningIn") : t("signIn")}
               {!isSubmitting && <ArrowRight size={16} strokeWidth={2} />}
             </Button>
           </form>
@@ -303,7 +223,7 @@ function LoginForm() {
                   <div className="w-full border-t border-ink-200" />
                 </div>
                 <span className="relative bg-white px-2 text-xs uppercase text-ink-500">
-                  Or continue with
+                  {t("orContinueWith")}
                 </span>
               </div>
               <Button
@@ -331,7 +251,7 @@ function LoginForm() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                Sign in with Google
+                {t("googleSignIn")}
               </Button>
             </div>
           )}
@@ -346,23 +266,23 @@ function LoginForm() {
           )}
 
           <p className="mt-6 text-center text-sm text-ink-500">
-            New here?{" "}
+            {t("newHere")}{" "}
             <Link
               href="/register"
               className="font-medium text-primary-700 hover:underline"
             >
-              Create an account
+              {t("createAccount")}
             </Link>
           </p>
         </div>
-      </div>
     </div>
   );
 }
 
 export default function LoginPage() {
+  const { t } = useI18n();
   return (
-    <Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-center">{t("loading")}</div>}>
       <LoginForm />
     </Suspense>
   );

@@ -22,9 +22,12 @@ const log = (step, detail = "") =>
 
 /* ── 1. roleForEmail / isAdminEmail ──────────────────────────────────────── */
 
-// The allowlist is the intended path: both seeded admins resolve to "admin".
+// The allowlist is the intended path: seeded privileged accounts resolve to
+// their explicit role, never from a substring match.
 assert.equal(roles.roleForEmail("admin@grievai.test"), "admin");
 assert.equal(roles.roleForEmail("aryaadmin@gmail.com"), "admin");
+assert.equal(roles.roleForEmail("superadmin@grievance.local"), "superadmin");
+assert.equal(roles.roleForEmail("roads.employee@grievance.local"), "resolver");
 log("roleForEmail allowlist");
 
 // Case- and whitespace-insensitive.
@@ -37,46 +40,35 @@ assert.equal(roles.roleForEmail("citizen@example.com"), "citizen");
 assert.equal(roles.roleForEmail("priya.sharma@city.gov.in"), "citizen");
 log("roleForEmail citizen path");
 
-// BASELINE (Phase 1 replaces this): the fallback is `includes("admin")`, so
-// ANY address containing that substring — as a substring of a word, not as a
-// local part — is promoted to admin. `notadmin@example.com` and
-// `my-admin-tool@example.com` are not admins by any reading; they pass here
-// only because demo auth is client-side placeholder code (DEC-009) and the
-// backend enforces nothing at all yet.
-//
-// When Phase 1 (JWT + RBAC) lands, this block must flip to expect "citizen".
 const escalated = [
   "notadmin@example.com",
   "my-admin-tool@example.com",
   "BADADMIN@x.com",
   "administrivia@x.com",
-].filter((email) => roles.roleForEmail(email) === "admin");
+].filter((email) => roles.roleForEmail(email) !== "citizen");
 assert.equal(
   escalated.length,
-  4,
-  `BASELINE changed: ${escalated.length}/4 demo-admin escalations now behave ` +
-    "differently. If Phase 1 landed, replace this assertion with the secure " +
-    `expectation (all four should be "citizen").`
+  0,
+  `Unexpected privileged role for ${escalated.join(", ")}`
 );
 log(
-  "BASELINE roleForEmail substring escalation",
-  `${escalated.length}/4 promoted to admin — Phase 1 must remove this`
+  "roleForEmail rejects substring privilege escalation",
+  "all unlisted addresses remain citizens"
 );
 
 /* ── 2. useMocks() ───────────────────────────────────────────────────────── */
 
-// `!== "false"` means anything but the exact lowercase string turns mocks ON.
-// A deployment that sets "FALSE", "0", "no" or leaves it blank gets mock data
-// with no warning — this is the highest-risk config value in the frontend.
+// Common false spellings must all select live mode.
 const mockOn = [];
 const mockOff = [];
 for (const [value, bucket] of [
   [undefined, mockOn],
   ["", mockOn],
-  ["0", mockOn],
-  ["FALSE", mockOn],
-  ["False", mockOn],
-  ["no", mockOn],
+  ["0", mockOff],
+  ["FALSE", mockOff],
+  ["False", mockOff],
+  ["no", mockOff],
+  ["off", mockOff],
   ["true", mockOn],
   ["false", mockOff],
 ]) {
@@ -92,11 +84,9 @@ log(
 
 /* ── 3. zod schemas vs. backend JSON (stubbed fetch) ─────────────────────── */
 
-let lastRequest = null;
 let nextResponse = { status: 200, body: {} };
 
-globalThis.fetch = async (url, init = {}) => {
-  lastRequest = { url: String(url), init };
+globalThis.fetch = async function fetchStub() {
   const { status, body } = nextResponse;
   return {
     ok: status >= 200 && status < 300,
@@ -263,5 +253,44 @@ await assert.rejects(
   /Request failed \(404\)/
 );
 log("BASELINE a 'detail'-shaped error degrades to a generic message");
+
+/* ── 4. parseCityState / formatCityState ─────────────────────────────────── */
+// Pure Nominatim-address parsing for similar-complaint "City, State" labels.
+// No network involved, so these run offline like the rest of this script.
+const location = await import("../lib/location.ts");
+
+// Full address: city + state win over district-level fallbacks.
+assert.deepEqual(
+  location.parseCityState({
+    suburb: "Koramangala",
+    city: "Bengaluru",
+    state: "Karnataka",
+  }),
+  { city: "Bengaluru", state: "Karnataka" }
+);
+// Town/village/district fallbacks when no `city` key exists.
+assert.deepEqual(
+  location.parseCityState({ town: "Dharampeth", state: "Maharashtra" }),
+  { city: "Dharampeth", state: "Maharashtra" }
+);
+assert.deepEqual(
+  location.parseCityState({ state_district: "Pune", state: "Maharashtra" }),
+  { city: "Pune", state: "Maharashtra" }
+);
+// Missing halves degrade gracefully instead of printing "null".
+assert.deepEqual(location.parseCityState({ state: "Goa" }), {
+  city: null,
+  state: "Goa",
+});
+assert.deepEqual(location.parseCityState({}), { city: null, state: null });
+assert.deepEqual(location.parseCityState(null), { city: null, state: null });
+assert.equal(
+  location.formatCityState({ city: "Bengaluru", state: "Karnataka" }),
+  "Bengaluru, Karnataka"
+);
+assert.equal(location.formatCityState({ city: null, state: "Goa" }), "Goa");
+assert.equal(location.formatCityState({ city: "Panaji", state: null }), "Panaji");
+assert.equal(location.formatCityState(null), null);
+log("parseCityState/formatCityState city-state labels");
 
 console.log("\ncontract checks passed");

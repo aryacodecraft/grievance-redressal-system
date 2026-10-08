@@ -8,10 +8,12 @@ import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
 import { useDemoUser } from "@/lib/session";
 import { getGoogleAuthUrl } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { signInDemo, register, liveMode } = useDemoUser();
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,11 +23,11 @@ export default function RegisterPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name || !email || !password) {
-      setError("Fill in all fields to create your account.");
+      setError(t("errFillAll"));
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError(t("errPasswordLen"));
       return;
     }
     setError(null);
@@ -40,7 +42,7 @@ export default function RegisterPage() {
         router.push("/submit");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to register account.");
+      setError(err instanceof Error ? err.message : t("errRegisterFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -51,39 +53,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)]">
-      {/* Left branding panel */}
-      <div className="hidden lg:flex lg:flex-col lg:justify-between bg-ink-950 text-white px-12 py-16 lg:w-[420px] xl:w-[480px] flex-shrink-0">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs">
-              G
-            </span>
-            <span className="text-base font-bold tracking-tight">GrievAI</span>
-          </div>
-          <h2 className="mt-10 text-3xl font-extrabold tracking-tight leading-[1.2]">
-            Join the transparent civic redressal network.
-          </h2>
-          <p className="mt-4 text-sm text-ink-400 leading-relaxed">
-            Create an official account to submit grievances, receive real-time status notifications, and track decisions directly to closure.
-          </p>
-        </div>
-        <p className="text-xs text-ink-500 font-medium">
-          National Public Grievance Redressal and Citizen Support System.
-        </p>
-      </div>
-
-      {/* Right: registration form */}
-      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-8 lg:px-16">
-        <div className="w-full max-w-sm mx-auto">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
+      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight text-ink-950">
-              Create an account
+              {t("createAccount")}
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              {liveMode
-                ? "Official citizen account registration."
-                : "Sign up for official citizen portal access."}
+              {liveMode ? t("regSubLive") : t("regSubDemo")}
             </p>
           </div>
 
@@ -94,7 +71,7 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={submit} className="space-y-4">
-            <Field label="Full name" required>
+            <Field label={t("nameLabel")} required>
               <Input
                 placeholder="Asha Sharma"
                 value={name}
@@ -102,7 +79,7 @@ export default function RegisterPage() {
                 disabled={isSubmitting}
               />
             </Field>
-            <Field label="Email address" required>
+            <Field label={t("emailLabel")} required>
               <Input
                 type="email"
                 placeholder="you@example.in"
@@ -111,7 +88,7 @@ export default function RegisterPage() {
                 disabled={isSubmitting}
               />
             </Field>
-            <Field label="Password" required hint="Minimum 8 characters.">
+            <Field label={t("passwordLabel")} required hint={t("passwordHint")}>
               <Input
                 type="password"
                 placeholder="••••••••"
@@ -126,7 +103,7 @@ export default function RegisterPage() {
               className="w-full"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Creating account..." : "Create account"}
+              {isSubmitting ? t("btnCreating") : t("btnCreateAccount")}
             </Button>
           </form>
 
@@ -137,7 +114,7 @@ export default function RegisterPage() {
                   <div className="w-full border-t border-ink-200" />
                 </div>
                 <span className="relative bg-white px-2 text-xs uppercase text-ink-500">
-                  Or continue with
+                  {t("orContinueWith")}
                 </span>
               </div>
               <Button
@@ -165,22 +142,21 @@ export default function RegisterPage() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                Sign up with Google
+                {t("googleSignUp")}
               </Button>
             </div>
           )}
 
           <p className="mt-6 text-center text-sm text-ink-500">
-            Already registered?{" "}
+            {t("alreadyRegistered")}{" "}
             <Link
               href="/login"
               className="font-medium text-primary-700 hover:underline"
             >
-              Sign in
+              {t("signIn")}
             </Link>
           </p>
         </div>
-      </div>
     </div>
   );
 }
