@@ -10,6 +10,7 @@ import { groupSimilarComplaints } from "@/lib/tfidf";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { AdminClusters } from "./AdminClusters";
+import { AdminAreaClusters, buildAreaClusters } from "./AdminAreaClusters";
 import { AdminMap } from "./AdminMap";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
 import { useClusterLocations } from "./useClusterLocations";
@@ -93,6 +94,7 @@ export function AdminAnalytics() {
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
   const clusterLocations = useClusterLocations(items, clusters);
+  const areaClusters = useMemo(() => buildAreaClusters(items), [items]);
 
   const macro = useMemo(() => {
     let resolved = 0;
@@ -186,6 +188,12 @@ export function AdminAnalytics() {
       {/* Distribution charts */}
       <AdminCharts items={items} />
 
+      <div className="space-y-4 border-t border-ink-100 pt-6">
+        <div>
+          <h3 className="text-sm font-bold uppercase tracking-wider text-ink-700">Spatial analysis</h3>
+          <p className="text-xs text-ink-500">Explore complaint locations and identify geographic hotspots.</p>
+        </div>
+
       {/* Map of complaint locations */}
       <Card className="border-ink-200/80 shadow-2xs">
         <CardHeader
@@ -201,6 +209,9 @@ export function AdminAnalytics() {
           />
         </CardBody>
       </Card>
+
+      <AdminAreaClusters clusters={areaClusters} />
+      </div>
 
       {/* Groups of similar complaints */}
       <AdminClusters
