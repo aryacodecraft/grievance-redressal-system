@@ -58,17 +58,14 @@ export function GrievanceReviewModal({
   grievance,
   onClose,
   onStatusTransition,
-  officers = [],
 }: {
   grievance: Grievance | null;
   onClose: () => void;
-  onStatusTransition: (status: string, assignedDept?: string, ownerId?: string) => Promise<void>;
-  officers?: Record<string, unknown>[];
+  onStatusTransition: (status: string, assignedDept?: string) => Promise<void>;
 }) {
   // The queue remounts this dialog (via `key`) per grievance, so the action
   // form state initialises fresh from the opened record without an effect.
-  const [assignee, setAssignee] = useState(grievance?.assignee || DEPARTMENTS[0]);
-  const [ownerId, setOwnerId] = useState("");
+  const [assignee, setAssignee] = useState(grievance?.departmentId || grievance?.category || DEPARTMENTS[0].key);
   const [notes, setNotes] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +116,7 @@ export function GrievanceReviewModal({
     setNotice(null);
     setError(null);
     try {
-      await onStatusTransition(status, assignedDept, ownerId || undefined);
+      await onStatusTransition(status, assignedDept);
       setNotice(`Ticket ${g.id} updated to status "${status.replace("_", " ")}".`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Status transition failed.");
@@ -270,23 +267,12 @@ Attached Photo
                   disabled={submitting}
                 >
                   {DEPARTMENTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
+                    <option key={d.key} value={d.key}>
+                      {d.label}
                     </option>
                   ))}
                 </Select>
               </Field>
-
-              {officers.length > 0 && (
-                <Field label="Assign to Officer" hint="The selected department employee receives the ticket.">
-                  <Select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} disabled={submitting}>
-                    <option value="">Select an officer</option>
-                    {officers.filter((o) => String(o.role) === "RESOLVER").map((o) => (
-                      <option key={String(o.id)} value={String(o.id)}>{String(o.full_name ?? o.email)}</option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
 
               <Field
                 label="Officer Notes (Optional)"
@@ -311,7 +297,7 @@ Attached Photo
                   className="flex items-center justify-center gap-1.5"
                 >
                   <Building2 size={14} />
-                  Assign &amp; Route
+                  Review department assignment
                 </Button>
 
                 <Button
