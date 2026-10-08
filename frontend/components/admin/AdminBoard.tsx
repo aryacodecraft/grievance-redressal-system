@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Feedback";
-import { updateGrievanceStatus } from "@/lib/api";
+import { assignGrievance, listUsers, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
@@ -102,6 +102,12 @@ export function AdminBoard() {
 
   // Review modal
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [officers, setOfficers] = useState<Record<string, unknown>[]>([]);
+
+  useEffect(() => {
+    if (!live) return;
+    void listUsers().then((rows) => setOfficers(rows as Record<string, unknown>[])).catch(() => setOfficers([]));
+  }, [live]);
 
   const items = useMemo(
     () => feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g)),
@@ -198,13 +204,21 @@ export function AdminBoard() {
     setOverrides((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
-  async function handleStatusTransition(status: string, assignedDept?: string) {
+  async function handleStatusTransition(status: string, assignedDept?: string, ownerId?: string) {
     if (!selected) return;
     const patch: { status: string; assignee?: string } = { status };
     if (assignedDept) patch.assignee = assignedDept;
 
     if (live) {
-      await updateGrievanceStatus(selected.id, patch);
+      if (status === "assigned" && ownerId) {
+        await assignGrievance(selected.id, { departmentId: selected.category || "other", ownerId, reason: "Assigned by department manager" });
+      } else if (status === "in_progress") {
+        await transitionGrievanceState(selected.id, { to_state: "IN_PROGRESS", reason: "Officer started work" });
+      } else if (status === "resolved") {
+        await transitionGrievanceState(selected.id, { to_state: "RESOLVED", reason: "Officer marked resolved" });
+      } else {
+        await updateGrievanceStatus(selected.id, patch);
+      }
     }
     patchLocal(selected.id, patch);
   }
@@ -573,6 +587,7 @@ export function AdminBoard() {
         grievance={selected}
         onClose={() => setSelectedId(null)}
         onStatusTransition={handleStatusTransition}
+        officers={officers}
       />
     </div>
   );

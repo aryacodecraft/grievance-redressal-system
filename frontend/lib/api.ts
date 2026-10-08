@@ -170,6 +170,8 @@ const grievanceSchema = z.object({
   dueDate: z.string().nullish(),
   resolvedAt: z.string().nullish(),
   closedAt: z.string().nullish(),
+  stateHistory: z.array(z.record(z.string(), z.unknown())).nullish(),
+  assignmentHistory: z.array(z.record(z.string(), z.unknown())).nullish(),
   // `to_api()` emits this whenever an image was attached, and lib/types.ts
   // declares it on Grievance detail views need it back — without it here the
   // stored verdict is stripped by zod before any component can read it.
@@ -190,10 +192,16 @@ export async function submitGrievance(
 /** List grievances. Pass `userId` to scope to a citizen's own submissions. */
 export async function listGrievances(params?: {
   userId?: string;
+  state?: string;
+  dept?: string;
+  overdue?: boolean;
 }): Promise<z.infer<typeof grievanceListSchema>> {
-  const qs = params?.userId
-    ? `?userId=${encodeURIComponent(params.userId)}`
-    : "";
+  const query = new URLSearchParams();
+  if (params?.userId) query.set("userId", params.userId);
+  if (params?.state) query.set("state", params.state);
+  if (params?.dept) query.set("dept", params.dept);
+  if (params?.overdue) query.set("overdue", "true");
+  const qs = query.toString() ? `?${query.toString()}` : "";
   const raw = await requestJson<unknown>(`/grievances${qs}`, { method: "GET" });
   return grievanceListSchema.parse(raw);
 }
@@ -244,9 +252,29 @@ export async function transitionGrievanceState(
 
 export async function addProgressUpdate(
   id: string,
-  body: { bodyInternal: string; bodyCustomer?: string; visibility?: string; kind?: string }
+  body: { bodyInternal: string; bodyCustomer?: string; visibility?: string; kind?: string; etaClass?: string; workCompleted?: string; currentSituation?: string; nextAction?: string }
 ): Promise<unknown> {
   return postJson(`/grievances/${encodeURIComponent(id.trim())}/progress`, body);
+}
+
+export async function reassignGrievance(id: string, body: { ownerId: string; departmentId?: string; reason: string }): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/reassign`, body);
+}
+
+export async function updatePriority(id: string, priority: string, reason: string): Promise<unknown> {
+  return patchJson(`/grievances/${encodeURIComponent(id.trim())}/priority`, { priority, reason });
+}
+
+export async function submitResolution(id: string, text: string, actions: string[] = []): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/resolution`, { text, actions });
+}
+
+export async function approveResolution(id: string, reason: string): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/approve-resolution`, { reason });
+}
+
+export async function closeGrievance(id: string, reason: string): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/close`, { reason });
 }
 
 export async function getGrievanceHistory(id: string): Promise<unknown[]> {
@@ -260,6 +288,22 @@ export async function getGrievanceHistory(id: string): Promise<unknown[]> {
 export async function listUsers(): Promise<unknown[]> {
   const raw = await requestJson<unknown>(`/users`, { method: "GET" });
   return raw as unknown[];
+}
+
+export async function updateUserRole(userId: string, role: string, reason: string): Promise<unknown> {
+  return postJson(`/users/${encodeURIComponent(userId)}/roles`, { role, reason });
+}
+
+export async function setUserActive(userId: string, isActive: boolean, reason: string): Promise<unknown> {
+  return postJson(`/users/${encodeURIComponent(userId)}/active`, { is_active: isActive, reason });
+}
+
+export async function createDepartment(body: { name: string; key: string; managerId?: string; reason?: string }): Promise<unknown> {
+  return postJson("/departments", body);
+}
+
+export async function updateDepartment(id: string, body: { name?: string; managerId?: string; isActive?: boolean; reason?: string }): Promise<unknown> {
+  return patchJson(`/departments/${encodeURIComponent(id)}`, body);
 }
 
 export async function listDepartments(): Promise<unknown[]> {
@@ -310,7 +354,8 @@ export async function checkBackendHealth(): Promise<boolean> {
 }
 
 export function useMocks(): boolean {
-  return process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
+  const value = (process.env.NEXT_PUBLIC_USE_MOCKS ?? "true").trim().toLowerCase();
+  return !["false", "0", "no", "off"].includes(value);
 }
 
 export const CLOUDINARY_CLOUD_NAME =

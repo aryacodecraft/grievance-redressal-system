@@ -58,14 +58,17 @@ export function GrievanceReviewModal({
   grievance,
   onClose,
   onStatusTransition,
+  officers = [],
 }: {
   grievance: Grievance | null;
   onClose: () => void;
-  onStatusTransition: (status: string, assignedDept?: string) => Promise<void>;
+  onStatusTransition: (status: string, assignedDept?: string, ownerId?: string) => Promise<void>;
+  officers?: Record<string, unknown>[];
 }) {
   // The queue remounts this dialog (via `key`) per grievance, so the action
   // form state initialises fresh from the opened record without an effect.
   const [assignee, setAssignee] = useState(grievance?.assignee || DEPARTMENTS[0]);
+  const [ownerId, setOwnerId] = useState("");
   const [notes, setNotes] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +119,7 @@ export function GrievanceReviewModal({
     setNotice(null);
     setError(null);
     try {
-      await onStatusTransition(status, assignedDept);
+      await onStatusTransition(status, assignedDept, ownerId || undefined);
       setNotice(`Ticket ${g.id} updated to status "${status.replace("_", " ")}".`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Status transition failed.");
@@ -273,6 +276,17 @@ Attached Photo
                   ))}
                 </Select>
               </Field>
+
+              {officers.length > 0 && (
+                <Field label="Assign to Officer" hint="The selected department employee receives the ticket.">
+                  <Select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} disabled={submitting}>
+                    <option value="">Select an officer</option>
+                    {officers.filter((o) => String(o.role) === "RESOLVER").map((o) => (
+                      <option key={String(o.id)} value={String(o.id)}>{String(o.full_name ?? o.email)}</option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
 
               <Field
                 label="Officer Notes (Optional)"

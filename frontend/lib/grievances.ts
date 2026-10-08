@@ -9,6 +9,7 @@ export interface SubscribeOptions {
   intervalMs?: number;
   /** Force scoping to a specific user (true = citizen's own, false = all grievances for admin). */
   scopeToUser?: boolean;
+  departmentId?: string;
 }
 
 /**
@@ -21,7 +22,7 @@ export function subscribeGrievances(
   email: string | null,
   onData: (items: Grievance[]) => void,
   onError: (message: string) => void,
-  { intervalMs = 15000, scopeToUser }: SubscribeOptions = {}
+  { intervalMs = 15000, scopeToUser, departmentId }: SubscribeOptions = {}
 ): () => void {
   let cancelled = false;
 
@@ -29,7 +30,7 @@ export function subscribeGrievances(
     try {
       const shouldScope =
         scopeToUser !== undefined ? scopeToUser : !isAdminEmail(email);
-      const items = await listGrievances(shouldScope ? { userId } : {});
+      const items = await listGrievances(shouldScope ? { userId } : { dept: departmentId });
       if (!cancelled) onData(items);
     } catch (err) {
       if (!cancelled) {

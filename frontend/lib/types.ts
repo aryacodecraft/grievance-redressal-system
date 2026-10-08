@@ -23,6 +23,30 @@ export interface Grievance {
   longitude?: number | null;
   hfEngine?: HfEngine | null;
   assignee?: string | null;
+  state?: string;
+  departmentId?: string | null;
+  ownerId?: string | null;
+  managerId?: string | null;
+  dueDate?: string | null;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  stateHistory?: StateHistoryEntry[] | null;
+  assignmentHistory?: StateHistoryEntry[] | null;
+}
+
+export interface StateHistoryEntry {
+  from?: string;
+  to?: string;
+  by?: string;
+  byRole?: string;
+  reason?: string;
+  at?: string;
+  createdAt?: string;
+  bodyCustomer?: string;
+  bodyInternal?: string;
+  visibility?: string;
+  kind?: string;
+  [key: string]: unknown;
 }
 
 export interface SubmitPayload {
@@ -46,6 +70,7 @@ export interface AuthUser {
   name: string;
   role: "USER" | "ADMIN" | "RESOLVER" | "SUPERADMIN" | "citizen" | "admin" | string;
   avatarUrl?: string;
+  departmentId?: string | null;
 }
 
 export interface AuthResponse {
@@ -58,6 +83,7 @@ export interface AuthResponse {
     full_name: string;
     role: string;
     avatar_url?: string;
+    departmentId?: string | null;
   };
 }
 
