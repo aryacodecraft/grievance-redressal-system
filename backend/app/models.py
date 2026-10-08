@@ -65,7 +65,7 @@ class StateTransitionRequest(BaseModel):
 
 class AssignRequest(BaseModel):
     departmentId: str
-    ownerId: str
+    ownerId: str | None = None
     dueDate: str | None = None
     reason: str
     overrideAi: bool = False
@@ -84,6 +84,7 @@ class ProgressUpdateRequest(BaseModel):
     workCompleted: str | None = None
     currentSituation: str | None = None
     nextAction: str | None = None
+    attachmentUrl: str | None = None
 
 class PriorityUpdateRequest(BaseModel):
     priority: str
@@ -96,10 +97,16 @@ class DeadlineUpdateRequest(BaseModel):
 class EscalationRequest(BaseModel):
     reason: str
     targetDept: str | None = None
+    issueType: str | None = None
+    description: str | None = None
+    suggestedAction: str | None = None
+    evidenceUrl: str | None = None
 
 class ResolutionRequest(BaseModel):
     text: str
     actions: list[str] = Field(default_factory=list)
+    completionPhotoUrl: str | None = None
+    supportingDocumentUrl: str | None = None
 
 class CloseRequest(BaseModel):
     reason: str
