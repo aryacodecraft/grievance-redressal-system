@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDemoUser } from "@/lib/session";
+import { LANGUAGES, useI18n } from "@/lib/i18n";
 
 /**
  * Top header for citizens and logged-out visitors. Staff accounts skip it
@@ -16,12 +17,13 @@ const links = [
 
 export function SiteHeader() {
   const { user, signOut } = useDemoUser();
+  const { language, setLanguage, t } = useI18n();
   const pathname = usePathname();
 
   const linkIsActive = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">
+    <header className="relative sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">
       <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3 group">
           <span
@@ -47,11 +49,15 @@ export function SiteHeader() {
               aria-current={linkIsActive(l.href) ? "page" : undefined}
               className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors hover:bg-ink-100/70 hover:text-ink-950 ${linkIsActive(l.href) ? "bg-primary-50 text-primary-700" : "text-ink-600"}`}
             >
-              {l.label}
+              {l.href === "/" ? t("home") : l.href === "/submit" ? t("register") : t("track")}
             </Link>
           ))}
         </nav>
         <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor="language-select">{t("language")}</label>
+          <select id="language-select" value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="h-8 rounded-md border border-ink-200 bg-white px-2 text-xs font-semibold text-ink-700 shadow-2xs focus:border-primary-500 focus:outline-none">
+            {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          </select>
           {user ? (
             <>
               <div className="hidden items-center gap-1.5 sm:flex">
@@ -66,7 +72,7 @@ export function SiteHeader() {
                 onClick={signOut}
                 className="rounded-sm px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:bg-ink-100 hover:text-ink-950"
               >
-                Sign out
+              {t("signOut")}
               </button>
             </>
           ) : (
@@ -74,7 +80,7 @@ export function SiteHeader() {
               href="/login"
               className="rounded-sm px-3 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:bg-ink-100 hover:text-ink-950"
             >
-              Sign in
+              {t("signIn")}
             </Link>
           )}
         </div>
@@ -90,7 +96,7 @@ export function SiteHeader() {
             aria-current={linkIsActive(l.href) ? "page" : undefined}
             className={`whitespace-nowrap rounded-sm px-3 py-1 text-xs font-medium hover:bg-ink-100 hover:text-ink-950 ${linkIsActive(l.href) ? "bg-primary-50 text-primary-700" : "text-ink-600"}`}
           >
-            {l.label}
+            {l.href === "/" ? t("home") : l.href === "/submit" ? t("register") : t("track")}
           </Link>
         ))}
       </nav>
