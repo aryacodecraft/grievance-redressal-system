@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/Feedback";
 import { MOCK_GRIEVANCES } from "@/lib/mock";
 import { subscribeGrievances } from "@/lib/grievances";
 import { useDemoUser } from "@/lib/session";
+import { useI18n } from "@/lib/i18n";
 import type { Grievance } from "@/lib/types";
 
 /**
@@ -15,6 +16,7 @@ import type { Grievance } from "@/lib/types";
  */
 export function MyGrievances() {
   const { user, liveMode } = useDemoUser();
+  const { t } = useI18n();
   const [liveItems, setLiveItems] = useState<Grievance[] | null>(null);
 
   useEffect(() => {
@@ -32,8 +34,8 @@ export function MyGrievances() {
   if (!user) {
     return (
       <EmptyState
-        title="Sign in to see your grievances"
-        hint="Your submissions and their live status will appear here."
+        title={t("mySigninTitle")}
+        hint={t("mySigninHint")}
       />
     );
   }
@@ -44,20 +46,20 @@ export function MyGrievances() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-ink-800">
-          Your Grievances
+          {t("yourGrievances")}
         </h2>
         <Link
           href="/track"
           className="text-xs font-semibold text-primary-600 hover:underline"
         >
-          Track by reference ID →
+          {t("trackByRef")}
         </Link>
       </div>
 
       {items.length === 0 ? (
         <EmptyState
-          title="No grievances yet"
-          hint="Complaints you submit will appear here."
+          title={t("noGrievYetTitle")}
+          hint={t("noGrievYetHint")}
         />
       ) : (
         <div className="space-y-3">
