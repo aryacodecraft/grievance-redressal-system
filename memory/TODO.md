@@ -1,4 +1,4 @@
-# NEW_TODO_TASKS.md — Strategic Feature Roadmap & Tasks
+# TODO.md — Strategic Feature Roadmap & Tasks
 
 > **Created:** 2026-10-03  
 > **Source:** Direct owner instruction  
@@ -109,7 +109,7 @@
   - Resolver action center in `AdminBoard.tsx` with direct lifecycle transitions (`Open` → `Assigned` → `In Progress` → `Resolved` → `Rejected`).
   - Municipal department assignment routing with field notes / resolution memo recording.
   - Attached photographic proof inspection with full-resolution links.
-### C. Admin Structural Reorganization (Approved Plan — `memory/ADMIN_UI_RESTRUCTURING_PLAN.md`)
+### C. Admin Structural Reorganization (Completed: 2026-10-05, DEC-018)
 *(Completed: 2026-10-05, DEC-018)*
 - [x] **Top Navigation Sub-Tabs**: Add `Grievance Queue` (`/admin`) vs `Executive Analytics` (`/admin/analytics`) sub-tabs on Admin header. (`AdminNav.tsx`)
 - [x] **Lean `/admin` Triage Table**: Refactor `/admin` to show numerical KPI cards, filters, and full-width queue table with SLA status indicators (`Overdue` / `On Track`). Remove inline maps and charts from main board.
@@ -119,6 +119,14 @@
 > **Note (DEC-018):** the SLA indicator uses the display-only prototype heuristic in
 > `frontend/lib/sla.ts` until the Phase 9 / OQ-005 SLA configuration persists a real
 > `due_date`.
+
+### D. Frontend workflow completion (in progress)
+- [x] Resolver workbench at `/resolver` with assigned queue, state actions, progress notes, resolution submission, and activity history.
+- [x] Superadmin overview at `/superadmin` with users, departments, and audit data.
+- [x] Citizen tracking consumes live recent grievances and history updates when authenticated.
+- [x] Add superadmin user role/active-state and department create/enable controls.
+- [x] Add department-manager resolver assignment controls to the frontend.
+- [ ] Add browser-level role/workflow tests and visual validation.
 
 ---
 

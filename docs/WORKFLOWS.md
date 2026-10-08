@@ -1,5 +1,9 @@
 # WORKFLOWS.md — Grievance Lifecycle Workflows
 
+> Implementation delta: `memory/rbac/GRIEVANCE_WORKFLOW.md` is the normative
+> spec (canonical UPPER states, transition table, legacy lowercase adapter).
+> This document keeps the narrative workflows and actor step tables.
+>
 > Labels used throughout:
 > **[SYSTEM]** — Automated action
 > **[AI]** — AI recommendation or analysis (not a final decision)
