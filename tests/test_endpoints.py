@@ -11,6 +11,21 @@ from __future__ import annotations
 import pytest
 
 
+# ── Helpers ─────────────────────────────────────────────────────────────────
+
+
+def _auth_headers(user_id: str = "citizen-test-1", role: str = "USER"):
+    """Authenticate as `user_id`.
+
+    Submission ownership now comes from the verified JWT, never the request
+    body, so tests that care about who submitted must carry a token.
+    """
+    from backend.app.auth import create_access_token
+
+    token = create_access_token(user_id, role, f"{user_id}@example.com")
+    return {"Authorization": f"Bearer {token}"}
+
+
 # ── Health ──────────────────────────────────────────────────────────────────
 
 
@@ -133,24 +148,43 @@ def test_health_is_reachable_at_the_root_probe_path(client):
 # ── Create ──────────────────────────────────────────────────────────────────
 
 
-def test_submit_requires_user_id(client):
+def test_submit_requires_authentication(client):
+    """Phase 1 inversion: anonymous submissions are rejected, not trusted.
+
+    The old baseline accepted a body-supplied `userId` with no auth at all;
+    identity now comes exclusively from a verified Bearer token.
+    """
+    res = client.post("/submit-grievance", json={"title": "T", "description": "D"})
+    assert res.status_code == 401
+    assert "error" in res.json()
+
+
+def test_submit_takes_user_id_from_token_not_body(client):
+    """A body `userId` is parsed for compatibility but never trusted."""
     res = client.post(
-        "/submit-grievance", json={"title": "T", "description": "D"}
+        "/submit-grievance",
+        json={"title": "T", "description": "D", "userId": "spoofed"},
+        headers=_auth_headers("alice"),
     )
-    assert res.status_code == 400
-    assert "userId" in res.json()["error"]
+    assert res.status_code == 200, res.text
+    stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+    assert stored["userId"] == "alice"
 
 
 def test_submit_requires_title(client):
     res = client.post(
-        "/submit-grievance", json={"description": "D", "userId": "u1"}
+        "/submit-grievance",
+        json={"description": "D"},
+        headers=_auth_headers(),
     )
     assert res.status_code == 400
     assert "error" in res.json()
 
 
 def test_submit_returns_expected_shape(client, sample_payload):
-    res = client.post("/submit-grievance", json=sample_payload)
+    res = client.post(
+        "/submit-grievance", json=sample_payload, headers=_auth_headers()
+    )
     assert res.status_code == 200
     body = res.json()
     # This is the contract `submitResultSchema` validates in lib/api.ts.
@@ -159,7 +193,9 @@ def test_submit_returns_expected_shape(client, sample_payload):
 
 
 def test_submit_assigns_ai_fields(client, sample_payload):
-    body = client.post("/submit-grievance", json=sample_payload).json()
+    body = client.post(
+        "/submit-grievance", json=sample_payload, headers=_auth_headers()
+    ).json()
     # Without LLM keys the classifier falls back to keywords — "pothole"/
     # "road" in the sample put it in `roads`.
     assert body["hfEngine"]["category"] == "roads"
@@ -170,7 +206,8 @@ def test_submit_without_llm_keys_still_succeeds(client):
     """No GROQ/HF keys configured → keyword fallback, not a 500."""
     res = client.post(
         "/submit-grievance",
-        json={"title": "Water logging", "description": "no water", "userId": "u"},
+        json={"title": "Water logging", "description": "no water"},
+        headers=_auth_headers(),
     )
     assert res.status_code == 200
     assert res.json()["hfEngine"]["category"] == "water"
@@ -181,7 +218,14 @@ def test_submit_without_llm_keys_still_succeeds(client):
 
 def _create(client, sample_payload, **overrides):
     payload = {**sample_payload, **overrides}
-    return client.post("/submit-grievance", json=payload).json()["grievanceId"]
+    # Ownership is carried by the token, so route the payload's userId into
+    # the signer — tests that override it keep scoping rows by that identity.
+    user_id = payload.pop("userId", None) or "citizen-test-1"
+    res = client.post(
+        "/submit-grievance", json=payload, headers=_auth_headers(user_id)
+    )
+    return res.json()["grievanceId"]
+
 
 
 def test_list_empty_by_default(client):
@@ -327,7 +371,9 @@ def test_disallowed_method_uses_flat_error_key(client):
 
 
 def test_validation_error_is_normalised(client):
-    res = client.post("/submit-grievance", json={"nonsense": True})
+    res = client.post(
+        "/submit-grievance", json={"nonsense": True}, headers=_auth_headers()
+    )
     assert res.status_code == 400
     body = res.json()
     assert "error" in body
@@ -533,6 +579,7 @@ def test_unknown_submit_fields_are_ignored(client, sample_payload):
             "status": "resolved",
             "bogus": {"nested": 1},
         },
+        headers=_auth_headers(),
     )
     assert res.status_code == 200
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
@@ -544,19 +591,22 @@ def test_unknown_submit_fields_are_ignored(client, sample_payload):
 def test_submit_trims_whitespace_in_required_fields(client):
     res = client.post(
         "/submit-grievance",
-        json={"title": "  Pothole  ", "description": "  Deep hole  ",
-              "userId": "  citizen-9  "},
+        json={"title": "  Pothole  ", "description": "  Deep hole  "},
+        headers=_auth_headers("citizen-9"),
     )
     assert res.status_code == 200
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
     assert stored["title"] == "Pothole"
-    assert stored["userId"] == "citizen-9"
+    assert stored["description"] == "Deep hole"
+    assert stored["userId"] == "citizen-9"  # from the token, not the body
 
 
 def test_whitespace_only_required_fields_are_rejected(client, sample_payload):
-    for field in ("title", "description", "userId"):
+    # userId is no longer a body field the server relies on (it comes from
+    # the token), so only title and description are validated here.
+    for field in ("title", "description"):
         payload = {**sample_payload, field: "   "}
-        res = client.post("/submit-grievance", json=payload)
+        res = client.post("/submit-grievance", json=payload, headers=_auth_headers())
         assert res.status_code == 400, field
         assert "error" in res.json()
 
@@ -566,9 +616,8 @@ def test_unicode_and_emoji_round_trip(client, sample_payload):
         **sample_payload,
         "title": "पाणी भरलेला रस्ता 🌧️ — waterlogged road",
         "description": "मुंबईत पाऊस: “पाणी” संप्ली नाही. — ॐ نَصْلَح",
-        "userId": "citizen-kan-01",
     }
-    res = client.post("/submit-grievance", json=payload)
+    res = client.post("/submit-grievance", json=payload, headers=_auth_headers())
     assert res.status_code == 200
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
     assert stored["title"] == payload["title"]
@@ -583,8 +632,12 @@ def test_operator_like_values_are_stored_literally(client, sample_payload):
     """
     probes = ["$gt", "$ne", "$where", "$or", '{"$gt": ""}']
     for i, value in enumerate(probes):
-        payload = {**sample_payload, "userId": f"inj-{i}", "title": value}
-        res = client.post("/submit-grievance", json=payload)
+        payload = {**sample_payload, "title": value}
+        # Each probe submits as its own user so the scoping query below can
+        # still pick exactly one row — identity comes from the token now.
+        res = client.post(
+            "/submit-grievance", json=payload, headers=_auth_headers(f"inj-{i}")
+        )
         assert res.status_code == 200, value
         stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
         assert stored["title"] == value
@@ -600,9 +653,8 @@ def test_long_fields_are_accepted(client, sample_payload):
         **sample_payload,
         "title": "T" * 500,
         "description": "D" * 10_000,
-        "userId": "u" * 200,
     }
-    res = client.post("/submit-grievance", json=payload)
+    res = client.post("/submit-grievance", json=payload, headers=_auth_headers())
     assert res.status_code == 200
     stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
     assert len(stored["title"]) == 500

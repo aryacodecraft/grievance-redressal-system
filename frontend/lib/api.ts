@@ -206,6 +206,10 @@ export async function listGrievances(params?: {
   return grievanceListSchema.parse(raw);
 }
 
+export async function getDepartmentCounts(): Promise<{ total: number; counts: Record<string, number> }> {
+  return requestJson<{ total: number; counts: Record<string, number> }>("/grievances/department-counts", { method: "GET" });
+}
+
 /** Fetch a single grievance; returns null on 404. Sends Bearer so private docs stay private. */
 export async function getGrievance(
   id: string

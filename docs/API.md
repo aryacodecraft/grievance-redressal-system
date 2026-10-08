@@ -3,9 +3,10 @@
 > Status: **PARTIALLY IMPLEMENTED (2026-09-11).** The "Implemented endpoints"
 > table below reflects what `backend/app/routers/*` actually serves today;
 > everything else in this document is the PLANNED surface for later phases.
-> Authentication: **not enforced yet** — the API trusts a `userId` supplied in
-> the request body (documented limitation, see `docs/SECURITY.md`). The
-> `Authorization: Bearer <token>` scheme described below is the target design.
+> Authentication: JWT authentication is enforced for grievance submission and
+> workflow endpoints. The `Authorization: Bearer <token>` scheme is required
+> for these protected routes; legacy image/admin hardening remains tracked in
+> `docs/SECURITY.md`.
 
 ---
 
@@ -19,8 +20,9 @@ Development: `http://localhost:10000`
 |---|---|---|
 | `GET` | `/health` | Returns `{ "status", "storage" }` — `storage` is `mongodb` or `in-memory` |
 | `GET` | `/test` | Legacy smoke-test route |
-| `POST` | `/submit-grievance` | Creates a grievance; runs the AI classifier cascade. Returns `{ "message", "grievanceId", "hfEngine" }` |
+| `POST` | `/submit-grievance` | **Authenticated users only.** Creates a grievance using the verified JWT owner; runs the AI classifier cascade. Returns `{ "message", "grievanceId", "hfEngine" }` |
 | `GET` | `/grievances` | List; optional `?userId=` scopes to one citizen, `?limit=` (default `50`, must be `1..1000`) |
+| `GET` | `/grievances/department-counts` | Aggregate totals by category; no individual grievance data is returned |
 | `GET` | `/grievances/{grievance_id}` | Single grievance; `404` if unknown |
 | `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` — blank/whitespace-only values are `400`; surrounding whitespace is trimmed. No auth and no transition rules yet (Phase 1/2). |
 | `POST` | `/validate-image` | Image validation |

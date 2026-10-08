@@ -43,26 +43,15 @@ router = APIRouter()
 @router.post("/submit-grievance")
 def submit_grievance(
     payload: SubmitGrievanceRequest,
-    current: Annotated[dict | None, Depends(get_optional_user)] = None,
+    current: Annotated[dict, Depends(get_current_user)],
 ):
     title = payload.title.strip()
     description = payload.description.strip()
 
-    # Derive userId:
-    # 1. From verified JWT if available (cannot be spoofed from body)
-    if current:
-        user_id = current["user_id"]
-    else:
-        # 2. In unauthenticated / demo mode: require userId in body
-        raw_uid = payload.userId.strip() if payload.userId else ""
-        if not raw_uid:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "Missing required fields (title, description, userId)"
-                },
-            )
-        user_id = raw_uid
+    # Submission identity always comes from the verified JWT. The userId body
+    # field remains accepted for backwards-compatible payload parsing, but is
+    # never trusted for ownership.
+    user_id = current["user_id"]
 
     if not title or not description:
         return JSONResponse(
@@ -247,6 +236,17 @@ def list_grievances(
         overdue=overdue
     )
     return [to_api(doc) for doc in docs]
+
+
+@router.get("/grievances/department-counts")
+def grievance_department_counts():
+    """Return aggregate counts only; individual grievance data remains protected."""
+    docs = repository.list(limit=100000)
+    counts: dict[str, int] = {}
+    for doc in docs:
+        key = str(doc.get("category") or (doc.get("hfEngine") or {}).get("category") or "other").lower()
+        counts[key] = counts.get(key, 0) + 1
+    return {"total": len(docs), "counts": counts}
 
 
 @router.get("/grievances/{grievance_id}")
