@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { SiteHeader } from "@/components/ui/SiteHeader";
-import { SiteFooter } from "@/components/ui/SiteFooter";
+import { AppShell } from "@/components/ui/AppShell";
 import { DemoUserProvider } from "@/lib/session";
 
 const geistSans = Geist({
@@ -36,9 +35,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-white text-ink-900 selection:bg-primary-100 selection:text-primary-900">
         <DemoUserProvider>
-          <SiteHeader />
-          <main className="flex-1 bg-white">{children}</main>
-          <SiteFooter />
+          <AppShell>{children}</AppShell>
         </DemoUserProvider>
       </body>
     </html>
