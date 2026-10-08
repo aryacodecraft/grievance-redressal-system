@@ -242,11 +242,10 @@ memory/        — AI agent persistent memory                                  I
 - Hardcoded Firebase Web API key (was in `functions/admin_api.js`, file deleted
   in Phase 4) — **still exposed in git history; rotation is mandatory**, and
   deleting the file did not remove it. Open.
-- The API performs **no server-side authentication**: it trusts `userId` from
-  the request body, and list/PATCH have no authorization; the frontend
-  allowlist is client-side only. Documented in `docs/SECURITY.md` and pinned by
-  `tests/test_security_baseline.py` — must be closed before any deployment
-  handling real data. Phase 1 must *invert* those tests, not delete them.
+- `POST /submit-grievance` now requires a verified JWT and derives `userId`
+  from the token; the frontend also gates `/submit` behind sign-in. Legacy
+  image/admin routes and some list/status compatibility behavior remain under
+  the broader security-hardening backlog.
 - **SSRF:** `services/image.py` fetches whatever `imageUrl` the client sends
   (`requests.get`, no scheme/host/IP/size checks) — an internal host such as
   `169.254.169.254` is reachable from the server. Pinned as a `BASELINE` test;

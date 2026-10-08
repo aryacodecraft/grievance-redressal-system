@@ -4,6 +4,29 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-08 — Navbar: CTA removal + staff chrome split
+
+### Changed
+- `SiteHeader.tsx`: removed the "File Grievance" header button (`/submit`
+  stays in the nav as "Register Complaint" for citizens and in
+  `app/page.tsx` CTAs + `SiteFooter`); header is now citizen/logged-out only.
+- New `components/ui/AppShell.tsx` picks page chrome by role: staff
+  (ADMIN, RESOLVER, SUPERADMIN) get no top header — a persistent sticky
+  left sidebar (`components/ui/StaffSidebar.tsx`, `sticky top-0 h-screen`,
+  per-role links with icons + active states, account footer with sign out)
+  with content/footer in the right column; citizens keep the original
+  sticky header + mobile link row.
+- Sidebar collapses to a 64px icon rail below `sm` (no burger needed).
+- Superseded intermediates (right drawer → left drawer → burger sub-strip,
+  all in earlier revisions of this entry's session) removed;
+  `StaffDrawer.tsx` deleted.
+
+### Verified
+- `npx tsc --noEmit`, `npx eslint` on touched files, `node scripts/check-contract.mjs`,
+  `npm run build` all green.
+
+---
+
 ## 2026-10-08 — Frontend workflow surfaces
 
 - Added `/resolver` with assigned-ticket queue, canonical state transitions,
@@ -21,6 +44,35 @@
 - Migrated demo role resolution away from substring-based admin escalation;
   resolver and superadmin test accounts now route to their own portals.
 - Added client-side image MIME-type and 10 MB size validation.
+
+## 2026-10-08 — Citizen home and navigation usability
+
+- Reworked the home hero copy and calls to action around the citizen journey.
+- Added an interactive, auto-progressing five-stage request lifecycle explainer
+  covering submission, review, assignment, work, and resolution.
+- Improved navbar active-state styling, role labels, and role-specific links.
+- Clarified the complaint location field as a required incident location,
+  explained why it is needed, and displayed captured coordinates.
+
+## 2026-10-08 — Require sign-in before complaint submission
+
+- Gated `/submit` behind authenticated user state with a sign-in prompt and
+  return path.
+- Changed `POST /submit-grievance` to require a verified JWT and derive the
+  grievance owner from the token instead of trusting a body `userId`.
+- Updated login redirect handling, API/security documentation, and frontend
+  verification.
+
+## 2026-10-08 — Two-tab grievance tracking
+
+- Restructured `/track` into `My grievances` and `Search by ID` tabs.
+- Added centered reference-ID lookup with authorized-result messaging.
+- Added department request totals below the search area and in the personal
+  view, using the currently available live/mock registry data.
+- Added aggregate `GET /grievances/department-counts` so department cards use
+  registry totals without exposing individual grievance records.
+- Added a signed-out-state prompt in the personal tab: “Sign in to check
+  status”, with a return path to `/track` after authentication.
 - Expanded canonical state timeline handling and live tracking history.
 - Added department ID to authenticated profiles/tokens so ADMIN feeds can be
   scoped server-side to their department.
@@ -648,3 +700,113 @@ one lean triage board, one centered review dialog, one executive analytics page.
 - Documentation foundation established
 - Architecture proposed but not implemented
 - All features: PLANNED
+
+## 2026-10-08 — Staff Navbar Navigation
+
+### Changed
+- Removed Home and Track Status buttons from the privileged-role navbar.
+- Kept the left-side menu trigger as the entry point to role-specific navigation.
+- Citizen and signed-out public navigation remains unchanged.
+
+## 2026-10-08 — Authenticated Navbar Sign Out
+
+### Changed
+- Added a right-aligned Sign out button for authenticated staff users.
+- Existing authenticated citizen sign out behavior remains available.
+
+### Verification
+- Frontend TypeScript check and ESLint pass.
+
+## 2026-10-08 — Test Account Login Fix
+
+### Fixed
+- Enabled the local-only `SEED_TEST_ACCOUNTS=true` setting so the department
+  manager and employee accounts shown on the login page are created at backend
+  startup.
+- This resolves the mismatch where frontend demo credentials were visible while
+  their backend users had not been seeded.
+
+### Required Follow-up
+- Restart the backend once so its startup hook creates the accounts.
+
+## 2026-10-08 — Complaint Form Alignment
+
+### Changed
+- Centered the complaint form within a responsive max-width content column.
+- Constrained the page heading to the same centered content rhythm.
+- Unified the incident-location field with the shared `Field` component and
+  standard control height used by the other form fields.
+- Tightened the desktop relationship between the form and the grievance-history
+  panel while preserving centered mobile layout.
+- Centered the complete form/history module as one bounded desktop layout.
+
+## 2026-10-08 — Guest Home Navigation
+
+### Changed
+- Removed Track Status from the navbar for signed-out visitors.
+- Kept Track Status available to authenticated citizens.
+- Simplified the signed-out home page into a basic dashboard with the public
+  overview, statistics, department categories, and registration CTA.
+
+## 2026-10-08 — Spatial Analytics Section
+
+### Added
+- Separated the complaint map into a dedicated Spatial Analysis section.
+- Added coordinate-based area clustering for geographic hotspot analysis.
+- Added hotspot cards showing location, volume, high-priority count, and open count.
+
+## 2026-10-08 — Track View Switcher Alignment
+
+### Changed
+- Centered the “My grievances” / “Search by ID” tab switcher within the Track
+  Status page.
+
+## 2026-10-08 — Public Homepage Redesign
+
+### Changed
+- Replaced the public homepage with a clear civic-service landing experience.
+- Removed fabricated live statistics and random-looking content.
+- Added focused registration/tracking CTAs, service principles, request journey,
+  department guidance, and an accountability section.
+- Preserved the separate role-aware staff operational dashboard.
+
+## 2026-10-08 — Sign-in and Footer Accuracy
+
+### Changed
+- Redesigned the sign-in page with the light visual language used by the new
+  homepage.
+- Removed national-platform claims, government-style contact details, toll-free
+  numbers, and unsupported certification claims from the footer.
+- Replaced them with accurate prototype and local civic-workflow messaging.
+
+## 2026-10-08 — Corrected Non-Normal Navigation Scope
+
+### Changed
+- Restored Track Status and the full home experience for signed-out visitors
+  and normal citizen users.
+- Removed Track Status from staff sidebar navigation only.
+- Kept the simplified basic dashboard behavior for admin, resolver, and
+  superadmin home views.
+
+## 2026-10-08 — Staff Home Overview
+
+### Changed
+- Replaced the staff home view with a dedicated operational overview.
+- Added role-specific workspace links and summary metrics without reusing the
+  citizen-facing homepage layout.
+- Scoped staff metrics to the viewer: department admins see their department,
+  resolvers see assigned complaints, and superadmins see global totals.
+
+## 2026-10-08 — Staff Sidebar Home Routing
+
+### Fixed
+- Staff sidebar Home now routes to the role-specific operational workspace:
+  admin, resolver, or superadmin.
+- Staff users can no longer reach the citizen homepage through the sidebar Home
+  link.
+
+## 2026-10-08 — Staff Sidebar React Key Fix
+
+### Fixed
+- Made sidebar link keys unique by combining each link label and destination,
+  preventing duplicate-key warnings when multiple staff links share a route.

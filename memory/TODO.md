@@ -128,6 +128,13 @@
 - [x] Add department-manager resolver assignment controls to the frontend.
 - [ ] Add browser-level role/workflow tests and visual validation.
 
+### E. Citizen experience
+- [x] Improve home page guidance and request lifecycle explanation.
+- [x] Improve navbar active states and role-specific labels.
+- [x] Clarify and display required incident location capture in the complaint form.
+- [x] Require authentication before lodging a complaint in both frontend and API.
+- [x] Split tracking into personal grievances and reference-ID search tabs with department totals.
+
 ---
 
 ## 5. Full Multilingual System Support & Dynamic Translation
