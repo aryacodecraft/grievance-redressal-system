@@ -1,31 +1,30 @@
 import Link from "next/link";
-import {
-  MapPin,
-  Mail,
-  ShieldCheck,
-} from "lucide-react";
+import { MapPin, Mail, ShieldCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 
-const quickLinks = [
-  { href: "/", label: "Home" },
-  { href: "/submit", label: "Register Complaint" },
-  { href: "/track", label: "Track Status" },
-  { href: "/login", label: "Sign In" },
-  { href: "/register", label: "Create Account" },
+const quickLinks: { href: string; key: MessageKey }[] = [
+  { href: "/", key: "home" },
+  { href: "/submit", key: "register" },
+  { href: "/track", key: "track" },
+  { href: "/login", key: "signIn" },
+  { href: "/register", key: "createAccount" },
 ];
 
-const citizenServices = [
-  "Register a public grievance",
-  "Track grievance status & timeline",
-  "Officer assignment & resolution",
-  "AI-assisted categorization",
+const citizenServices: MessageKey[] = [
+  "svcRegister",
+  "svcTrack",
+  "svcAssign",
+  "svcAi",
 ];
 
-const contact = [
-  { Icon: MapPin, text: "Location-aware civic issue reporting" },
+const contact: { Icon: LucideIcon; key?: MessageKey; text?: string }[] = [
+  { Icon: MapPin, key: "contactLocation" },
   { Icon: Mail, text: "support@grievai.example" },
 ];
 
 export function SiteFooter() {
+  const { t } = useI18n();
   return (
     <footer className="border-t border-ink-100 bg-white">
       {/* Trust bar */}
@@ -33,14 +32,14 @@ export function SiteFooter() {
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
             <ShieldCheck size={14} className="text-primary-600" />
-            Audited &amp; tamper-evident records
+            {t("footerTrustRecords")}
           </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
             <MapPin size={14} className="text-primary-600" />
-            Built for local civic workflows
+            {t("footerTrustLocal")}
           </span>
           <span className="text-[11px] font-semibold text-ink-600">
-            Academic research prototype
+            {t("footerTrustPrototype")}
           </span>
         </div>
       </div>
@@ -58,14 +57,14 @@ export function SiteFooter() {
             </p>
           </div>
           <p className="mt-2.5 text-xs leading-relaxed text-ink-500">
-            AI-assisted grievance redressal and decision-support prototype for transparent civic workflows.
+            {t("footerAbout")}
           </p>
         </div>
 
         {/* Quick links */}
         <div className="lg:col-span-2">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
-            Quick Links
+            {t("footerQuickLinks")}
           </p>
           <ul className="mt-3 space-y-2 text-xs text-ink-500">
             {quickLinks.map((l) => (
@@ -74,7 +73,7 @@ export function SiteFooter() {
                   href={l.href}
                   className="transition-colors hover:text-primary-700 hover:underline"
                 >
-                  {l.label}
+                  {t(l.key)}
                 </Link>
               </li>
             ))}
@@ -84,12 +83,12 @@ export function SiteFooter() {
         {/* Citizen services */}
         <div className="lg:col-span-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
-            Citizen Services
+            {t("footerServicesHeading")}
           </p>
           <ul className="mt-3 space-y-2 text-xs text-ink-500">
-            {citizenServices.map((s) => (
-              <li key={s} className="transition-colors hover:text-ink-800">
-                {s}
+            {citizenServices.map((key) => (
+              <li key={key} className="transition-colors hover:text-ink-800">
+                {t(key)}
               </li>
             ))}
           </ul>
@@ -98,13 +97,15 @@ export function SiteFooter() {
         {/* Contact */}
         <div className="lg:col-span-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-700">
-            Contact &amp; Support
+            {t("footerContactHeading")}
           </p>
           <ul className="mt-3 space-y-2.5 text-xs text-ink-500">
-            {contact.map(({ Icon, text }) => (
-              <li key={text} className="flex items-start gap-2">
+            {contact.map(({ Icon, key, text }) => (
+              <li key={key ?? text} className="flex items-start gap-2">
                 <Icon size={13} className="mt-0.5 flex-shrink-0 text-primary-600" />
-                <span className="leading-relaxed">{text}</span>
+                <span className="leading-relaxed">
+                  {key ? t(key) : text}
+                </span>
               </li>
             ))}
           </ul>
@@ -115,16 +116,16 @@ export function SiteFooter() {
       <div className="border-t border-ink-100 bg-white px-4 py-3.5 sm:px-6 lg:px-8">
         <p className="text-[11px] leading-relaxed text-ink-400">
           <span className="font-semibold uppercase tracking-wider text-ink-600">
-            Accountability:
+            {t("accountabilityLabel")}
           </span>{" "}
-          Department actions and status transitions are recorded for accountable human review.
+          {t("accountabilityText")}
         </p>
       </div>
 
       {/* Copyright */}
       <div className="border-t border-ink-100 py-4 bg-white">
         <p className="px-4 text-xs text-ink-400 sm:px-6 lg:px-8">
-          © {new Date().getFullYear()} GrievAI — Civic grievance redressal prototype.
+          © {new Date().getFullYear()} {t("copyright")}
         </p>
       </div>
     </footer>
