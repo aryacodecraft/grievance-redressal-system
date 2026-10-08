@@ -1,0 +1,336 @@
+/**
+ * English source of truth for citizen-facing copy.
+ *
+ * `MessageKey` is derived from this object, so every other language file is
+ * typed as `Record<MessageKey, string>` — a missing or misspelled key is a
+ * TypeScript error, not a silent English fallback.
+ *
+ * Placeholders use `{name}` and are filled by `t(key, { name })`.
+ */
+
+const en = {
+  // ── Header ──
+  home: "Home",
+  register: "Register Complaint",
+  track: "Track Status",
+  signIn: "Sign in",
+  signOut: "Sign out",
+  createAccount: "Create an account",
+  submit: "Submit Grievance",
+  language: "Language",
+  brandTagline: "National Grievance Portal",
+
+  // ── Footer ──
+  footerTrustRecords: "Audited & tamper-evident records",
+  footerTrustLocal: "Built for local civic workflows",
+  footerTrustPrototype: "Academic research prototype",
+  footerAbout:
+    "AI-assisted grievance redressal and decision-support prototype for transparent civic workflows.",
+  footerSignIn: "Sign In",
+  footerCreateAccount: "Create Account",
+  footerQuickLinks: "Quick Links",
+  footerServicesHeading: "Citizen Services",
+  footerContactHeading: "Contact & Support",
+  svcRegister: "Register a public grievance",
+  svcTrack: "Track grievance status & timeline",
+  svcAssign: "Officer assignment & resolution",
+  svcAi: "AI-assisted categorization",
+  contactLocation: "Location-aware civic issue reporting",
+  accountabilityLabel: "Accountability:",
+  accountabilityText:
+    "Department actions and status transitions are recorded for accountable human review.",
+  copyright: "GrievAI — Civic grievance redressal prototype.",
+
+  // ── Home: hero ──
+  homeBadge: "National public grievance portal",
+  homeTitle: "Make your community better, one request at a time.",
+  homeSubtitle:
+    "Report a civic issue with the details that matter, see where it goes, and follow its progress through a transparent, human-reviewed process.",
+  homeCtaRegister: "Register a complaint",
+  homeCtaTrack: "Track a request",
+  homeFree: "Free to use",
+  homeLocation: "Location-aware",
+  homeHuman: "Human decisions",
+  homePathTitle: "A clearer path to resolution",
+  homePathSub: "What happens after you submit",
+  homeStep1Title: "You share the facts",
+  homeStep1Text: "Issue, evidence, and exact location.",
+  homeStep2Title: "The request is organized",
+  homeStep2Text: "AI-assisted triage suggests routing and priority.",
+  homeStep3Title: "An officer takes responsibility",
+  homeStep3Text: "A human team reviews, acts, and updates you.",
+
+  // ── Home: principles ──
+  principle1Title: "Location-aware",
+  principle1Text:
+    "Pin the place where the issue happened so the right local team can act.",
+  principle2Title: "Assisted triage",
+  principle2Text:
+    "AI helps organize the report; authorized officers remain responsible for decisions.",
+  principle3Title: "Human-reviewed",
+  principle3Text:
+    "Every assignment, update, and resolution stays under accountable human control.",
+
+  // ── Home: categories ──
+  reportBadge: "Start with the right details",
+  reportTitle: "What can you report?",
+  reportText:
+    "Choose the closest category or simply describe the issue. The system helps route it to the appropriate civic department.",
+  reportLink: "View registration form",
+  deptWaterLabel: "Water & sanitation",
+  deptWaterDesc: "Leaks, drainage, supply, and waste",
+  deptRoadsLabel: "Roads & transport",
+  deptRoadsDesc: "Roads, traffic, transit, and signals",
+  deptElectricityLabel: "Electricity",
+  deptElectricityDesc: "Outages, streetlights, and distribution",
+  deptHealthLabel: "Health services",
+  deptHealthDesc: "Public health and medical facilities",
+  deptGovLabel: "Civic governance",
+  deptGovDesc: "Certificates, services, and public offices",
+  deptOtherLabel: "Other public issues",
+  deptOtherDesc: "Anything affecting your community",
+
+  // ── Home: accountability ──
+  accBadge: "Built for accountability",
+  accTitle: "Every request should have a next step.",
+  accText:
+    "Your reference ID connects the original report to its status updates. Location, evidence, and progress notes help public teams understand the issue and make better decisions.",
+  accStep1Title: "Keep your reference ID",
+  accStep1Text: "Use it to find a request anytime.",
+  accStep2Title: "Watch the timeline",
+  accStep2Text: "See meaningful status changes.",
+
+  // ── Request lifecycle ──
+  lifeBadge: "A clear path from report to resolution",
+  lifeTitle: "Know what happens next",
+  lifeText:
+    "Your request moves through a visible lifecycle. AI helps officers organize the queue; people remain responsible for assignment, action, and closure.",
+  lifeStageOf: "Stage {n} of {total}",
+  lifeStageAria: "Show lifecycle stage: {label}",
+  life1Label: "Submitted",
+  life1Short: "You report it",
+  life1Text: "Share what happened, add a photo, and pin the exact location.",
+  life2Label: "Reviewed",
+  life2Short: "We understand it",
+  life2Text:
+    "AI-assisted triage suggests the category and urgency for officer review.",
+  life3Label: "Assigned",
+  life3Short: "A team takes it",
+  life3Text:
+    "An authorized department manager routes your request to the right officer.",
+  life4Label: "In progress",
+  life4Short: "Work begins",
+  life4Text: "The assigned team records updates, next steps, and expected timing.",
+  life5Label: "Resolved",
+  life5Short: "You see the outcome",
+  life5Text:
+    "The resolution is reviewed and the final status remains visible to you.",
+
+  // ── Submit form ──
+  complaintDetails: "Complaint Details",
+  formSubtitle:
+    "All fields marked * are mandatory. Automated triage assigns the appropriate department and priority.",
+  formTitleLabel: "Subject / Short Title",
+  formTitlePlaceholder:
+    "e.g. Broken water pipeline causing waterlogging near Sector 12",
+  formDescLabel: "Detailed Description",
+  formDescPlaceholder:
+    "Describe what occurred, specific street or landmark, duration of the issue, and impact on residents...",
+  formDeptLabel: "Intended Department (Optional)",
+  formDeptHint:
+    "You may suggest a department. Automated triage will verify and confirm the final routing.",
+  formAutoClassify: "Let system auto-classify",
+  errTitleShort: "Give a short, specific title (min 5 characters).",
+  errDescShort: "Describe the issue in at least 20 characters.",
+  errLocationRequired: "Location is mandatory — click “Use my location”.",
+  errSubmitFailed:
+    "Submission failed. Please verify your connection or try again.",
+  btnSubmitting: "Submitting & Classifying…",
+  resultTitle: "Grievance Successfully Registered",
+  resultSubtitle: "Save this reference ID to track your complaint.",
+  refIdLabel: "Reference Ticket ID",
+
+  // ── Image upload ──
+  imgLabel: "Evidence Photograph",
+  imgHint: "Optional. JPG or PNG, max 10 MB.",
+  imgBadType: "Please choose a JPG, PNG, or WebP image.",
+  imgTooBig: "Image must be smaller than 10 MB.",
+  imgNotConfigured:
+    "Image upload is not configured in this demo — continuing without a photo.",
+  imgUploading: "Uploading…",
+  imgValidating: "Validating image…",
+  imgProcessing: "Processing image validation…",
+  imgRejected: "Image rejected: {reason}. Try another photo.",
+  imgRejectedDefault: "not relevant to a public grievance",
+  imgAccepted: "Image accepted.",
+  imgAcceptedScore: "Image accepted (validation score {score}).",
+  imgUploadFailed: "Upload failed: {message}",
+  imgUploadUnknown: "Upload failed: unknown error",
+
+  // ── Location capture ──
+  incidentLocation: "Incident location",
+  locHint:
+    "Pin where the issue happened, not necessarily where you are now. Your coordinates help the right team find it faster.",
+  locBusy: "Acquiring GPS coordinates…",
+  locPin: "Pin My Current Location",
+  locPinned: "✓ Location Verified & Pinned",
+  locRetry: "Retry Location",
+  locPinnedLabel: "Location pinned:",
+  locDenied: "Permission denied — allow location access in your browser.",
+  locCaptured: "✓ Current location captured",
+  locCloseMap: "Close map",
+  locChooseMap: "Choose grievance location (optional)",
+  locPopupOrigin: "Your current location",
+  locPopupDrag: "Drag this pin to the exact grievance location",
+  locClickMap: "Click the map to place a pin.",
+  locDragPin: "Drag the pin for precision.",
+  locOutOfRange: "Choose a grievance location within {km} km of your current location.",
+  locExact: "Exact grievance location: {coords}",
+  locNotSelected:
+    "No separate grievance location selected; your current location will be used.",
+  locCaptureFirst:
+    "Capture your current location first to enable the optional grievance-location picker.",
+
+  // ── Track page ──
+  trackTitle: "Track Grievance Status",
+  trackSubtitle:
+    "See your submitted grievances in one place, or use a reference ID to look up a request you are authorized to view.",
+  myGrievances: "My grievances",
+  searchById: "Search by ID",
+  search: "Search",
+  trackFindTitle: "Find a grievance by reference ID",
+  trackFindHint: "Use the ID from your acknowledgement, for example",
+  btnSearching: "Searching…",
+  trackQuerying: "Querying grievance database…",
+  timelineTitle: "Resolution Timeline",
+  timelineSubtitle: "Updated as officers take actions",
+  trackNotFoundTitle: "No grievance found for that reference ID",
+  trackNotFoundHint:
+    "Check the exact reference code from your acknowledgement. You can only view requests your account is authorized to access.",
+  byDeptTitle: "Requests by department",
+  byDeptText:
+    "Total requests in the registry. Individual request details remain access-controlled.",
+  requestOne: "request",
+  requestMany: "requests",
+  signinTrackTitle: "Sign in to check status",
+  signinTrackText:
+    "Your personal grievance history is available after you sign in. This keeps your requests and updates private.",
+  signinTrackBtn: "Sign in to view my grievances",
+  myGrievancesText:
+    "Your submitted requests and their latest known status.",
+  totalLabel: "total",
+  noGrievancesTitle: "No grievances found",
+  noGrievancesHint: "Once you submit a complaint, it will appear here.",
+  myByDeptTitle: "Grievances by department",
+  myByDeptText:
+    "A quick view of the requests currently available to your account.",
+
+  // ── Department names ──
+  dnameWater: "Water",
+  dnameRoads: "Roads",
+  dnameTransport: "Transport",
+  dnameElectricity: "Electricity",
+  dnameSanitation: "Sanitation",
+  dnameHealth: "Health",
+  dnameGovernance: "Governance",
+  dnameOther: "Other",
+
+  // ── My grievances (submit page) ──
+  mySigninTitle: "Sign in to see your grievances",
+  mySigninHint: "Your submissions and their live status will appear here.",
+  yourGrievances: "Your Grievances",
+  trackByRef: "Track by reference ID →",
+  noGrievYetTitle: "No grievances yet",
+  noGrievYetHint: "Complaints you submit will appear here.",
+  checkingSession: "Checking sign-in…",
+  signinToSubmitTitle: "Sign in to lodge a complaint",
+  signinToSubmitText:
+    "Your account lets us connect the request to you and show its progress securely.",
+  signinToContinue: "Sign in to continue",
+  signinToSubmitHint: "New here? You can create an account in under a minute.",
+  registerSubtitle: "Register a Public Grievance",
+  submitPageDesc:
+    "Describe the issue, attach evidence, and pin your location. AI-assisted routing ensures your complaint reaches the right department.",
+
+  // ── Login ──
+  securePortal: "Secure portal",
+  loginSubLive: "Official portal access for citizens and officers.",
+  loginSubDemo: "Sign in with your official account credentials.",
+  errEnterCreds: "Enter your email and password.",
+  nameLabel: "Full name",
+  emailLabel: "Email address",
+  passwordLabel: "Password",
+  rememberMe: "Remember me",
+  errInvalidCreds: "Invalid email or password.",
+  errGoogleCancelled: "Google authentication was cancelled.",
+  errGoogleFailed: "Failed to verify credentials with Google.",
+  errSignIn: "Sign in error: {reason}",
+  forgotPassword: "Forgot password?",
+  btnSigningIn: "Signing in...",
+  orContinueWith: "Or continue with",
+  googleSignIn: "Sign in with Google",
+  googleSignUp: "Sign up with Google",
+  newHere: "New here?",
+  showPassword: "Show password",
+  hidePassword: "Hide password",
+  loading: "Loading...",
+
+  // ── Register ──
+  regSubLive: "Official citizen account registration.",
+  regSubDemo: "Sign up for official citizen portal access.",
+  errFillAll: "Fill in all fields to create your account.",
+  errPasswordLen: "Password must be at least 8 characters.",
+  errRegisterFailed: "Failed to register account.",
+  passwordHint: "Minimum 8 characters.",
+  btnCreating: "Creating account...",
+  btnCreateAccount: "Create account",
+  alreadyRegistered: "Already registered?",
+
+  // ── AI analysis panel ──
+  aiSuggestion: "AI Suggestion",
+  autoGenerated: "Auto-generated",
+  aiSure: "AI is {pct}% sure",
+  keyWordsSpotted: "Key words spotted:",
+
+  // ── Status timeline ──
+  progressTimeline: "Progress timeline",
+  rejectedTitle: "Ticket Rejected / Closed without Action",
+  rejectedText:
+    "This submission did not meet municipal verification criteria or was flagged as a duplicate.",
+  msSubmittedTitle: "Complaint Registered",
+  msSubmittedDesc: "Acknowledged and logged into municipal registry.",
+  msTriagedTitle: "AI Triage & Categorization",
+  msTriagedDesc: "Department routing, priority, and sentiment evaluated.",
+  msAssignedTitle: "Officer Assigned",
+  msAssignedDesc: "Allocated to designated nodal officer or department team.",
+  msInProgressTitle: "Remediation In Progress",
+  msInProgressDesc:
+    "Field inspection, on-site repairs, or civic action underway.",
+  msResolvedTitle: "Resolved & Verified",
+  msResolvedDesc:
+    "Remediation verified and ticket closed by authorized officer.",
+
+  // ── Badges ──
+  priorityHigh: "High priority",
+  priorityMedium: "Medium priority",
+  priorityLow: "Low priority",
+  statusSubmitted: "Submitted",
+  statusOpen: "Open",
+  statusTriaged: "Triaged",
+  statusPendingAssignment: "Pending assignment",
+  statusAiProcessing: "AI processing",
+  statusAssigned: "Assigned",
+  statusInProgress: "In progress",
+  statusBlocked: "Blocked",
+  statusEscalated: "Escalated",
+  statusUnderReview: "Under review",
+  statusResolutionSubmitted: "Resolution submitted",
+  statusResolved: "Resolved",
+  statusClosed: "Closed",
+  statusRejected: "Rejected",
+};
+
+export type MessageKey = keyof typeof en;
+export type Messages = Record<MessageKey, string>;
+
+export default en as Messages;
