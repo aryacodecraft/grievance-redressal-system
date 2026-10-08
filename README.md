@@ -178,14 +178,37 @@ Open your browser to:
 
 ## Pre-Seeded Test Accounts
 
-The backend automatically seeds ready-to-use testing accounts on startup:
+The backend seeds ready-to-use testing accounts on startup (existing emails are
+left untouched):
 
 | Role | Email | Password | Access Scope |
 |---|---|---|---|
-| **Admin** (Municipal Officer) | `admin@grievance.local` | `Admin@2026!` | Full administrative access: `/admin` triage board, cluster maps, category/priority review, and officer assignment/status updates. |
 | **Citizen** (Standard User) | `citizen@grievance.local` | `Citizen@2026!` | Citizen portal access: `/submit` complaint registration, personal complaint tracking sidebar, `/track` lookup. Cannot access `/admin`. |
+| **Admin** (Municipal Officer) | `admin@grievance.local` | `Admin@2026!` | Full administrative access: `/admin` triage board, cluster maps, category/priority review, and officer assignment/status updates. |
+| **Superadmin** (System Owner) | `superadmin@grievance.local` | `SuperAdmin@2026!` | System control: admin/user management, role assignment, department management, audit trail. Seeded when `SEED_TEST_ACCOUNTS=true` (or via `SEED_SUPERADMIN_EMAIL`/`SEED_SUPERADMIN_PASSWORD`). |
 
-> 💡 **Tip:** On the `/login` page, click the **Autofill** button next to either account to populate credentials with one click.
+Department test accounts are seeded only when `SEED_TEST_ACCOUNTS=true` in
+`backend/.env` (dev/testing only — keep `false` in production):
+
+| Department | Manager (`ADMIN`) | Employee (`RESOLVER`) |
+|---|---|---|
+| Water | `water.manager@grievance.local` | `water.employee@grievance.local` |
+| Roads | `roads.manager@grievance.local` | `roads.employee@grievance.local` |
+| Transport | `transport.manager@grievance.local` | `transport.employee@grievance.local` |
+| Electricity | `electricity.manager@grievance.local` | `electricity.employee@grievance.local` |
+| Sanitation | `sanitation.manager@grievance.local` | `sanitation.employee@grievance.local` |
+| Health | `health.manager@grievance.local` | `health.employee@grievance.local` |
+| Governance | `governance.manager@grievance.local` | `governance.employee@grievance.local` |
+| Other | `other.manager@grievance.local` | `other.employee@grievance.local` |
+
+- Manager password: `Manager@2026!` — Employee password: `Resolver@2026!`
+  (unless `SEED_TEST_PASSWORD` overrides both).
+- Managers see their department queue and assign work; employees see only
+  tickets assigned to them (`ownerId`).
+
+> 💡 **Tip:** Set `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`
+> and open `/login` — the dev box lists every account above with one-click
+> **Autofill**. Never enable that flag in production.
 >
 > You can also register any new citizen account on `/register` (minimum 8-character password).
 

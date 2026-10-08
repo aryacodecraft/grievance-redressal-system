@@ -1187,4 +1187,54 @@ Resolve the 12 non-vocab test failures after the canonical UPPER-state migration
 ### Next
 - Build `/resolver`, dept-scoped `/admin`, `/superadmin` pages on the new clients; then Phase 6 hardening (image-route auth, SSRF guard, Google sig verify, rate-limit) + vocab rewrite.
 
+---
+
+## 2026-10-08 — Testing-phase seed accounts (DEC-019)
+
+### Goal
+Generate one test login per department (manager + employee) plus admin/superadmin, idempotently, and surface them on sign-in for the testing phase.
+
+### Context Read
+- `AGENTS.md`, `memory/{README,PROJECT_STATE,DECISIONS,NEW_TODO_TASKS}.md`, `SESSION_LOG.md` tail
+- `backend/app/{main,config,users_db}.py`, `repositories/departments.py`, `services/classification.py` (`CATEGORY_KEYS`), `tests/conftest.py`, `tests/test_config_drift.py`
+- `frontend/app/login/page.tsx`, `frontend/lib/testAccounts.ts` (new), `frontend/.env.example`, `README.md` test-accounts section
+
+### Work Completed
+- `backend/app/seed_test_accounts.py` (new): superadmin + 8× (`ADMIN` manager + `RESOLVER` employee) with `departmentId`, departments auto-created; taxonomy pinned to `CATEGORY_KEYS`; existing emails never touched. Gated by `SEED_TEST_ACCOUNTS` (default false) + `SEED_TEST_PASSWORD` override (`config.py`, `.env.example`).
+- `backend/app/main.py`: startup calls seeder when the flag is true.
+- `frontend/lib/testAccounts.ts` (new, 19 entries) + `/login` dev box lists all accounts with Autofill (still behind `NEXT_PUBLIC_SHOW_DEV_CREDS`).
+- `tests/test_seed_accounts.py` (4 tests) + `tests/conftest.py` seed-flag pinning; `README.md`, `frontend/.env.example`, `memory/DECISIONS.md` DEC-019, `NEW_TODO_TASKS.md` §7.
+
+### Verification
+- `pytest tests/test_seed_accounts.py` → 4 passed. `npx tsc --noEmit` clean, `node scripts/check-contract.mjs` passed.
+- Live TestClient smoke earlier confirmed assign→progress→resolve→close; seed flow covered by the new tests (incl. roads-vs-water 403).
+
+### Next
+- Owner run: `SEED_TEST_ACCOUNTS=true` in `backend/.env`, `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`, restart both, click through the 19 logins. Keep both flags off in production.
+
+---
+
+## 2026-10-08 — Analytics map stacking + cluster city/state labels
+
+### Goal
+Fix the analytics map painting over the navbar on scroll, and show proper
+"City, State" location names in the Similar Complaint Groups panel.
+
+### Context Read
+- `frontend/components/ui/SiteHeader.tsx` (`sticky top-0 z-40`), `components/admin/GrievanceReviewModal.tsx:130` (`fixed inset-0 z-50`)
+- `components/admin/AdminMap.tsx`, `SinglePinMap.tsx`, `AdminAnalytics.tsx`, `AdminClusters.tsx`, `lib/tfidf.ts` (`areaFor`/`groupSimilarComplaints`), `lib/location.ts`, `lib/types.ts`
+
+### Work Completed
+- Map containers (`AdminMap`, `SinglePinMap`) form their own stacking context (`relative z-0`); header left at `z-40` so it stays under the `z-50` modal.
+- New `useClusterLocations.ts`: per-group "City, State" by majority vote of member coords through cached `reverseCityState` (new in `lib/location.ts` alongside pure `parseCityState`/`formatCityState`); rendered with a MapPin line in `AdminClusters.tsx` (omitted until lookups settle / when no pins). Display-only — no backend city/state migration.
+- 10 new offline `check-contract.mjs` assertions for the parsers.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean (touched files), `node scripts/check-contract.mjs` passed, `npm run build` 9 routes green.
+
+### Next
+- Visual scroll check on `/admin/analytics` in a browser (no desktop browser connected here); confirm cluster labels read as "City, State" for pinned groups.
+
+
+
 

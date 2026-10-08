@@ -4,6 +4,43 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-08 — Analytics map stacking + similar-complaint city/state labels
+
+### Fixed
+- Map-over-navbar on `/admin/analytics`: `AdminMap.tsx` and `SinglePinMap.tsx`
+  containers now form their own stacking context (`relative z-0`), containing
+  Leaflet's internal panes (z 200–1000) below the sticky header (`z-40`) and
+  the review modal (`z-50`). Header z-index deliberately untouched so it
+  stays under the modal overlay.
+
+### Added
+- Similar-complaint groups now show a "City, State" line (`AdminClusters.tsx`
+  + new `useClusterLocations.ts` hook): majority vote of member coordinates
+  via cached Nominatim reverse geocoding (`reverseCityState` in
+  `lib/location.ts`). Best-effort — groups without pins keep the
+  text-derived area label; no backend migration (display-only).
+- `parseCityState`/`formatCityState` pure parsers pinned by 10 new
+  `check-contract.mjs` assertions (offline, no network).
+
+### Verified
+- `npx tsc --noEmit` clean, `npx eslint` clean on touched files,
+  `node scripts/check-contract.mjs` passed, `npm run build` 9 routes.
+
+---
+
+## 2026-10-08 — Testing-phase seed accounts per department (DEC-019)
+
+### Added
+- `backend/app/seed_test_accounts.py` — idempotent superadmin + 8× MANAGER/EMPLOYEE matrix (departments auto-created, taxonomy == `CATEGORY_KEYS`); wired into startup behind `SEED_TEST_ACCOUNTS`/`SEED_TEST_PASSWORD` (`backend/app/main.py`, `backend/app/config.py`, `backend/.env.example`).
+- `frontend/lib/testAccounts.ts` — `/login` dev box now lists all 19 accounts with Autofill (gated by `NEXT_PUBLIC_SHOW_DEV_CREDS`); `frontend/.env.example` + `README.md` test-account docs updated.
+- `tests/test_seed_accounts.py` (4 tests) — matrix, idempotency, existing-untouched, cross-department flow; `tests/conftest.py` pins seed flags off.
+- `memory/DECISIONS.md` DEC-019 (seed strategy + dev-gating rationale).
+
+### Verified
+- `pytest tests/test_seed_accounts.py` → 4 passed. `npx tsc --noEmit` clean, contract checks pass.
+
+---
+
 ## 2026-10-06 — RBAC workflow coverage + frontend auth fix
 
 ### Added

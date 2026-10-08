@@ -985,3 +985,62 @@ configuration yet (PRD OQ-005 is OPEN; monitoring is Phase 9 PLANNED), so no
 `frontend/components/admin/departments.ts`, `frontend/components/charts/AdminCharts.tsx`,
 `frontend/lib/sla.ts`
 
+---
+
+## DEC-019 — Testing-Phase Seed Accounts (Per-Department Manager + Employee)
+
+**ID:** DEC-019
+**Date:** 2026-10-08
+**Status:** ACCEPTED
+
+**Context:**
+Testing the role-based workflow (manager assigns, employee works, citizen
+tracks, superadmin oversees) needs one login per role per department.
+Creating 19 accounts by hand per environment is slow and inconsistent, and
+the `/login` page only advertised admin + citizen.
+
+**Decision:**
+1. `backend/app/seed_test_accounts.py` seeds, idempotently (existing emails
+   untouched): `superadmin@grievance.local` (SUPERADMIN) plus
+   `<dept>.manager@grievance.local` (ADMIN, `departmentId=<dept>`) and
+   `<dept>.employee@grievance.local` (RESOLVER, `departmentId=<dept>`) for
+   each of the 8 `CATEGORY_KEYS` departments. Departments themselves are
+   created if missing.
+2. Gated by `SEED_TEST_ACCOUNTS` (default false; dev/testing only) with
+   `SEED_TEST_PASSWORD` override; otherwise documented built-in dev
+   passwords (`SuperAdmin@2026!`, `Manager@2026!`, `Resolver@2026!`).
+   Existing admin/citizen seeding is unchanged.
+3. `frontend/lib/testAccounts.ts` mirrors the matrix; `/login` renders all
+   19 accounts with one-click Autofill only when
+   `NEXT_PUBLIC_SHOW_DEV_CREDS=true`. The flag and the seed gate must both
+   stay off in production.
+
+**Reason:**
+- Department taxonomy equals the classifier taxonomy, so assignment,
+  scoping and SLA tests exercise real keys instead of fixtures.
+- Idempotency ("leave it if already exists") protects owner-created
+  accounts with the same emails.
+- Dev passwords are published (as the existing admin/citizen ones are) —
+  acceptable only because seeding and display are both dev-gated.
+
+**Alternatives Considered:**
+- One shared manager/employee pair for all departments: rejected — cannot
+  test cross-department isolation (the `roads.employee` vs `water.employee`
+  403 case in `tests/test_seed_accounts.py`).
+- Seeding unconditionally at startup: rejected — production Atlas would
+  gain 17 known-password accounts on boot.
+- Storing per-user passwords in the repo: rejected — single shared dev
+  passwords via env override, same posture as the existing seeded accounts.
+
+**Consequences:**
+- Local testing requires `SEED_TEST_ACCOUNTS=true` in `backend/.env` plus
+  `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`.
+- `tests/test_seed_accounts.py` pins the matrix, idempotency, and the
+  taxonomy-equals-`CATEGORY_KEYS` invariant.
+
+**Affected Components:** `backend/app/seed_test_accounts.py`,
+`backend/app/main.py`, `backend/app/config.py`, `backend/.env.example`,
+`tests/test_seed_accounts.py`, `tests/conftest.py`,
+`frontend/lib/testAccounts.ts`, `frontend/app/login/page.tsx`,
+`frontend/.env.example`, `README.md`
+

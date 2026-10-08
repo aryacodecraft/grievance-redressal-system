@@ -142,3 +142,12 @@
 - [x] **Spec suite written** — 12 files in `memory/rbac/` (index, RBAC + SUPERADMIN-over-ADMIN matrix, auth reality, role interfaces, workflow/state machine, progress flow + customer timeline, ticket/assignment/priority/deadline, backend layers, API contracts, DB deltas, notification/audit/risks, phased checklist).
 - [ ] **Owner confirmations** — role-name mapping (`RESOLVER`→EMPLOYEE etc.), department model (enum vs collection), UPPER-state canonical, demo-mode flag, who publishes customer updates.
 - [ ] **Phase 0 build** — follow `memory/rbac/IMPLEMENTATION_CHECKLIST.md` order (0→6); fix stale `docs/SECURITY.md` / `docs/API.md` auth headers during build.
+
+---
+
+## 7. Testing-Phase Seed Accounts (2026-10-08, DEC-019)
+
+- [x] **Backend matrix** — `backend/app/seed_test_accounts.py` (superadmin + 8 managers + 8 employees, idempotent, departments auto-created, taxonomy == `CATEGORY_KEYS`); wired into startup behind `SEED_TEST_ACCOUNTS` + `SEED_TEST_PASSWORD` (`backend/app/config.py`, `backend/app/main.py`, `backend/.env.example`).
+- [x] **Sign-in surface** — `frontend/lib/testAccounts.ts` + `/login` dev box lists all 19 accounts with Autofill (gated by `NEXT_PUBLIC_SHOW_DEV_CREDS`); `frontend/.env.example` + `README.md` updated.
+- [x] **Tests** — `tests/test_seed_accounts.py` (matrix, idempotency, untouched-existing, cross-department 403 flow); `tests/conftest.py` pins seed flags off.
+- [ ] **Owner run** — set `SEED_TEST_ACCOUNTS=true` in `backend/.env` and `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`, restart both, verify logins.

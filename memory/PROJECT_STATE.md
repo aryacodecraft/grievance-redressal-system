@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-06 (RBAC workflow coverage: 11 new lifecycle/RBAC tests, frontend Bearer fix + workflow clients; suite 206 passed / 8 pre-existing vocab failures. Prior: Phase 0-2 UPPER alignment + `memory/rbac/` suite)
+> Last updated: 2026-10-08 (testing-phase seed accounts per DEC-019: superadmin + 8 managers + 8 employees behind SEED_TEST_ACCOUNTS, /login dev box lists all 19. Prior: RBAC workflow coverage + frontend Bearer fix)
 
 ---
 
