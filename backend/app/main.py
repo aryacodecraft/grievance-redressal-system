@@ -106,6 +106,23 @@ def _seed_on_startup() -> None:
     hook only handles data seeding that needs the full app context.
     """
     import bcrypt as _bcrypt
+    from .db import repository
+
+    # Legacy grievances were created before departmentId became mandatory.
+    # Repair only missing routing metadata; never reset state or owner here.
+    try:
+        legacy = repository.list(limit=1000)
+        repaired = 0
+        for grievance in legacy:
+            if grievance.get("departmentId"):
+                continue
+            category = str(grievance.get("category") or (grievance.get("hfEngine") or {}).get("category") or "other").strip().lower()
+            repository.update(grievance["id"], {"departmentId": category})
+            repaired += 1
+        if repaired:
+            logger.info("Backfilled departmentId for %d legacy grievances", repaired)
+    except Exception:
+        logger.exception("Legacy department backfill failed; startup will continue")
 
     from .config import (
         SEED_ADMIN_EMAIL,
