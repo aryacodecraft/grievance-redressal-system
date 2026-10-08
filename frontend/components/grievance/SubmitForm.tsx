@@ -61,7 +61,7 @@ export function SubmitForm() {
       const res = await submitGrievance({
         title: values.title,
         description: values.description,
-        userId: user?.id ?? "citizen-portal",
+        userId: user?.id,
         latitude: coords.latitude,
         longitude: coords.longitude,
         ...(image?.url ? { imageUrl: image.url } : {}),
