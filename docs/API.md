@@ -410,3 +410,12 @@ Common HTTP status codes:
 - 409 Conflict — duplicate resource
 - 422 Unprocessable Entity — invalid state transition or business rule violation
 - 500 Internal Server Error — unexpected error (no stack trace in response)
+### Worker workflow additions
+
+- `POST /grievances/{id}/accept` — owner-only `RESOLVER` acknowledgement.
+- `POST /grievances/{id}/escalate` accepts `issueType`, `description`,
+  `suggestedAction`, and optional `evidenceUrl`; the ticket is stored with the
+  grievance and in escalation history.
+- `POST /grievances/{id}/resolution` accepts optional completion photo and
+  supporting document URLs; manager approval remains required.
+- Progress updates accept an optional `attachmentUrl`.
