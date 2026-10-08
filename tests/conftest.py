@@ -31,6 +31,12 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-pytest-only-not-pro
 # fail if SEED_ADMIN_PASSWORD from backend/.env is too long for bcrypt).
 os.environ["SEED_ADMIN_EMAIL"] = ""
 os.environ["SEED_ADMIN_PASSWORD"] = ""
+os.environ["SEED_SUPERADMIN_EMAIL"] = ""
+os.environ["SEED_SUPERADMIN_PASSWORD"] = ""
+# Disable testing-phase account seeding (17 bcrypt hashes per startup);
+# tests/test_seed_accounts.py invokes seed_test_accounts() directly.
+os.environ["SEED_TEST_ACCOUNTS"] = ""
+os.environ["SEED_TEST_PASSWORD"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

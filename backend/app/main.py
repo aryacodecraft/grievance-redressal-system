@@ -112,6 +112,7 @@ def _seed_on_startup() -> None:
         SEED_ADMIN_PASSWORD,
         SEED_SUPERADMIN_EMAIL,
         SEED_SUPERADMIN_PASSWORD,
+        SEED_TEST_ACCOUNTS,
     )
     from .users_db import users_repository
 
@@ -131,6 +132,17 @@ def _seed_on_startup() -> None:
 
     _seed(SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, "ADMIN", "Admin")
     _seed(SEED_SUPERADMIN_EMAIL, SEED_SUPERADMIN_PASSWORD, "SUPERADMIN", "SuperAdmin")
+
+    # Testing-phase accounts (dev only): one MANAGER + one EMPLOYEE per
+    # department, plus the default superadmin. Idempotent — existing emails
+    # are left untouched. Disabled unless SEED_TEST_ACCOUNTS=true.
+    if SEED_TEST_ACCOUNTS:
+        try:
+            from .seed_test_accounts import seed_test_accounts
+            stats = seed_test_accounts()
+            logger.info("Test accounts seed stats: %s", stats)
+        except Exception:
+            logger.exception("Test account seeding failed")
 
     # Seed demo citizen for testing/evaluation
     demo_citizen_email = "citizen@grievance.local"
