@@ -16,6 +16,7 @@ class GrievanceState(str, Enum):
     AI_PROCESSING = "AI_PROCESSING"
     PENDING_ASSIGNMENT = "PENDING_ASSIGNMENT"
     ASSIGNED = "ASSIGNED"
+    ACCEPTED = "ACCEPTED"
     IN_PROGRESS = "IN_PROGRESS"
     BLOCKED = "BLOCKED"
     RESOLUTION_SUBMITTED = "RESOLUTION_SUBMITTED"
@@ -49,10 +50,13 @@ TRANSITIONS: dict[tuple[GrievanceState, GrievanceState], frozenset[str]] = {
     (S.SUBMITTED, S.ASSIGNED):              frozenset({_AD, _SA}),  # direct assign
 
     # Work start
+    (S.ASSIGNED, S.ACCEPTED):              frozenset({_RE, _AD, _SA}),
+    (S.ACCEPTED, S.IN_PROGRESS):           frozenset({_RE, _AD, _SA}),
     (S.ASSIGNED, S.IN_PROGRESS):            frozenset({_RE, _AD, _SA}),
 
     # Work in progress
     (S.IN_PROGRESS, S.BLOCKED):             frozenset({_RE, _AD, _SA}),
+    (S.ACCEPTED, S.BLOCKED):               frozenset({_RE, _AD, _SA}),
     (S.BLOCKED, S.IN_PROGRESS):             frozenset({_RE, _AD, _SA}),
 
     # Resolution path
@@ -74,6 +78,7 @@ TRANSITIONS: dict[tuple[GrievanceState, GrievanceState], frozenset[str]] = {
     (S.SUBMITTED, S.ESCALATED):            frozenset({_US, _RE, _AD, _SA}),
     (S.PENDING_ASSIGNMENT, S.ESCALATED):   frozenset({_US, _RE, _AD, _SA}),
     (S.ASSIGNED, S.ESCALATED):             frozenset({_US, _RE, _AD, _SA}),
+    (S.ACCEPTED, S.ESCALATED):             frozenset({_US, _RE, _AD, _SA}),
     (S.IN_PROGRESS, S.ESCALATED):          frozenset({_US, _RE, _AD, _SA}),
     (S.BLOCKED, S.ESCALATED):              frozenset({_US, _RE, _AD, _SA}),
     (S.ESCALATED, S.ASSIGNED):             frozenset({_AD, _SA}),
@@ -131,6 +136,7 @@ def transition_state(current_state: str, to_state: str, actor_role: str) -> None
 _STATUS_COMPAT: dict[str, str] = {
     "open": "SUBMITTED",
     "assigned": "ASSIGNED",
+    "accepted": "ACCEPTED",
     "in_progress": "IN_PROGRESS",
     "resolved": "RESOLVED",
     "closed": "CLOSED",
