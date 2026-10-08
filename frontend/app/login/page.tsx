@@ -16,6 +16,7 @@ import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
 import { useDemoUser } from "@/lib/session";
 import { roleForEmail } from "@/lib/roles";
+import { TEST_ACCOUNTS } from "@/lib/testAccounts";
 import { getGoogleAuthUrl } from "@/lib/api";
 
 const REMEMBER_KEY = "grievai.remembered-email";
@@ -189,39 +190,34 @@ function LoginForm() {
               <p className="font-semibold uppercase tracking-wider text-ink-900">
                 Dev test credentials
               </p>
-              <div className="mt-2 space-y-2.5">
-                <div className="flex items-center justify-between gap-2 border-b border-ink-200/60 pb-2">
-                  <div>
-                    <span className="font-semibold text-ink-900">Admin:</span>{" "}
-                    <code className="font-mono text-[11px]">admin@grievance.local</code>
-                  </div>
-                  <button
-                    type="button"
-                    className="font-medium text-primary-700 underline hover:text-primary-800"
-                    onClick={() => {
-                      setEmail("admin@grievance.local");
-                      setPassword("Admin@2026!");
-                    }}
+              <p className="mt-1 text-[11px] text-ink-500">
+                Seeded when the backend runs with SEED_TEST_ACCOUNTS=true.
+                Click Autofill to populate the form.
+              </p>
+              <div className="mt-2 max-h-64 space-y-2.5 overflow-y-auto pr-1">
+                {TEST_ACCOUNTS.map((acct) => (
+                  <div
+                    key={acct.email}
+                    className="flex items-center justify-between gap-2 border-b border-ink-200/60 pb-2 last:border-0 last:pb-0"
                   >
-                    Autofill
-                  </button>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <span className="font-semibold text-ink-900">Citizen:</span>{" "}
-                    <code className="font-mono text-[11px]">citizen@grievance.local</code>
+                    <div className="min-w-0">
+                      <span className="font-semibold text-ink-900">{acct.label}:</span>{" "}
+                      <code className="font-mono text-[11px] break-all">
+                        {acct.email}
+                      </code>
+                    </div>
+                    <button
+                      type="button"
+                      className="shrink-0 font-medium text-primary-700 underline hover:text-primary-800"
+                      onClick={() => {
+                        setEmail(acct.email);
+                        setPassword(acct.password);
+                      }}
+                    >
+                      Autofill
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="font-medium text-primary-700 underline hover:text-primary-800"
-                    onClick={() => {
-                      setEmail("citizen@grievance.local");
-                      setPassword("Citizen@2026!");
-                    }}
-                  >
-                    Autofill
-                  </button>
-                </div>
+                ))}
               </div>
             </div>
           )}
