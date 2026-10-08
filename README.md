@@ -216,6 +216,20 @@ Department test accounts are seeded only when `SEED_TEST_ACCOUNTS=true` in
 
 ## Running Automated Tests
 
+### Loading demo grievances
+
+The repository includes one realistic, geolocated grievance and one bundled
+image attachment for each of the eight service domains. Start the backend
+environment, then run from the repository root:
+
+```bash
+python -m backend.seed_demo_data
+```
+
+The command is idempotent and uses the configured MongoDB repository (or the
+non-persistent in-memory fallback). Set `DEMO_IMAGE_BASE_URL` if the frontend
+is hosted somewhere other than `http://localhost:3000`.
+
 Run backend tests from the **repository root**:
 
 ```bash
