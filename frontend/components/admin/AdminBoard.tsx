@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Feedback";
-import { assignGrievance, listUsers, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
+import { assignGrievance, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
@@ -88,7 +88,10 @@ function SlaCell({ grievance }: { grievance: Grievance }) {
 }
 
 export function AdminBoard() {
-  const { items: feedItems, loading, error, live } = useAdminGrievanceFeed();
+  const { items: feedItems, loading, error, live, user } = useAdminGrievanceFeed();
+  const userRole = user?.role?.toUpperCase();
+  const departmentId = user?.departmentId;
+  const isDepartmentManager = userRole === "ADMIN";
   const [overrides, setOverrides] = useState<Record<string, Partial<Grievance>>>({});
 
   // Filtering & Sorting
@@ -102,17 +105,11 @@ export function AdminBoard() {
 
   // Review modal
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [officers, setOfficers] = useState<Record<string, unknown>[]>([]);
-
-  useEffect(() => {
-    if (!live) return;
-    void listUsers().then((rows) => setOfficers(rows as Record<string, unknown>[])).catch(() => setOfficers([]));
-  }, [live]);
-
-  const items = useMemo(
-    () => feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g)),
-    [feedItems, overrides]
-  );
+  const items = useMemo(() => {
+    const merged = feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g));
+    if (!isDepartmentManager || !departmentId) return merged;
+    return merged.filter((g) => (g.departmentId ?? g.category).toLowerCase() === departmentId.toLowerCase());
+  }, [feedItems, overrides, isDepartmentManager, departmentId]);
 
   const selected = useMemo(
     () => items.find((g) => g.id === selectedId) ?? null,
@@ -204,14 +201,14 @@ export function AdminBoard() {
     setOverrides((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
-  async function handleStatusTransition(status: string, assignedDept?: string, ownerId?: string) {
+  async function handleStatusTransition(status: string, assignedDept?: string) {
     if (!selected) return;
     const patch: { status: string; assignee?: string } = { status };
     if (assignedDept) patch.assignee = assignedDept;
 
     if (live) {
-      if (status === "assigned" && ownerId) {
-        await assignGrievance(selected.id, { departmentId: selected.category || "other", ownerId, reason: "Assigned by department manager" });
+      if (status === "assigned" && assignedDept) {
+        await assignGrievance(selected.id, { departmentId: assignedDept, reason: "Department assignment reviewed by admin" });
       } else if (status === "in_progress") {
         await transitionGrievanceState(selected.id, { to_state: "IN_PROGRESS", reason: "Officer started work" });
       } else if (status === "resolved") {
@@ -226,7 +223,7 @@ export function AdminBoard() {
   return (
     <div className="space-y-6">
       {/* ── Department Portal Navigation Tabs ─────────────────────────── */}
-      <div className="border-b border-ink-200/80 bg-white pt-1">
+      {!isDepartmentManager && <div className="border-b border-ink-200/80 bg-white pt-1">
         <div className="pb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-ink-700">
             Department Portals
@@ -267,7 +264,7 @@ export function AdminBoard() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* ── Executive Command Metrics Bar ─────────────────────────────── */}
       <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
@@ -587,7 +584,6 @@ export function AdminBoard() {
         grievance={selected}
         onClose={() => setSelectedId(null)}
         onStatusTransition={handleStatusTransition}
-        officers={officers}
       />
     </div>
   );
