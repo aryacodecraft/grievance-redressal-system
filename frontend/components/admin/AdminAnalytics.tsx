@@ -89,7 +89,14 @@ function MetricCard({
  * the spatial grievance map, and CSV report export.
  */
 export function AdminAnalytics() {
-  const { items, loading, error } = useAdminGrievanceFeed();
+  const { items: feedItems, loading, error, user } = useAdminGrievanceFeed();
+  const userRole = user?.role?.toUpperCase();
+  const departmentId = user?.departmentId;
+  const isDepartmentManager = userRole === "ADMIN";
+  const items = useMemo(() => {
+    if (!isDepartmentManager || !departmentId) return feedItems;
+    return feedItems.filter((g) => (g.departmentId ?? g.category).toLowerCase() === departmentId.toLowerCase());
+  }, [feedItems, isDepartmentManager, departmentId]);
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
@@ -135,7 +142,7 @@ export function AdminAnalytics() {
             Executive Analytics &amp; Oversight
           </h2>
           <p className="text-xs text-ink-500">
-            Macro metrics, complaint patterns, and where problems are happening — across all areas.
+            {isDepartmentManager ? `Complaint patterns and workload for ${user?.departmentId ?? "your department"}.` : "Macro metrics, complaint patterns, and where problems are happening — across all areas."}
           </p>
         </div>
         <Button
