@@ -76,6 +76,7 @@ def add_progress(
             "kind": "progress.customer",
             "entityId": grievance_id,
             "title": f"Update on your grievance {grievance_id}",
+            "message": payload.bodyCustomer,
         })
     
     audit_repository.append({
