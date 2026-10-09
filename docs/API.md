@@ -22,6 +22,7 @@ Development: `http://localhost:10000`
 | `GET` | `/test` | Legacy smoke-test route |
 | `POST` | `/submit-grievance` | **Authenticated users only.** Creates a grievance using the verified JWT owner; runs the AI classifier cascade. Returns `{ "message", "grievanceId", "hfEngine" }` |
 | `GET` | `/grievances` | List; optional `?userId=` scopes to one citizen, `?limit=` (default `50`, must be `1..1000`) |
+| `GET` | `/resolver/tasks` | Authenticated resolver's assigned work, strictly scoped by token owner ID and independent of department aliases |
 | `GET` | `/grievances/department-counts` | Aggregate totals by category; no individual grievance data is returned |
 | `GET` | `/grievances/{grievance_id}` | Single grievance; `404` if unknown |
 | `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` — blank/whitespace-only values are `400`; surrounding whitespace is trimmed. No auth and no transition rules yet (Phase 1/2). |
@@ -32,6 +33,10 @@ Development: `http://localhost:10000`
 > **Naming note:** the implemented create route is `POST /submit-grievance`
 > (kept for parity with the legacy client), not `POST /grievances` as
 > originally planned below. Interactive docs: `http://localhost:10000/docs`.
+
+Authenticated `RESOLVER` requests to `GET /grievances` are always restricted to
+the caller's `ownerId` assignments. A department filter is optional; omitting
+it must not restrict the resolver queue to the `other` department.
 
 ---
 

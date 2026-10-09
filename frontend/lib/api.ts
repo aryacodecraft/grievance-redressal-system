@@ -206,6 +206,12 @@ export async function listGrievances(params?: {
   return grievanceListSchema.parse(raw);
 }
 
+/** List tasks for the authenticated employee; backend scopes strictly by owner ID. */
+export async function listAssignedResolverTasks(): Promise<z.infer<typeof grievanceListSchema>> {
+  const raw = await requestJson<unknown>("/resolver/tasks", { method: "GET" });
+  return grievanceListSchema.parse(raw);
+}
+
 export async function getDepartmentCounts(): Promise<{ total: number; counts: Record<string, number> }> {
   return requestJson<{ total: number; counts: Record<string, number> }>("/grievances/department-counts", { method: "GET" });
 }

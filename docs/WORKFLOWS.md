@@ -248,6 +248,19 @@ structured escalation ticket. Completion is submitted as
 `RESOLUTION_SUBMITTED`, preserving the required manager approval step before
 the grievance becomes `RESOLVED`.
 
+The worker queue uses `GET /resolver/tasks`, scoped by authenticated `ownerId`
+and independent of department filters/aliases. Assignment eligibility, manager
+employee lists, and department scopes share canonical department normalization,
+so legacy/display labels (for example `transport`, `Roads & Transport`, and
+`Traffic & Transport Operations`) resolve to the same department. Assignment
+notifications link directly to the named task;
+the queue refreshes periodically so tasks assigned while it is open appear
+without requiring a sign-out/sign-in cycle. If a queue response omits an
+assignment, the client can recover it from that employee's own assignment
+notifications and fetch the grievance through the same server-side owner
+authorization used by direct grievance lookup. Loading errors are shown rather
+than rendered as a zero-work dashboard.
+
 ## Department employee management
 
 Department managers use `/admin/employees` with separate **Employee Accounts**
