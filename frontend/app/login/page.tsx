@@ -193,7 +193,7 @@ function LoginForm() {
                   type="checkbox"
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-ink-300 accent-primary-600"
+                  className="h-3.5 w-3.5 rounded border-ink-300 accent-primary-700"
                 />
                 {t("rememberMe")}
               </label>
