@@ -1023,7 +1023,7 @@ class TestFaceService:
         gray = np.full((32, 32), 128.0)
         assert face_service.laplacian_variance(gray) == pytest.approx(0.0)
         checker = (np.indices((32, 32)).sum(axis=0) % 2) * 90.0
-        assert face_service.laplacian_variance(checker) >= face_service.MIN_BLUR_VARIANCE
+        assert face_service.laplacian_variance(checker) >= config.FACE_MIN_BLUR_VARIANCE
 
     # ── face selection ──
 
@@ -1135,6 +1135,59 @@ class TestFaceService:
         with pytest.raises(FaceAuthError) as exc:
             face_service.check_action("smile", self._dets(mouths=[None] * 5))
         assert exc.value.code == "LANDMARKS_UNAVAILABLE"
+
+    # ── env-tunable thresholds (DEC-024) ──
+
+    def test_tunable_defaults_are_pinned(self):
+        """conftest pins these; values mirror backend/.env.example."""
+        assert config.FACE_TURN_MIN_DEGREES == 15.0
+        assert config.FACE_BLINK_EAR_DROP == 0.7
+        assert config.FACE_SMILE_MOUTH_WIDEN == 1.08
+        assert config.FACE_MIN_BLUR_VARIANCE == 30.0
+        assert config.FACE_MIN_FACE_PX == 80
+
+    def test_turn_min_degrees_is_env_tunable(self, monkeypatch):
+        trace = [0.0, 12.0, 24.0, 36.0, 48.0]
+        face_service.check_action("turn_left", self._dets(yaws=trace))  # default 15°
+        monkeypatch.setattr(config, "FACE_TURN_MIN_DEGREES", 60.0)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.check_action("turn_left", self._dets(yaws=trace))
+        assert exc.value.code == "LIVENESS_FAILED"
+
+    def test_blink_ear_drop_is_env_tunable(self, monkeypatch):
+        trace = [0.30, 0.25, 0.25, 0.25, 0.30]
+        with pytest.raises(FaceAuthError) as exc:  # default 0.7 rejects a small drop
+            face_service.check_action("blink", self._dets(ears=trace))
+        assert exc.value.code == "LIVENESS_FAILED"
+        monkeypatch.setattr(config, "FACE_BLINK_EAR_DROP", 0.9)
+        face_service.check_action("blink", self._dets(ears=trace))  # now passes
+
+    def test_smile_widen_is_env_tunable(self, monkeypatch):
+        trace = [0.60, 0.70, 0.70, 0.70, 0.60]
+        face_service.check_action("smile", self._dets(mouths=trace))  # default 1.08
+        monkeypatch.setattr(config, "FACE_SMILE_MOUTH_WIDEN", 1.2)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.check_action("smile", self._dets(mouths=trace))
+        assert exc.value.code == "LIVENESS_FAILED"
+
+    def test_min_face_px_is_env_tunable(self, monkeypatch):
+        det = self._det(bbox=(0.0, 0.0, 200.0, 200.0))
+        face_service.select_single_face([det])  # default 80 px
+        monkeypatch.setattr(config, "FACE_MIN_FACE_PX", 500)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.select_single_face([det])
+        assert exc.value.code == "FACE_TOO_SMALL"
+
+    def test_blur_variance_is_env_tunable(self, monkeypatch):
+        detector = FakeDetector()
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        frames = _frame_bytes(5)  # checkerboards pass the default 30.0 floor
+        satisfy("turn_left", detector)
+        face_service.verify_frames(frames, "turn_left")
+        monkeypatch.setattr(config, "FACE_MIN_BLUR_VARIANCE", 1e9)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.verify_frames(frames, "turn_left")
+        assert exc.value.code == "FACE_BLURRY"
 
     def test_unknown_action_rejected(self):
         with pytest.raises(FaceAuthError) as exc:

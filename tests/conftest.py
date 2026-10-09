@@ -45,6 +45,13 @@ os.environ["FACE_AUTH_ENABLED"] = "false"
 os.environ.setdefault("FACE_MATCH_THRESHOLD", "0.45")
 os.environ.setdefault("FACE_MODEL_NAME", "buffalo_s")
 os.environ.setdefault("FACE_ANTISPOOF_MODEL_PATH", "")
+# Tunable liveness thresholds (DEC-024) — pinned so default-value tests stay
+# deterministic regardless of a developer's local backend/.env.
+os.environ["FACE_TURN_MIN_DEGREES"] = "15.0"
+os.environ["FACE_BLINK_EAR_DROP"] = "0.7"
+os.environ["FACE_SMILE_MOUTH_WIDEN"] = "1.08"
+os.environ["FACE_MIN_BLUR_VARIANCE"] = "30.0"
+os.environ["FACE_MIN_FACE_PX"] = "80"
 os.environ.setdefault("TRUST_PROXY", "false")
 try:
     from cryptography.fernet import Fernet as _Fernet

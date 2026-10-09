@@ -94,6 +94,13 @@ FACE_MODEL_NAME = os.getenv("FACE_MODEL_NAME", "buffalo_s")
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
 # Optional Silent-Face-Anti-Spoofing ONNX model; empty disables the check.
 FACE_ANTISPOOF_MODEL_PATH = os.getenv("FACE_ANTISPOOF_MODEL_PATH", "")
+# Liveness/quality thresholds — defaults tuned against synthetic frames; tune
+# per webcam when capture fails closed (read at call time, no code change).
+FACE_TURN_MIN_DEGREES = float(os.getenv("FACE_TURN_MIN_DEGREES", "15.0"))
+FACE_BLINK_EAR_DROP = float(os.getenv("FACE_BLINK_EAR_DROP", "0.7"))
+FACE_SMILE_MOUTH_WIDEN = float(os.getenv("FACE_SMILE_MOUTH_WIDEN", "1.08"))
+FACE_MIN_BLUR_VARIANCE = float(os.getenv("FACE_MIN_BLUR_VARIANCE", "30.0"))
+FACE_MIN_FACE_PX = int(os.getenv("FACE_MIN_FACE_PX", "80"))
 
 # --- Proxy -------------------------------------------------------------------
 # When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.

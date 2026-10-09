@@ -47,15 +47,13 @@ IP_FAIL_LIMIT = 20  # per-IP across public face endpoints
 VALID_ACTIONS = ("turn_left", "turn_right", "blink", "smile")
 
 MIN_DET_SCORE = 0.5
-MIN_FACE_PX = 80
-MIN_BLUR_VARIANCE = 30.0  # Laplacian variance below this = blurry
-TURN_MIN_DEGREES = 15.0
 TURN_DIRECTION_JITTER = 2.0  # degrees of pose noise tolerated per step
 TURN_AGREE_RATIO = 0.6  # ≥60% of deltas must agree with the net direction
-BLINK_EAR_DROP = 0.7  # mid-frame EAR must fall below 70% of the edge frames
 MIN_OPEN_EAR = 0.18  # edge frames must show an open eye
-SMILE_MOUTH_WIDEN = 1.08  # mid-frame mouth ≥8% wider than the edge frames
 ANTISPOOF_MIN_SCORE = 0.90
+# The remaining thresholds (bbox minimum, blur floor, yaw delta, blink EAR
+# drop, smile spread) are read from config.FACE_* at call time so a webcam can
+# be tuned via env without code changes (DEC-024).
 
 
 # ── Errors ───────────────────────────────────────────────────────────────────
@@ -217,7 +215,7 @@ def select_single_face(detections: list[Detection]) -> Detection:
     if det.det_score < MIN_DET_SCORE:
         raise FaceAuthError("DETECTION_FAILED", "low detection confidence")
     x1, y1, x2, y2 = det.bbox
-    if (x2 - x1) < MIN_FACE_PX or (y2 - y1) < MIN_FACE_PX:
+    if (x2 - x1) < config.FACE_MIN_FACE_PX or (y2 - y1) < config.FACE_MIN_FACE_PX:
         raise FaceAuthError("FACE_TOO_SMALL", "face too small in frame")
     if det.embedding is None:
         raise FaceAuthError("DETECTION_FAILED", "no embedding for detected face")
@@ -294,7 +292,7 @@ def check_action(action: str, detections: list[Detection]) -> None:
             raise FaceAuthError("LANDMARKS_UNAVAILABLE", "pose estimates missing")
         net = yaws[-1] - yaws[0]
         signed_net = net if action == "turn_left" else -net
-        if signed_net < TURN_MIN_DEGREES:
+        if signed_net < config.FACE_TURN_MIN_DEGREES:
             raise FaceAuthError("LIVENESS_FAILED", "head turn too small")
         direction = 1.0 if signed_net > 0 else -1.0
         deltas = [b - a for a, b in zip(yaws, yaws[1:])]
@@ -314,7 +312,7 @@ def check_action(action: str, detections: list[Detection]) -> None:
         mid = min(ears[1:-1])
         if edge < MIN_OPEN_EAR:
             raise FaceAuthError("LIVENESS_FAILED", "eyes not open at frame edges")
-        if mid > BLINK_EAR_DROP * edge:
+        if mid > config.FACE_BLINK_EAR_DROP * edge:
             raise FaceAuthError("LIVENESS_FAILED", "no blink observed")
 
     elif action == "smile":
@@ -323,7 +321,7 @@ def check_action(action: str, detections: list[Detection]) -> None:
             raise FaceAuthError("LANDMARKS_UNAVAILABLE", "mouth landmarks unavailable")
         edge = (widths[0] + widths[-1]) / 2.0
         mid = sum(widths[1:-1]) / (len(widths) - 2)
-        if mid < SMILE_MOUTH_WIDEN * edge:
+        if mid < config.FACE_SMILE_MOUTH_WIDEN * edge:
             raise FaceAuthError("LIVENESS_FAILED", "no smile observed")
 
 
@@ -470,7 +468,7 @@ def verify_frames(frames: list[bytes], action: str | None) -> VerifiedFace:
         img = decode_frame(jpeg)
         det = select_single_face(_real_detections(img))
         gray = img.mean(axis=2)
-        if laplacian_variance(gray) < MIN_BLUR_VARIANCE:
+        if laplacian_variance(gray) < config.FACE_MIN_BLUR_VARIANCE:
             raise FaceAuthError("FACE_BLURRY", "frame is too blurry")
         _antispoof_score(img)
         detections.append(det)
