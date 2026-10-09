@@ -302,6 +302,14 @@ export async function listUsers(): Promise<unknown[]> {
   return raw as unknown[];
 }
 
+export async function createEmployee(body: { full_name: string; email: string; password: string; departmentId?: string }): Promise<unknown> {
+  return postJson("/users/employees", body);
+}
+
+export async function deleteEmployee(userId: string): Promise<unknown> {
+  return requestJson(`/users/${encodeURIComponent(userId)}`, { method: "DELETE" });
+}
+
 export async function updateUserRole(userId: string, role: string, reason: string): Promise<unknown> {
   return postJson(`/users/${encodeURIComponent(userId)}/roles`, { role, reason });
 }
@@ -332,6 +340,14 @@ export async function listAudit(entity?: string): Promise<unknown[]> {
 export async function listNotifications(): Promise<unknown[]> {
   const raw = await requestJson<unknown>(`/notifications`, { method: "GET" });
   return raw as unknown[];
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await patchJson(`/notifications/${encodeURIComponent(id)}/read`, {});
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await patchJson("/notifications/read-all", {});
 }
 
 /* ── Images ──────────────────────────────────────────────────────────────── */
