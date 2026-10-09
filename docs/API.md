@@ -21,10 +21,11 @@ Development: `http://localhost:10000`
 | `GET` | `/health` | Returns `{ "status", "storage" }` — `storage` is `mongodb` or `in-memory` |
 | `GET` | `/test` | Legacy smoke-test route |
 | `POST` | `/submit-grievance` | **Authenticated users only.** Creates a grievance using the verified JWT owner; runs the AI classifier cascade. Returns `{ "message", "grievanceId", "hfEngine" }` |
-| `GET` | `/grievances` | List; optional `?userId=` scopes to one citizen, `?limit=` (default `50`, must be `1..1000`) |
+| `GET` | `/grievances` | Authenticated list; citizens/resolvers are token-scoped, staff see authorized scope; optional `?limit=` (default `50`, must be `1..1000`) |
 | `GET` | `/resolver/tasks` | Authenticated resolver's assigned work, strictly scoped by token owner ID and independent of department aliases |
 | `GET` | `/grievances/department-counts` | Aggregate totals by category; no individual grievance data is returned |
-| `GET` | `/grievances/{grievance_id}` | Single grievance; `404` if unknown |
+| `GET` | `/grievances/{grievance_id}` | Single grievance; public reference lookup returns a limited tracking projection; `404` if unknown |
+| `GET` | `/grievances/{grievance_id}/history` | Full history for authorized accounts; anonymous/non-owner tracking receives customer-visible/system updates only |
 | `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` — blank/whitespace-only values are `400`; surrounding whitespace is trimmed. No auth and no transition rules yet (Phase 1/2). |
 | `POST` | `/validate-image` | Image validation |
 | `POST` | `/sign-cloudinary` | Cloudinary upload signature |
@@ -159,7 +160,8 @@ attachments?: File[]
 ---
 
 ### GET /grievances
-List grievances. **Auth:** Role-filtered.
+List grievances. **Auth:** Required; unauthenticated requests receive `401`.
+Use `GET /grievances/{grievance_id}` for public reference-ID tracking.
 
 - USER: own grievances only
 - RESOLVER: assigned grievances only
@@ -172,22 +174,19 @@ List grievances. **Auth:** Role-filtered.
 ---
 
 ### GET /grievances/{grievance_id}
-Get grievance detail. **Auth:** Role-filtered (same as list).
+Get grievance detail by reference ID (case-insensitive). Anonymous visitors
+and signed-in non-owners receive a limited tracking projection (`id`, title,
+current state/status, category, priority, submission time, and department).
+It omits account/worker IDs, precise coordinates, images, AI internals, and
+workflow history. The complainant and authorized staff retain full detail.
+Unknown IDs return `404`.
 
-**Response 200:**
-```json
-{
-  "id", "reference_number", "title", "description",
-  "status", "severity", "current_priority",
-  "category", "submitter", "assignment",
-  "due_date", "submitted_at", "updated_at",
-  "ai_analysis": { "summary", "category_prediction", "severity", "priority", "entities" },
-  "similar_grievances": [...],
-  "status_history": [...],
-  "comments": [...],
-  "attachments": [...]
-}
-```
+### GET /grievances/{grievance_id}/history
+Anonymous reference tracking and non-owner accounts receive only customer-
+visible/system updates, with internal text and author identity removed. The
+complainant, assigned worker, and administrative roles retain their authorized
+history. A history error must never turn a successful detail lookup into a
+“not found” result.
 
 ---
 
@@ -205,7 +204,10 @@ Add comment. **Auth:** USER (own), RESOLVER (assigned), ADMIN.
 ---
 
 ### GET /grievances/{grievance_id}/history
-Get status history timeline. **Auth:** USER (own), RESOLVER (assigned), ADMIN.
+Get the progress timeline. Public/non-owner requests receive only
+customer-visible/system updates; internal notes and author identity are
+excluded. Owners, assigned workers, and administrative roles receive their
+authorized history.
 
 ---
 

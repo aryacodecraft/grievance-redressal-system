@@ -261,6 +261,16 @@ notifications and fetch the grievance through the same server-side owner
 authorization used by direct grievance lookup. Loading errors are shown rather
 than rendered as a zero-work dashboard.
 
+## Public reference tracking
+
+Anyone can search a grievance by reference ID, including while signed out.
+Visitors and non-owner accounts receive a limited current-status projection;
+identity, assignment, exact coordinates, images, and internal workflow data
+remain restricted. Public history includes only customer-visible/system
+updates. Detail and history load independently, so a history failure cannot
+incorrectly show the grievance as missing. Full grievance lists require
+authentication, so public lookup does not expose an enumerable case list.
+
 ## Department employee management
 
 Department managers use `/admin/employees` with separate **Employee Accounts**
