@@ -4,6 +4,65 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-09 — Department-wise summary export on the admin analytics dashboard
+
+- Added an “Export summary (CSV)” button to `/admin/analytics` (available to
+  ADMIN and SUPERADMIN, and scoped to their own department for department
+  managers). It downloads a two-block report: a per-department count block
+  (total, open, in progress, resolved/closed, urgent, past deadline,
+  % resolved), then a detail block listing every registered complaint grouped
+  under its department with description, AI summary, keywords, priority,
+  status, assignee, registered/due/resolved dates, coordinates and a map link.
+- Extracted the CSV builders to `frontend/lib/report.ts` (`buildComplaintsCsv`,
+  `buildSummaryCsv`) — pure functions, no React/DOM — so both buttons share one
+  implementation. The existing flat export is now labelled “Export complaints
+  (CSV)”; its output is unchanged.
+- Verified by executing the builder against fixtures (department grouping and
+  counts, description/summary/keyword/location columns, CSV quoting, blank
+  location handling), plus `tsc`/`build`/`lint`.
+
+## 2026-10-09 — Admin and employee interface wording made plainer
+
+- Same plain-language pass applied to the admin and employee (resolver)
+  surfaces. Employee view: page title “My work”, “Employee access required”
+  gate, friendlier hold/update/problem-report copy, and clearer action buttons
+  (“Raise ticket” → “Send to manager”, “Submit completion” → “Send for
+  review”, “In Progress” → “Mark in progress”).
+- Admin view: page title “Administrative Control Centre” → “Admin dashboard”;
+  access screens rewritten (“Verifying administrative privileges…” →
+  “Checking your access…”, “Authentication Required” → “Sign in required”,
+  “Sign in as Administrator” → “Sign in”); queue table headers (“Assignee” →
+  “Assigned to”, “Fix-by Date” → “Due by”, “Age” → “Waiting”); review-modal
+  action buttons (“Review department assignment” → “Assign to this
+  department”); analytics headings (“Spatial analysis” → “Where complaints
+  are happening”, “Area concentration analysis” → “Hotspots by area”,
+  “Export CSV Report” → “Download report (CSV)”). Sidebar “Executive
+  Analytics” → “Analytics”, superadmin gate/title copy simplified.
+- Domain terms (grievance/ticket, status/role/department names, issue types,
+  CSV column headers) and code identifiers were left unchanged.
+
+## 2026-10-09 — Input field wording made plainer (English)
+
+- Reworded the citizen-facing form copy in `frontend/lib/i18n/en.ts` to plain,
+  non-technical language: “Subject / Short Title” → “Issue title”, “Detailed
+  Description” → “Describe the issue”, “Intended Department (Optional)” →
+  “Suggested department (optional)”, “Evidence Photograph” → “Photo of the
+  issue”, “Incident location” → “Issue location”, “Pin My Current Location” →
+  “Use my current location”, “Let system auto-classify” → “Not sure? Choose
+  for me”, and the submit button “Submitting & Classifying…” → “Submitting…”.
+  Hints, placeholders and error text were tightened the same way.
+- Staff-facing hardcoded labels: “Officer Notes (Optional)” → “Note for the
+  citizen (optional)”, “Assign to employee”/“Assign to Department” → “Assign
+  to an employee”/“Assign to a department” (`GrievanceReviewModal`), “Hold
+  reason” → “Reason for hold” (`ResolverWorkspace`), admin filters “Priority
+  Filter”/“Sort Order” → “Priority”/“Sort by” and a spelled-out search
+  placeholder (`AdminBoard`), employee form “Name” → “Full name”,
+  “Temporary password” → “Set a temporary password”
+  (`DepartmentEmployeesWorkspace`), superadmin “key” → “Short code”.
+- English only. `MessageKey` is derived from `en.ts`, so keys were left intact
+  and the ten translated locale files were not touched (requested); those
+  locales keep their existing translations.
+
 ## 2026-10-09 — Request lifecycle label clarified
 
 - Renamed the timeline stage “AI Triage & Categorization” to “Department
