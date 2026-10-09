@@ -2,7 +2,7 @@
 
 import { AdminBoard } from "@/components/admin/AdminBoard";
 import { AdminGate } from "@/components/admin/AdminGate";
-import { AdminHeader, AdminNav } from "@/components/admin/AdminNav";
+import { AdminHeader } from "@/components/admin/AdminNav";
 
 export default function AdminPage() {
   return (
@@ -12,7 +12,6 @@ export default function AdminPage() {
           title="Administrative Control Centre"
           subtitle="Review new complaints, see the AI's suggestion, and hand each case to the right department team."
         />
-        <AdminNav />
         <div className="px-4 py-8 sm:px-6 lg:px-8 space-y-8">
           <AdminBoard />
         </div>
