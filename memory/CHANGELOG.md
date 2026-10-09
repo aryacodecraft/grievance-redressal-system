@@ -4,6 +4,35 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-09 — Footer trust bar removed
+
+### Removed
+- The `SiteFooter` "Trust bar" strip and its three copy strings: "Audited &
+  tamper-evident records", "Built for local civic workflows", and "Academic
+  research prototype". The auditability claim over-promised for a prototype,
+  and the research-prototype label is internal context (`AGENTS.md`, `PRD.md`,
+  `README.md`), not citizen-facing UI.
+- Deleted `footerTrustRecords`, `footerTrustLocal`, and `footerTrustPrototype`
+  from `en.ts` and all ten translated locales. Required rather than optional:
+  `Messages = Record<MessageKey, string>` is derived from `en.ts`, so leftover
+  keys would be a TypeScript error. No other component referenced them.
+- Dropped the now-unused `ShieldCheck` import from `SiteFooter.tsx`; `MapPin`
+  and `Mail` are still used by the contact list. The main footer columns are
+  unchanged.
+
+## 2026-10-09 — Worker assignment visibility across department aliases
+
+- Added shared backend and frontend department normalization for canonical keys,
+  legacy IDs, and display labels, including Roads & Transport variations.
+- Added `GET /resolver/tasks`, scoped strictly to the authenticated worker's
+  owner ID; employee dashboards no longer depend on a department-filtered
+  general grievance list. Assignment notification recovery remains owner-checked.
+- Applied canonical department matching to manager employee lists and assignment
+  eligibility, preventing valid workers from being excluded or incorrectly
+  rejected because their stored department uses a display/legacy name.
+- Added an end-to-end regression covering manager visibility, assignment,
+  worker queue visibility, starting work, and isolation from another department.
+
 ## 2026-10-09 — Left-nav-only navigation: three content-area tab bars removed
 
 ### Changed
@@ -970,3 +999,29 @@ one lean triage board, one centered review dialog, one executive analytics page.
   events. Mongo notification results now expose their IDs for read operations.
 - Documented notification response fields and workflow behavior. Email/push
   delivery and browser-level validation remain deferred.
+
+## 2026-10-09 — Resolver assignment visibility and deep links
+
+- Fixed `GET /grievances` for resolver accounts: an omitted department filter
+  was passed through `canonical_department(None)` and defaulted to `other`,
+  hiding owned grievances in all other departments. Owner scoping remains
+  enforced server-side.
+- Assignment notifications now open `/resolver` with the grievance selected;
+  the workbench refreshes every 30 seconds so newly assigned tasks appear
+  without reauthentication.
+- Added regression coverage for an assigned Roads grievance appearing in a
+  resolver's unfiltered queue. Frontend lint/typecheck pass; focused pytest did
+  not return output in this environment and remains to be confirmed.
+
+## 2026-10-09 — Employee dashboard task loading
+
+- Added a shared resolver task loader used by both the employee overview cards
+  and the resolver workbench. It combines the authenticated task queue with
+  assignment-notification IDs and uses owner-protected grievance lookup to
+  recover missing list rows.
+- Added visible loading and error states, periodic refresh, notification deep
+  links, and explicit task-row affordances so workers can open details and use
+  the existing Accept/Start work actions.
+- `npm run lint` and `npx tsc --noEmit` pass (one existing `<img>` warning).
+  `next build` was blocked by the sandbox (`Operation not permitted` while
+  Turbopack tried to spawn/bind a worker process).

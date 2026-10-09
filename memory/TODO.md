@@ -124,6 +124,9 @@
 - [x] Expand resolver workspace into worker dashboard with assignment acknowledgement, progress/hold updates, structured escalation, completion submission, and timeline.
 - [ ] Add manager-facing escalation ticket response controls.
 - [x] Add account-scoped notification inbox, unread badges, polling/toasts, and citizen/employee workflow notifications.
+- [x] Fix resolver queue's implicit `other` department filter and link assignment notifications to the selected task.
+- [x] Normalize department aliases consistently across manager employee lists, assignment validation, and worker queues; add a Roads/Roads & Transport/Traffic & Transport Operations assignment regression.
+- [x] Use a shared employee task loader for overview/workbench; recover missing list rows from own assignment notifications and surface queue errors instead of zero counts.
 - [x] Resolver workbench at `/resolver` with assigned queue, state actions, progress notes, resolution submission, and activity history.
 - [x] Superadmin overview at `/superadmin` with users, departments, and audit data.
 - [x] Citizen tracking consumes live recent grievances and history updates when authenticated.

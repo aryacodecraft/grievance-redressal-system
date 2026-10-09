@@ -1699,3 +1699,55 @@ navigation is handled by the left-side drawer.
 - Left the citizen `/track` tab switcher alone — that page uses the top header,
   not the left nav.
 - `npm run lint` (0 errors) and `npm run build` (15 routes) pass.
+
+## 2026-10-09 — Resolver assignment visibility
+
+- Root cause: resolver GET `/grievances` applied `canonical_department(None)`,
+  which defaults to `other` and filtered away tasks from the employee's actual
+  department despite correct owner assignment and notification delivery.
+- Removed that implicit department filter (owner scoping remains); direct
+  assignment-notification links now select the grievance in `/resolver`, and
+  the queue refreshes every 30 seconds.
+- Added a backend regression test. Frontend `npm run lint` and `npx tsc
+  --noEmit` pass (one existing `<img>` lint warning). The focused pytest
+  process produced no output and could not be confirmed here; diff/compile
+  checks remain the next verification step.
+
+## 2026-10-09 — Employee dashboard task loading follow-up
+
+- Unified employee overview/workbench around a task loader that merges the
+  owner-scoped queue with grievances referenced by the employee's own
+  assignment notifications (each detail request remains server-authorized).
+- Added visible loading/error feedback, 15-second updates, task selection from
+  notification deep links, and a clearer clickable task-row affordance.
+- Frontend lint and TypeScript pass; only the pre-existing resolver `<img>`
+  optimization warning remains. Focused pytest did not report output in this
+  environment, so backend runtime coverage is unconfirmed. `next build` also
+  hit a sandbox Turbopack worker spawn/bind permission error.
+## 2026-10-09 — Roads & Transport employee task visibility
+
+- Root causes addressed: task visibility was coupled to a general list endpoint
+  and department names were compared inconsistently across canonical IDs,
+  legacy values, and display labels. A notification could therefore arrive even
+  when the employee queue filtered out the assigned grievance.
+- Added a dedicated authenticated-owner `/resolver/tasks` queue, shared
+  department normalization across backend assignment/employee operations and
+  frontend department scoping, and regression coverage from manager assignment
+  through worker starting the task. Other departments remain owner-isolated.
+- Frontend lint and TypeScript checks pass (one existing `<img>` lint warning).
+  Focused pytest was started but did not produce output during the observed
+  interval; its completion/result remains unconfirmed in this environment.
+## 2026-10-09 — Footer trust bar removal
+
+- Removed the `SiteFooter` trust bar strip ("Audited & tamper-evident
+  records" / "Built for local civic workflows" / "Academic research
+  prototype") and the unused `ShieldCheck` import. `MapPin`/`Mail` remain for
+  the contact list; main footer columns untouched.
+- Deleted `footerTrustRecords`, `footerTrustLocal`, `footerTrustPrototype`
+  from `en.ts` and all ten locale files, since `Messages` is derived from
+  `en.ts` and the keys were referenced nowhere else.
+- Project documentation still describes the prototype as academic
+  (`AGENTS.md`, `PRD.md`, `README.md`); those were deliberately left alone.
+- Verification: `tsc --noEmit` clean, `npm run lint` 0 errors (one pre-existing
+  `<img>` warning in `ResolverWorkspace.tsx`), `npm run build` succeeds across
+  all 15 routes.
