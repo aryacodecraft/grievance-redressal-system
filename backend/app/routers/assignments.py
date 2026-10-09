@@ -15,6 +15,7 @@ from ..state_machine import GrievanceState, transition_state, _STATUS_COMPAT
 from ..repositories.audit import audit_repository
 from ..repositories.notifications import notif_repository
 from ..repositories.sla_config import sla_repository
+from .grievances import canonical_department
 
 router = APIRouter(tags=["assignments"])
 
@@ -36,13 +37,14 @@ def _emit_audit(current, action, grievance_id, old, new, reason):
         "at": datetime.now(timezone.utc).isoformat(), "reason": reason, "source": "HUMAN",
     })
 
-def _notify(user_id: str, kind: str, entity_id: str, title: str):
+def _notify(user_id: str, kind: str, entity_id: str, title: str, message: str | None = None):
     if user_id:
         notif_repository.create({
             "userId": user_id,
             "kind": kind,
             "entityId": entity_id,
             "title": title,
+            "message": message,
         })
 
 
@@ -58,6 +60,17 @@ def assign_grievance(
     
     doc = _get_doc_or_404(grievance_id)
     state = _canon_state(doc)
+    department_id = canonical_department(payload.departmentId)
+    grievance_department = canonical_department(doc.get("departmentId") or doc.get("category"))
+    manager_department = canonical_department(current.get("departmentId"))
+    if role == "ADMIN" and manager_department and (grievance_department != manager_department or department_id != manager_department):
+        return JSONResponse(status_code=403, content={"error": "Can only route grievances within your department"})
+    if payload.ownerId:
+        from ..users_db import users_repository
+        worker = users_repository.get(payload.ownerId)
+        worker_department = canonical_department((worker or {}).get("departmentId"))
+        if not worker or worker.get("role") != "RESOLVER" or worker_department != department_id:
+            return JSONResponse(status_code=400, content={"error": "Assigned employee must belong to the selected department"})
     assignable_states = {"PENDING_ASSIGNMENT", "SUBMITTED", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "BLOCKED", "ESCALATED"}
     if state not in assignable_states:
         return JSONResponse(status_code=422, content={"error": f"Cannot change department in terminal/review state {state}."})
@@ -74,7 +87,7 @@ def assign_grievance(
     assignment_entry = {
         "fromOwner": doc.get("ownerId"),
         "toOwner": payload.ownerId,
-        "toDept": payload.departmentId,
+        "toDept": canonical_department(payload.departmentId),
         "byRole": role,
         "reason": payload.reason,
         "at": now,
@@ -85,7 +98,7 @@ def assign_grievance(
     # ASSIGNED, while later department changes preserve its current state.
     is_initial_assignment = state in ("PENDING_ASSIGNMENT", "SUBMITTED")
     patch = {
-        "departmentId": payload.departmentId,
+        "departmentId": department_id,
         "managerId": current["user_id"],
         "dueDate": due_date,
         "updatedAt": now,
@@ -102,9 +115,11 @@ def assign_grievance(
     except Exception:
         pass
     
-    _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been routed to the {payload.departmentId} department")
+    _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been routed to the {department_id} department")
+    if payload.ownerId:
+        _notify(payload.ownerId, "grievance.assigned_to_you", grievance_id, f"New task assigned: {doc.get('title', grievance_id)}", f"{grievance_id} · {priority} priority · Due {due_date}")
     action = "grievance.department_reviewed" if is_initial_assignment else "grievance.department_reassigned"
-    _emit_audit(current, action, grievance_id, {"state": state, "departmentId": doc.get("departmentId")}, {"state": "ASSIGNED" if is_initial_assignment else state, "ownerId": payload.ownerId or doc.get("ownerId"), "departmentId": payload.departmentId}, payload.reason)
+    _emit_audit(current, action, grievance_id, {"state": state, "departmentId": doc.get("departmentId")}, {"state": "ASSIGNED" if is_initial_assignment else state, "ownerId": payload.ownerId or doc.get("ownerId"), "departmentId": department_id}, payload.reason)
     return {"message": "Grievance assigned" if is_initial_assignment else "Grievance department reassigned", "grievanceId": grievance_id, "dueDate": due_date, "state": "ASSIGNED" if is_initial_assignment else state}
 
 
@@ -119,23 +134,43 @@ def reassign_grievance(
         return JSONResponse(status_code=403, content={"error": "Requires ADMIN or SUPERADMIN"})
     
     doc = _get_doc_or_404(grievance_id)
+    if role == "ADMIN":
+        actor_dept = "roads" if current.get("departmentId") == "transport" else current.get("departmentId")
+        grievance_department = doc.get("departmentId") or doc.get("category")
+        grievance_dept = canonical_department(grievance_department)
+        if actor_dept != grievance_dept:
+            return JSONResponse(status_code=403, content={"error": "Can only assign tasks in your department"})
+        from ..users_db import users_repository
+        target = users_repository.get(payload.ownerId)
+        target_dept = "roads" if target and target.get("departmentId") == "transport" else (target or {}).get("departmentId")
+        if not target or target.get("role") != "RESOLVER" or target_dept != actor_dept:
+            return JSONResponse(status_code=400, content={"error": "Employee must belong to your department"})
     now = datetime.now(timezone.utc).isoformat()
     old_owner = doc.get("ownerId")
-    
+    state = _canon_state(doc)
     patch = {"ownerId": payload.ownerId, "updatedAt": now}
     if payload.departmentId:
-        patch["departmentId"] = payload.departmentId
+        patch["departmentId"] = canonical_department(payload.departmentId)
+    initial_assignment = state in ("PENDING_ASSIGNMENT", "SUBMITTED")
+    if initial_assignment:
+        due_days = sla_repository.get_days(doc.get("category", "other"), doc.get("priority", "low"))
+        patch.update({"state": "ASSIGNED", "status": "assigned", "managerId": current["user_id"],
+                      "dueDate": doc.get("dueDate") or (datetime.now(timezone.utc) + timedelta(days=due_days)).isoformat()})
     repository.update(grievance_id, patch)
     try:
         repository.append_history(grievance_id, "assignmentHistory", {"fromOwner": old_owner, "toOwner": payload.ownerId, "byRole": role, "reason": payload.reason, "at": now, "reassign": True})
+        if initial_assignment:
+            repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "ASSIGNED", "by": current["user_id"], "byRole": role, "reason": payload.reason, "at": now, "source": "HUMAN"})
     except Exception:
         pass
     
-    _notify(payload.ownerId, "grievance.reassigned", grievance_id, f"Grievance {grievance_id} has been assigned to you")
+    _notify(payload.ownerId, "grievance.assigned_to_you", grievance_id, f"New task assigned: {doc.get('title', grievance_id)}", f"{grievance_id} · {doc.get('priority', 'low')} priority · Due {patch.get('dueDate', doc.get('dueDate', 'not set'))}")
+    if initial_assignment:
+        _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been assigned to a department employee")
     if old_owner:
         _notify(old_owner, "grievance.reassigned_away", grievance_id, f"Grievance {grievance_id} has been reassigned")
-    _emit_audit(current, "grievance.reassigned", grievance_id, {"ownerId": old_owner}, {"ownerId": payload.ownerId}, payload.reason)
-    return {"message": "Grievance reassigned", "grievanceId": grievance_id}
+    _emit_audit(current, "grievance.reassigned", grievance_id, {"ownerId": old_owner, "state": state}, {"ownerId": payload.ownerId, "state": "ASSIGNED" if initial_assignment else state}, payload.reason)
+    return {"message": "Grievance reassigned", "grievanceId": grievance_id, "state": "ASSIGNED" if initial_assignment else state}
 
 
 @router.patch("/grievances/{grievance_id}/priority")
@@ -211,7 +246,7 @@ def transition_grievance_state(
     except Exception:
         pass
     
-    _notify(doc.get("userId"), f"grievance.state.{payload.to_state.lower()}", grievance_id, f"Your grievance {grievance_id} status: {payload.to_state}")
+    _notify(doc.get("userId"), f"grievance.state.{payload.to_state.lower()}", grievance_id, f"Your grievance status is now {payload.to_state.replace('_', ' ').title()}", payload.reason)
     _emit_audit(current, "grievance.state_changed", grievance_id, {"state": state}, {"state": payload.to_state}, payload.reason)
     return {"message": "State updated", "state": payload.to_state}
 
@@ -326,7 +361,7 @@ def approve_resolution(
     except Exception:
         pass
     
-    _notify(doc.get("userId"), "grievance.resolved", grievance_id, f"Your grievance {grievance_id} has been resolved!")
+    _notify(doc.get("userId"), "grievance.resolved", grievance_id, f"Your grievance {grievance_id} has been resolved", "The department manager approved the submitted resolution.")
     _notify(doc.get("ownerId"), "grievance.resolution_approved", grievance_id, f"Grievance {grievance_id} resolution approved")
     _emit_audit(current, "grievance.resolution_approved", grievance_id, {"state": state}, {"state": "RESOLVED"}, "Approved")
     return {"message": "Resolution approved, grievance resolved"}
@@ -354,7 +389,7 @@ def return_resolution(
     except Exception:
         pass
     
-    _notify(doc.get("ownerId"), "grievance.resolution_returned", grievance_id, f"Grievance {grievance_id} resolution returned for rework")
+    _notify(doc.get("ownerId"), "grievance.resolution_returned", grievance_id, f"Grievance {grievance_id} returned for rework", payload.reason)
     _emit_audit(current, "grievance.resolution_returned", grievance_id, {"state": state}, {"state": "IN_PROGRESS"}, payload.reason)
     return {"message": "Resolution returned for rework"}
 
