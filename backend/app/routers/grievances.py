@@ -35,9 +35,14 @@ from ..services.classification import (
     refine_with_groq,
 )
 from ..services.image import llm_image_confidence
+from ..repositories.notifications import notif_repository
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter()
+
+def canonical_department(value: str | None) -> str:
+    key = (value or "other").strip().lower()
+    return "roads" if key == "transport" else key
 
 
 @router.post("/submit-grievance")
@@ -170,7 +175,7 @@ def submit_grievance(
         "status": "open",
         "state": "PENDING_ASSIGNMENT",
         "category": category,
-        "departmentId": category,
+        "departmentId": canonical_department(category),
         "priority": priority,
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "hfEngine": hf_engine,
@@ -190,6 +195,14 @@ def submit_grievance(
         return JSONResponse(
             status_code=500, content={"error": "Failed to save grievance"}
         )
+
+    notif_repository.create({
+        "userId": user_id,
+        "kind": "grievance.submitted",
+        "entityId": doc_id,
+        "title": f"Grievance {doc_id} registered",
+        "message": f"Your complaint was classified under {category} and is awaiting department review.",
+    })
 
     return {
         "message": "Grievance submitted successfully",
@@ -212,15 +225,15 @@ def list_grievances(
         if role == "SUPERADMIN":
             scoped_user = userId
             scoped_owner = None
-            scoped_dept = dept
+            scoped_dept = canonical_department(dept)
         elif role in ("ADMIN", "MANAGER"):
             scoped_user = userId
             scoped_owner = None
-            scoped_dept = dept or current.get("departmentId")
+            scoped_dept = canonical_department(dept or current.get("departmentId"))
         elif role in ("RESOLVER", "EMPLOYEE"):
             scoped_user = userId
             scoped_owner = current["user_id"]
-            scoped_dept = dept
+            scoped_dept = canonical_department(dept)
         else:
             scoped_user = current["user_id"]
             scoped_owner = None
