@@ -122,12 +122,13 @@
 
 ### D. Frontend workflow completion (in progress)
 - [x] Expand resolver workspace into worker dashboard with assignment acknowledgement, progress/hold updates, structured escalation, completion submission, and timeline.
-- [ ] Add manager-facing escalation ticket response controls and notification inbox.
+- [ ] Add manager-facing escalation ticket response controls.
+- [x] Add account-scoped notification inbox, unread badges, polling/toasts, and citizen/employee workflow notifications.
 - [x] Resolver workbench at `/resolver` with assigned queue, state actions, progress notes, resolution submission, and activity history.
 - [x] Superadmin overview at `/superadmin` with users, departments, and audit data.
 - [x] Citizen tracking consumes live recent grievances and history updates when authenticated.
 - [x] Add superadmin user role/active-state and department create/enable controls.
-- [x] Add department-manager resolver assignment controls to the frontend.
+- [x] Add department-manager employee account management and grievance allocation in the dedicated `/admin/employees` dashboard; remove employee operations from the grievance queue.
 - [ ] Add browser-level role/workflow tests and visual validation.
 
 ### E. Citizen experience
@@ -169,3 +170,23 @@
 - [x] **Tests** — `tests/test_seed_accounts.py` (matrix, idempotency, untouched-existing, cross-department 403 flow); `tests/conftest.py` pins seed flags off.
 - [ ] **Owner run** — set `SEED_TEST_ACCOUNTS=true` in `backend/.env` and `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`, restart both, verify logins.
 - [ ] Run `python tools/backfill_departments.py` against the configured MongoDB deployment for legacy grievances missing `departmentId`.
+
+---
+
+## 8. Orange/Black Visual Identity (2026-10-09, DEC-021)
+
+- [x] **Palette swap** — `frontend/app/globals.css`: orange `primary` (600 `#ff6b00`, text-safe 700 `#c24a00`), neutral `ink` greys replacing slate; all hardcoded blues (AdminBoard `blue-*`, map-pin `#026bc7`, chart/popup slate hexes, hero gradient) removed.
+- [x] **Black CTAs** — default `Button` variant + hero Register link are solid black; new `orange` variant available for accent buttons.
+- [x] **Verified** — `npm run lint` + `npm run build` pass; grep sweep shows no blue outside the Google brand logo.
+- [ ] **Browser visual pass** — no desktop browser was connected during the change; eyeball `/`, `/login`, `/submit`, `/track`, `/admin`, `/admin/analytics`, `/resolver` for badge/focus-ring/map-pin/chart color and fix anything that reads off.
+
+---
+
+## 9. Staff Navigation Consolidation (2026-10-09)
+
+- [x] **Top `AdminNav` strip removed** — `/admin`, `/admin/analytics`, `/admin/employees` now rely solely on `StaffSidebar` (the strip was an exact duplicate, including role gating).
+- [x] **Department Portals tabs → one dropdown** — labelled `<select>` above the queue table; options show per-department counts; still hidden for department managers.
+- [x] **Employee panels stacked** — `Employee Accounts` + `Assign Tasks` render one after the other in `DepartmentEmployeesWorkspace`.
+- [x] **Verified** — `npm run lint` + `npm run build` pass; grep shows no `role="tab"`/`tablist` left in staff surfaces (only citizen `/track`).
+- [ ] **Optional cleanup** — `components/admin/AdminNav.tsx` now exports only `AdminHeader`; rename the file when the repo is quiet (other work is landing concurrently).
+- [ ] **Browser pass** — confirm the department dropdown alignment in the queue card header on `/admin` at ~1024px (sidebar + 5 controls).
