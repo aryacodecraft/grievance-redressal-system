@@ -67,6 +67,13 @@ class InMemoryUsersRepository:
     def set_active(self, user_id: str, is_active: bool) -> Optional[dict]:
         return self.update(user_id, {"isActive": is_active})
 
+    def delete(self, user_id: str) -> bool:
+        user = self._users.pop(user_id, None)
+        if not user:
+            return False
+        self._by_email.pop(user.get("email", "").lower(), None)
+        return True
+
 
 # ── MongoDB-backed implementation ────────────────────────────────────────────
 
@@ -136,6 +143,14 @@ class MongoUsersRepository:
 
     def set_active(self, user_id: str, is_active: bool) -> Optional[dict]:
         return self.update(user_id, {"isActive": is_active})
+
+    def delete(self, user_id: str) -> bool:
+        from bson import ObjectId
+        try:
+            result = self._col.delete_one({"_id": ObjectId(user_id)})
+            return result.deleted_count == 1
+        except Exception:
+            return False
 
 
 # ── Singleton factory ────────────────────────────────────────────────────────
