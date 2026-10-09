@@ -32,6 +32,29 @@
 - Passwords bcrypt, min 8 chars (Pydantic + Zod).
 - Logout v1 = client discard; v2 = server denylist.
 
+## [NEW] Face authentication (DEC-024, 2026-10-09, feature/face-auth)
+
+- Flag `FACE_AUTH_ENABLED` (default false): `/auth/face/*` 404 via
+  `FaceRouteGuard` (also HTTPS enforcement + 4 MB body cap);
+  `GET /config` → `{faceAuthEnabled}` gates the UI.
+- 1:1 only: challenge → 5–8 frames → server liveness (turn/blink/smile) +
+  fail-closed quality → InsightFace embedding → Fernet-encrypted template
+  match. `MODEL_MISMATCH` (template vs `FACE_MODEL_NAME`) forces re-enroll
+  and never counts toward lockout.
+- USER/RESOLVER: `/auth/face/login` is a password alternative (same
+  `AuthResponse`). ADMIN/SUPERADMIN: optional `requireLogin2fa` step after
+  password/Google via `pending_2fa` tokens (5 min TTL);
+  `POST /auth/complete-pending` completes only a locked-out account (else
+  403). Face lockout falls back to password-only — the step-up is
+  convenience, not a control. Password/Google login is never face-blocked.
+- Lockouts (15 min TTL): face login 20/IP + 5/email; verify-second-factor
+  5/user. All client errors generic; reasons + scores audit-only.
+- Templates: consent at enrollment; owner-deletable
+  (`DELETE /auth/face/template`), admin/superadmin revocable; thresholds
+  env-tunable (5 `FACE_*` keys). In-memory stores today (reset on restart).
+- Tests: `tests/test_face_auth.py` (106); optional deps in
+  `requirements-face.txt` (insightface/onnxruntime/opencv-headless).
+
 ## AuthN vs AuthZ (enforce in docs + code)
 
 - AuthN = who (`get_current_user`). AuthZ = what (`require_role` → `require_permission` + resource owner/dept checks in service layer, never router-only).

@@ -4,6 +4,42 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-09 — Optional face-recognition login (DEC-024, `feature/face-auth`)
+
+### Added
+- **Backend face auth** (flag `FACE_AUTH_ENABLED`, default off; `7fc2c0e`,
+  `a3d65a7`): `/auth/face/*` (challenge, enroll, login, verify-second-factor,
+  status, template PATCH/DELETE, superadmin revoke) behind `FaceRouteGuard`
+  (404 when off, HTTPS enforcement, 4 MB body cap); Fernet-encrypted
+  InsightFace templates; server-side liveness (turn/blink/smile) with
+  fail-closed quality gates; per-IP/per-email/per-user TTL lockout counters;
+  `MODEL_MISMATCH` re-enroll path that never counts toward lockout;
+  `GET /config` → `{faceAuthEnabled}`; optional deps in
+  `backend/requirements-face.txt`.
+- **Privileged optional step-up** — password/Google logins pause with a
+  5-minute `pending_2fa` token when `requireLogin2fa` is set;
+  `POST /auth/complete-pending` completes only a locked-out account (403
+  otherwise); face lockout always falls back to password-only login.
+- **Frontend** (`f6fd67f`): flag-gated Password/Face login tabs, 1:1 face
+  sign-in, 2FA step with skip, `/profile` consent/enroll/re-enroll/delete/
+  require-2FA toggle, superadmin "Revoke face", `FaceCapture` webcam
+  component, pending tokens under their own storage key, 45 i18n keys in all
+  11 packs.
+- **Env-tunable liveness/quality thresholds** (`be7266f`):
+  `FACE_TURN_MIN_DEGREES` (15.0), `FACE_BLINK_EAR_DROP` (0.7),
+  `FACE_SMILE_MOUTH_WIDEN` (1.08), `FACE_MIN_BLUR_VARIANCE` (30.0),
+  `FACE_MIN_FACE_PX` (80) — read at call time, mirrored in
+  `backend/.env.example`, for real-webcam tuning without code changes.
+- **Tests** — `tests/test_face_auth.py` (106) on synthetic frames + a fake
+  detection seam (no camera/model in CI), incl. the complete-pending gate,
+  MODEL_MISMATCH no-count, and unauthenticated-counter-protection checks.
+- **Docs/memory** — `docs/API.md` (`/config`, `/auth/face`, login pause,
+  complete-pending), `docs/SECURITY.md` (step-up is convenience not control;
+  embeddings = biometric data, consent, deletion), `docs/WORKFLOWS.md`,
+  `docs/DEVELOPMENT.md` + `README.md` install notes, DEC-024,
+  `memory/rbac/AUTHENTICATION.md`, TODO baseline (22 pre-existing failures
+  listed by name; password/refresh rate-limit gap).
+
 ## 2026-10-09 — Request lifecycle label clarified
 
 - Renamed the timeline stage “AI Triage & Categorization” to “Department

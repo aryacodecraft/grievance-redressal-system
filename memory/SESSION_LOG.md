@@ -1774,3 +1774,68 @@ navigation is handled by the left-side drawer.
 - Replaced “AI Triage & Categorization” with “Department Assigned” in the
   complaint progress timeline and updated the corresponding label across all
   supported Indian language translations.
+
+## 2026-10-09 — Face-recognition login (DEC-024, `feature/face-auth`)
+
+### Request
+Add optional, feature-flagged face-recognition login: 1:1 email+face
+verification, server-side liveness, Fernet-encrypted embeddings only,
+identical JWT shape so `require_role`/RBAC is unchanged; never mandatory for
+any role; delivered as four scoped commits on `feature/face-auth`, then
+threshold tunability + docs/memory.
+
+### Context Read
+- Full AGENTS.md memory protocol: `memory/README.md`, `PROJECT_STATE.md`,
+  `DECISIONS.md` (last = DEC-023), `TODO.md`, `SESSION_LOG.md`; `docs/API.md`,
+  `SECURITY.md`, `WORKFLOWS.md`, `DEVELOPMENT.md`, `README.md`,
+  `memory/rbac/AUTHENTICATION.md`; `backend/app/{config,auth,main}.py`,
+  `routers/auth.py`, `repositories/audit.py`, `tests/conftest.py`,
+  `test_config_drift.py`; frontend `lib/{api,session,types}.ts`, i18n packs
+  (11), `SiteHeader`/`StaffSidebar`/`SuperadminWorkspace`, login/callback
+  pages, `frontend/AGENTS.md` + Next docs before writing code.
+
+### Work Completed (commits on `feature/face-auth`)
+- `7fc2c0e` — `services/face_service.py` (lazy insightface, Fernet at rest,
+  fail-closed quality, liveness, 1:1 match, MODEL_MISMATCH),
+  `repositories/face_templates.py` (templates/challenges/TTL counters),
+  config + `backend/.env.example`, `requirements-face.txt`, startup
+  FACE_EMBED_KEY validation.
+- `a3d65a7` — `routers/face_auth.py` (8 routes, generic 401s, lockouts,
+  SYSTEM audits), `FaceRouteGuard` (flag-off 404, HTTPS, 4 MB cap),
+  auth-router pending-token step-up + `complete-pending`, `GET /config`;
+  97 tests.
+- `f6fd67f` — 3-check fixes (complete-pending gated on real lockout else 403;
+  MODEL_MISMATCH audits without moving counters via `count=` on
+  `_fail_login`/`_fail_verify`; strengthened unauthenticated-counter test) +
+  full frontend: `FaceCapture`, flag-gated login tabs + 2FA step with skip,
+  `/profile` (consent/enroll/re-enroll/delete/require-2FA), Google-callback
+  pending_token handoff, superadmin revoke, 45 keys × 11 i18n packs; 106 face
+  tests, tsc/build/lint/check-contract all green.
+- `be7266f` — five liveness/quality thresholds made env-configurable
+  (`FACE_TURN_MIN_DEGREES`, `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`,
+  `FACE_MIN_BLUR_VARIANCE`, `FACE_MIN_FACE_PX`), read at call time like
+  `FACE_MODEL_NAME`, defaults = previous hardcoded values, mirrored in
+  `.env.example`, conftest-pinned, 7 new tests.
+- Docs/memory commit — API.md (`/config`, `/auth/face`, login pause,
+  complete-pending), SECURITY.md (step-up = convenience not control because
+  lockout falls back to password-only; embeddings = biometric data:
+  consent/encryption/deletion/DPDP), WORKFLOWS.md face-login narrative,
+  DEVELOPMENT.md + README install notes, DEC-024, rbac/AUTHENTICATION.md,
+  TODO (face follow-ups; 22 pre-existing failures listed by name;
+  password/refresh rate-limit gap), CHANGELOG, PROJECT_STATE, this log.
+
+### Verification
+- Named checks: complete-pending rejected-when-not-locked-out,
+  complete-pending-allowed-when-locked-out, MODEL_MISMATCH login/verify
+  no-count, unauthenticated-cannot-burn-counter — 5/5 PASSED.
+- Face suite 106 passed; config-drift 15/15; full suite 333 passed /
+  22 failed — the same 22 pre-existing failures (stale DEC-006/i18n
+  expectations, listed by name in `memory/TODO.md` §11), unrelated to face.
+- Frontend: `npm install` (421 packages), `tsc --noEmit` clean,
+  `npm run build` green (16 routes incl. `/profile`), `npm run lint` 0 errors
+  (one pre-existing `<img>` warning), `check-contract.mjs` passed.
+
+### Next
+- Push `feature/face-auth` so the owner gets PRs/code review; real-webcam
+  threshold tuning; optional SilentFace ONNX provisioning; Mongo persistence
+  for face stores (all in TODO §10).

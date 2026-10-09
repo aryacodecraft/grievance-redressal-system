@@ -41,11 +41,11 @@
   - Account linking / auto-creation of citizen profile matching verified Google email.
 
 ### C. Facial Recognition Authentication (Advanced Biometric Layer)
-*(DEFERRED — owner explicitly requested to leave for future)*
-- [ ] **Camera Capture & Liveness Detection**
+*(IMPLEMENTED 2026-10-09, DEC-024 — see section 10 for follow-ups)*
+- [x] **Camera Capture & Liveness Detection**
   - WebRTC / HTML5 camera capture in frontend modal for biometric enrollment and verification.
   - Anti-spoofing / liveness check (e.g., blink or head turn verification).
-- [ ] **Face Embedding & Match Service**
+- [x] **Face Embedding & Match Service**
   - Face feature extraction (e.g., FaceNet / InsightFace / MediaPipe FaceMesh).
   - Encrypted storage of 128/512-dimensional face embeddings in MongoDB.
   - Cosine distance matching for 1:1 citizen verification.
@@ -194,3 +194,60 @@
 - [x] **Verified** — `npm run lint` + `npm run build` pass; grep shows no `role="tab"`/`tablist` left in staff surfaces (only citizen `/track`).
 - [ ] **Optional cleanup** — `components/admin/AdminNav.tsx` now exports only `AdminHeader`; rename the file when the repo is quiet (other work is landing concurrently).
 - [ ] **Browser pass** — confirm the department dropdown alignment in the queue card header on `/admin` at ~1024px (sidebar + 5 controls).
+
+---
+
+## 10. Face authentication follow-ups (DEC-024, shipped 2026-10-09)
+
+Shipped on `feature/face-auth` (service/repo `7fc2c0e`, endpoints/step-up
+`a3d65a7`, 3-check fixes + frontend `f6fd67f`, tunable thresholds `be7266f`,
+docs/memory `—`). All remaining items are non-blocking:
+
+- [ ] **Real-webcam validation** — run enrollment/login on physical cameras and tune `FACE_TURN_MIN_DEGREES`, `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`, `FACE_MIN_FACE_PX` via env (no code change needed).
+- [ ] **Anti-spoof model not provisioned** — `FACE_ANTISPOOF_MODEL_PATH` wiring exists but no SilentFace ONNX model is bundled; drop a model path into `backend/.env` to enable.
+- [ ] **Mongo persistence for face stores** — templates, challenges and rate-limit counters are in-memory only (reset on restart); port `repositories/face_templates.py` to a `face_templates` collection behind the same repository interface.
+- [ ] **`GET /auth/face/status` does not expose `requireLogin2fa`** — the profile toggle starts unchecked on a fresh page load (PATCH still works; the value is stored on the template).
+- [ ] **Browser pass** — no desktop browser was connected; eyeball `/login` face tab, the 2FA step, and `/profile` enrollment on a real camera.
+
+---
+
+## 11. Known pre-existing test baseline (NOT face auth, as of 2026-10-09)
+
+Full suite: **333 passed / 22 failed**. The 22 failures predate DEC-024
+(stale DEC-006 status-machine and i18n/vocabulary expectations) and are
+unrelated to face auth — all 106 face tests and 15 config-drift tests pass:
+
+- `tests/test_auth.py::TestGrievanceRBAC::test_admin_can_patch_status`
+- `tests/test_endpoints.py::test_grievance_optional_fields_are_null_tolerated`
+- `tests/test_endpoints.py::test_patch_status_and_assignee`
+- `tests/test_endpoints.py::test_patch_partial_update_leaves_other_fields`
+- `tests/test_endpoints.py::test_blank_status_is_rejected`
+- `tests/test_endpoints.py::test_status_surrounding_whitespace_is_trimmed`
+- `tests/test_endpoints.py::test_patch_assignee_without_status`
+- `tests/test_endpoints.py::test_patch_status_without_assignee`
+- `tests/test_endpoints.py::test_unknown_status_values_are_accepted_verbatim`
+- `tests/test_endpoints.py::test_unknown_submit_fields_are_ignored`
+- `tests/test_image_validation.py::test_submit_accepts_an_image_at_the_threshold`
+- `tests/test_rbac_workflow.py::TestAssignRBAC::test_assign_invalid_state_422`
+- `tests/test_rbac_workflow.py::TestLifecycle::test_resolver_cannot_read_unassigned_history`
+- `tests/test_status_vocabularies.py::test_every_vocabulary_source_still_parses`
+- `tests/test_status_vocabularies.py::test_backend_default_status_renders_as_a_badge`
+- `tests/test_status_vocabularies.py::test_backend_default_status_is_absent_from_the_timeline`
+- `tests/test_status_vocabularies.py::test_the_four_vocabularies_are_not_identical`
+- `tests/test_status_vocabularies.py::test_admin_filter_covers_every_mock_status`
+- `tests/test_status_vocabularies.py::test_admin_filter_misses_the_timeline_endpoints`
+- `tests/test_status_vocabularies.py::test_all_current_vocabs_are_lowercase`
+- `tests/test_status_vocabularies.py::test_dec_006_states_are_disjoint_from_the_current_lowercase_set`
+- `tests/test_status_vocabularies.py::test_no_component_already_speaks_dec_006`
+
+---
+
+## 12. Open auth gap: password login / refresh have no rate limiting
+
+- [ ] `POST /auth/login`, `POST /auth/refresh` and `POST /auth/register` have
+  **no brute-force throttling** (`docs/SECURITY.md` Known Limitations). The
+  face endpoints carry per-IP/per-email/per-user TTL lockout counters
+  (DEC-024), but that does not protect the password paths. Add per-IP +
+  per-account throttling (in-memory v1 acceptable, mirroring
+  `repositories/face_templates.py` counters) — also gap #8 in
+  `memory/rbac/AUTHENTICATION.md`.
