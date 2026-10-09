@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Mail, ShieldCheck } from "lucide-react";
+import { MapPin, Mail } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 
@@ -27,23 +27,6 @@ export function SiteFooter() {
   const { t } = useI18n();
   return (
     <footer className="border-t border-ink-100 bg-white">
-      {/* Trust bar */}
-      <div className="border-b border-ink-100 bg-ink-50/50">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
-            <ShieldCheck size={14} className="text-primary-700" />
-            {t("footerTrustRecords")}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
-            <MapPin size={14} className="text-primary-700" />
-            {t("footerTrustLocal")}
-          </span>
-          <span className="text-[11px] font-semibold text-ink-600">
-            {t("footerTrustPrototype")}
-          </span>
-        </div>
-      </div>
-
       {/* Main footer columns */}
       <div className="grid gap-8 px-4 py-10 sm:px-6 lg:grid-cols-12 lg:px-8">
         {/* Brand */}
