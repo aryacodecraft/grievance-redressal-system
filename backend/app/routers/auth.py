@@ -26,14 +26,21 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from ..auth import (
     create_access_token,
+    create_pending_token,
     create_refresh_token,
     _decode,
     get_current_user,
+    get_pending_user,
 )
+from .. import config
+from ..repositories.face_templates import face_repository
+from ..services.face_service import RATE_WINDOW_SECONDS, USER_FAIL_LIMIT
 from ..users_db import users_repository
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+PRIVILEGED_ROLES = ("ADMIN", "SUPERADMIN")
 
 
 def _hash_password(password: str) -> str:
@@ -131,6 +138,26 @@ def _token_response(user: dict) -> dict:
     }
 
 
+def _face_step_required(user: dict) -> bool:
+    """True when this privileged login pauses for the *optional* face step.
+
+    Face is never mandatory (DEC-024): the step only appears when face auth
+    is enabled, the account is privileged AND enrolled with `requireLogin2fa`.
+    The decision reads only the verify-second-factor counter
+    (`face:fail:user:<id>`) — a public /auth/face/login lockout can never
+    influence password/Google login, and vice versa.
+    """
+    if not config.FACE_AUTH_ENABLED:
+        return False
+    if user.get("role") not in PRIVILEGED_ROLES:
+        return False
+    template = face_repository.get_template(user.get("id", ""))
+    if not template or not template.get("requireLogin2fa"):
+        return False
+    key = f"face:fail:user:{user['id']}"
+    return face_repository.rate_count(key, RATE_WINDOW_SECONDS) < USER_FAIL_LIMIT
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 
 @router.post("/register", status_code=201)
@@ -151,10 +178,38 @@ def register(payload: RegisterRequest):
 
 @router.post("/login")
 def login(payload: LoginRequest):
-    """Email + password → access + refresh tokens."""
+    """Email + password → access + refresh tokens.
+
+    When face auth is enabled and a privileged account has opted into the
+    extra face step (enrolled + `requireLogin2fa`, not currently locked out
+    of the face endpoint), the response is a short-lived pending token
+    instead — password/Google login itself always succeeds.
+    """
     user = users_repository.find_by_email(payload.email)
     if not user or not _verify_password(payload.password, user.get("hashed_password", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if _face_step_required(user):
+        return {
+            "two_factor": "face",
+            "token_type": "bearer",
+            "pending_token": create_pending_token(
+                user["id"], user["role"], user["email"], user.get("departmentId")
+            ),
+        }
+    return _token_response(user)
+
+
+@router.post("/complete-pending")
+def complete_pending(current: Annotated[dict, Depends(get_pending_user)]):
+    """Exchange a pending token for the full token response.
+
+    The face step after a privileged password/Google login is optional —
+    this is the "continue without face" path. Rate-limit lockout on the face
+    endpoints never blocks it (DEC-024).
+    """
+    user = users_repository.get(current["user_id"])
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
     return _token_response(user)
 
 
@@ -291,6 +346,19 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
 
     access_token = create_access_token(user["id"], user["role"], user["email"], user.get("departmentId"))
     refresh_token = create_refresh_token(user["id"])
+
+    # Optional face step for privileged accounts that opted in (DEC-024):
+    # redirect with a pending token instead of the full pair.
+    if _face_step_required(user):
+        pending_token = create_pending_token(
+            user["id"], user["role"], user["email"], user.get("departmentId")
+        )
+        return RedirectResponse(
+            url=(
+                f"{_FRONTEND_URL}/auth/callback"
+                f"?two_factor=face&pending_token={pending_token}"
+            )
+        )
 
     # Redirect back to the frontend with tokens in the query string.
     # In production prefer setting httpOnly cookies or using a code-for-token

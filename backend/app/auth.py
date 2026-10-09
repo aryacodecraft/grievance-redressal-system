@@ -19,6 +19,10 @@ JWT_SECRET = os.getenv("JWT_SECRET_KEY", "")
 JWT_ALGORITHM = "HS256"
 ACCESS_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 REFRESH_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+# Pending-login token issued when an opted-in privileged account still has the
+# optional face step ahead of it (DEC-024). Short-lived by design; it can only
+# be exchanged via /auth/complete-pending or /auth/face/verify-second-factor.
+PENDING_EXPIRE_MINUTES = 5
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -43,6 +47,24 @@ def create_refresh_token(user_id: str) -> str:
         "sub": user_id,
         "type": "refresh",
         "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_EXPIRE_DAYS),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def create_pending_token(user_id: str, role: str, email: str, department_id: str | None = None) -> str:
+    """Half-authenticated login: credentials verified, face step still open.
+
+    Not a full access token — `get_current_user` rejects any type other than
+    "access", so a pending token grants no API access on its own.
+    """
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "email": email,
+        "departmentId": department_id,
+        "type": "pending_2fa",
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=PENDING_EXPIRE_MINUTES),
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -78,6 +100,28 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="Not authenticated")
     payload = _decode(creds.credentials)
     if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    return {
+        "user_id": payload["sub"],
+        "role": payload.get("role", "USER"),
+        "email": payload.get("email", ""),
+        "departmentId": payload.get("departmentId"),
+    }
+
+
+def get_pending_user(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> dict:
+    """Require a valid ``pending_2fa`` token (half-authenticated login).
+
+    Raises 401 when missing/expired/invalid or of any other token type —
+    full access tokens are rejected here on purpose (the pending flow must be
+    started by password/Google login, not reused from an established session).
+    """
+    if not creds:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = _decode(creds.credentials)
+    if payload.get("type") != "pending_2fa":
         raise HTTPException(status_code=401, detail="Invalid token type")
     return {
         "user_id": payload["sub"],
