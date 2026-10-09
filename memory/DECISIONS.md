@@ -1188,3 +1188,32 @@ cross-department employee discovery or assignments.
 `DepartmentEmployeesWorkspace`; per-grievance assignment is also available at
 the point of review. Backend scoping remains authoritative.
 
+---
+
+## DEC-023 — Public Reference-ID Tracking Projection
+
+**ID:** DEC-023
+**Date:** 2026-10-09
+**Status:** ACCEPTED
+
+**Context:** Citizens must be able to check a grievance's progress using its
+reference ID without signing in. The tracking page previously fetched detail
+and authenticated history as one operation, so a history `401` made an already
+found grievance appear not to exist. Public lookup also needs a defined privacy
+boundary.
+
+**Decision:** Reference-ID detail lookup is available to anonymous visitors and
+non-owner accounts as a limited projection of current status and basic
+classification. Account/assignment identifiers, coordinates, images, AI
+internals, and internal workflow history are excluded. Public history includes
+customer-visible/system updates only. Detail and history requests are
+independent, and history failure does not invalidate successful detail lookup.
+Reference IDs are case-insensitive at lookup. The full grievance-list endpoint
+requires authentication; public tracking is by reference ID, not enumeration.
+
+**Reason:** Public tracking is a core citizen workflow; least-privilege
+projection prevents it from becoming a general grievance-data endpoint.
+
+**Consequences:** API documentation and tests preserve the public/private field
+boundary and verify progress remains searchable after worker updates.
+
