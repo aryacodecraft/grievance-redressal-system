@@ -9,7 +9,7 @@ const controlClass =
   "w-full rounded-md border border-ink-200 bg-white px-3.5 py-2 text-sm text-ink-900 placeholder:text-ink-400 " +
   "shadow-2xs transition-all duration-150 " +
   "hover:border-ink-300 " +
-  "focus:border-primary-600 focus:outline-none focus:ring-3 focus:ring-primary-500/15 " +
+  "focus:border-primary-700 focus:outline-none focus:ring-3 focus:ring-primary-700/20 " +
   "disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400";
 
 export function Field({
@@ -29,7 +29,7 @@ export function Field({
     <label className="block">
       <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-ink-700">
         {label}
-        {required && <span className="text-primary-600"> *</span>}
+        {required && <span className="text-primary-700"> *</span>}
       </span>
       {children}
       {hint && !error && (
