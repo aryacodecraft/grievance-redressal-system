@@ -1615,3 +1615,87 @@ navigation is handled by the left-side drawer.
   initial assignment without resetting active work or removing the worker.
 - Added distinct reassignment audit action while preserving the existing
   review UI.
+
+## 2026-10-09 — Hide exact coordinates in analysis
+
+- Replaced coordinate text with reverse-geocoded area names across analytics,
+  map popups, hotspot summaries, exports, and review details.
+- Frontend lint and TypeScript checks passed.
+
+## 2026-10-09 — Consolidated roads and transport routing
+
+- Standardized `transport` routing to the combined `roads` department for new
+  submissions, reassignment, legacy startup repair, and manager scoping.
+- Removed the separate transport department from the frontend department
+  selector and test-account display; existing transport-manager accounts are
+  compatibility-scoped to roads.
+- Backend compile and frontend TypeScript/lint checks passed.
+
+## 2026-10-09 — UI accent: bright orange, black CTAs, no blue left
+
+- Restyled the whole frontend from the `globals.css` token layer: primary
+  palette is now bright orange (600 `#ff6b00`), the `ink` grey scale was
+  neutralized from blue-tinted slate to true zinc, and every hardcoded blue
+  (`blue-*` classes, `#026bc7` map pins, slate hexes in charts/popups, the hero
+  dot-pattern gradient) was replaced.
+- Made the default `Button` variant solid black so main CTAs (Submit, Sign in,
+  Post update, hero Register) are black; added an unused-for-now `orange`
+  variant so accent-colored buttons remain one prop away.
+- Applied an accessibility split: bright 600 for decorative surfaces only,
+  700 `#c24a00` (4.9:1) anywhere orange touches readable text or acts as a
+  focus/control indicator.
+- Kept the Google brand logo colors in the sign-in buttons.
+- `npm run lint` and `npm run build` pass; grep sweep shows no blue outside
+  the Google logo. Browser check skipped — no desktop browser connected.
+
+## 2026-10-09 — Department employee dashboard placement
+
+- Moved employee account operations and grievance allocation from the queue
+  and review modal to a dedicated manager Employees dashboard.
+- Hardened `GET /users` so a manager cannot expand department scope with a
+  query parameter; deletion is blocked while active grievances belong to the
+  employee.
+- Backend compile and frontend lint/TypeScript checks pass.
+
+## 2026-10-09 — Employee selection in grievance review
+
+- Replaced the department selector with an active employee selector for
+  department managers opening grievance details; global admins retain routing.
+- Made initial worker assignment advance the grievance to `ASSIGNED` with an
+  SLA due date and auditable state history.
+
+## 2026-10-09 — Separate employee account and task tabs
+
+- Split account CRUD and grievance allocation into distinct tabs in the
+  department Employees workspace.
+## 2026-10-09 — In-app notification center and action feedback
+
+- Implemented `/notifications` for signed-in citizens, employees, and admins,
+  with account-scoped inbox, mark-read/mark-all-read actions, unread badges,
+  30-second polling, and toast alerts for newly arriving events.
+- Added action feedback to submission, employee CRUD/task assignment, admin
+  workflow, and resolver actions. Backend emits citizen submission/status and
+  routing updates, employee assignment/reassignment updates, and manager
+  workflow notifications. Mongo IDs now support mark-read.
+- Verification: frontend lint and TypeScript pass (one existing `<img>` lint
+  warning); backend compile passes. Diff check is rerun after memory edits.
+- Remaining: browser-level validation; email/push notifications are not part
+  of this in-app prototype.
+
+## 2026-10-09 — Left-nav-only navigation
+
+- Removed the top `AdminNav` strip (Grievance Queue / Executive Analytics /
+  Employees) from `/admin`, `/admin/analytics`, `/admin/employees` and deleted
+  the component — it duplicated the `StaffSidebar` links exactly, including the
+  `ADMIN && departmentId` gating for the Employees entry. `AdminHeader` stays.
+- Replaced the "Department Portals" tab row in `AdminBoard` with a single
+  labelled department `<select>` in the Grievance Queue card header (directly
+  above the table), keeping per-department counts as option labels and the
+  existing "hidden for department managers" rule. `DEPARTMENT_TABS` keeps its
+  `key`/`label` (still used for the Department column and table subtitle) but
+  lost its unused `Icon` field and 7 icon imports.
+- Stacked the two employee panels in `DepartmentEmployeesWorkspace` instead of
+  switching between them; dropped `activeTab` and the `role="tablist"` markup.
+- Left the citizen `/track` tab switcher alone — that page uses the top header,
+  not the left nav.
+- `npm run lint` (0 errors) and `npm run build` (15 routes) pass.
