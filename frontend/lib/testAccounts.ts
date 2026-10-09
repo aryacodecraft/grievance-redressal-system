@@ -20,8 +20,7 @@ const EMPLOYEE_PASSWORD = "Resolver@2026!";
 
 const DEPARTMENTS: Array<{ key: string; label: string }> = [
   { key: "water", label: "Water" },
-  { key: "roads", label: "Roads" },
-  { key: "transport", label: "Transport" },
+  { key: "roads", label: "Roads & Transport" },
   { key: "electricity", label: "Electricity" },
   { key: "sanitation", label: "Sanitation" },
   { key: "health", label: "Health" },
