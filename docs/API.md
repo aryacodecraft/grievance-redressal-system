@@ -339,7 +339,7 @@ AI-identified recurring grievance patterns.
 
 ### GET /notifications
 Get current user's notifications. **Auth:** Any role.
-**Query params:** `is_read`, `page`, `page_size`
+Returns the newest notifications first with `id`, `kind`, `entityId`, `title`, `message`, `at`, and `isRead` fields. The response is scoped to the authenticated account; optional query parameters are `unread_only` and `limit` (maximum 100).
 
 ### PATCH /notifications/{notification_id}/read
 Mark notification as read. **Auth:** Own notification only.
@@ -419,3 +419,16 @@ Common HTTP status codes:
 - `POST /grievances/{id}/resolution` accepts optional completion photo and
   supporting document URLs; manager approval remains required.
 - Progress updates accept an optional `attachmentUrl`.
+
+### Department employee management
+
+- `GET /users` returns department-scoped users to department managers; a
+  requested `dept` cannot expand the authenticated manager's scope. Legacy
+  `transport` employee records are included with the combined `roads` team.
+- `POST /users/employees` creates a `RESOLVER` in the manager's department.
+- `DELETE /users/{id}` removes an employee only within the caller's department
+  and returns `409` while that employee owns active grievances.
+- `POST /grievances/{id}/reassign` is used by the manager workspace to assign
+  an open grievance to a validated same-department employee. Initial worker
+  assignment moves `PENDING_ASSIGNMENT`/`SUBMITTED` to `ASSIGNED`, establishes
+  its due date, and records state history.
