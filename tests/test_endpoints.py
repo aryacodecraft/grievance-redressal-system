@@ -167,7 +167,7 @@ def test_submit_takes_user_id_from_token_not_body(client):
         headers=_auth_headers("alice"),
     )
     assert res.status_code == 200, res.text
-    stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+    stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_admin_headers()).json()
     assert stored["userId"] == "alice"
 
 
@@ -229,12 +229,12 @@ def _create(client, sample_payload, **overrides):
 
 
 def test_list_empty_by_default(client):
-    assert client.get("/grievances").json() == []
+    assert client.get("/grievances").status_code == 401
 
 
 def test_list_returns_created(client, sample_payload):
     gid = _create(client, sample_payload)
-    items = client.get("/grievances").json()
+    items = client.get("/grievances", headers=_admin_headers()).json()
     assert len(items) == 1
     assert items[0]["id"] == gid
 
@@ -243,29 +243,29 @@ def test_list_scopes_by_user(client, sample_payload):
     _create(client, sample_payload, userId="alice")
     _create(client, sample_payload, userId="bob")
 
-    alice = client.get("/grievances", params={"userId": "alice"}).json()
+    alice = client.get("/grievances", params={"userId": "alice"}, headers=_admin_headers()).json()
     assert [g["userId"] for g in alice] == ["alice"]
 
-    nobody = client.get("/grievances", params={"userId": "carol"}).json()
+    nobody = client.get("/grievances", params={"userId": "carol"}, headers=_admin_headers()).json()
     assert nobody == []
 
 
 def test_list_respects_limit(client, sample_payload):
     for i in range(5):
         _create(client, sample_payload, userId=f"u{i}")
-    assert len(client.get("/grievances", params={"limit": 2}).json()) == 2
+    assert len(client.get("/grievances", params={"limit": 2}, headers=_admin_headers()).json()) == 2
 
 
 def test_list_newest_first(client, sample_payload):
     first = _create(client, sample_payload, title="older")
     second = _create(client, sample_payload, title="newer")
-    ids = [g["id"] for g in client.get("/grievances").json()]
+    ids = [g["id"] for g in client.get("/grievances", headers=_admin_headers()).json()]
     assert ids == [second, first]
 
 
 def test_get_single_grievance(client, sample_payload):
     gid = _create(client, sample_payload)
-    body = client.get(f"/grievances/{gid}").json()
+    body = client.get(f"/grievances/{gid}", headers=_auth_headers()).json()
     assert body["id"] == gid
     assert body["title"] == sample_payload["title"]
     assert body["userId"] == sample_payload["userId"]
@@ -277,7 +277,7 @@ def test_get_unknown_grievance_404(client):
 
 def test_grievance_optional_fields_are_null_tolerated(client, sample_payload):
     """Response must parse with the frontend's nullish zod schema."""
-    body = client.get(f"/grievances/{_create(client, sample_payload)}").json()
+    body = client.get(f"/grievances/{_create(client, sample_payload)}", headers=_auth_headers()).json()
     # Optional fields may be absent or null; `createdAt` and `status` must exist.
     assert isinstance(body["createdAt"], str)
     assert body["status"] in {"SUBMITTED"}
@@ -308,7 +308,7 @@ def test_patch_status_and_assignee(client, sample_payload):
     assert body["assignee"] == "Roads Division — Zone 3"
 
     # Persisted, not just echoed back.
-    assert client.get(f"/grievances/{gid}").json()["status"] == "ASSIGNED"
+    assert client.get(f"/grievances/{gid}", headers=_admin_headers()).json()["status"] == "ASSIGNED"
 
 
 def test_patch_unknown_grievance_404(client):
@@ -328,7 +328,7 @@ def test_patch_partial_update_leaves_other_fields(client, sample_payload):
         json={"status": "resolved"},
         headers=_admin_headers(),
     )
-    body = client.get(f"/grievances/{gid}").json()
+    body = client.get(f"/grievances/{gid}", headers=_admin_headers()).json()
     assert body["status"] == "RESOLVED"
     assert body["title"] == sample_payload["title"]
     assert body["userId"] == sample_payload["userId"]
@@ -391,7 +391,7 @@ def test_every_error_body_is_readable_by_the_frontend(client):
         client.post("/grievances", json={}),
         client.post("/submit-grievance", json={}),
         client.patch("/grievances/GRV-0000-0000/status", json={"status": "x"}),
-        client.get("/grievances", params={"limit": "abc"}),
+        client.get("/grievances", params={"limit": "abc"}, headers=_admin_headers()),
     ]
     for res in errors:
         assert res.status_code >= 400
@@ -411,22 +411,22 @@ def test_limit_must_be_a_positive_integer(client, sample_payload):
         _create(client, sample_payload, userId=f"u{i}")
 
     for bad in (0, -1, -5):
-        res = client.get("/grievances", params={"limit": bad})
+        res = client.get("/grievances", params={"limit": bad}, headers=_admin_headers())
         assert res.status_code == 400, bad
         assert "error" in res.json()
 
 
 def test_limit_is_capped(client, sample_payload):
     _create(client, sample_payload)
-    res = client.get("/grievances", params={"limit": 1000})
+    res = client.get("/grievances", params={"limit": 1000}, headers=_admin_headers())
     assert res.status_code == 200
-    assert client.get("/grievances", params={"limit": 1001}).status_code == 400
+    assert client.get("/grievances", params={"limit": 1001}, headers=_admin_headers()).status_code == 400
 
 
 def test_limit_defaults_to_a_page(client, sample_payload):
     for i in range(5):
         _create(client, sample_payload, userId=f"u{i}")
-    assert len(client.get("/grievances").json()) == 5
+    assert len(client.get("/grievances", headers=_admin_headers()).json()) == 5
 
 
 # ── Status updates: blanks vs. vocabulary ───────────────────────────────────
@@ -444,7 +444,7 @@ def test_blank_status_is_rejected(client, sample_payload):
         )
         assert res.status_code == 400, repr(blank)
         assert "error" in res.json()
-    assert client.get(f"/grievances/{gid}").json()["status"] == "SUBMITTED"
+    assert client.get(f"/grievances/{gid}", headers=_admin_headers()).json()["status"] == "SUBMITTED"
 
 
 def test_blank_assignee_is_rejected(client, sample_payload):
@@ -496,7 +496,7 @@ def test_patch_assignee_without_status(client, sample_payload):
         headers=_admin_headers(),
     )
     assert res.status_code == 200
-    body = client.get(f"/grievances/{gid}").json()
+    body = client.get(f"/grievances/{gid}", headers=_admin_headers()).json()
     assert body["assignee"] == "Drainage Cell"
     assert body["status"] == "SUBMITTED"  # untouched
 
@@ -513,7 +513,7 @@ def test_patch_status_without_assignee(client, sample_payload):
         json={"status": "in_progress"},
         headers=_admin_headers(),
     )
-    body = client.get(f"/grievances/{gid}").json()
+    body = client.get(f"/grievances/{gid}", headers=_admin_headers()).json()
     assert body["status"] == "IN_PROGRESS"
     assert body["assignee"] == "Roads Cell"  # survives a status-only patch
 
@@ -541,7 +541,7 @@ def test_unknown_status_values_are_accepted_verbatim(client, sample_payload):
             headers=_admin_headers(),
         )
         assert res.status_code == 200, value
-        assert client.get(f"/grievances/{gid}").json()["status"] == canonical
+        assert client.get(f"/grievances/{gid}", headers=_admin_headers()).json()["status"] == canonical
 
 
 def test_status_update_records_no_history_or_actor(client, sample_payload):
@@ -582,7 +582,7 @@ def test_unknown_submit_fields_are_ignored(client, sample_payload):
         headers=_auth_headers(),
     )
     assert res.status_code == 200
-    stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+    stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_auth_headers()).json()
     assert stored["status"] == "SUBMITTED"  # not the client-supplied "resolved"
     for banned in ("role", "isAdmin", "bogus"):
         assert banned not in stored, banned
@@ -595,7 +595,7 @@ def test_submit_trims_whitespace_in_required_fields(client):
         headers=_auth_headers("citizen-9"),
     )
     assert res.status_code == 200
-    stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+    stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_auth_headers("citizen-9")).json()
     assert stored["title"] == "Pothole"
     assert stored["description"] == "Deep hole"
     assert stored["userId"] == "citizen-9"  # from the token, not the body
@@ -619,7 +619,7 @@ def test_unicode_and_emoji_round_trip(client, sample_payload):
     }
     res = client.post("/submit-grievance", json=payload, headers=_auth_headers())
     assert res.status_code == 200
-    stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+    stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_admin_headers()).json()
     assert stored["title"] == payload["title"]
     assert stored["description"] == payload["description"]
 
@@ -639,11 +639,11 @@ def test_operator_like_values_are_stored_literally(client, sample_payload):
             "/submit-grievance", json=payload, headers=_auth_headers(f"inj-{i}")
         )
         assert res.status_code == 200, value
-        stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+        stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_admin_headers()).json()
         assert stored["title"] == value
 
     # Filtering on a probe-matching user still returns only that one row.
-    scoped = client.get("/grievances", params={"userId": "inj-0"}).json()
+    scoped = client.get("/grievances", params={"userId": "inj-0"}, headers=_admin_headers()).json()
     assert len(scoped) == 1
     assert scoped[0]["title"] == "$gt"
 
@@ -656,6 +656,6 @@ def test_long_fields_are_accepted(client, sample_payload):
     }
     res = client.post("/submit-grievance", json=payload, headers=_auth_headers())
     assert res.status_code == 200
-    stored = client.get(f"/grievances/{res.json()['grievanceId']}").json()
+    stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_admin_headers()).json()
     assert len(stored["title"]) == 500
     assert len(stored["description"]) == 10_000

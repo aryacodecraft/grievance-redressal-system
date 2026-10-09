@@ -47,20 +47,17 @@ def _create(client, sample_payload, token: str | None = None, **overrides):
 # ── F1: unauthenticated read of the whole dataset (INVERTED — now secure) ───
 
 
-def test_unauthenticated_list_still_works_in_demo_mode(client, sample_payload):
-    """GET /grievances without a token falls back to demo mode (scoped by ?userId param).
-
-    Phase 1 note: this is intentionally permissive for the prototype — the
-    backend accepts unauthenticated requests in demo mode and uses the ?userId
-    param as a filter. In a hardened deployment this should return 401.
-    """
+def test_unauthenticated_list_is_rejected_but_reference_lookup_remains_public(client, sample_payload):
+    """Public tracking is by ID only; the full grievance list requires auth."""
     data = _register(client, "a@x.com")
     token = data["access_token"]
-    _create(client, sample_payload, token=token)
+    grievance_id = _create(client, sample_payload, token=token)
 
-    # Unauthenticated still succeeds but returns nothing (no userId param, no token)
     res = client.get("/grievances")
-    assert res.status_code == 200
+    assert res.status_code == 401
+    public_view = client.get(f"/grievances/{grievance_id}")
+    assert public_view.status_code == 200
+    assert "userId" not in public_view.json()
 
 
 def test_authenticated_citizen_sees_only_own_grievances(client, sample_payload):

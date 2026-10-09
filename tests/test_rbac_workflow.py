@@ -48,6 +48,52 @@ def _submit_as(client, token) -> str:
 
 
 class TestAssignRBAC:
+    def test_public_reference_lookup_finds_worker_started_grievance(self, client):
+        citizen = client.post("/auth/register", json={"email": "public-track@x.com", "password": "Pass1234!", "full_name": "Citizen"}).json()
+        grievance_id = _submit_as(client, citizen["access_token"])
+        admin = _make_user(client, "public-track-admin@x.com", "ADMIN")
+        employee = _make_user(client, "public-track-worker@x.com", "RESOLVER", "roads")
+        assigned = client.post(
+            f"/grievances/{grievance_id}/assign",
+            json={"departmentId": "roads", "ownerId": employee["user"]["id"], "reason": "Route to roads"},
+            headers=_bearer(admin["access_token"]),
+        )
+        assert assigned.status_code == 200, assigned.json()
+        started = client.patch(
+            f"/grievances/{grievance_id}/state",
+            json={"to_state": "IN_PROGRESS", "reason": "Worker started"},
+            headers=_bearer(employee["access_token"]),
+        )
+        assert started.status_code == 200, started.json()
+        internal_update = client.post(
+            f"/grievances/{grievance_id}/progress",
+            json={"bodyInternal": "Private depot access instructions", "visibility": "internal"},
+            headers=_bearer(employee["access_token"]),
+        )
+        assert internal_update.status_code == 201, internal_update.json()
+        customer_update = client.post(
+            f"/grievances/{grievance_id}/progress",
+            json={"bodyInternal": "Crew dispatched", "bodyCustomer": "A crew has started work on the issue.", "visibility": "customer"},
+            headers=_bearer(employee["access_token"]),
+        )
+        assert customer_update.status_code == 201, customer_update.json()
+
+        public = client.get(f"/grievances/{grievance_id.lower()}")
+        assert public.status_code == 200, public.json()
+        assert public.json()["state"] == "IN_PROGRESS"
+        for private_field in ("ownerId", "managerId", "userId", "latitude", "longitude", "imageUrl", "stateHistory", "assignmentHistory"):
+            assert private_field not in public.json()
+        public_history = client.get(f"/grievances/{grievance_id}/history")
+        assert public_history.status_code == 200
+        assert any(row.get("bodyCustomer") == "A crew has started work on the issue." for row in public_history.json())
+        assert all("bodyInternal" not in row for row in public_history.json())
+        assert all("Private depot access instructions" not in str(row) for row in public_history.json())
+
+        another_citizen = client.post("/auth/register", json={"email": "other-track@x.com", "password": "Pass1234!", "full_name": "Other"}).json()
+        other_view = client.get(f"/grievances/{grievance_id}", headers=_bearer(another_citizen["access_token"]))
+        assert other_view.status_code == 200
+        assert other_view.json()["state"] == "IN_PROGRESS"
+
     def test_roads_manager_assignment_is_visible_to_legacy_transport_employee(self, client):
         citizen = client.post("/auth/register", json={"email": "rt-citizen@x.com", "password": "Pass1234!", "full_name": "Citizen"}).json()
         grievance_id = _submit_as(client, citizen["access_token"])

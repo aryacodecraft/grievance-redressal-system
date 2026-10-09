@@ -126,7 +126,7 @@ def test_submit_rejects_an_image_below_threshold(client, sample_payload, fake_ve
     assert body["threshold"] == IMAGE_LLM_THRESHOLD
     assert body["imageValidation"]["llm_score"] < IMAGE_LLM_THRESHOLD
     # Nothing was persisted for a rejected image.
-    assert client.get("/grievances").json() == []
+    assert client.get("/grievances").status_code == 401
 
 
 def test_submit_accepts_an_image_at_the_threshold(client, sample_payload, fake_verdict):
