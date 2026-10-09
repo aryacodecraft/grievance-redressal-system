@@ -205,6 +205,15 @@
 | 4 | User | May add clarifying comments where permitted |
 | 5 | User | Submits feedback after resolution |
 
+Notifications are available from the signed-in user's notification inbox. The
+citizen receives an acknowledgement when a grievance is registered and updates
+when it is routed, changes status, is resolved, or is closed/rejected. Employees
+receive an in-app notification when a grievance is assigned or reassigned to
+them, and managers receive workflow notifications for escalations and submitted
+resolutions. The frontend shows toast popups for newly received notifications
+and immediate feedback for actions taken in the current session; the inbox is
+account-scoped and supports marking one or all items read.
+
 ---
 
 ## State Transition Rules
@@ -238,3 +247,15 @@ post daily updates, place work on hold with a required reason, or raise a
 structured escalation ticket. Completion is submitted as
 `RESOLUTION_SUBMITTED`, preserving the required manager approval step before
 the grievance becomes `RESOLVED`.
+
+## Department employee management
+
+Department managers use `/admin/employees` with separate **Employee Accounts**
+and **Assign Tasks** tabs. The accounts tab handles employee creation and
+removal; the tasks tab reviews team workload and allocates grievances. Managers
+can also allocate a grievance directly from its review dialog, which offers only active
+employees from their department. The server derives manager scope from the
+authenticated account, limits employee lists and assignment targets to that
+department, and audits account changes. Assigning a pending grievance moves it
+to `ASSIGNED` and starts its SLA deadline. Employees with active grievances
+must have those tasks reassigned before their account can be removed.
