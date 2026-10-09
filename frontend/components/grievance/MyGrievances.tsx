@@ -50,7 +50,7 @@ export function MyGrievances() {
         </h2>
         <Link
           href="/track"
-          className="text-xs font-semibold text-primary-600 hover:underline"
+          className="text-xs font-semibold text-primary-700 hover:underline"
         >
           {t("trackByRef")}
         </Link>
