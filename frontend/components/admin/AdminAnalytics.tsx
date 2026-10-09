@@ -14,6 +14,7 @@ import { AdminAreaClusters, buildAreaClusters } from "./AdminAreaClusters";
 import { AdminMap } from "./AdminMap";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
 import { useClusterLocations } from "./useClusterLocations";
+import { canonicalDepartmentId } from "@/lib/departments";
 
 function csvEscape(value: unknown): string {
   const s = value == null ? "" : String(value);
@@ -90,12 +91,12 @@ export function AdminAnalytics() {
   const { items: feedItems, loading, error, user } = useAdminGrievanceFeed();
   const userRole = user?.role?.toUpperCase();
   const departmentId = user?.departmentId;
-  const scopedDepartmentId = departmentId === "transport" ? "roads" : departmentId;
+  const scopedDepartmentId = canonicalDepartmentId(departmentId);
   const isDepartmentManager = userRole === "ADMIN" && Boolean(scopedDepartmentId);
   const items = useMemo(() => {
     if (!isDepartmentManager || !scopedDepartmentId) return feedItems;
     return feedItems.filter((g) => {
-      const department = (g.departmentId ?? g.category).toLowerCase() === "transport" ? "roads" : (g.departmentId ?? g.category).toLowerCase();
+      const department = canonicalDepartmentId(g.departmentId ?? g.category);
       return department === scopedDepartmentId.toLowerCase();
     });
   }, [feedItems, isDepartmentManager, scopedDepartmentId]);

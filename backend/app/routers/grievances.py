@@ -36,14 +36,10 @@ from ..services.classification import (
 )
 from ..services.image import llm_image_confidence
 from ..repositories.notifications import notif_repository
+from ..services.departments import canonical_department
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter()
-
-def canonical_department(value: str | None) -> str:
-    key = (value or "other").strip().lower()
-    return "roads" if key == "transport" else key
-
 
 @router.post("/submit-grievance")
 def submit_grievance(
@@ -233,7 +229,9 @@ def list_grievances(
         elif role in ("RESOLVER", "EMPLOYEE"):
             scoped_user = userId
             scoped_owner = current["user_id"]
-            scoped_dept = canonical_department(dept)
+            # Owner scope is sufficient for a resolver. canonical_department(None)
+            # defaults to "other", hiding assignments from every other team.
+            scoped_dept = canonical_department(dept) if dept else None
         else:
             scoped_user = current["user_id"]
             scoped_owner = None
@@ -250,6 +248,17 @@ def list_grievances(
         owner_id=scoped_owner,
         overdue=overdue
     )
+    return [to_api(doc) for doc in docs]
+
+
+@router.get("/resolver/tasks")
+def list_resolver_tasks(
+    current: Annotated[dict, Depends(get_current_user)],
+):
+    """List all tasks assigned to the authenticated employee, independent of department aliases."""
+    if current["role"] not in ("RESOLVER", "EMPLOYEE"):
+        return JSONResponse(status_code=403, content={"error": "Requires RESOLVER"})
+    docs = repository.list(limit=1000, owner_id=current["user_id"])
     return [to_api(doc) for doc in docs]
 
 

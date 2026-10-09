@@ -22,6 +22,7 @@ import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
 import { useToast } from "@/components/ui/ToastProvider";
+import { canonicalDepartmentId } from "@/lib/departments";
 
 const DEPARTMENT_TABS: { key: string; label: string }[] = [
   { key: "all", label: "All Departments" },
@@ -86,7 +87,7 @@ export function AdminBoard() {
   const { notify } = useToast();
   const userRole = user?.role?.toUpperCase();
   const departmentId = user?.departmentId;
-  const scopedDepartmentId = departmentId === "transport" ? "roads" : departmentId;
+  const scopedDepartmentId = canonicalDepartmentId(departmentId);
   const isDepartmentManager = userRole === "ADMIN" && Boolean(scopedDepartmentId);
   const [overrides, setOverrides] = useState<Record<string, Partial<Grievance>>>({});
   const [employees, setEmployees] = useState<DepartmentEmployee[]>([]);
@@ -108,7 +109,7 @@ export function AdminBoard() {
     const merged = feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g));
     if (!isDepartmentManager || !scopedDepartmentId) return merged;
     return merged.filter((g) => {
-      const department = (g.departmentId ?? g.category).toLowerCase() === "transport" ? "roads" : (g.departmentId ?? g.category).toLowerCase();
+      const department = canonicalDepartmentId(g.departmentId ?? g.category);
       return department === scopedDepartmentId.toLowerCase();
     });
   }, [feedItems, overrides, isDepartmentManager, scopedDepartmentId]);

@@ -15,7 +15,7 @@ from ..state_machine import GrievanceState, transition_state, _STATUS_COMPAT
 from ..repositories.audit import audit_repository
 from ..repositories.notifications import notif_repository
 from ..repositories.sla_config import sla_repository
-from .grievances import canonical_department
+from ..services.departments import canonical_department
 
 router = APIRouter(tags=["assignments"])
 
@@ -62,14 +62,14 @@ def assign_grievance(
     state = _canon_state(doc)
     department_id = canonical_department(payload.departmentId)
     grievance_department = canonical_department(doc.get("departmentId") or doc.get("category"))
-    manager_department = canonical_department(current.get("departmentId"))
+    manager_department = canonical_department(current.get("departmentId")) if current.get("departmentId") else ""
     if role == "ADMIN" and manager_department and (grievance_department != manager_department or department_id != manager_department):
         return JSONResponse(status_code=403, content={"error": "Can only route grievances within your department"})
     if payload.ownerId:
         from ..users_db import users_repository
         worker = users_repository.get(payload.ownerId)
-        worker_department = canonical_department((worker or {}).get("departmentId"))
-        if not worker or worker.get("role") != "RESOLVER" or worker_department != department_id:
+        worker_department = canonical_department((worker or {}).get("departmentId")) if (worker or {}).get("departmentId") else ""
+        if not worker or worker.get("role") != "RESOLVER" or worker.get("isActive") is False or worker_department != department_id:
             return JSONResponse(status_code=400, content={"error": "Assigned employee must belong to the selected department"})
     assignable_states = {"PENDING_ASSIGNMENT", "SUBMITTED", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "BLOCKED", "ESCALATED"}
     if state not in assignable_states:
@@ -134,23 +134,23 @@ def reassign_grievance(
         return JSONResponse(status_code=403, content={"error": "Requires ADMIN or SUPERADMIN"})
     
     doc = _get_doc_or_404(grievance_id)
+    grievance_department = canonical_department(doc.get("departmentId") or doc.get("category"))
+    assignment_department = canonical_department(payload.departmentId or grievance_department)
     if role == "ADMIN":
-        actor_dept = "roads" if current.get("departmentId") == "transport" else current.get("departmentId")
-        grievance_department = doc.get("departmentId") or doc.get("category")
-        grievance_dept = canonical_department(grievance_department)
-        if actor_dept != grievance_dept:
+        actor_dept = canonical_department(current.get("departmentId")) if current.get("departmentId") else ""
+        if actor_dept != grievance_department or assignment_department != actor_dept:
             return JSONResponse(status_code=403, content={"error": "Can only assign tasks in your department"})
-        from ..users_db import users_repository
-        target = users_repository.get(payload.ownerId)
-        target_dept = "roads" if target and target.get("departmentId") == "transport" else (target or {}).get("departmentId")
-        if not target or target.get("role") != "RESOLVER" or target_dept != actor_dept:
-            return JSONResponse(status_code=400, content={"error": "Employee must belong to your department"})
+    from ..users_db import users_repository
+    target = users_repository.get(payload.ownerId)
+    target_dept = canonical_department((target or {}).get("departmentId")) if (target or {}).get("departmentId") else ""
+    if not target or target.get("role") != "RESOLVER" or target.get("isActive") is False or target_dept != assignment_department:
+        return JSONResponse(status_code=400, content={"error": "Assigned employee must belong to the grievance department"})
     now = datetime.now(timezone.utc).isoformat()
     old_owner = doc.get("ownerId")
     state = _canon_state(doc)
     patch = {"ownerId": payload.ownerId, "updatedAt": now}
     if payload.departmentId:
-        patch["departmentId"] = canonical_department(payload.departmentId)
+        patch["departmentId"] = assignment_department
     initial_assignment = state in ("PENDING_ASSIGNMENT", "SUBMITTED")
     if initial_assignment:
         due_days = sla_repository.get_days(doc.get("category", "other"), doc.get("priority", "low"))

@@ -11,16 +11,16 @@ import type { Grievance } from "@/lib/types";
 import { useDemoUser } from "@/lib/session";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
 import { useToast } from "@/components/ui/ToastProvider";
+import { canonicalDepartmentId } from "@/lib/departments";
 
 type Employee = { id: string; full_name?: string; email?: string; departmentId?: string; role?: string; isActive?: boolean };
-const canonicalDepartment = (value?: string | null) => value?.toLowerCase() === "transport" ? "roads" : (value ?? "").toLowerCase();
 const openStates = new Set(["SUBMITTED", "PENDING_ASSIGNMENT", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "BLOCKED", "ESCALATED", "REOPENED"]);
 
 export function DepartmentEmployeesWorkspace() {
   const { user, liveMode } = useDemoUser();
   const { notify } = useToast();
   const { items: grievances, loading: loadingGrievances } = useAdminGrievanceFeed();
-  const departmentId = canonicalDepartment(user?.departmentId);
+  const departmentId = canonicalDepartmentId(user?.departmentId);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [form, setForm] = useState({ full_name: "", email: "", password: "" });
@@ -32,7 +32,7 @@ export function DepartmentEmployeesWorkspace() {
     setLoadingEmployees(true);
     try {
       const rows = await listUsers() as Employee[];
-      setEmployees(rows.filter((row) => row.role === "RESOLVER" && row.departmentId && canonicalDepartment(row.departmentId) === departmentId));
+      setEmployees(rows.filter((row) => row.role === "RESOLVER" && row.departmentId && canonicalDepartmentId(row.departmentId) === departmentId));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not load employees");
     } finally {
@@ -44,7 +44,7 @@ export function DepartmentEmployeesWorkspace() {
   // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { if (liveMode && departmentId) void refreshEmployees(); }, [liveMode, departmentId]);
 
-  const departmentGrievances = useMemo(() => grievances.filter((g) => canonicalDepartment(g.departmentId ?? g.category) === departmentId && openStates.has((g.state ?? g.status).toUpperCase())), [grievances, departmentId]);
+  const departmentGrievances = useMemo(() => grievances.filter((g) => canonicalDepartmentId(g.departmentId ?? g.category) === departmentId && openStates.has((g.state ?? g.status).toUpperCase())), [grievances, departmentId]);
   const activeWork = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const grievance of departmentGrievances) if (grievance.ownerId) counts[grievance.ownerId] = (counts[grievance.ownerId] ?? 0) + 1;

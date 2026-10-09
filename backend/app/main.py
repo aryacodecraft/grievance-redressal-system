@@ -107,7 +107,7 @@ def _seed_on_startup() -> None:
     """
     import bcrypt as _bcrypt
     from .db import repository
-    from .routers.grievances import canonical_department
+    from .services.departments import canonical_department
 
     # Legacy grievances were created before departmentId became mandatory.
     # Repair only missing routing metadata; never reset state or owner here.

@@ -8,6 +8,7 @@ from ..auth import get_current_user
 from ..permissions import require_permission
 from ..users_db import users_repository
 from ..db import repository
+from ..services.departments import canonical_department
 from ..repositories.audit import audit_repository
 from datetime import datetime, timezone
 import bcrypt
@@ -16,8 +17,10 @@ import re
 router = APIRouter(prefix="/users", tags=["users"])
 
 def _same_department(actor: dict, target: dict) -> bool:
-    actor_dept = "roads" if actor.get("departmentId") == "transport" else actor.get("departmentId")
-    target_dept = "roads" if target.get("departmentId") == "transport" else target.get("departmentId")
+    if not actor.get("departmentId") or not target.get("departmentId"):
+        return actor.get("role") == "SUPERADMIN"
+    actor_dept = canonical_department(actor.get("departmentId"))
+    target_dept = canonical_department(target.get("departmentId"))
     return actor.get("role") == "SUPERADMIN" or bool(actor_dept and actor_dept == target_dept)
 
 @router.post("/employees", status_code=201)
@@ -51,18 +54,15 @@ def list_users(
     # ADMIN can only view non-admin users in their dept
     if actor_role == "ADMIN":
         role = "RESOLVER"
-        own_dept = current.get("departmentId")
-        own_dept = "roads" if own_dept == "transport" else own_dept
+        if not current.get("departmentId"):
+            return []
+        own_dept = canonical_department(current.get("departmentId"))
         if not own_dept:
             return []
-        # Ignore caller-supplied department filters; manager scope comes from
-        # the verified token. Roads also includes legacy transport accounts.
-        if own_dept == "roads":
-            users = users_repository.list_users(role=role, q=q, limit=limit * 2)
-            users = [u for u in users if ("roads" if u.get("departmentId") == "transport" else u.get("departmentId")) == own_dept]
-            users = users[:limit]
-        else:
-            users = users_repository.list_users(role=role, dept_id=own_dept, q=q, limit=limit)
+        # Normalize stored legacy/display labels in memory; exact DB matching
+        # would otherwise miss department aliases and display-name values.
+        users = users_repository.list_users(role=role, q=q, limit=limit * 8)
+        users = [u for u in users if u.get("departmentId") and canonical_department(u.get("departmentId")) == own_dept][:limit]
         users = [u for u in users if u.get("role") not in ("ADMIN", "SUPERADMIN")]
     else:
         users = users_repository.list_users(role=role, dept_id=dept, q=q, limit=limit)
