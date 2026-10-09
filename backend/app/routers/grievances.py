@@ -216,16 +216,22 @@ def list_grievances(
     overdue: bool = False,
     current: Annotated[dict | None, Depends(get_optional_user)] = None,
 ):
+    if not current:
+        return JSONResponse(status_code=401, content={"error": "Authentication required"})
+
+    role = current["role"]
     if current:
-        role = current["role"]
         if role == "SUPERADMIN":
             scoped_user = userId
             scoped_owner = None
-            scoped_dept = canonical_department(dept)
+            scoped_dept = canonical_department(dept) if dept else None
         elif role in ("ADMIN", "MANAGER"):
             scoped_user = userId
             scoped_owner = None
-            scoped_dept = canonical_department(dept or current.get("departmentId"))
+            own_department = current.get("departmentId")
+            # A department manager cannot broaden their scope via query params;
+            # a global ADMIN may optionally filter to one department.
+            scoped_dept = canonical_department(own_department) if own_department else (canonical_department(dept) if dept else None)
         elif role in ("RESOLVER", "EMPLOYEE"):
             scoped_user = userId
             scoped_owner = current["user_id"]
@@ -278,7 +284,8 @@ def get_grievance(
     grievance_id: str,
     current: Annotated[dict | None, Depends(get_optional_user)] = None,
 ):
-    doc = repository.get(grievance_id.strip())
+    # Reference IDs are case-insensitive for lookup; stored IDs stay uppercase.
+    doc = repository.get(grievance_id.strip().upper())
     if doc is None:
         return JSONResponse(
             status_code=404, content={"error": "Grievance not found"}
@@ -287,12 +294,34 @@ def get_grievance(
 
     if current:
         role = current["role"]
-        if role == "USER" and result.get("userId") != current["user_id"]:
-            return JSONResponse(status_code=404, content={"error": "Grievance not found"})
-        if role in ("RESOLVER", "EMPLOYEE") and result.get("ownerId") != current["user_id"]:
-            return JSONResponse(status_code=403, content={"error": "Forbidden: not assigned to you"})
+        is_owner = result.get("userId") == current["user_id"]
+        is_assignee = result.get("ownerId") == current["user_id"]
+        is_in_department = (
+            not current.get("departmentId")
+            or canonical_department(current.get("departmentId"))
+            == canonical_department(result.get("departmentId") or result.get("category"))
+        )
+        can_view_full = (
+            role in ("SUPERADMIN",)
+            or (role in ("ADMIN", "MANAGER") and is_in_department)
+            or (role == "USER" and is_owner)
+            or (role in ("RESOLVER", "EMPLOYEE") and is_assignee)
+        )
+        if not can_view_full:
+            return _public_tracking_view(result)
+    else:
+        return _public_tracking_view(result)
 
     return result
+
+
+def _public_tracking_view(result: dict) -> dict:
+    """Expose only non-identifying fields to public reference-ID lookups."""
+    return {
+        key: result[key]
+        for key in ("id", "title", "status", "state", "category", "priority", "createdAt", "departmentId")
+        if key in result
+    } | {"description": ""}
 
 
 @router.patch("/grievances/{grievance_id}/status")
