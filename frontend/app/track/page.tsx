@@ -53,7 +53,13 @@ export default function TrackPage() {
       if (liveMode) {
         const result = await fetchGrievanceById(query);
         setFound(result);
-        setHistory(result ? (await getGrievanceHistory(result.id)) as Record<string, unknown>[] : []);
+        if (result) {
+          // History availability must not determine whether the grievance was found.
+          const updates = await getGrievanceHistory(result.id).catch(() => []);
+          setHistory(updates as Record<string, unknown>[]);
+        } else {
+          setHistory([]);
+        }
       } else {
         await new Promise((r) => setTimeout(r, 400));
         setFound(findMockGrievance(query) ?? null);
