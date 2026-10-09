@@ -78,7 +78,7 @@ export function AdminMap({
 
       const icon = L.divIcon({
         className: "",
-        html: '<span style="display:block;width:14px;height:14px;border-radius:50%;background:#026bc7;border:2px solid #fff;box-shadow:0 0 0 1px #026bc7;"></span>',
+        html: '<span style="display:block;width:14px;height:14px;border-radius:50%;background:#ff6b00;border:2px solid #fff;box-shadow:0 0 0 1px #ff6b00;"></span>',
         iconSize: [14, 14],
         iconAnchor: [7, 7],
         popupAnchor: [0, -7],
@@ -97,17 +97,17 @@ export function AdminMap({
             (g.imageUrl
               ? `<br/><img src="${escapeHtml(g.imageUrl)}" style="max-width:180px;max-height:120px;display:block;margin-top:6px;border-radius:6px;">`
               : "") +
-            `<br/><span data-loc="${lat},${lon}" style="color:#64748b;font-size:11px;">${escapeHtml(g.userId || "-")}</span>`
+            `<br/><span data-location-label="${escapeHtml(g.id)}" style="color:#71717a;font-size:11px;">Resolving area…</span>`
         );
         markersRef.current[g.id] = marker;
         pts.push([lat, lon]);
 
-        // Upgrade the popup's last line from the reporter id to a real place
-        // name once reverse geocoding resolves (coordinates as fallback).
+        // Upgrade the popup with a human-readable area; coordinates are never
+        // rendered as user-facing text.
         void reverseGeocode(lat, lon).then((place) => {
           if (!place || cancelled) return;
           const popupEl = (marker.getPopup()?.getElement() as HTMLElement | null)?.querySelector(
-            `[data-loc="${lat},${lon}"]`
+            `[data-location-label="${CSS.escape(g.id)}"]`
           );
           if (popupEl) {
             popupEl.textContent = place.name;
