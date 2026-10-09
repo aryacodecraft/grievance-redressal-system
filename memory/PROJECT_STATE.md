@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-09 (worker task visibility and department alias handling hardened)
+> Last updated: 2026-10-09 (public reference tracking works independently of login/history access)
 
 ---
 
@@ -197,6 +197,7 @@ memory/        — AI agent persistent memory                                  I
 ## Partially Implemented
 
 - **Worker workflow** — IN PROGRESS: resolver dashboard includes workload metrics, dedicated `GET /resolver/tasks` owner-scoped loading (with assignment-notification recovery), direct task selection, acknowledgement/start, hold reasons, daily updates, escalation, manager-reviewed completion, and activity history. Task queue visibility is independent of department aliases; manager employee lists and assignment validation normalize legacy/display labels to canonical department keys. Load failures are visible, and the queue refreshes periodically. Department employee account management and task allocation are available in `/admin/employees`. Manager ticket responses and browser validation remain.
+- **Public reference tracking** — IMPLEMENTED: reference-ID detail lookup works signed out and for non-owner accounts using a limited public status projection; public history contains customer-visible/system entries only. History loading cannot mask a found grievance as missing, IDs are normalized case-insensitively, and full grievance-list access requires authentication.
 - **Notifications** — IMPLEMENTED (in-app v1): account-scoped inbox at `/notifications`, unread badges and polling for citizen/staff navigation, toast popups for newly received notifications and key local actions, citizen registration/status updates, employee assignment/reassignment updates, and manager escalation/resolution events. Email/push delivery and browser-level validation remain out of scope.
 
 *(None — scaffolding is complete but no business logic yet)*

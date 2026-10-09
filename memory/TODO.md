@@ -126,6 +126,7 @@
 - [x] Add account-scoped notification inbox, unread badges, polling/toasts, and citizen/employee workflow notifications.
 - [x] Fix resolver queue's implicit `other` department filter and link assignment notifications to the selected task.
 - [x] Normalize department aliases consistently across manager employee lists, assignment validation, and worker queues; add a Roads/Roads & Transport/Traffic & Transport Operations assignment regression.
+- [x] Fix public grievance lookup so history authorization failures cannot show “not found”; expose a limited tracking projection and customer-visible history to non-owners, while requiring authentication for full-list access.
 - [x] Use a shared employee task loader for overview/workbench; recover missing list rows from own assignment notifications and surface queue errors instead of zero counts.
 - [x] Resolver workbench at `/resolver` with assigned queue, state actions, progress notes, resolution submission, and activity history.
 - [x] Superadmin overview at `/superadmin` with users, departments, and audit data.

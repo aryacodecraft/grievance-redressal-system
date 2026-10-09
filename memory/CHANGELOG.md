@@ -4,6 +4,24 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-09 — Request lifecycle label clarified
+
+- Renamed the timeline stage “AI Triage & Categorization” to “Department
+  Assigned” and updated its translation in all ten supported Indian locales.
+
+## 2026-10-09 — Public reference tracking after employee progress updates
+
+- Fixed the Track page so a history request failure cannot overwrite a
+  successfully fetched grievance with the “not found” state.
+- Made detail/history lookups available to anonymous and non-owner tracking
+  with a limited public projection and customer-visible/system updates only;
+  private identities, assignment metadata, coordinates, images, and internal
+  history stay out of that response. Reference IDs are case-insensitive.
+- Required authentication for the full grievance-list endpoint so public
+  reference tracking cannot be bypassed by enumerating the collection.
+- Added a regression for a worker-started grievance searched signed out and by
+  another signed-in citizen, and documented the public tracking contract.
+
 ## 2026-10-09 — Footer trust bar removed
 
 ### Removed

@@ -1751,3 +1751,26 @@ navigation is handled by the left-side drawer.
 - Verification: `tsc --noEmit` clean, `npm run lint` 0 errors (one pre-existing
   `<img>` warning in `ResolverWorkspace.tsx`), `npm run build` succeeds across
   all 15 routes.
+
+## 2026-10-09 — Public tracking falsely reported worker-updated grievances missing
+
+- Root cause: the Track page fetched detail and authenticated history in one
+  try block. Anonymous detail lookup could succeed, but the history `401`
+  triggered the catch handler and cleared the found grievance.
+- Separated detail/history error handling; made public/non-owner history return
+  customer-visible/system updates only and detail return a limited tracking
+  projection. Reference IDs are normalized to uppercase for lookup. Full list
+  access now requires authentication; department manager detail/history remains
+  department-scoped.
+- Added tests for anonymous lookup after a worker starts work, another citizen
+  lookup, case-insensitive IDs, internal-note privacy, and list authentication.
+- Backend compile and `git diff --check` pass; frontend lint/typecheck pass
+  (one existing `<img>` warning). The focused pytest process entered test
+  execution but timed out without output, so runtime test completion remains
+  unconfirmed in this environment.
+
+## 2026-10-09 — Complaint lifecycle department label
+
+- Replaced “AI Triage & Categorization” with “Department Assigned” in the
+  complaint progress timeline and updated the corresponding label across all
+  supported Indian language translations.
