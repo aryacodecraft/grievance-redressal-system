@@ -58,14 +58,21 @@ export function GrievanceReviewModal({
   grievance,
   onClose,
   onStatusTransition,
+  departmentManager = false,
+  employees = [],
+  onEmployeeAssign,
 }: {
   grievance: Grievance | null;
   onClose: () => void;
   onStatusTransition: (status: string, assignedDept?: string) => Promise<void>;
+  departmentManager?: boolean;
+  employees?: Array<{ id: string; full_name?: string; email?: string; isActive?: boolean }>;
+  onEmployeeAssign?: (employeeId: string) => Promise<void>;
 }) {
   // The queue remounts this dialog (via `key`) per grievance, so the action
   // form state initialises fresh from the opened record without an effect.
   const [assignee, setAssignee] = useState(grievance?.departmentId || grievance?.category || DEPARTMENTS[0].key);
+  const [employeeId, setEmployeeId] = useState(grievance?.ownerId || "");
   const [notes, setNotes] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +81,7 @@ export function GrievanceReviewModal({
   // Resolve the pinned coordinates into a real place name for the officer.
   // The queue remounts this dialog per grievance (via `key`), so state starts
   // null and is only set asynchronously once geocoding resolves. Falls back
-  // to the raw coordinates when offline or unresolved.
+  // to a neutral unavailable label when offline or unresolved.
   const [placeName, setPlaceName] = useState<string | null>(null);
   useEffect(() => {
     if (!grievance || grievance.latitude == null || grievance.longitude == null) {
@@ -120,6 +127,21 @@ export function GrievanceReviewModal({
       setNotice(`Ticket ${g.id} updated to status "${status.replace("_", " ")}".`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Status transition failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function assignEmployee() {
+    if (!employeeId || !onEmployeeAssign) return;
+    setSubmitting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      await onEmployeeAssign(employeeId);
+      setNotice(`Ticket ${g.id} assigned to the selected employee.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Employee assignment failed.");
     } finally {
       setSubmitting(false);
     }
@@ -194,7 +216,7 @@ export function GrievanceReviewModal({
             {/* Location */}
             <div>
               <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
-                <MapPin size={12} className="text-primary-600" />
+                <MapPin size={12} className="text-primary-700" />
                 Location
               </p>
               {hasLocation ? (
@@ -205,9 +227,8 @@ export function GrievanceReviewModal({
                     title={g.title}
                   />
                   <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-medium text-ink-700">
-                    <MapPin size={12} className="mt-0.5 shrink-0 text-primary-600" />
-                    {placeName ??
-                      `${Number(g.latitude).toFixed(5)}, ${Number(g.longitude).toFixed(5)}`}
+                    <MapPin size={12} className="mt-0.5 shrink-0 text-primary-700" />
+                    {placeName ?? "Area name unavailable"}
                   </p>
                 </>
               ) : (
@@ -257,22 +278,21 @@ Attached Photo
                 </p>
               </div>
 
-              <Field
-                label="Assign to Department"
-                hint="Pick the team that will fix this issue."
-              >
-                <Select
-                  value={assignee}
-                  onChange={(e) => setAssignee(e.target.value)}
-                  disabled={submitting}
-                >
-                  {DEPARTMENTS.map((d) => (
-                    <option key={d.key} value={d.key}>
-                      {d.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              {departmentManager ? (
+                <Field label="Assign to employee" hint="Choose an active employee from your department.">
+                  <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} disabled={submitting || employees.length === 0}>
+                    <option value="">{employees.length ? "Select an employee" : "No active employees available"}</option>
+                    {employees.filter((employee) => employee.isActive !== false).map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.email || employee.id}</option>)}
+                  </Select>
+                </Field>
+              ) : (
+                <Field label="Assign to Department" hint="Pick the team that will fix this issue.">
+                  <Select value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={submitting}>
+                    {DEPARTMENTS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
+                  </Select>
+                </Field>
+              )}
+
 
               <Field
                 label="Officer Notes (Optional)"
@@ -290,7 +310,7 @@ Attached Photo
               {error && <Alert tone="error">{error}</Alert>}
 
               <div className="grid grid-cols-2 gap-2">
-                <Button
+                {!departmentManager && <Button
                   type="button"
                   onClick={() => void transition("assigned", assignee)}
                   disabled={submitting}
@@ -298,7 +318,9 @@ Attached Photo
                 >
                   <Building2 size={14} />
                   Review department assignment
-                </Button>
+                </Button>}
+
+                {departmentManager && <Button type="button" onClick={() => void assignEmployee()} disabled={submitting || !employeeId || !onEmployeeAssign} className="flex items-center justify-center gap-1.5"><Building2 size={14} />Assign to employee</Button>}
 
                 <Button
                   type="button"
