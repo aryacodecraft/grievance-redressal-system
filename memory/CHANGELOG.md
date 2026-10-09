@@ -4,6 +4,81 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-09 — Left-nav-only navigation: three content-area tab bars removed
+
+### Changed
+- **Top `AdminNav` strip** (Grievance Queue · Executive Analytics · Employees)
+  deleted from `components/admin/AdminNav.tsx` and from its three call sites
+  (`app/admin/page.tsx`, `app/admin/analytics/page.tsx`,
+  `app/admin/employees/page.tsx`). It was an exact duplicate of the
+  `StaffSidebar` links — role gating already matched (`ADMIN && departmentId`).
+  `AdminHeader` (title/badge/identity) is kept; the file still exports only it.
+- **Department Portals tab row** in `components/admin/AdminBoard.tsx` (All
+  Departments / Water Supply / Roads… with per-department count chips) replaced
+  by a single labelled `<select id="queue-department-filter">` in the Grievance
+  Queue card header, directly above the table. Options carry the counts
+  (`Water Supply (3)`), so `deptCounts` is still used. Same visibility rule as
+  before — hidden for department managers, who are server-scoped to one dept.
+  `DEPARTMENT_TABS` stays (it also drives `categoryLabel()` and the table
+  subtitle) but lost its now-unused `Icon` field and the 7 icon imports.
+- **Employee Accounts / Assign Tasks switcher** in
+  `components/admin/DepartmentEmployeesWorkspace.tsx` removed; both panels now
+  stack (create/list cards, then the assign-tasks card). `activeTab` state and
+  the `role="tablist"` markup are gone; `Users` / `BriefcaseBusiness` icons
+  remain in use inside the panels.
+- Result: the left `StaffSidebar` is the only tab navigation for staff.
+
+### Verified
+- Grep for `role="tab|tablist|setActiveTab|setSelectedDeptTab` → only
+  `app/track/page.tsx` (citizen page, top header, out of scope) and the
+  dropdown's `setSelectedDeptTab` handler remain.
+- `npm run lint` (0 errors, 1 pre-existing `<img>` warning) and
+  `npm run build` (15 routes) both pass.
+
+### Follow-up
+- `components/admin/AdminNav.tsx` now exports only `AdminHeader`; renaming it
+  to `AdminHeader.tsx` was skipped to avoid churn while other work is landing
+  in this repo.
+
+---
+
+## 2026-10-09 — UI accent: bright orange + black CTAs, all blue removed
+
+### Changed
+- `frontend/app/globals.css`: replaced the indigo-blue `--color-primary-*`
+  scale with a bright orange scale (600 = `#ff6b00`, 700 = `#c24a00`); replaced
+  the blue-tinted slate `--color-ink-*` scale with true neutral (zinc) greys;
+  `--foreground` → `#18181b`. Because every `primary-*` / `ink-*` class reads
+  from these tokens, ~70 references across 26 files restyled automatically.
+- `Button.tsx`: default `primary` variant is now solid black
+  (`bg-ink-950`, hover `ink-800`) — Submit/Sign in/Post update CTAs; added a new
+  `orange` variant (`bg-primary-700`) for accent-colored buttons; `outline`,
+  `secondary`, `ghost`, `dark` unchanged in structure.
+- `app/page.tsx`: hero "Register Complaint" CTA link switched to black to match;
+  hero dot-pattern gradient → `rgba(255,107,0,0.12)`.
+- Contrast rule applied: orange that meets **text** uses 700 (4.9:1) — all
+  `text-primary-600` → `text-primary-700`, all `bg-primary-600 text-white` →
+  `bg-primary-700 text-white`, focus rings/borders and `accent-primary-*`
+  → 700 (bright 600 is 2.9:1 on white and stays decorative only: progress
+  bars, card/selected borders, map pins, hover states).
+- Hardcoded blues removed: `AdminBoard.tsx` `blue-*` card classes → `primary-*`;
+  map-pin hex `#026bc7` → `#ff6b00` in `AdminMap.tsx`, `SinglePinMap.tsx`,
+  `LocationCapture.tsx`; `AdminCharts.tsx` `GREYS` → neutral hexes with
+  `#ff6b00` as the lead pie slice; `AdminMap.tsx` popup label `#64748b` →
+  `#71717a`; tooltip border `#e2e8f0` → `#e4e4e7`.
+- `Badge.tsx`: `tone="blue"` renamed to `tone="orange"` (2 call sites).
+- **Kept:** the official Google brand logo colors (`#4285F4` etc.) in
+  `login/page.tsx` and `register/page.tsx` — altering them breaks brand rules.
+
+### Verified
+- Repo-wide grep for `blue|indigo|sky|cyan|azure|navy|slate` + hex sweep →
+  only the Google logo and an explanatory comment remain.
+- `npm run lint` (1 pre-existing `<img>` warning, 0 errors) and
+  `npm run build` (13 routes) both pass.
+- Not browser-verified: no desktop browser was connected to this session.
+
+---
+
 ## 2026-10-08 — Navbar: CTA removal + staff chrome split
 
 ### Changed
@@ -863,3 +938,35 @@ one lean triage board, one centered review dialog, one executive analytics page.
   including assigned, accepted, in-progress, blocked, and escalated records.
 - Reassignment preserves the current workflow state and employee owner; only
   the department routing and manager audit record change.
+
+## 2026-10-09 — Dedicated department employee workspace
+
+- Moved employee account creation/removal and team workload management into
+  `/admin/employees`; per-grievance assignment is also available in its review dialog.
+- Scoped employee discovery to the authenticated manager's department,
+  including legacy Roads & Transport account records.
+- Prevented employee deletion while active grievances remain assigned; added
+  matching API documentation and workflow notes.
+
+## 2026-10-09 — Assign employees from grievance review
+
+- Department managers now see an employee selector in the grievance review
+  dialog instead of department routing controls.
+- Assigning a pending grievance to a worker now transitions it to `ASSIGNED`,
+  sets its initial SLA due date, and records state history.
+
+## 2026-10-09 — Split employee accounts and task assignment tabs
+
+- Added separate Employee Accounts and Assign Tasks tabs in the department
+  manager Employees dashboard.
+## 2026-10-09 — In-app notification center and action feedback
+
+- Added a notification inbox with account-scoped read/unread state, unread nav
+  badges, periodic refresh, and toast popups for newly arriving notifications.
+- Added immediate toast feedback for grievance submission, assignment,
+  reassignment/status changes, employee creation/deletion, and worker actions.
+- Notify citizens when their grievance is registered/routed/updated/resolved;
+  notify employees on assignment/reassignment and managers on key workflow
+  events. Mongo notification results now expose their IDs for read operations.
+- Documented notification response fields and workflow behavior. Email/push
+  delivery and browser-level validation remain deferred.
