@@ -42,9 +42,7 @@ function buildCsv(items: Grievance[]): string {
         g.status,
         g.assignee ?? "",
         g.createdAt,
-        g.latitude != null && g.longitude != null
-          ? `${Number(g.latitude).toFixed(5)}, ${Number(g.longitude).toFixed(5)}`
-          : "",
+        g.latitude != null && g.longitude != null ? "Pinned location (see map)" : "",
         sla.state,
         sla.dueAt.toISOString(),
       ]
@@ -92,11 +90,15 @@ export function AdminAnalytics() {
   const { items: feedItems, loading, error, user } = useAdminGrievanceFeed();
   const userRole = user?.role?.toUpperCase();
   const departmentId = user?.departmentId;
-  const isDepartmentManager = userRole === "ADMIN";
+  const scopedDepartmentId = departmentId === "transport" ? "roads" : departmentId;
+  const isDepartmentManager = userRole === "ADMIN" && Boolean(scopedDepartmentId);
   const items = useMemo(() => {
-    if (!isDepartmentManager || !departmentId) return feedItems;
-    return feedItems.filter((g) => (g.departmentId ?? g.category).toLowerCase() === departmentId.toLowerCase());
-  }, [feedItems, isDepartmentManager, departmentId]);
+    if (!isDepartmentManager || !scopedDepartmentId) return feedItems;
+    return feedItems.filter((g) => {
+      const department = (g.departmentId ?? g.category).toLowerCase() === "transport" ? "roads" : (g.departmentId ?? g.category).toLowerCase();
+      return department === scopedDepartmentId.toLowerCase();
+    });
+  }, [feedItems, isDepartmentManager, scopedDepartmentId]);
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
@@ -220,14 +222,15 @@ export function AdminAnalytics() {
       <AdminAreaClusters clusters={areaClusters} />
       </div>
 
-      {/* Groups of similar complaints */}
-      <AdminClusters
+      {/* Similarity is a cross-queue analysis; department managers only need
+          their operational metrics, map, and hotspot view. */}
+      {!isDepartmentManager && <AdminClusters
         clusters={clusters}
         activeClusterId={activeClusterId}
         onSelect={(id) => setActiveClusterId(id)}
         onClear={() => setActiveClusterId(null)}
         locations={clusterLocations}
-      />
+      />}
     </div>
   );
 }
