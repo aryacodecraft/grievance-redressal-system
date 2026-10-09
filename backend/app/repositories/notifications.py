@@ -71,8 +71,8 @@ class MongoNotificationRepository:
         query: dict = {"userId": user_id}
         if unread_only:
             query["isRead"] = False
-        cursor = self._col.find(query, {"_id": 0}).sort("at", -1).limit(limit)
-        return list(cursor)
+        cursor = self._col.find(query).sort("at", -1).limit(max(1, min(limit, 100)))
+        return [{**{key: value for key, value in row.items() if key != "_id"}, "id": str(row["_id"])} for row in cursor]
 
     def mark_read(self, notif_id: str, user_id: str) -> bool:
         from bson import ObjectId

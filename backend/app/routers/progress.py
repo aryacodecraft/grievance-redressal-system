@@ -4,12 +4,13 @@ from typing import Annotated
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from ..auth import get_current_user
+from ..auth import get_current_user, get_optional_user
 from ..db import repository
 from ..models import ProgressUpdateRequest
 from ..repositories.progress import progress_repository
 from ..repositories.audit import audit_repository
 from ..repositories.notifications import notif_repository
+from ..services.departments import canonical_department
 
 router = APIRouter(tags=["progress"])
 
@@ -76,6 +77,7 @@ def add_progress(
             "kind": "progress.customer",
             "entityId": grievance_id,
             "title": f"Update on your grievance {grievance_id}",
+            "message": payload.bodyCustomer,
         })
     
     audit_repository.append({
@@ -89,26 +91,40 @@ def add_progress(
 @router.get("/grievances/{grievance_id}/history")
 def get_history(
     grievance_id: str,
-    current: Annotated[dict, Depends(get_current_user)],
+    current: Annotated[dict | None, Depends(get_optional_user)] = None,
 ):
+    grievance_id = grievance_id.strip().upper()
     doc = repository.get(grievance_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Grievance not found")
     
-    role = current["role"]
-    actor_id = current["user_id"]
+    role = current["role"] if current else "PUBLIC"
+    actor_id = current["user_id"] if current else None
+    is_department_staff_out_of_scope = bool(
+        current
+        and role in ("ADMIN", "MANAGER")
+        and current.get("departmentId")
+        and canonical_department(current.get("departmentId"))
+        != canonical_department(doc.get("departmentId") or doc.get("category"))
+    )
     
     # Citizen can only see own grievance history
-    if role == "USER":
-        if doc.get("userId") != actor_id:
-            raise HTTPException(status_code=404, detail="Grievance not found")
+    if (
+        role == "PUBLIC"
+        or (role == "USER" and doc.get("userId") != actor_id)
+        or (role in ("RESOLVER", "EMPLOYEE") and doc.get("ownerId") != actor_id)
+        or is_department_staff_out_of_scope
+        or role not in ("PUBLIC", "USER", "RESOLVER", "EMPLOYEE", "ADMIN", "SUPERADMIN")
+    ):
         updates = progress_repository.list_for_grievance(grievance_id, visibility_filter=["customer", "system"])
-    elif role == "RESOLVER":
-        if doc.get("ownerId") != actor_id:
-            raise HTTPException(status_code=403, detail="Not your assigned grievance")
+    elif role == "USER":
+        updates = progress_repository.list_for_grievance(grievance_id, visibility_filter=["customer", "system"])
+    elif role in ("RESOLVER", "EMPLOYEE"):
+        updates = progress_repository.list_for_grievance(grievance_id)
+    elif role in ("ADMIN", "SUPERADMIN"):
         updates = progress_repository.list_for_grievance(grievance_id)
     else:
-        updates = progress_repository.list_for_grievance(grievance_id)
+        updates = progress_repository.list_for_grievance(grievance_id, visibility_filter=["customer", "system"])
     
     # Sort updates
     updates = sorted(updates, key=lambda x: x.get("createdAt", ""))
@@ -117,9 +133,11 @@ def get_history(
     result = []
     for u in updates:
         entry = dict(u)
-        if role == "USER":
+        if role in ("USER", "PUBLIC"):
             entry.pop("bodyInternal", None)
             entry.pop("escalationReason", None)
+        if role == "PUBLIC":
+            entry = {key: entry[key] for key in ("kind", "bodyCustomer", "createdAt", "visibility") if key in entry}
         result.append(entry)
     
     return result

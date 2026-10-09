@@ -1,48 +1,43 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
   Clock,
-  Droplets,
-  Construction,
-  Zap,
-  Trash2,
-  HeartPulse,
-  Landmark,
-  FolderOpen,
   Layers,
   Search,
   Wrench,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { PriorityBadge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Feedback";
-import { assignGrievance, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
+import { assignGrievance, listUsers, reassignGrievance, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
+import { useToast } from "@/components/ui/ToastProvider";
+import { canonicalDepartmentId } from "@/lib/departments";
 
-const DEPARTMENT_TABS: { key: string; label: string; Icon: LucideIcon }[] = [
-  { key: "all", label: "All Departments", Icon: Layers },
-  { key: "water", label: "Water Supply", Icon: Droplets },
-  { key: "roads", label: "Roads & Transport", Icon: Construction },
-  { key: "electricity", label: "Electricity", Icon: Zap },
-  { key: "sanitation", label: "Sanitation", Icon: Trash2 },
-  { key: "health", label: "Health Services", Icon: HeartPulse },
-  { key: "governance", label: "Governance", Icon: Landmark },
-  { key: "other", label: "Other", Icon: FolderOpen },
+const DEPARTMENT_TABS: { key: string; label: string }[] = [
+  { key: "all", label: "All Departments" },
+  { key: "water", label: "Water Supply" },
+  { key: "roads", label: "Roads & Transport" },
+  { key: "electricity", label: "Electricity" },
+  { key: "sanitation", label: "Sanitation" },
+  { key: "health", label: "Health Services" },
+  { key: "governance", label: "Governance" },
+  { key: "other", label: "Other" },
 ];
 
 const PAGE_SIZES = [5, 10, 20, 50];
 const PRIORITY_WEIGHT: Record<string, number> = { high: 3, medium: 2, low: 1 };
+type DepartmentEmployee = { id: string; full_name?: string; email?: string; role?: string; departmentId?: string; isActive?: boolean };
 
 function asEpoch(iso: string): number {
   const t = Date.parse(iso);
@@ -89,10 +84,15 @@ function SlaCell({ grievance }: { grievance: Grievance }) {
 
 export function AdminBoard() {
   const { items: feedItems, loading, error, live, user } = useAdminGrievanceFeed();
+  const { notify } = useToast();
   const userRole = user?.role?.toUpperCase();
   const departmentId = user?.departmentId;
-  const isDepartmentManager = userRole === "ADMIN";
+  const scopedDepartmentId = canonicalDepartmentId(departmentId);
+  const isDepartmentManager = userRole === "ADMIN" && Boolean(scopedDepartmentId);
   const [overrides, setOverrides] = useState<Record<string, Partial<Grievance>>>({});
+  const [employees, setEmployees] = useState<DepartmentEmployee[]>([]);
+  // The API scopes this list to the authenticated manager's department.
+  useEffect(() => { if (isDepartmentManager) void listUsers().then((rows) => setEmployees((rows as DepartmentEmployee[]).filter((row) => row.role === "RESOLVER" && row.isActive !== false))).catch(() => setEmployees([])); }, [isDepartmentManager]);
 
   // Filtering & Sorting
   const [selectedDeptTab, setSelectedDeptTab] = useState("all");
@@ -107,16 +107,19 @@ export function AdminBoard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const items = useMemo(() => {
     const merged = feedItems.map((g) => (overrides[g.id] ? { ...g, ...overrides[g.id] } : g));
-    if (!isDepartmentManager || !departmentId) return merged;
-    return merged.filter((g) => (g.departmentId ?? g.category).toLowerCase() === departmentId.toLowerCase());
-  }, [feedItems, overrides, isDepartmentManager, departmentId]);
+    if (!isDepartmentManager || !scopedDepartmentId) return merged;
+    return merged.filter((g) => {
+      const department = canonicalDepartmentId(g.departmentId ?? g.category);
+      return department === scopedDepartmentId.toLowerCase();
+    });
+  }, [feedItems, overrides, isDepartmentManager, scopedDepartmentId]);
 
   const selected = useMemo(
     () => items.find((g) => g.id === selectedId) ?? null,
     [items, selectedId]
   );
 
-  // Department counts for top portal tabs
+  // Per-department ticket counts, surfaced as option labels in the queue filter
   const deptCounts = useMemo(() => {
     const counts: Record<string, number> = { all: items.length };
     for (const tab of DEPARTMENT_TABS) {
@@ -218,54 +221,20 @@ export function AdminBoard() {
       }
     }
     patchLocal(selected.id, patch);
+    notify(status === "assigned" ? "Department assignment saved" : "Grievance updated", `${selected.id} status: ${status.replaceAll("_", " ")}.`);
+  }
+
+  async function handleEmployeeAssignment(employeeId: string) {
+    if (!selected || !scopedDepartmentId) return;
+    if (live) await reassignGrievance(selected.id, { ownerId: employeeId, departmentId: scopedDepartmentId, reason: "Department manager assigned task to employee" });
+    const currentState = (selected.state ?? selected.status).toUpperCase();
+    const newlyAssigned = currentState === "PENDING_ASSIGNMENT" || currentState === "SUBMITTED";
+    patchLocal(selected.id, { ownerId: employeeId, state: newlyAssigned ? "ASSIGNED" : selected.state, status: newlyAssigned ? "ASSIGNED" : selected.status });
+    notify("Task assigned", `${selected.id} was assigned to ${employees.find((employee) => employee.id === employeeId)?.full_name || "the selected employee"}.`);
   }
 
   return (
     <div className="space-y-6">
-      {/* ── Department Portal Navigation Tabs ─────────────────────────── */}
-      {!isDepartmentManager && <div className="border-b border-ink-200/80 bg-white pt-1">
-        <div className="pb-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-ink-700">
-            Department Portals
-          </h2>
-          <p className="text-xs text-ink-500">
-            Switch between departments to see each team&apos;s own complaints and progress.
-          </p>
-        </div>
-
-        <div className="flex gap-1.5 overflow-x-auto pb-2">
-          {DEPARTMENT_TABS.map(({ key, label, Icon }) => {
-            const isSelected = selectedDeptTab === key;
-            const count = deptCounts[key] ?? 0;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  setSelectedDeptTab(key);
-                  setPage(1);
-                }}
-                className={`flex shrink-0 items-center gap-2 rounded-sm border px-3 py-2 text-xs font-semibold transition-all ${
-                  isSelected
-                    ? "border-primary-600 bg-primary-50/80 text-primary-900 shadow-2xs"
-                    : "border-ink-200 bg-white text-ink-600 hover:border-ink-300 hover:bg-ink-50/60 hover:text-ink-950"
-                }`}
-              >
-                <Icon size={14} className={isSelected ? "text-primary-700" : "text-ink-400"} />
-                <span>{label}</span>
-                <span
-                  className={`rounded-sm px-1.5 py-0.2 text-[10px] font-bold ${
-                    isSelected ? "bg-primary-600 text-white" : "bg-ink-100 text-ink-600"
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>}
-
       {/* ── Executive Command Metrics Bar ─────────────────────────────── */}
       <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-ink-200/80 shadow-2xs">
@@ -314,16 +283,16 @@ export function AdminBoard() {
           </CardBody>
         </Card>
 
-        <Card className="border-blue-200/80 bg-blue-50/20 shadow-2xs">
+        <Card className="border-primary-200/80 bg-primary-50/20 shadow-2xs">
           <CardBody className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-800">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-800">
                 Work Underway
               </span>
-              <Wrench size={16} className="text-blue-600" />
+              <Wrench size={16} className="text-primary-700" />
             </div>
             <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.inProgress}</p>
-            <p className="mt-0.5 text-[11px] text-blue-700">Repairs or checks happening now</p>
+            <p className="mt-0.5 text-[11px] text-primary-700">Repairs or checks happening now</p>
           </CardBody>
         </Card>
 
@@ -435,7 +404,7 @@ export function AdminBoard() {
 
       {/* ── Full-width Grievance Queue Table ──────────────────────────── */}
       <Card className="border-ink-200/80 shadow-2xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-ink-900">Grievance Queue</h2>
             <p className="mt-0.5 text-xs text-ink-500">
@@ -444,9 +413,35 @@ export function AdminBoard() {
                 : `${DEPARTMENT_TABS.find((t) => t.key === selectedDeptTab)?.label} complaints`}
             </p>
           </div>
-          <span className="text-xs font-semibold text-ink-500">
-            {filtered.length} ticket{filtered.length === 1 ? "" : "s"} · page {safePage} of {totalPages}
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {!isDepartmentManager && (
+              <div className="w-56">
+                <label
+                  htmlFor="queue-department-filter"
+                  className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-600"
+                >
+                  Department
+                </label>
+                <Select
+                  id="queue-department-filter"
+                  value={selectedDeptTab}
+                  onChange={(e) => {
+                    setSelectedDeptTab(e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  {DEPARTMENT_TABS.map(({ key, label }) => (
+                    <option key={key} value={key}>
+                      {label} ({deptCounts[key] ?? 0})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+            <span className="self-end text-xs font-semibold text-ink-500">
+              {filtered.length} ticket{filtered.length === 1 ? "" : "s"} · page {safePage} of {totalPages}
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -584,6 +579,9 @@ export function AdminBoard() {
         grievance={selected}
         onClose={() => setSelectedId(null)}
         onStatusTransition={handleStatusTransition}
+        departmentManager={isDepartmentManager}
+        employees={employees}
+        onEmployeeAssign={isDepartmentManager ? handleEmployeeAssignment : undefined}
       />
     </div>
   );

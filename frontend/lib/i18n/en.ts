@@ -21,9 +21,6 @@ const en = {
   brandTagline: "National Grievance Portal",
 
   // ── Footer ──
-  footerTrustRecords: "Audited & tamper-evident records",
-  footerTrustLocal: "Built for local civic workflows",
-  footerTrustPrototype: "Academic research prototype",
   footerAbout:
     "AI-assisted grievance redressal and decision-support prototype for transparent civic workflows.",
   footerSignIn: "Sign In",
@@ -299,7 +296,7 @@ const en = {
     "This submission did not meet municipal verification criteria or was flagged as a duplicate.",
   msSubmittedTitle: "Complaint Registered",
   msSubmittedDesc: "Acknowledged and logged into municipal registry.",
-  msTriagedTitle: "AI Triage & Categorization",
+  msTriagedTitle: "Department Assigned",
   msTriagedDesc: "Department routing, priority, and sentiment evaluated.",
   msAssignedTitle: "Officer Assigned",
   msAssignedDesc: "Allocated to designated nodal officer or department team.",

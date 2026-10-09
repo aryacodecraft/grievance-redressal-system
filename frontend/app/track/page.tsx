@@ -53,7 +53,13 @@ export default function TrackPage() {
       if (liveMode) {
         const result = await fetchGrievanceById(query);
         setFound(result);
-        setHistory(result ? (await getGrievanceHistory(result.id)) as Record<string, unknown>[] : []);
+        if (result) {
+          // History availability must not determine whether the grievance was found.
+          const updates = await getGrievanceHistory(result.id).catch(() => []);
+          setHistory(updates as Record<string, unknown>[]);
+        } else {
+          setHistory([]);
+        }
       } else {
         await new Promise((r) => setTimeout(r, 400));
         setFound(findMockGrievance(query) ?? null);
@@ -88,7 +94,7 @@ export default function TrackPage() {
       {tab === "search" && <div className="border-b border-ink-100 bg-white px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-lg font-bold text-ink-950">{t("trackFindTitle")}</h2>
-          <p className="mt-1 text-sm text-ink-500">{t("trackFindHint")} <button type="button" onClick={() => setQuery("GRV-2026-0012")} className="font-mono font-semibold text-primary-600 underline">GRV-2026-0012</button>.</p>
+          <p className="mt-1 text-sm text-ink-500">{t("trackFindHint")} <button type="button" onClick={() => setQuery("GRV-2026-0012")} className="font-mono font-semibold text-primary-700 underline">GRV-2026-0012</button>.</p>
           <form className="mx-auto mt-5 flex max-w-xl gap-2" onSubmit={(e) => { e.preventDefault(); void search(); }}>
             <Input aria-label="Grievance reference ID" placeholder="GRV-2026-0142" value={query} onChange={(e) => setQuery(e.target.value)} />
             <Button type="submit" disabled={busy || !query.trim()} className="min-w-32">{busy ? t("btnSearching") : t("search")}</Button>

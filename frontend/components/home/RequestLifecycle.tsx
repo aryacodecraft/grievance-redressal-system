@@ -43,7 +43,7 @@ export function RequestLifecycle() {
                 const complete = index <= active;
                 const label = t(labelKey);
                 return <button key={labelKey} type="button" onClick={() => setActive(index)} className="group flex items-center gap-3 text-left sm:block sm:text-center" aria-label={t("lifeStageAria", { label })}>
-                  <span className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition-all sm:mx-auto ${complete ? "border-primary-600 bg-primary-600 text-white" : "border-ink-300 bg-white text-ink-400"} ${selected ? "ring-4 ring-primary-100" : ""}`}><Icon size={17} /></span>
+                  <span className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition-all sm:mx-auto ${complete ? "border-primary-600 bg-primary-700 text-white" : "border-ink-300 bg-white text-ink-400"} ${selected ? "ring-4 ring-primary-100" : ""}`}><Icon size={17} /></span>
                   <span className={`mt-2 block text-xs font-bold ${selected ? "text-primary-700" : "text-ink-700"}`}>{label}</span>
                   <span className="mt-0.5 block text-[11px] text-ink-500 sm:hidden">{t(shortKey)}</span>
                 </button>;

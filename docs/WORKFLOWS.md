@@ -205,6 +205,15 @@
 | 4 | User | May add clarifying comments where permitted |
 | 5 | User | Submits feedback after resolution |
 
+Notifications are available from the signed-in user's notification inbox. The
+citizen receives an acknowledgement when a grievance is registered and updates
+when it is routed, changes status, is resolved, or is closed/rejected. Employees
+receive an in-app notification when a grievance is assigned or reassigned to
+them, and managers receive workflow notifications for escalations and submitted
+resolutions. The frontend shows toast popups for newly received notifications
+and immediate feedback for actions taken in the current session; the inbox is
+account-scoped and supports marking one or all items read.
+
 ---
 
 ## State Transition Rules
@@ -238,3 +247,38 @@ post daily updates, place work on hold with a required reason, or raise a
 structured escalation ticket. Completion is submitted as
 `RESOLUTION_SUBMITTED`, preserving the required manager approval step before
 the grievance becomes `RESOLVED`.
+
+The worker queue uses `GET /resolver/tasks`, scoped by authenticated `ownerId`
+and independent of department filters/aliases. Assignment eligibility, manager
+employee lists, and department scopes share canonical department normalization,
+so legacy/display labels (for example `transport`, `Roads & Transport`, and
+`Traffic & Transport Operations`) resolve to the same department. Assignment
+notifications link directly to the named task;
+the queue refreshes periodically so tasks assigned while it is open appear
+without requiring a sign-out/sign-in cycle. If a queue response omits an
+assignment, the client can recover it from that employee's own assignment
+notifications and fetch the grievance through the same server-side owner
+authorization used by direct grievance lookup. Loading errors are shown rather
+than rendered as a zero-work dashboard.
+
+## Public reference tracking
+
+Anyone can search a grievance by reference ID, including while signed out.
+Visitors and non-owner accounts receive a limited current-status projection;
+identity, assignment, exact coordinates, images, and internal workflow data
+remain restricted. Public history includes only customer-visible/system
+updates. Detail and history load independently, so a history failure cannot
+incorrectly show the grievance as missing. Full grievance lists require
+authentication, so public lookup does not expose an enumerable case list.
+
+## Department employee management
+
+Department managers use `/admin/employees` with separate **Employee Accounts**
+and **Assign Tasks** tabs. The accounts tab handles employee creation and
+removal; the tasks tab reviews team workload and allocates grievances. Managers
+can also allocate a grievance directly from its review dialog, which offers only active
+employees from their department. The server derives manager scope from the
+authenticated account, limits employee lists and assignment targets to that
+department, and audits account changes. Assigning a pending grievance moves it
+to `ASSIGNED` and starts its SLA deadline. Employees with active grievances
+must have those tasks reassigned before their account can be removed.

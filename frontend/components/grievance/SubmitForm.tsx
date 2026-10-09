@@ -16,6 +16,7 @@ import { submitGrievance } from "@/lib/api";
 import { useDemoUser } from "@/lib/session";
 import { CATEGORIES, type SubmitResult } from "@/lib/types";
 import { departmentKey, useI18n } from "@/lib/i18n";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const makeSchema = (t: ReturnType<typeof useI18n>["t"]) =>
   z.object({
@@ -28,6 +29,7 @@ type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 export function SubmitForm() {
   const { user } = useDemoUser();
+  const { notify } = useToast();
   const { t } = useI18n();
   const schema = useMemo(() => makeSchema(t), [t]);
   const [image, setImage] = useState<UploadedImage | null>(null);
@@ -69,13 +71,14 @@ export function SubmitForm() {
         ...(image?.url ? { imageUrl: image.url } : {}),
       });
       setResult(res);
+      notify("Grievance registered", `Reference ID ${res.grievanceId}. Updates will appear in Notifications and Track Status.`);
       reset();
       setImage(null);
       setCoords(null);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : t("errSubmitFailed")
-      );
+      const text = e instanceof Error ? e.message : t("errSubmitFailed");
+      setError(text);
+      notify("Could not submit grievance", text, "error");
     } finally {
       setSubmitting(false);
     }

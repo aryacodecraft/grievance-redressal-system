@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppShell } from "@/components/ui/AppShell";
 import { DemoUserProvider } from "@/lib/session";
 import { I18nProvider } from "@/lib/i18n";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +37,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-white text-ink-900 selection:bg-primary-100 selection:text-primary-900">
         <DemoUserProvider>
-          <I18nProvider><AppShell>{children}</AppShell></I18nProvider>
+          <I18nProvider><ToastProvider><AppShell>{children}</AppShell></ToastProvider></I18nProvider>
         </DemoUserProvider>
       </body>
     </html>

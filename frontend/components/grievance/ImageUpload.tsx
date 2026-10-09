@@ -107,7 +107,7 @@ export function ImageUpload({
         />
       </div>
       {busy && (
-        <span className="mt-1.5 block text-xs font-medium text-primary-600">{t("imgProcessing")}</span>
+        <span className="mt-1.5 block text-xs font-medium text-primary-700">{t("imgProcessing")}</span>
       )}
       {note && !busy && (
         <span className="mt-1.5 block text-xs text-ink-500">

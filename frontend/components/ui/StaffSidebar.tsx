@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Briefcase,
+  Bell,
   Home,
   Inbox,
   LineChart,
   LogOut,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { NotificationBadgeLink } from "@/components/notifications/NotificationBadgeLink";
 
 export interface SidebarLink {
   href: string;
@@ -30,14 +33,20 @@ const linksByRole: Record<string, SidebarLink[]> = {
   ADMIN: [
     { href: "/", label: "Home", Icon: Home },
     { href: "/admin", label: "Grievance Queue", Icon: Inbox },
+    { href: "/admin/employees", label: "Employees", Icon: Users },
     { href: "/admin/analytics", label: "Executive Analytics", Icon: LineChart },
   ],
   RESOLVER: [{ href: "/", label: "Home", Icon: Home }, { href: "/resolver", label: "My Work", Icon: Briefcase }],
 };
+for (const role of ["ADMIN", "RESOLVER", "SUPERADMIN"]) linksByRole[role].push({ href: "/notifications", label: "Notifications", Icon: Bell });
 
 /** Per-role sidebar links; unknown/citizen roles get the shared pair only. */
-export const linksForRole = (role: string | undefined): SidebarLink[] =>
-  (role && linksByRole[role]) || sharedLinks;
+export const linksForRole = (role: string | undefined, departmentId?: string | null): SidebarLink[] => {
+  const links = (role && linksByRole[role]) || sharedLinks;
+  return role === "ADMIN" && !departmentId
+    ? links.filter((link) => link.href !== "/admin/employees")
+    : links;
+};
 
 export const roleLabelOf = (role: string | undefined) =>
   role === "SUPERADMIN"
@@ -80,7 +89,7 @@ export function StaffSidebar({
       >
         <span
           aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-primary-700 font-bold text-white shadow-xs"
         >
           G
         </span>
@@ -94,7 +103,7 @@ export function StaffSidebar({
         aria-label="Staff links"
       >
         {links.map(({ href, label, Icon }) => (
-          <Link
+          href === "/notifications" ? <NotificationBadgeLink key={`${label}-${href}`} Icon={Icon} label={label} active={linkIsActive(href)} className={`flex items-center justify-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors sm:justify-start ${linkIsActive(href) ? "bg-primary-50 text-primary-700" : "text-ink-600 hover:bg-ink-100/70 hover:text-ink-950"}`} /> : <Link
             key={`${label}-${href}`}
             href={href}
             aria-current={linkIsActive(href) ? "page" : undefined}

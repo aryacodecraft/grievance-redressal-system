@@ -1,46 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutList, LineChart, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useDemoUser } from "@/lib/session";
-
-const TABS = [
-  { href: "/admin", label: "Grievance Queue", Icon: LayoutList },
-  { href: "/admin/analytics", label: "Executive Analytics", Icon: LineChart },
-];
-
-/** Top sub-tab navigation shared by the admin queue and analytics pages. */
-export function AdminNav() {
-  const pathname = usePathname();
-
-  return (
-    <nav
-      className="border-b border-ink-200/80 bg-white px-4 sm:px-6 lg:px-8"
-      aria-label="Admin sections"
-    >
-      <div className="flex gap-1 overflow-x-auto">
-        {TABS.map(({ href, label, Icon }) => {
-          const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
-                active
-                  ? "border-primary-600 text-primary-800"
-                  : "border-transparent text-ink-500 hover:border-ink-300 hover:text-ink-800"
-              }`}
-            >
-              <Icon size={15} className={active ? "text-primary-600" : "text-ink-400"} />
-              {label}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
 
 /** Shared admin page header (title, subtitle, signed-in identity). */
 export function AdminHeader({

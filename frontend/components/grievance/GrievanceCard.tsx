@@ -160,7 +160,7 @@ export function StatusTimeline({ status }: { status: string }) {
                   isCompleted
                     ? "bg-emerald-600 text-white"
                     : isCurrent
-                    ? "bg-primary-600 text-white ring-4 ring-primary-100"
+                    ? "bg-primary-700 text-white ring-4 ring-primary-100"
                     : "border border-ink-200 bg-white text-ink-300"
                 }`}
               >

@@ -107,6 +107,7 @@ def _seed_on_startup() -> None:
     """
     import bcrypt as _bcrypt
     from .db import repository
+    from .services.departments import canonical_department
 
     # Legacy grievances were created before departmentId became mandatory.
     # Repair only missing routing metadata; never reset state or owner here.
@@ -114,9 +115,10 @@ def _seed_on_startup() -> None:
         legacy = repository.list(limit=1000)
         repaired = 0
         for grievance in legacy:
-            if grievance.get("departmentId"):
+            existing = grievance.get("departmentId")
+            category = canonical_department(str(existing or grievance.get("category") or (grievance.get("hfEngine") or {}).get("category") or "other"))
+            if existing == category:
                 continue
-            category = str(grievance.get("category") or (grievance.get("hfEngine") or {}).get("category") or "other").strip().lower()
             repository.update(grievance["id"], {"departmentId": category})
             repaired += 1
         if repaired:

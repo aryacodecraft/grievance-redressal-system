@@ -2,7 +2,7 @@
 
 import { AdminAnalytics } from "@/components/admin/AdminAnalytics";
 import { AdminGate } from "@/components/admin/AdminGate";
-import { AdminHeader, AdminNav } from "@/components/admin/AdminNav";
+import { AdminHeader } from "@/components/admin/AdminNav";
 
 export default function AdminAnalyticsPage() {
   return (
@@ -12,7 +12,6 @@ export default function AdminAnalyticsPage() {
           title="Administrative Control Centre"
           subtitle="The big picture: complaint numbers, common problems, and where they're happening."
         />
-        <AdminNav />
         <div className="px-4 py-8 sm:px-6 lg:px-8 space-y-8">
           <AdminAnalytics />
         </div>

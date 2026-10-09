@@ -1615,3 +1615,162 @@ navigation is handled by the left-side drawer.
   initial assignment without resetting active work or removing the worker.
 - Added distinct reassignment audit action while preserving the existing
   review UI.
+
+## 2026-10-09 — Hide exact coordinates in analysis
+
+- Replaced coordinate text with reverse-geocoded area names across analytics,
+  map popups, hotspot summaries, exports, and review details.
+- Frontend lint and TypeScript checks passed.
+
+## 2026-10-09 — Consolidated roads and transport routing
+
+- Standardized `transport` routing to the combined `roads` department for new
+  submissions, reassignment, legacy startup repair, and manager scoping.
+- Removed the separate transport department from the frontend department
+  selector and test-account display; existing transport-manager accounts are
+  compatibility-scoped to roads.
+- Backend compile and frontend TypeScript/lint checks passed.
+
+## 2026-10-09 — UI accent: bright orange, black CTAs, no blue left
+
+- Restyled the whole frontend from the `globals.css` token layer: primary
+  palette is now bright orange (600 `#ff6b00`), the `ink` grey scale was
+  neutralized from blue-tinted slate to true zinc, and every hardcoded blue
+  (`blue-*` classes, `#026bc7` map pins, slate hexes in charts/popups, the hero
+  dot-pattern gradient) was replaced.
+- Made the default `Button` variant solid black so main CTAs (Submit, Sign in,
+  Post update, hero Register) are black; added an unused-for-now `orange`
+  variant so accent-colored buttons remain one prop away.
+- Applied an accessibility split: bright 600 for decorative surfaces only,
+  700 `#c24a00` (4.9:1) anywhere orange touches readable text or acts as a
+  focus/control indicator.
+- Kept the Google brand logo colors in the sign-in buttons.
+- `npm run lint` and `npm run build` pass; grep sweep shows no blue outside
+  the Google logo. Browser check skipped — no desktop browser connected.
+
+## 2026-10-09 — Department employee dashboard placement
+
+- Moved employee account operations and grievance allocation from the queue
+  and review modal to a dedicated manager Employees dashboard.
+- Hardened `GET /users` so a manager cannot expand department scope with a
+  query parameter; deletion is blocked while active grievances belong to the
+  employee.
+- Backend compile and frontend lint/TypeScript checks pass.
+
+## 2026-10-09 — Employee selection in grievance review
+
+- Replaced the department selector with an active employee selector for
+  department managers opening grievance details; global admins retain routing.
+- Made initial worker assignment advance the grievance to `ASSIGNED` with an
+  SLA due date and auditable state history.
+
+## 2026-10-09 — Separate employee account and task tabs
+
+- Split account CRUD and grievance allocation into distinct tabs in the
+  department Employees workspace.
+## 2026-10-09 — In-app notification center and action feedback
+
+- Implemented `/notifications` for signed-in citizens, employees, and admins,
+  with account-scoped inbox, mark-read/mark-all-read actions, unread badges,
+  30-second polling, and toast alerts for newly arriving events.
+- Added action feedback to submission, employee CRUD/task assignment, admin
+  workflow, and resolver actions. Backend emits citizen submission/status and
+  routing updates, employee assignment/reassignment updates, and manager
+  workflow notifications. Mongo IDs now support mark-read.
+- Verification: frontend lint and TypeScript pass (one existing `<img>` lint
+  warning); backend compile passes. Diff check is rerun after memory edits.
+- Remaining: browser-level validation; email/push notifications are not part
+  of this in-app prototype.
+
+## 2026-10-09 — Left-nav-only navigation
+
+- Removed the top `AdminNav` strip (Grievance Queue / Executive Analytics /
+  Employees) from `/admin`, `/admin/analytics`, `/admin/employees` and deleted
+  the component — it duplicated the `StaffSidebar` links exactly, including the
+  `ADMIN && departmentId` gating for the Employees entry. `AdminHeader` stays.
+- Replaced the "Department Portals" tab row in `AdminBoard` with a single
+  labelled department `<select>` in the Grievance Queue card header (directly
+  above the table), keeping per-department counts as option labels and the
+  existing "hidden for department managers" rule. `DEPARTMENT_TABS` keeps its
+  `key`/`label` (still used for the Department column and table subtitle) but
+  lost its unused `Icon` field and 7 icon imports.
+- Stacked the two employee panels in `DepartmentEmployeesWorkspace` instead of
+  switching between them; dropped `activeTab` and the `role="tablist"` markup.
+- Left the citizen `/track` tab switcher alone — that page uses the top header,
+  not the left nav.
+- `npm run lint` (0 errors) and `npm run build` (15 routes) pass.
+
+## 2026-10-09 — Resolver assignment visibility
+
+- Root cause: resolver GET `/grievances` applied `canonical_department(None)`,
+  which defaults to `other` and filtered away tasks from the employee's actual
+  department despite correct owner assignment and notification delivery.
+- Removed that implicit department filter (owner scoping remains); direct
+  assignment-notification links now select the grievance in `/resolver`, and
+  the queue refreshes every 30 seconds.
+- Added a backend regression test. Frontend `npm run lint` and `npx tsc
+  --noEmit` pass (one existing `<img>` lint warning). The focused pytest
+  process produced no output and could not be confirmed here; diff/compile
+  checks remain the next verification step.
+
+## 2026-10-09 — Employee dashboard task loading follow-up
+
+- Unified employee overview/workbench around a task loader that merges the
+  owner-scoped queue with grievances referenced by the employee's own
+  assignment notifications (each detail request remains server-authorized).
+- Added visible loading/error feedback, 15-second updates, task selection from
+  notification deep links, and a clearer clickable task-row affordance.
+- Frontend lint and TypeScript pass; only the pre-existing resolver `<img>`
+  optimization warning remains. Focused pytest did not report output in this
+  environment, so backend runtime coverage is unconfirmed. `next build` also
+  hit a sandbox Turbopack worker spawn/bind permission error.
+## 2026-10-09 — Roads & Transport employee task visibility
+
+- Root causes addressed: task visibility was coupled to a general list endpoint
+  and department names were compared inconsistently across canonical IDs,
+  legacy values, and display labels. A notification could therefore arrive even
+  when the employee queue filtered out the assigned grievance.
+- Added a dedicated authenticated-owner `/resolver/tasks` queue, shared
+  department normalization across backend assignment/employee operations and
+  frontend department scoping, and regression coverage from manager assignment
+  through worker starting the task. Other departments remain owner-isolated.
+- Frontend lint and TypeScript checks pass (one existing `<img>` lint warning).
+  Focused pytest was started but did not produce output during the observed
+  interval; its completion/result remains unconfirmed in this environment.
+## 2026-10-09 — Footer trust bar removal
+
+- Removed the `SiteFooter` trust bar strip ("Audited & tamper-evident
+  records" / "Built for local civic workflows" / "Academic research
+  prototype") and the unused `ShieldCheck` import. `MapPin`/`Mail` remain for
+  the contact list; main footer columns untouched.
+- Deleted `footerTrustRecords`, `footerTrustLocal`, `footerTrustPrototype`
+  from `en.ts` and all ten locale files, since `Messages` is derived from
+  `en.ts` and the keys were referenced nowhere else.
+- Project documentation still describes the prototype as academic
+  (`AGENTS.md`, `PRD.md`, `README.md`); those were deliberately left alone.
+- Verification: `tsc --noEmit` clean, `npm run lint` 0 errors (one pre-existing
+  `<img>` warning in `ResolverWorkspace.tsx`), `npm run build` succeeds across
+  all 15 routes.
+
+## 2026-10-09 — Public tracking falsely reported worker-updated grievances missing
+
+- Root cause: the Track page fetched detail and authenticated history in one
+  try block. Anonymous detail lookup could succeed, but the history `401`
+  triggered the catch handler and cleared the found grievance.
+- Separated detail/history error handling; made public/non-owner history return
+  customer-visible/system updates only and detail return a limited tracking
+  projection. Reference IDs are normalized to uppercase for lookup. Full list
+  access now requires authentication; department manager detail/history remains
+  department-scoped.
+- Added tests for anonymous lookup after a worker starts work, another citizen
+  lookup, case-insensitive IDs, internal-note privacy, and list authentication.
+- Backend compile and `git diff --check` pass; frontend lint/typecheck pass
+  (one existing `<img>` warning). The focused pytest process entered test
+  execution but timed out without output, so runtime test completion remains
+  unconfirmed in this environment.
+
+## 2026-10-09 — Complaint lifecycle department label
+
+- Replaced “AI Triage & Categorization” with “Department Assigned” in the
+  complaint progress timeline and updated the corresponding label across all
+  supported Indian language translations.

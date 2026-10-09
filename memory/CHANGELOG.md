@@ -4,6 +4,128 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-09 — Request lifecycle label clarified
+
+- Renamed the timeline stage “AI Triage & Categorization” to “Department
+  Assigned” and updated its translation in all ten supported Indian locales.
+
+## 2026-10-09 — Public reference tracking after employee progress updates
+
+- Fixed the Track page so a history request failure cannot overwrite a
+  successfully fetched grievance with the “not found” state.
+- Made detail/history lookups available to anonymous and non-owner tracking
+  with a limited public projection and customer-visible/system updates only;
+  private identities, assignment metadata, coordinates, images, and internal
+  history stay out of that response. Reference IDs are case-insensitive.
+- Required authentication for the full grievance-list endpoint so public
+  reference tracking cannot be bypassed by enumerating the collection.
+- Added a regression for a worker-started grievance searched signed out and by
+  another signed-in citizen, and documented the public tracking contract.
+
+## 2026-10-09 — Footer trust bar removed
+
+### Removed
+- The `SiteFooter` "Trust bar" strip and its three copy strings: "Audited &
+  tamper-evident records", "Built for local civic workflows", and "Academic
+  research prototype". The auditability claim over-promised for a prototype,
+  and the research-prototype label is internal context (`AGENTS.md`, `PRD.md`,
+  `README.md`), not citizen-facing UI.
+- Deleted `footerTrustRecords`, `footerTrustLocal`, and `footerTrustPrototype`
+  from `en.ts` and all ten translated locales. Required rather than optional:
+  `Messages = Record<MessageKey, string>` is derived from `en.ts`, so leftover
+  keys would be a TypeScript error. No other component referenced them.
+- Dropped the now-unused `ShieldCheck` import from `SiteFooter.tsx`; `MapPin`
+  and `Mail` are still used by the contact list. The main footer columns are
+  unchanged.
+
+## 2026-10-09 — Worker assignment visibility across department aliases
+
+- Added shared backend and frontend department normalization for canonical keys,
+  legacy IDs, and display labels, including Roads & Transport variations.
+- Added `GET /resolver/tasks`, scoped strictly to the authenticated worker's
+  owner ID; employee dashboards no longer depend on a department-filtered
+  general grievance list. Assignment notification recovery remains owner-checked.
+- Applied canonical department matching to manager employee lists and assignment
+  eligibility, preventing valid workers from being excluded or incorrectly
+  rejected because their stored department uses a display/legacy name.
+- Added an end-to-end regression covering manager visibility, assignment,
+  worker queue visibility, starting work, and isolation from another department.
+
+## 2026-10-09 — Left-nav-only navigation: three content-area tab bars removed
+
+### Changed
+- **Top `AdminNav` strip** (Grievance Queue · Executive Analytics · Employees)
+  deleted from `components/admin/AdminNav.tsx` and from its three call sites
+  (`app/admin/page.tsx`, `app/admin/analytics/page.tsx`,
+  `app/admin/employees/page.tsx`). It was an exact duplicate of the
+  `StaffSidebar` links — role gating already matched (`ADMIN && departmentId`).
+  `AdminHeader` (title/badge/identity) is kept; the file still exports only it.
+- **Department Portals tab row** in `components/admin/AdminBoard.tsx` (All
+  Departments / Water Supply / Roads… with per-department count chips) replaced
+  by a single labelled `<select id="queue-department-filter">` in the Grievance
+  Queue card header, directly above the table. Options carry the counts
+  (`Water Supply (3)`), so `deptCounts` is still used. Same visibility rule as
+  before — hidden for department managers, who are server-scoped to one dept.
+  `DEPARTMENT_TABS` stays (it also drives `categoryLabel()` and the table
+  subtitle) but lost its now-unused `Icon` field and the 7 icon imports.
+- **Employee Accounts / Assign Tasks switcher** in
+  `components/admin/DepartmentEmployeesWorkspace.tsx` removed; both panels now
+  stack (create/list cards, then the assign-tasks card). `activeTab` state and
+  the `role="tablist"` markup are gone; `Users` / `BriefcaseBusiness` icons
+  remain in use inside the panels.
+- Result: the left `StaffSidebar` is the only tab navigation for staff.
+
+### Verified
+- Grep for `role="tab|tablist|setActiveTab|setSelectedDeptTab` → only
+  `app/track/page.tsx` (citizen page, top header, out of scope) and the
+  dropdown's `setSelectedDeptTab` handler remain.
+- `npm run lint` (0 errors, 1 pre-existing `<img>` warning) and
+  `npm run build` (15 routes) both pass.
+
+### Follow-up
+- `components/admin/AdminNav.tsx` now exports only `AdminHeader`; renaming it
+  to `AdminHeader.tsx` was skipped to avoid churn while other work is landing
+  in this repo.
+
+---
+
+## 2026-10-09 — UI accent: bright orange + black CTAs, all blue removed
+
+### Changed
+- `frontend/app/globals.css`: replaced the indigo-blue `--color-primary-*`
+  scale with a bright orange scale (600 = `#ff6b00`, 700 = `#c24a00`); replaced
+  the blue-tinted slate `--color-ink-*` scale with true neutral (zinc) greys;
+  `--foreground` → `#18181b`. Because every `primary-*` / `ink-*` class reads
+  from these tokens, ~70 references across 26 files restyled automatically.
+- `Button.tsx`: default `primary` variant is now solid black
+  (`bg-ink-950`, hover `ink-800`) — Submit/Sign in/Post update CTAs; added a new
+  `orange` variant (`bg-primary-700`) for accent-colored buttons; `outline`,
+  `secondary`, `ghost`, `dark` unchanged in structure.
+- `app/page.tsx`: hero "Register Complaint" CTA link switched to black to match;
+  hero dot-pattern gradient → `rgba(255,107,0,0.12)`.
+- Contrast rule applied: orange that meets **text** uses 700 (4.9:1) — all
+  `text-primary-600` → `text-primary-700`, all `bg-primary-600 text-white` →
+  `bg-primary-700 text-white`, focus rings/borders and `accent-primary-*`
+  → 700 (bright 600 is 2.9:1 on white and stays decorative only: progress
+  bars, card/selected borders, map pins, hover states).
+- Hardcoded blues removed: `AdminBoard.tsx` `blue-*` card classes → `primary-*`;
+  map-pin hex `#026bc7` → `#ff6b00` in `AdminMap.tsx`, `SinglePinMap.tsx`,
+  `LocationCapture.tsx`; `AdminCharts.tsx` `GREYS` → neutral hexes with
+  `#ff6b00` as the lead pie slice; `AdminMap.tsx` popup label `#64748b` →
+  `#71717a`; tooltip border `#e2e8f0` → `#e4e4e7`.
+- `Badge.tsx`: `tone="blue"` renamed to `tone="orange"` (2 call sites).
+- **Kept:** the official Google brand logo colors (`#4285F4` etc.) in
+  `login/page.tsx` and `register/page.tsx` — altering them breaks brand rules.
+
+### Verified
+- Repo-wide grep for `blue|indigo|sky|cyan|azure|navy|slate` + hex sweep →
+  only the Google logo and an explanatory comment remain.
+- `npm run lint` (1 pre-existing `<img>` warning, 0 errors) and
+  `npm run build` (13 routes) both pass.
+- Not browser-verified: no desktop browser was connected to this session.
+
+---
+
 ## 2026-10-08 — Navbar: CTA removal + staff chrome split
 
 ### Changed
@@ -863,3 +985,61 @@ one lean triage board, one centered review dialog, one executive analytics page.
   including assigned, accepted, in-progress, blocked, and escalated records.
 - Reassignment preserves the current workflow state and employee owner; only
   the department routing and manager audit record change.
+
+## 2026-10-09 — Dedicated department employee workspace
+
+- Moved employee account creation/removal and team workload management into
+  `/admin/employees`; per-grievance assignment is also available in its review dialog.
+- Scoped employee discovery to the authenticated manager's department,
+  including legacy Roads & Transport account records.
+- Prevented employee deletion while active grievances remain assigned; added
+  matching API documentation and workflow notes.
+
+## 2026-10-09 — Assign employees from grievance review
+
+- Department managers now see an employee selector in the grievance review
+  dialog instead of department routing controls.
+- Assigning a pending grievance to a worker now transitions it to `ASSIGNED`,
+  sets its initial SLA due date, and records state history.
+
+## 2026-10-09 — Split employee accounts and task assignment tabs
+
+- Added separate Employee Accounts and Assign Tasks tabs in the department
+  manager Employees dashboard.
+## 2026-10-09 — In-app notification center and action feedback
+
+- Added a notification inbox with account-scoped read/unread state, unread nav
+  badges, periodic refresh, and toast popups for newly arriving notifications.
+- Added immediate toast feedback for grievance submission, assignment,
+  reassignment/status changes, employee creation/deletion, and worker actions.
+- Notify citizens when their grievance is registered/routed/updated/resolved;
+  notify employees on assignment/reassignment and managers on key workflow
+  events. Mongo notification results now expose their IDs for read operations.
+- Documented notification response fields and workflow behavior. Email/push
+  delivery and browser-level validation remain deferred.
+
+## 2026-10-09 — Resolver assignment visibility and deep links
+
+- Fixed `GET /grievances` for resolver accounts: an omitted department filter
+  was passed through `canonical_department(None)` and defaulted to `other`,
+  hiding owned grievances in all other departments. Owner scoping remains
+  enforced server-side.
+- Assignment notifications now open `/resolver` with the grievance selected;
+  the workbench refreshes every 30 seconds so newly assigned tasks appear
+  without reauthentication.
+- Added regression coverage for an assigned Roads grievance appearing in a
+  resolver's unfiltered queue. Frontend lint/typecheck pass; focused pytest did
+  not return output in this environment and remains to be confirmed.
+
+## 2026-10-09 — Employee dashboard task loading
+
+- Added a shared resolver task loader used by both the employee overview cards
+  and the resolver workbench. It combines the authenticated task queue with
+  assignment-notification IDs and uses owner-protected grievance lookup to
+  recover missing list rows.
+- Added visible loading and error states, periodic refresh, notification deep
+  links, and explicit task-row affordances so workers can open details and use
+  the existing Accept/Start work actions.
+- `npm run lint` and `npx tsc --noEmit` pass (one existing `<img>` warning).
+  `next build` was blocked by the sandbox (`Operation not permitted` while
+  Turbopack tried to spawn/bind a worker process).

@@ -3,10 +3,10 @@
 import { clsx } from "clsx";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 
-type Tone = "blue" | "dark" | "grey" | "outline" | "emerald" | "amber" | "rose";
+type Tone = "orange" | "dark" | "grey" | "outline" | "emerald" | "amber" | "rose";
 
 const tones: Record<Tone, string> = {
-  blue: "bg-primary-50 text-primary-700 border border-primary-200/70",
+  orange: "bg-primary-50 text-primary-700 border border-primary-200/70",
   dark: "bg-ink-900 text-white border border-ink-900",
   grey: "bg-ink-100 text-ink-700 border border-ink-200/60",
   outline: "border border-ink-200 text-ink-700 bg-white shadow-2xs",
@@ -69,7 +69,7 @@ export function StatusBadge({ status }: { status: string }) {
   const label = key ? t(key) : status.replace("_", " ");
   if (s === "resolved" || s === "closed")
     return <Badge tone="emerald">{label}</Badge>;
-  if (s === "open" || s === "submitted") return <Badge tone="blue">{label}</Badge>;
+  if (s === "open" || s === "submitted") return <Badge tone="orange">{label}</Badge>;
   if (s === "in_progress" || s === "assigned")
     return <Badge tone="amber">{label}</Badge>;
   return <Badge tone="outline">{label}</Badge>;

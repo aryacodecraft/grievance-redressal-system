@@ -13,9 +13,9 @@ import type { Grievance } from "@/lib/types";
  * mode it falls back to the bundled mock dataset. Centralised here so the
  * queue and analytics pages use one loading/error contract.
  */
-export function useAdminGrievanceFeed(scopeToUser = false) {
+export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
   const { user, liveMode } = useDemoUser();
-  const live = Boolean(user && liveMode);
+  const live = Boolean(enabled && user && liveMode);
 
   const [liveItems, setLiveItems] = useState<Grievance[] | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);

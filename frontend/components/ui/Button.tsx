@@ -1,18 +1,21 @@
 import type { ButtonHTMLAttributes } from "react";
 import { clsx } from "clsx";
 
-type Variant = "primary" | "secondary" | "outline" | "ghost" | "dark";
+type Variant = "primary" | "orange" | "secondary" | "outline" | "ghost" | "dark";
 type Size = "sm" | "md" | "lg";
 
 const variants: Record<Variant, string> = {
+  /* Main CTAs are solid black; orange carries the accent elsewhere. */
   primary:
-    "bg-primary-600 text-white shadow-xs hover:bg-primary-700 active:bg-primary-800 focus-visible:ring-primary-500",
+    "bg-ink-950 text-white shadow-xs hover:bg-ink-800 active:bg-ink-950 focus-visible:ring-ink-500",
+  orange:
+    "bg-primary-700 text-white shadow-xs hover:bg-primary-800 active:bg-primary-900 focus-visible:ring-primary-700",
   secondary:
     "bg-ink-100 text-ink-800 hover:bg-ink-200/80 active:bg-ink-200 focus-visible:ring-ink-400",
   outline:
-    "border border-ink-200 bg-white text-ink-800 shadow-2xs hover:bg-ink-50 hover:border-ink-300 active:bg-ink-100 focus-visible:ring-primary-500",
+    "border border-ink-200 bg-white text-ink-800 shadow-2xs hover:bg-ink-50 hover:border-ink-300 active:bg-ink-100 focus-visible:ring-primary-700",
   ghost:
-    "text-primary-700 hover:bg-primary-50 active:bg-primary-100 focus-visible:ring-primary-500",
+    "text-primary-700 hover:bg-primary-50 active:bg-primary-100 focus-visible:ring-primary-700",
   dark: "bg-ink-900 text-white shadow-xs hover:bg-ink-800 active:bg-ink-950 focus-visible:ring-ink-500",
 };
 

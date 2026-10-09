@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Mail, ShieldCheck } from "lucide-react";
+import { MapPin, Mail } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 
@@ -27,29 +27,12 @@ export function SiteFooter() {
   const { t } = useI18n();
   return (
     <footer className="border-t border-ink-100 bg-white">
-      {/* Trust bar */}
-      <div className="border-b border-ink-100 bg-ink-50/50">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
-            <ShieldCheck size={14} className="text-primary-600" />
-            {t("footerTrustRecords")}
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-600">
-            <MapPin size={14} className="text-primary-600" />
-            {t("footerTrustLocal")}
-          </span>
-          <span className="text-[11px] font-semibold text-ink-600">
-            {t("footerTrustPrototype")}
-          </span>
-        </div>
-      </div>
-
       {/* Main footer columns */}
       <div className="grid gap-8 px-4 py-10 sm:px-6 lg:grid-cols-12 lg:px-8">
         {/* Brand */}
         <div className="lg:col-span-4">
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary-600 text-xs font-bold text-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary-700 text-xs font-bold text-white">
               G
             </span>
             <p className="text-sm font-bold text-ink-900">
@@ -102,7 +85,7 @@ export function SiteFooter() {
           <ul className="mt-3 space-y-2.5 text-xs text-ink-500">
             {contact.map(({ Icon, key, text }) => (
               <li key={key ?? text} className="flex items-start gap-2">
-                <Icon size={13} className="mt-0.5 flex-shrink-0 text-primary-600" />
+                <Icon size={13} className="mt-0.5 flex-shrink-0 text-primary-700" />
                 <span className="leading-relaxed">
                   {key ? t(key) : text}
                 </span>
