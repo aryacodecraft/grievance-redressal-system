@@ -9,7 +9,7 @@ export function Spinner({ label = "Loading…" }: { label?: string }) {
     >
       <span
         aria-hidden
-        className="h-4 w-4 animate-spin rounded-full border-2 border-ink-200 border-t-primary-600"
+        className="h-4 w-4 animate-spin rounded-full border-2 border-ink-200 border-t-primary-700"
       />
       {label}
     </div>
