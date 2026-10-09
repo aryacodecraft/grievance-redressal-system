@@ -28,13 +28,13 @@ const linksByRole: Record<string, SidebarLink[]> = {
     { href: "/", label: "Home", Icon: Home },
     { href: "/superadmin", label: "System Admin", Icon: ShieldCheck },
     { href: "/admin", label: "Grievance Queue", Icon: Inbox },
-    { href: "/admin/analytics", label: "Executive Analytics", Icon: LineChart },
+    { href: "/admin/analytics", label: "Analytics", Icon: LineChart },
   ],
   ADMIN: [
     { href: "/", label: "Home", Icon: Home },
     { href: "/admin", label: "Grievance Queue", Icon: Inbox },
     { href: "/admin/employees", label: "Employees", Icon: Users },
-    { href: "/admin/analytics", label: "Executive Analytics", Icon: LineChart },
+    { href: "/admin/analytics", label: "Analytics", Icon: LineChart },
   ],
   RESOLVER: [{ href: "/", label: "Home", Icon: Home }, { href: "/resolver", label: "My Work", Icon: Briefcase }],
 };

@@ -40,7 +40,7 @@ export function AdminAreaClusters({ clusters }: { clusters: AreaCluster[] }) {
   }, [clusters]);
   return (
     <Card className="border-ink-200/80 shadow-2xs">
-      <CardHeader title="Area concentration analysis" subtitle="Nearby pinned complaints grouped into local hotspots for faster field planning." />
+      <CardHeader title="Hotspots by area" subtitle="Nearby complaints grouped into local hotspots to help plan field work." />
       <CardBody>
         {clusters.length === 0 ? <p className="py-4 text-center text-sm text-ink-500">No pinned locations are available for area analysis yet.</p> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {clusters.slice(0, 9).map((cluster, index) => <div key={cluster.key} className="rounded-md border border-ink-200 bg-ink-50/40 p-3">

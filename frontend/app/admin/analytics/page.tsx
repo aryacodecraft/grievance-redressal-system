@@ -9,7 +9,7 @@ export default function AdminAnalyticsPage() {
     <AdminGate>
       <div className="bg-white min-h-[calc(100vh-4rem)]">
         <AdminHeader
-          title="Administrative Control Centre"
+          title="Admin dashboard"
           subtitle="The big picture: complaint numbers, common problems, and where they're happening."
         />
         <div className="px-4 py-8 sm:px-6 lg:px-8 space-y-8">

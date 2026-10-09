@@ -320,12 +320,12 @@ export function AdminBoard() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
-                Search Complaints
+                Search complaints
               </label>
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-3 text-ink-400" />
                 <Input
-                  placeholder="Ticket ID, keyword, citizen..."
+                  placeholder="Search by ticket ID, keyword, or citizen"
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
@@ -347,7 +347,7 @@ export function AdminBoard() {
 
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
-                Priority Filter
+                Priority
               </label>
               <Select
                 value={priorityFilter}
@@ -384,7 +384,7 @@ export function AdminBoard() {
 
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
-                Sort Order
+                Sort by
               </label>
               <Select
                 value={sortBy}
@@ -452,9 +452,9 @@ export function AdminBoard() {
                 <th className="px-4 py-3 font-semibold">Department</th>
                 <th className="px-4 py-3 font-semibold">Priority</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
-                <th className="hidden px-4 py-3 font-semibold lg:table-cell">Assignee</th>
-                <th className="px-4 py-3 font-semibold">Fix-by Date</th>
-                <th className="hidden px-4 py-3 font-semibold sm:table-cell">Age</th>
+                <th className="hidden px-4 py-3 font-semibold lg:table-cell">Assigned to</th>
+                <th className="px-4 py-3 font-semibold">Due by</th>
+                <th className="hidden px-4 py-3 font-semibold sm:table-cell">Waiting</th>
                 <th className="w-10 px-4 py-3" />
               </tr>
             </thead>

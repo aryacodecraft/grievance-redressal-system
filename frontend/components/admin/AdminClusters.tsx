@@ -27,7 +27,7 @@ export function AdminClusters({
   return (
     <Card>
       <CardHeader
-        title="Similar Complaint Groups"
+        title="Similar complaint groups"
         subtitle="Complaints reported by many people in the same area — a sign of one shared problem"
         action={
           activeClusterId ? (
