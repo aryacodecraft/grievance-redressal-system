@@ -13,9 +13,6 @@ const gu: Messages = {
   brandTagline: "રાષ્ટ્રીય ફરિયાદ પોર્ટલ",
 
   // ── Footer ──
-  footerTrustRecords: "ઓડિટ થયેલા અને છેડછાડ ઓળખી શકાય એવા રેકોર્ડ",
-  footerTrustLocal: "સ્થાનિક નાગરિક કાર્યપ્રણાલી માટે બનાવેલ",
-  footerTrustPrototype: "શૈક્ષણિક સંશોધન પ્રોટોટાઇપ",
   footerAbout:
     "પારદર્શક નાગરિક કાર્યપ્રણાલી માટે AI-સહાયિત ફરિયાદ નિરાકરણ અને નિર્ણય-સહાયતા પ્રોટોટાઇપ.",
   footerSignIn: "સાઇન ઇન",

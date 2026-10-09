@@ -21,9 +21,6 @@ const en = {
   brandTagline: "National Grievance Portal",
 
   // ── Footer ──
-  footerTrustRecords: "Audited & tamper-evident records",
-  footerTrustLocal: "Built for local civic workflows",
-  footerTrustPrototype: "Academic research prototype",
   footerAbout:
     "AI-assisted grievance redressal and decision-support prototype for transparent civic workflows.",
   footerSignIn: "Sign In",

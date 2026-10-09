@@ -13,9 +13,6 @@ const te: Messages = {
   brandTagline: "జాతీయ ఫిర్యాదుల పోర్టల్",
 
   // ── Footer ──
-  footerTrustRecords: "ఆడిట్ చేయబడి, ఛేదించలేని రికార్డులు",
-  footerTrustLocal: "స్థానిక పౌర విధుల కోసం రూపొందించబడింది",
-  footerTrustPrototype: "విద్యా పరిశోధన నమూనా",
   footerAbout:
     "పారదర్శక పౌర విధుల కోసం AI-సహాయ ఫిర్యాదుల పరిష్కార మరియు నిర్ణయ-సహాయ నమూనా.",
   footerSignIn: "సైన్ ఇన్",

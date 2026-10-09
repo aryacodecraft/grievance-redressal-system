@@ -13,9 +13,6 @@ const or: Messages = {
   brandTagline: "ଜାତୀୟ ଅଭିଯୋଗ ପୋର୍ଟାଲ",
 
   // ── Footer ──
-  footerTrustRecords: "ଅଡିଟ୍ କରାଯାଇଥିବା ଓ ଛେଡ଼ଛାଡ଼ ଚିହ୍ନଟ ଯୋଗ୍ୟ ରେକର୍ଡ",
-  footerTrustLocal: "ସ୍ଥାନୀୟ ନାଗରିକ କାର୍ଯ୍ୟଶୈଳୀ ପାଇଁ ପ୍ରସ୍ତୁତ",
-  footerTrustPrototype: "ଶିକ୍ଷାମୂଳକ ଗବେଷଣା ପ୍ରୋଟୋଟାଇପ୍",
   footerAbout:
     "ସ୍ୱଚ୍ଛ ନାଗରିକ କାର୍ଯ୍ୟଶୈଳୀ ପାଇଁ AI-ସହାୟତା ଅଭିଯୋଗ ସମାଧାନ ଓ ନିର୍ଣ୍ଣୟ-ସହାୟତା ପ୍ରୋଟୋଟାଇପ୍।",
   footerSignIn: "ସାଇନ୍ ଇନ୍",

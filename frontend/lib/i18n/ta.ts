@@ -13,9 +13,6 @@ const ta: Messages = {
   brandTagline: "தேசிய புகார்கள் தளம்",
 
   // ── Footer ──
-  footerTrustRecords: "தணிக்கை செய்யப்பட்ட, சிதைக்க முடியாத பதிவுகள்",
-  footerTrustLocal: "உள்ளூர் குடிமை பணிகளுக்காக உருவாக்கப்பட்டது",
-  footerTrustPrototype: "கல்வி ஆராய்ச்சி மாதிரி",
   footerAbout:
     "வெளிப்படையான குடிமை பணிகளுக்கான AI உதவியுடைய புகார் தீர்வு மற்றும் முடிவு-ஆதரவு மாதிரி.",
   footerSignIn: "உள்நுழை",

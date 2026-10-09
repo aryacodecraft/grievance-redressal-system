@@ -13,9 +13,6 @@ const mr: Messages = {
   brandTagline: "राष्ट्रीय तक्रार पोर्टल",
 
   // ── Footer ──
-  footerTrustRecords: "ऑडिट केलेले व छेडछाड ओळखता येणारे रेकॉर्ड",
-  footerTrustLocal: "स्थानिक नागरी कार्यपद्धतीसाठी बनवलेले",
-  footerTrustPrototype: "शैक्षणिक संशोधन प्रोटोटाइप",
   footerAbout:
     "पारदर्शक नागरी कार्यपद्धतीसाठी AI-सहाय्यतायुक्त तक्रार निराकरण व निर्णय-सहाय्य प्रोटोटाइप.",
   footerSignIn: "साइन इन",

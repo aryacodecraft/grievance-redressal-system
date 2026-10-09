@@ -13,9 +13,6 @@ const bn: Messages = {
   brandTagline: "জাতীয় অভিযোগ পোর্টাল",
 
   // ── Footer ──
-  footerTrustRecords: "অডিট করা ও অক্ষততা-প্রমাণযোগ্য রেকর্ড",
-  footerTrustLocal: "স্থানীয় নাগরিক কার্যপ্রণালীর জন্য নির্মিত",
-  footerTrustPrototype: "শিক্ষামূলক গবেষণা প্রোটোটাইপ",
   footerAbout:
     "স্বচ্ছ নাগরিক কার্যপ্রণালীর জন্য AI-সহায়িত অভিযোগ নিষ্পত্তি ও সিদ্ধান্ত-সহায়তা প্রোটোটাইপ।",
   footerSignIn: "সাইন ইন",

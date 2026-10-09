@@ -13,9 +13,6 @@ const pa: Messages = {
   brandTagline: "ਕੇਂਦਰੀ ਸ਼ਿਕਾਤ ਪੋਰਟਲ",
 
   // ── Footer ──
-  footerTrustRecords: "ਆਡਿਟ ਕੀਤੇ ਅਤੇ ਛੇੜਛਾੜ ਪਛਾਣਣ ਯੋਗ ਰਿਕਾਰਡ",
-  footerTrustLocal: "ਸਥਾਨਕ ਨਾਗਰਿਕ ਕਾਰਜ-ਪ੍ਰਣਾਲੀ ਲਈ ਬਣਾਇਆ ਗਿਆ",
-  footerTrustPrototype: "ਵਿਦਿਅਕ ਖੋਜ ਪ੍ਰੋਟੋਟਾਈਪ",
   footerAbout:
     "ਪਾਰਦਰਸ਼ੀ ਨਾਗਰਿਕ ਕਾਰਜ-ਪ੍ਰਣਾਲੀ ਲਈ AI-ਸਹਾਇਤਾ ਵਾਲੀ ਸ਼ਿਕਾਤ ਨਿਪਟਾਰਾ ਅਤੇ ਫੈਸਲਾ-ਸਹਾਇਤਾ ਪ੍ਰੋਟੋਟਾਈਪ.",
   footerSignIn: "ਸਾਈਨ ਇਨ",

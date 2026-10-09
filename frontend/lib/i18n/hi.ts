@@ -13,9 +13,6 @@ const hi: Messages = {
   brandTagline: "राष्ट्रीय शिकायत पोर्टल",
 
   // ── Footer ──
-  footerTrustRecords: "ऑडिटेड और छेड़छाड़-पहचान योग्य रिकॉर्ड",
-  footerTrustLocal: "स्थानीय नागरिक कार्यप्रणाली के लिए बनाया गया",
-  footerTrustPrototype: "शैक्षणिक अनुसंधान प्रोटोटाइप",
   footerAbout:
     "पारदर्शी नागरिक कार्यप्रणाली के लिए AI-सहायता वाला शिकायत निवारण और निर्णय-सहायता प्रोटोटाइप।",
   footerSignIn: "साइन इन",
