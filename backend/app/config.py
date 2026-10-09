@@ -79,6 +79,26 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # URL where the Next.js frontend is hosted (used for OAuth redirects)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+# --- Face authentication (opt-in; DEC-024) ----------------------------------
+# Master switch. When false every /auth/face route answers 404 and the UI
+# hides every face option.
+FACE_AUTH_ENABLED = os.getenv("FACE_AUTH_ENABLED", "false").lower() == "true"
+# Fernet key for embeddings at rest. Startup fails if the flag is on and this
+# is missing/invalid.
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FACE_EMBED_KEY = os.getenv("FACE_EMBED_KEY", "")
+# insightface model pack (buffalo_s ships 2d106det landmarks required for
+# liveness). Stored per template; a mismatch forces re-enrollment.
+FACE_MODEL_NAME = os.getenv("FACE_MODEL_NAME", "buffalo_s")
+# Cosine similarity threshold for 1:1 template matching.
+FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
+# Optional Silent-Face-Anti-Spoofing ONNX model; empty disables the check.
+FACE_ANTISPOOF_MODEL_PATH = os.getenv("FACE_ANTISPOOF_MODEL_PATH", "")
+
+# --- Proxy -------------------------------------------------------------------
+# When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.
+TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
+
 
 @lru_cache(maxsize=1)
 def get_groq_client():

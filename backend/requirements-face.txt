@@ -1,0 +1,8 @@
+# Optional face-authentication stack (FACE_AUTH_ENABLED, DEC-024).
+# Install only when face login is enabled:
+#   pip install -r backend/requirements-face.txt
+# numpy and pillow (frame decode) are already in requirements.txt; the app
+# boots and tests pass without this file as long as FACE_AUTH_ENABLED=false.
+insightface>=0.7.3
+onnxruntime>=1.17
+opencv-python-headless>=4.9
