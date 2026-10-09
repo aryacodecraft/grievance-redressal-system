@@ -325,6 +325,61 @@ const en = {
   statusResolved: "Resolved",
   statusClosed: "Closed",
   statusRejected: "Rejected",
+
+  // ── Profile / face sign-in (DEC-024) ──
+  profile: "Profile",
+  profileTitle: "Your profile",
+  profileSub: "Manage your account and sign-in preferences.",
+  faceSignInTab: "Face sign-in",
+  faceTwoFactorTitle: "Face verification",
+  faceTwoFactorSub: "Your password was accepted. Verify your face to finish signing in.",
+  faceVerifyBtn: "Verify with face",
+  faceSkipBtn: "Continue without face",
+  backToSignIn: "Back to sign in",
+  faceStart: "Start face sign-in",
+  faceLoginHint: "Works for accounts that enrolled a face on their profile.",
+  faceChallengePrompt: "Look at the camera and {action}.",
+  faceActTurnLeft: "turn your head left",
+  faceActTurnRight: "turn your head right",
+  faceActBlink: "blink your eyes",
+  faceActSmile: "smile",
+  faceCapture: "Capture frames",
+  faceCapturing: "Capturing…",
+  faceCaptured: "Frames captured",
+  faceRetry: "Try camera again",
+  faceCameraPreview: "Live camera preview",
+  faceCameraDenied:
+    "Camera access was denied. Allow the camera for this site in your browser settings and try again.",
+  faceCameraMissing: "No camera was found on this device.",
+  faceCameraTimeout:
+    "The camera took too long to start. Close other apps using the camera and try again.",
+  faceCameraError: "Could not start the camera on this device.",
+  faceUnavailable: "Face sign-in is unavailable right now. Please try again later.",
+  faceEnrollTitle: "Face sign-in",
+  faceEnrollDesc:
+    "Enroll your face to sign in with your camera. Your template is stored encrypted, used only to verify it is you, and can be deleted here at any time.",
+  faceConsentLabel:
+    "I consent to my face template being stored, encrypted, for sign-in.",
+  faceConsentRequired: "Consent is required before enrolling a face template.",
+  faceEnrollBtn: "Enroll face",
+  faceReenrollBtn: "Re-enroll face",
+  faceDeleteBtn: "Delete face data",
+  faceDeleteConfirm:
+    "Delete your stored face template? You will lose face sign-in until you enroll again.",
+  faceEnrolledBadge: "Face enrolled",
+  faceNotEnrolledBadge: "No face enrolled",
+  faceRequire2faLabel: "Also ask for face verification after my password sign-in",
+  faceRequire2faHint:
+    "Optional extra step for admin accounts. Password and Google sign-in still work — you can skip the face step.",
+  faceRequire2faSave: "Save face settings",
+  faceReenrollHint:
+    "Face sign-in stopped recognizing you — for example after a model update? Re-enroll your face; a model change never locks you out.",
+  faceEnrolledNotice: "Face enrolled. You can now sign in with your face.",
+  faceReenrolledNotice: "Face re-enrolled successfully.",
+  faceDeletedNotice: "Face data deleted.",
+  faceSavedNotice: "Face settings saved.",
+  faceDemoNote:
+    "Face sign-in settings need the live backend (NEXT_PUBLIC_USE_MOCKS=false).",
 };
 
 export type MessageKey = keyof typeof en;

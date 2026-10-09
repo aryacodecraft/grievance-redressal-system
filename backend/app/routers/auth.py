@@ -203,13 +203,20 @@ def login(payload: LoginRequest):
 def complete_pending(current: Annotated[dict, Depends(get_pending_user)]):
     """Exchange a pending token for the full token response.
 
-    The face step after a privileged password/Google login is optional —
-    this is the "continue without face" path. Rate-limit lockout on the face
-    endpoints never blocks it (DEC-024).
+    Lockout escape hatch only (DEC-024): while the account can still attempt
+    face verification, the pending token must be used for
+    /auth/face/verify-second-factor and is rejected here (403) — it never
+    grants protected access on its own. Once the account is locked out of the
+    face endpoint (face:fail:user:{id} at the limit) the face step cannot be
+    taken, so the pending token is completed directly. The face step is an
+    optional convenience, never a hard requirement.
     """
     user = users_repository.get(current["user_id"])
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    key = f"face:fail:user:{user['id']}"
+    if face_repository.rate_count(key, RATE_WINDOW_SECONDS) < USER_FAIL_LIMIT:
+        raise HTTPException(status_code=403, detail="Face verification required")
     return _token_response(user)
 
 

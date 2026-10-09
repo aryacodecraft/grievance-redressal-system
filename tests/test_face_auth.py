@@ -494,6 +494,25 @@ class TestPublicFaceLogin:
         entry = next(e for e in _audit_entries() if e["action"] == "face.login_failed")
         assert entry["reason"] == "MODEL_MISMATCH"
 
+    def test_model_mismatch_login_does_not_increment_lockout(
+        self, fclient, fake, monkeypatch
+    ):
+        """Check: MODEL_MISMATCH on /login audits only — no counter moves."""
+        email = "mismatch@face.test"
+        token = _register(fclient, email)["access_token"]
+        assert _enroll(fclient, token, fake).status_code == 200
+        monkeypatch.setattr(config, "FACE_MODEL_NAME", "buffalo_l")
+
+        res = _login(fclient, email, fake)
+        assert res.status_code == 401
+        assert res.json() == {"error": "Face sign-in failed"}
+
+        repo = face_repo_mod.face_repository
+        assert _email_count(email) == 0
+        assert repo._counters == {}  # rate_hit was never called at all
+        entry = next(e for e in _audit_entries() if e["action"] == "face.login_failed")
+        assert entry["reason"] == "MODEL_MISMATCH"
+
     def test_privileged_cannot_face_login(self, fclient, fake):
         _seed_role("admin@face.test", "ADMIN")
         token = _password_login(fclient, "admin@face.test")["access_token"]
@@ -564,9 +583,27 @@ class TestPrivilegedStepUp:
         assert _user_count(uid) == 0
         assert any(e["action"] == "face.verify_success" for e in _audit_entries())
 
-    def test_complete_pending_skip_path(self, fclient, fake):
+    def test_complete_pending_rejected_when_not_locked_out(self, fclient, fake):
+        """Check: complete-pending only completes a LOCKED-OUT account."""
         email = self._admin_with_face(fclient, fake)
         pending = _password_login(fclient, email)["pending_token"]
+        res = fclient.post("/auth/complete-pending", headers=_bearer(pending))
+        assert res.status_code == 403
+        assert res.json() == {"error": "Face verification required"}
+        # the pending token stays unusable for protected routes either way
+        assert fclient.get("/grievances", headers=_bearer(pending)).status_code == 401
+        assert fclient.get("/auth/me", headers=_bearer(pending)).status_code == 401
+
+    def test_complete_pending_allowed_when_locked_out(self, fclient, fake):
+        """The same pending token completes once face verification is locked."""
+        email = self._admin_with_face(fclient, fake)
+        uid = _uid(email)
+        pending = _password_login(fclient, email)["pending_token"]
+        fake.person = 2
+        for _ in range(5):
+            assert _verify(fclient, pending, fake).status_code == 401
+        assert _user_count(uid) == 5  # locked out of verify-second-factor
+
         res = fclient.post("/auth/complete-pending", headers=_bearer(pending))
         assert res.status_code == 200, res.text
         body = res.json()
@@ -575,17 +612,31 @@ class TestPrivilegedStepUp:
         assert body["user"]["email"] == email
 
     def test_unauthenticated_verify_cannot_burn_counter(self, fclient, fake):
+        """Check: NO unauthenticated request can move face:fail:user:{id}."""
         email = self._admin_with_face(fclient, fake)
         uid = _uid(email)
-        for _ in range(3):
+
+        def attempt(headers):
             cid, action = _challenge(fclient)
             satisfy(action, fake)
-            res = fclient.post(
+            return fclient.post(
                 "/auth/face/verify-second-factor",
                 json={"challenge_id": cid, "frames": _frames()},
+                headers=headers,
             )
-            assert res.status_code == 401
+
+        # (a) no token at all
+        assert attempt({}).status_code == 401
+        assert attempt({}).status_code == 401
+        # (b) garbage token
+        assert attempt(_bearer("garbage.token.here")).status_code == 401
+        # (c) a full access token (wrong type — dependency rejects it)
+        access = _register(fclient, "other@face.test")["access_token"]
+        assert attempt(_bearer(access)).status_code == 401
+
         assert _user_count(uid) == 0
+        # nothing was ever recorded against any counter, not even IP/email
+        assert face_repo_mod.face_repository._counters == {}
 
     def test_wrong_face_verify_generic_then_lockout(self, fclient, fake):
         email = self._admin_with_face(fclient, fake)
@@ -645,6 +696,27 @@ class TestPrivilegedStepUp:
         body = _password_login(fclient, "optout@face.test")
         assert "pending_token" not in body
         assert "access_token" in body
+
+    def test_model_mismatch_verify_does_not_increment_lockout(
+        self, fclient, fake, monkeypatch
+    ):
+        """Check: MODEL_MISMATCH on /verify-second-factor audits only."""
+        email = "mismatch2@face.test"
+        _seed_role(email, "ADMIN")
+        token = _password_login(fclient, email)["access_token"]
+        assert _enroll(fclient, token, fake, require_2fa=True).status_code == 200
+        pending = _password_login(fclient, email)["pending_token"]
+        monkeypatch.setattr(config, "FACE_MODEL_NAME", "buffalo_l")
+
+        res = _verify(fclient, pending, fake)
+        assert res.status_code == 401
+        assert res.json() == {"error": "Face sign-in failed"}
+
+        uid = _uid(email)
+        assert _user_count(uid) == 0
+        assert face_repo_mod.face_repository._counters == {}  # rate_hit never called
+        entry = next(e for e in _audit_entries() if e["action"] == "face.verify_failed")
+        assert entry["reason"] == "MODEL_MISMATCH"
 
 
 class TestRateLimits:

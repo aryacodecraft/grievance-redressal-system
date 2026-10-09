@@ -87,6 +87,24 @@ export interface AuthResponse {
   };
 }
 
+/** POST /auth/login pauses here when a privileged account opted into the
+ *  optional face step (DEC-024): a short-lived pending token instead of the
+ *  full pair. The pending token only unlocks /auth/face/verify-second-factor
+ *  and /auth/complete-pending — never protected routes. */
+export interface FacePendingResponse {
+  two_factor: "face";
+  token_type: string;
+  pending_token: string;
+}
+
+/** POST /auth/face/challenge — one single-use liveness prompt, 30 s TTL.
+ *  The frames captured against it must perform `action`. */
+export interface FaceChallenge {
+  challenge_id: string;
+  action: string;
+  expires_in: number;
+}
+
 export interface ImageValidation {
   ok: boolean;
   llm_score?: number;

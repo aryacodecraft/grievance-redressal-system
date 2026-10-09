@@ -10,6 +10,7 @@ import {
   LineChart,
   LogOut,
   ShieldCheck,
+  User,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -38,7 +39,10 @@ const linksByRole: Record<string, SidebarLink[]> = {
   ],
   RESOLVER: [{ href: "/", label: "Home", Icon: Home }, { href: "/resolver", label: "My Work", Icon: Briefcase }],
 };
-for (const role of ["ADMIN", "RESOLVER", "SUPERADMIN"]) linksByRole[role].push({ href: "/notifications", label: "Notifications", Icon: Bell });
+for (const role of ["ADMIN", "RESOLVER", "SUPERADMIN"]) {
+  linksByRole[role].push({ href: "/notifications", label: "Notifications", Icon: Bell });
+  linksByRole[role].push({ href: "/profile", label: "Profile", Icon: User });
+}
 
 /** Per-role sidebar links; unknown/citizen roles get the shared pair only. */
 export const linksForRole = (role: string | undefined, departmentId?: string | null): SidebarLink[] => {

@@ -205,12 +205,22 @@ def _bump(key: str, limit: int, *, actor_id: str, actor_role: str, label: str, i
         )
 
 
-def _fail_login(*, ip: str, email: str, subject: dict | None, reason: str, score: float | None = None) -> None:
+def _fail_login(
+    *,
+    ip: str,
+    email: str,
+    subject: dict | None,
+    reason: str,
+    score: float | None = None,
+    count: bool = True,
+) -> None:
     """Audit a failed public face login and bump its counters.
 
     The IP counter always moves; the email counter only for existing
     USER/RESOLVER subjects (DEC-024). Privileged accounts are never counted
-    here - their public face login is denied outright.
+    here - their public face login is denied outright. ``count=False`` audits
+    without touching any counter: server-side conditions such as
+    MODEL_MISMATCH are not attacker failures and must never lock a user out.
     """
     user_id = subject["id"] if subject else ""
     actor_role = subject.get("role", "") if subject else ""
@@ -223,13 +233,26 @@ def _fail_login(*, ip: str, email: str, subject: dict | None, reason: str, score
         ip=ip,
         score=score,
     )
+    if not count:
+        return
     _bump(_ip_key(ip), IP_FAIL_LIMIT, actor_id=user_id, actor_role=actor_role, label="ip", ip=ip)
     if subject is not None and subject.get("role") in ORDINARY_ROLES:
         _bump(_email_key(email), USER_FAIL_LIMIT, actor_id=user_id, actor_role=actor_role, label="email", ip=ip)
 
 
-def _fail_verify(*, user_id: str, role: str, ip: str, reason: str, score: float | None = None) -> None:
-    """Audit a failed privileged step-up and bump the per-user counter."""
+def _fail_verify(
+    *,
+    user_id: str,
+    role: str,
+    ip: str,
+    reason: str,
+    score: float | None = None,
+    count: bool = True,
+) -> None:
+    """Audit a failed privileged step-up and bump the per-user counter.
+
+    ``count=False`` behaves like ``_fail_login``: audit only (MODEL_MISMATCH).
+    """
     _audit_entry(
         "face.verify_failed",
         actor_id=user_id,
@@ -239,6 +262,8 @@ def _fail_verify(*, user_id: str, role: str, ip: str, reason: str, score: float 
         ip=ip,
         score=score,
     )
+    if not count:
+        return
     _bump(_user_key(user_id), USER_FAIL_LIMIT, actor_id=user_id, actor_role=role, label="user", ip=ip)
 
 
@@ -386,7 +411,15 @@ def face_login(payload: FaceLoginRequest, request: Request):
     try:
         score = face_service.similarity_to_template(template, verified)
     except FaceAuthError as exc:
-        _fail_login(ip=ip, email=email, subject=subject, reason=exc.code)
+        # MODEL_MISMATCH means the server-side model pack changed since
+        # enrollment — re-enroll, not lockout: audit but never count it.
+        _fail_login(
+            ip=ip,
+            email=email,
+            subject=subject,
+            reason=exc.code,
+            count=exc.code != "MODEL_MISMATCH",
+        )
         raise _generic_401()
     if score < config.FACE_MATCH_THRESHOLD:
         _fail_login(ip=ip, email=email, subject=subject, reason="below_threshold", score=score)
@@ -448,7 +481,15 @@ def verify_second_factor(
     try:
         score = face_service.similarity_to_template(template, verified)
     except FaceAuthError as exc:
-        _fail_verify(user_id=user_id, role=role, ip=ip, reason=exc.code)
+        # MODEL_MISMATCH means the server-side model pack changed since
+        # enrollment — re-enroll, not lockout: audit but never count it.
+        _fail_verify(
+            user_id=user_id,
+            role=role,
+            ip=ip,
+            reason=exc.code,
+            count=exc.code != "MODEL_MISMATCH",
+        )
         raise _generic_401()
     if score < config.FACE_MATCH_THRESHOLD:
         _fail_verify(user_id=user_id, role=role, ip=ip, reason="below_threshold", score=score)

@@ -44,14 +44,14 @@ export function SiteHeader() {
           </span>
         </Link>
         <nav className="hidden items-center gap-0.5 md:flex" aria-label="Primary">
-          {links.map((l) => (
+          {[...links, ...(user ? [{ href: "/profile", label: "Profile" }] : [])].map((l) => (
             <Link
               key={l.href}
               href={l.href}
               aria-current={linkIsActive(l.href) ? "page" : undefined}
               className={`rounded-sm px-3 py-1.5 text-sm font-medium transition-colors hover:bg-ink-100/70 hover:text-ink-950 ${linkIsActive(l.href) ? "bg-primary-50 text-primary-700" : "text-ink-600"}`}
             >
-              {l.href === "/" ? t("home") : l.href === "/submit" ? t("register") : t("track")}
+              {l.href === "/" ? t("home") : l.href === "/submit" ? t("register") : l.href === "/track" ? t("track") : t("profile")}
             </Link>
           ))}
         </nav>
@@ -92,14 +92,14 @@ export function SiteHeader() {
         className="flex gap-0.5 overflow-x-auto border-t border-ink-100 px-4 py-1 md:hidden"
         aria-label="Primary mobile"
       >
-        {links.map((l) => (
+        {[...links, ...(user ? [{ href: "/profile", label: "Profile" }] : [])].map((l) => (
           <Link
             key={l.href}
             href={l.href}
             aria-current={linkIsActive(l.href) ? "page" : undefined}
             className={`whitespace-nowrap rounded-sm px-3 py-1 text-xs font-medium hover:bg-ink-100 hover:text-ink-950 ${linkIsActive(l.href) ? "bg-primary-50 text-primary-700" : "text-ink-600"}`}
           >
-            {l.href === "/" ? t("home") : l.href === "/submit" ? t("register") : t("track")}
+            {l.href === "/" ? t("home") : l.href === "/submit" ? t("register") : l.href === "/track" ? t("track") : t("profile")}
           </Link>
         ))}
       </nav>
