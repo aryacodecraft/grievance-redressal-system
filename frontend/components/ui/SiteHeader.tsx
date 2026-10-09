@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDemoUser } from "@/lib/session";
 import { LANGUAGES, useI18n } from "@/lib/i18n";
+import { Bell } from "lucide-react";
+import { NotificationBadgeLink } from "@/components/notifications/NotificationBadgeLink";
 
 /**
  * Top header for citizens and logged-out visitors. Staff accounts skip it
@@ -28,7 +30,7 @@ export function SiteHeader() {
         <Link href="/" className="flex items-center gap-3 group">
           <span
             aria-hidden
-            className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs transition-transform group-hover:scale-105"
+            className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary-700 font-bold text-white shadow-xs transition-transform group-hover:scale-105"
           >
             G
           </span>
@@ -55,11 +57,12 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor="language-select">{t("language")}</label>
-          <select id="language-select" value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="h-8 rounded-md border border-ink-200 bg-white px-2 text-xs font-semibold text-ink-700 shadow-2xs focus:border-primary-500 focus:outline-none">
+          <select id="language-select" value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="h-8 rounded-md border border-ink-200 bg-white px-2 text-xs font-semibold text-ink-700 shadow-2xs focus:border-primary-700 focus:outline-none">
             {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
           </select>
           {user ? (
             <>
+              <NotificationBadgeLink Icon={Bell} compact className="rounded p-2 text-ink-600 hover:bg-ink-100 hover:text-ink-950" />
               <div className="hidden items-center gap-1.5 sm:flex">
                 <span className="max-w-40 truncate text-xs font-medium text-ink-600">
                   {user.email}
