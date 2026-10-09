@@ -296,7 +296,7 @@ const en = {
     "This submission did not meet municipal verification criteria or was flagged as a duplicate.",
   msSubmittedTitle: "Complaint Registered",
   msSubmittedDesc: "Acknowledged and logged into municipal registry.",
-  msTriagedTitle: "AI Triage & Categorization",
+  msTriagedTitle: "Department Assigned",
   msTriagedDesc: "Department routing, priority, and sentiment evaluated.",
   msAssignedTitle: "Officer Assigned",
   msAssignedDesc: "Allocated to designated nodal officer or department team.",
