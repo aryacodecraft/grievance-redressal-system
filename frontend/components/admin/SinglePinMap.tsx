@@ -46,7 +46,7 @@ export function SinglePinMap({
 
       const icon = L.divIcon({
         className: "",
-        html: '<span style="display:block;width:16px;height:16px;border-radius:50%;background:#026bc7;border:3px solid #fff;box-shadow:0 0 0 1px #026bc7;"></span>',
+        html: '<span style="display:block;width:16px;height:16px;border-radius:50%;background:#ff6b00;border:3px solid #fff;box-shadow:0 0 0 1px #ff6b00;"></span>',
         iconSize: [16, 16],
         iconAnchor: [8, 8],
         popupAnchor: [0, -8],
