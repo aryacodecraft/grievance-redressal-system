@@ -1096,3 +1096,95 @@ vs `memory/NEW_TODO_TASKS.md` filename split.
 `frontend/README.md` (deleted), `INTEGRATION.md` (slimmed),
 `memory/TODO.md` (renamed), `frontend/AGENTS.md` (kept, tool-managed)
 
+---
+
+## DEC-021 — Visual Identity: Bright Orange Accent, Black CTAs, Blue Retired
+
+**ID:** DEC-021
+**Date:** 2026-10-09
+**Status:** ACCEPTED
+
+**Context:**
+The frontend used an indigo-blue `primary` palette with a blue-tinted `slate`
+`ink` grey scale. The owner asked for a bright-orange accent with some black
+buttons and explicitly required that no blue remain in the UI.
+
+**Decision:**
+1. `--color-primary-*` in `frontend/app/globals.css` is a bright orange scale
+   with `600 = #ff6b00` as the signature accent and `700 = #c24a00` as the
+   text-safe orange.
+2. `--color-ink-*` is a true neutral (zinc) scale, replacing slate, so no blue
+   cast survives in greys. `--foreground` = `#18181b`.
+3. The default `Button` variant (`primary`) is **solid black**
+   (`bg-ink-950` / hover `bg-ink-800`). Orange drives accents — links, badges,
+   active nav, icons, borders, focus rings, progress bars, map pins — and a
+   separate `orange` variant (`bg-primary-700`) is available when an
+   accent-colored button is wanted.
+4. **Contrast rule:** `#ff6b00` is only ~2.9:1 against white in *both*
+   directions, so 600 is decorative-only (text-free fills and borders). Any
+   orange that meets readable text, or acts as a focus ring / form-control
+   indicator, uses 700 (4.9:1). This is why `text-primary-600`,
+   `bg-primary-600 text-white`, `ring-primary-*` focus states and
+   `accent-primary-*` were all moved to 700.
+5. The official Google brand logo colors (`#4285F4`, `#34A853`, `#FBBC05`,
+   `#EA4335`) are deliberately retained on the Google sign-in buttons —
+   recoloring them violates Google brand guidelines. They are the only blue
+   left in `frontend/`.
+
+**Reason:**
+- Bright orange is the requested accent; black CTAs give the high-contrast,
+  civic/safety-signage pairing the owner asked for.
+- Splitting "decorative orange" from "text-safe orange" keeps the accent vivid
+  without shipping unreadable text.
+- Keeping `blue` renamed to `orange` in `Badge.tsx` (rather than left as an
+  alias) prevents the vocabulary from surviving as a lie.
+
+**Alternatives Considered:**
+- White text on `#ff6b00` for filled orange buttons: rejected — 2.9:1 fails WCAG AA.
+- Black text on pure `#ff6b00` fills: viable (7.4:1) and more "signage" in feel;
+  not chosen because white-on-deeper-orange reads as a conventional button.
+- Orange primary buttons with black only on secondary/dark variants: rejected —
+  owner picked black for main CTAs.
+- Keeping the slate `ink` greys: rejected — slate is blue-cast and the brief
+  was "no blue color should be left."
+
+**Consequences:**
+- New accent-colored buttons must use `variant="orange"` (or 700+ tokens), not
+  `bg-primary-600`, whenever they contain text.
+- Future chart/map colors should draw from `#ff6b00` + neutrals.
+- Historic CHANGELOG/SESSION_LOG entries describing the old blue palette
+  remain unedited (per DEC-013 / "Do Not Destroy Context").
+
+**Affected Components:** `frontend/app/globals.css`, `frontend/components/ui/Button.tsx`,
+`frontend/components/ui/Badge.tsx`, `frontend/components/ui/{SiteHeader,SiteFooter,StaffSidebar,Field,Feedback}.tsx`,
+`frontend/app/{page,track,login}.tsx`, `frontend/components/admin/*`,
+`frontend/components/grievance/*`, `frontend/components/home/RequestLifecycle.tsx`,
+`frontend/components/resolver/ResolverWorkspace.tsx`
+
+---
+
+## DEC-022 — Department Workforce Operations Workspace
+
+**ID:** DEC-022
+**Date:** 2026-10-09
+**Status:** ACCEPTED
+
+**Context:** Employee account operations and employee task allocation had been
+placed inside the grievance queue and review dialog, mixing workforce
+administration with grievance triage.
+
+**Decision:** Department managers manage employee accounts and team workload
+through a dedicated `/admin/employees` workspace. They may also assign a
+grievance directly to an employee from its review dialog; that dialog offers
+employees from their department instead of the department routing selector.
+The grievance queue remains focused on department review and triage. API
+authorization derives department scope from the authenticated manager; account
+deletion is blocked while an employee owns active grievances.
+
+**Reason:** This gives workforce operations one predictable home and prevents
+cross-department employee discovery or assignments.
+
+**Consequences:** Account creation/removal and workload overview belong in
+`DepartmentEmployeesWorkspace`; per-grievance assignment is also available at
+the point of review. Backend scoping remains authoritative.
+
