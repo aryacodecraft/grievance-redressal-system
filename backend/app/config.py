@@ -117,6 +117,14 @@ FACE_CHALLENGES = [
     if c.strip()
 ] or ["turn_left", "turn_right", "blink", "smile"]
 
+# Citizen SMS prototype. External delivery is intentionally not implemented;
+# dry-run logs metadata only and off disables SMS entirely.
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "dry-run").strip().lower()
+OTP_DEBUG_RETURN_CODE = os.getenv("OTP_DEBUG_RETURN_CODE", "false").lower() == "true"
+OTP_HASH_SECRET = os.getenv("OTP_HASH_SECRET", "") or JWT_SECRET_KEY
+SMS_RATE_LIMIT_PER_USER_HOUR = int(os.getenv("SMS_RATE_LIMIT_PER_USER_HOUR", "4"))
+SMS_RATE_LIMIT_PER_GRIEVANCE_DAY = int(os.getenv("SMS_RATE_LIMIT_PER_GRIEVANCE_DAY", "3"))
+
 # --- Proxy -------------------------------------------------------------------
 # When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.
 TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
