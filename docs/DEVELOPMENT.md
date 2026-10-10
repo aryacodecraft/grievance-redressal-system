@@ -95,6 +95,16 @@ Backend API available at: `http://localhost:10000`
 Interactive docs: `http://localhost:10000/docs` (Swagger UI)
 Alternative docs: `http://localhost:10000/redoc`
 
+### Phone OTP and SMS prototype
+
+The default `SMS_PROVIDER=dry-run` sends no external messages. To exercise
+phone binding locally, set `OTP_DEBUG_RETURN_CODE=true` in the local
+`backend/.env`; the authenticated OTP request returns a demo code in its JSON
+response. Keep this false outside local testing. `SMS_PROVIDER=off` disables
+stage dispatch entirely. Twilio delivery is not implemented; it will require
+credentials, Indian DLT entity/header/template registration, and carrier-level
+validation before it can be enabled.
+
 > Run `uvicorn` from the **repository root** (not from inside `backend/`) so
 > that `backend.app` resolves as a package.
 

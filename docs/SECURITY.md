@@ -76,6 +76,24 @@ an authentication factor that increases assurance.
 - Management step-up is a convenience, not a control (lockouts fall back to deterministic auth).
 - The `X-Face-Reason` response header reveals that an account needs re-enrollment (accepted for demo).
 
+### Phone verification and SMS (DEC-025)
+
+- A phone number supplied during face signup is unverified. `find_by_identifier`
+  permits phone-based face login only when `phoneVerifiedAt` is set; Citizen ID
+  login remains available as the recovery path.
+- OTPs are six-digit random values, HMAC-hashed at rest, expire in five minutes,
+  have three attempts, and are invalidated by regeneration or consumption.
+  Rate limiting covers account, HMAC(phone), and hashed client IP. OTP values
+  are never logged. `OTP_DEBUG_RETURN_CODE` is a local-only dry-run escape hatch
+  and must remain false in deployments.
+- Binding/unbinding events are audited with masked phone values. Unbinding
+  requires proof of control of the existing number and withdraws SMS consent.
+- SMS updates require a verified phone and explicit consent. Dry-run/off are
+  the only supported providers; notification failures never alter a grievance
+  transition. Live carrier delivery is deferred for DLT/provider credentials.
+- Superadmin user-list output masks phone values; a user's own `/auth/me`
+  profile retains the full number so the owner can manage it.
+
 ---
 
 ## Authorization — Role-Based Access Control (RBAC)
