@@ -32,6 +32,50 @@
 - Minimum password length enforced at API level
 - Password reset flow (to be designed — not yet implemented)
 
+### Face Authentication (optional, DEC-024)
+
+> Off by default (`FACE_AUTH_ENABLED=false`); every `/auth/face/*` route
+> returns 404 and the UI hides all face options when off.
+
+**Privileged step-up is convenience, not a security control.** For
+ADMIN/SUPERADMIN accounts that opt in (`requireLogin2fa`), a face check may
+follow password/Google login — but the face lockout always falls back to
+password-only login, no privileged login is ever face-only, and
+`POST /auth/complete-pending` exists precisely so a locked-out account can
+still sign in with credentials. Treat the step as a UX hardening measure, not
+an authentication factor that increases assurance.
+
+- **1:1 verification only** — email + face match against that user's own
+  template; never 1:N search across users
+- **Server-side liveness** against a single-use, 30-second challenge action
+  (head turn / blink / smile) with fail-closed frame quality gates (exactly
+  one face, minimum bbox, blur floor, detection confidence); optional
+  Silent-Face-Anti-Spoofing ONNX model (`FACE_ANTISPOOF_MODEL_PATH`)
+- **Fail closed** everywhere — missing landmarks, unavailable model, or a
+  broken anti-spoof path rejects the attempt rather than passing it
+- **Generic errors** — all client-facing failures are the same 401; reason
+  codes and similarity scores go to audit logs only
+- **Lockouts** — per-IP (20) and per-email (5) on public face login, per-user
+  (5) on the second-factor endpoint, 15-minute TTL; password/Google login is
+  never blocked by them. Template model drift (`MODEL_MISMATCH`) forces
+  re-enrollment and never counts toward lockout.
+- **Biometric data handling (DPDP):** face embeddings are personal biometric
+  data. Enrollment requires explicit consent (`consent: true` + UI checkbox).
+  Only the encrypted (Fernet, `FACE_EMBED_KEY`) 512-d embedding is stored —
+  never images or frames. Templates are deletable on request by the owner
+  (`DELETE /auth/face/template`) and revocable by admins/superadmins
+  (`DELETE /auth/face/template/{user_id}`); every lifecycle event is audited
+  (`face.enrolled/deleted/revoked/...`) without ever logging embeddings.
+- Liveness/quality thresholds are env-tunable (`FACE_TURN_MIN_DEGREES`,
+  `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`,
+  `FACE_MIN_FACE_PX`) — see `backend/.env.example`.
+
+### Citizen Face-Only Authentication & Biometrics (DEC-024)
+- Face-only authentication is lower assurance than a password; phone numbers are unverified identifiers.
+- Face is the only credential for these users, so explicit consent, delete-my-data, and staff reset exist.
+- Management step-up is a convenience, not a control (lockouts fall back to deterministic auth).
+- The `X-Face-Reason` response header reveals that an account needs re-enrollment (accepted for demo).
+
 ---
 
 ## Authorization — Role-Based Access Control (RBAC)
@@ -185,7 +229,12 @@ AI-originated actions are clearly tagged as `action_source = AI_RECOMMENDATION` 
 - No password reset flow implemented yet
 - File storage is local filesystem (not secure object storage)
 - No virus scanning on attachments
-- Rate limiting not yet implemented
+- **Rate limiting not yet implemented on the password paths** — `POST
+  /auth/login`, `/auth/refresh` and `/auth/register` have no brute-force
+  throttling. The face endpoints (`/auth/face/*`) carry per-IP/per-email/
+  per-user TTL lockout counters (DEC-024), but that does not protect the
+  password routes; per-IP + per-account throttling there is an open gap
+  (tracked in `memory/TODO.md`).
 - A Firebase Web API key was hardcoded in a now-deleted file and remains in
   git history — rotation is still required (tracked in `memory/TODO.md`)
 - These are acceptable limitations for an academic prototype

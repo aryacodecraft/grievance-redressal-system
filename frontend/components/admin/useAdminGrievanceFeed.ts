@@ -24,7 +24,7 @@ export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
     if (!live || !user) return;
     const unsub = subscribeGrievances(
       user.id,
-      user.email,
+      user.email ?? null,
       (data) => {
         setLiveItems(data);
         setLiveError(null);

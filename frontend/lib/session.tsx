@@ -11,14 +11,16 @@ import {
 import { roleForEmail } from "./roles";
 import {
   clearStoredTokens,
+  FaceTwoFactorRequiredError,
   getCurrentUser,
   getStoredAccessToken,
+  isFacePending,
   loginUser,
   registerUser,
   setStoredTokens,
   useMocks,
 } from "./api";
-import type { AuthUser } from "./types";
+import type { AuthResponse, AuthUser } from "./types";
 
 export type DemoUser = AuthUser;
 
@@ -30,9 +32,12 @@ interface Session {
   liveMode: boolean;
   isLoading: boolean;
   signInDemo: (email: string, role?: AuthUser["role"], name?: string) => void;
+  /** Throws FaceTwoFactorRequiredError when the backend pauses for the face step. */
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (email: string, password: string, name: string) => Promise<AuthUser>;
   setAuthSession: (user: AuthUser, accessToken: string, refreshToken?: string) => void;
+  /** Store a full token pair + profile in one step (face login / 2FA completion). */
+  applyAuthResponse: (res: AuthResponse) => AuthUser;
   signOut: () => void;
 }
 
@@ -55,11 +60,16 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
             if (isMounted && profile) {
               const authUser: AuthUser = {
                 id: profile.id,
-                email: profile.email,
-                name: profile.full_name || profile.email.split("@")[0] || "User",
+                email: profile.email || null,
+                phone: profile.phone || null,
+                citizen_id: profile.citizen_id || null,
+                name:
+                  profile.full_name ||
+                  (profile.email ? profile.email.split("@")[0] : profile.citizen_id || "User"),
                 role: profile.role,
                 avatarUrl: profile.avatar_url,
                 departmentId: profile.departmentId,
+                authMethod: profile.auth_method,
               };
               setUser(authUser);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
@@ -110,21 +120,39 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const login = useCallback(
-    async (email: string, password: string): Promise<AuthUser> => {
-      const res = await loginUser(email, password);
+  const applyAuthResponse = useCallback(
+    (res: AuthResponse): AuthUser => {
       const authUser: AuthUser = {
         id: res.user.id,
-        email: res.user.email,
-        name: res.user.full_name || res.user.email.split("@")[0] || "User",
+        email: res.user.email || null,
+        phone: res.user.phone || null,
+        citizen_id: res.user.citizen_id || null,
+        name:
+          res.user.full_name ||
+          res.user.citizen_id ||
+          (res.user.email ? res.user.email.split("@")[0] : "Citizen"),
         role: res.user.role,
         avatarUrl: res.user.avatar_url,
         departmentId: res.user.departmentId,
+        authMethod: res.user.auth_method,
       };
       setAuthSession(authUser, res.access_token, res.refresh_token);
       return authUser;
     },
     [setAuthSession]
+  );
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<AuthUser> => {
+      const res = await loginUser(email, password);
+      if (isFacePending(res)) {
+        // Privileged account with the optional face step opted in: the caller
+        // (login page) must show the 2FA screen — this is not a failure.
+        throw new FaceTwoFactorRequiredError(res.pending_token);
+      }
+      return applyAuthResponse(res);
+    },
+    [applyAuthResponse]
   );
 
   const register = useCallback(
@@ -183,6 +211,7 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
         login,
         register,
         setAuthSession,
+        applyAuthResponse,
         signOut,
       }}
     >

@@ -1217,3 +1217,69 @@ projection prevents it from becoming a general grievance-data endpoint.
 **Consequences:** API documentation and tests preserve the public/private field
 boundary and verify progress remains searchable after worker updates.
 
+---
+
+## DEC-024 — Optional Face-Recognition Login (1:1, Feature-Flagged)
+
+**ID:** DEC-024
+**Date:** 2026-10-09
+**Status:** ACCEPTED
+
+**Context:** The owner requested an optional face-recognition login layer on
+top of the existing JWT + RBAC stack (the TODO item deferred at DEC-017 time).
+Hard requirements: flag-gated and off by default, no change to the token
+contract (`require_role`/RBAC untouched), never mandatory for any role, and
+embeddings treated as biometric data (DPDP consent, encrypted at rest,
+deletable on request).
+
+**Decision:**
+- **1:1 verification only** — email + face against that user's own template;
+  never 1:N search.
+- `FACE_AUTH_ENABLED=false` default; `/auth/face/*` returns 404 via
+  `FaceRouteGuard` (which also enforces HTTPS and a 4 MB body cap) and the
+  UI hides every face option; `GET /config` exposes `{faceAuthEnabled}`.
+- USER/RESOLVER: face is an alternative sign-in. ADMIN/SUPERADMIN: never
+  face-only; an extra step after password/Google only when the account opts
+  into `requireLogin2fa` (default off) — **convenience, not a security
+  control**, because the face lockout falls back to password-only login and
+  `POST /auth/complete-pending` is a lockout escape hatch (403 otherwise).
+- Server-side liveness against a single-use 30 s challenge action
+  (turn/blink/smile), fail-closed quality gates (one face, bbox minimum,
+  blur floor, det score), optional ONNX anti-spoof, generic 401s, per-IP
+  (20) / per-email (5) / per-user (5) TTL lockout counters. `MODEL_MISMATCH`
+  (template vs `FACE_MODEL_NAME`) forces re-enrollment and never increments
+  lockouts; no unauthenticated request can touch the per-user counter.
+- Embeddings only (never images), Fernet-encrypted at rest
+  (`FACE_EMBED_KEY`), deletable by the owner or revoked by admins/
+  superadmins, explicit consent required at enrollment; every lifecycle event
+  audited (`face.*`) without embeddings. Liveness/quality thresholds
+  env-tunable (`FACE_TURN_MIN_DEGREES`, `FACE_BLINK_EAR_DROP`,
+  `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`, `FACE_MIN_FACE_PX`).
+- Pending token: JWT `type: "pending_2fa"`, 5 min TTL; never authorizes
+  protected routes; Google callback forwards it via `?two_factor=face`.
+
+**Reason:** Biometric convenience without weakening the deterministic auth
+path — every failure mode degrades to the existing password/Google flows,
+and AI/biometric components never make a final access decision alone.
+
+**Consequences:** `backend/app/services/face_service.py`,
+`repositories/face_templates.py`, `routers/face_auth.py` + auth-router
+step-up; flag-gated frontend (login tabs, 2FA step, `/profile` enrollment,
+superadmin revoke, i18n ×11); optional deps isolated in
+`requirements-face.txt`; 106 tests on a synthetic-frame/fake-detection seam.
+Known limitations (tracked in `memory/TODO.md`): templates/challenges/
+counters are in-memory (reset on restart), `GET /status` does not expose the
+current `requireLogin2fa` value, and no physical-webcam validation has been
+run yet (thresholds are tunable via env for that purpose).
+
+---
+
+### DEC-024 Amendment — Citizen Passwordless Face Auth & Recovery (2026-10-10)
+
+- **Data Model:** Citizens (`role: USER`) may register with `auth_method: "face_only"`, nullable email and password, normalized 10-digit phone number, and unique server-generated `citizen_id` (`CIT-<8 digits>`). Existing password and Google authentication remain unaffected.
+- **Signup:** Two-step flow via `POST /auth/face/signup/start` (mints short-lived 5-minute signup token carrying phone + full name + liveness challenge) and `POST /auth/face/signup/complete` (verifies quality/liveness/identity binding, stores template, and creates citizen account atomically).
+- **Login:** `POST /auth/face/login` strictly 1:1 against the citizen's own template loaded via `find_by_identifier` (phone or Citizen ID, with email preserved for backwards compatibility). Restricted strictly to role USER; privileged roles (ADMIN, SUPERADMIN, RESOLVER) and unknown identifiers receive the same generic 401. Standard rate limiting (5 fails/15 min per identifier, 20 fails/15 min per IP); `MODEL_MISMATCH` never counts toward lockouts. Management 2FA step-up stays optional convenience.
+- **Recovery:** `POST /auth/face/admin-reset/{user_id}` (restricted to ADMIN/SUPERADMIN, audited) deletes template and returns a single-use 24-hour re-enrollment token for staff to deliver in person. `POST /auth/face/re-enroll` allows the citizen to capture a new template and burns the token on success.
+- **Frontend:** Single-field "Mobile number or Citizen ID" on the Face tab without email references; 3-failure municipal office reset prompt; dedicated public `/re-enroll` page; Superadmin UI reset button with one-time token display; profile warning on biometric deletion for face-only citizens.
+
+

@@ -282,3 +282,38 @@ authenticated account, limits employee lists and assignment targets to that
 department, and audits account changes. Assigning a pending grievance moves it
 to `ASSIGNED` and starts its SLA deadline. Employees with active grievances
 must have those tasks reassigned before their account can be removed.
+
+## Face authentication login (optional, DEC-024)
+
+Face login is opt-in and off by default (`FACE_AUTH_ENABLED=false`). When off,
+every face route 404s and the UI hides all face options; no role ever requires
+a face template.
+
+**Enrollment (signed-in user, `/profile`):** the user gives explicit biometric
+consent, starts a single-use challenge, and captures 5–8 webcam frames while
+performing the prompted action (head turn / blink / smile). The server repeats
+the liveness and quality checks, computes the mean face embedding, encrypts it
+(Fernet), and stores the template. Re-enrolling replaces the template;
+deletion removes it on request. Admins/superadmins may additionally opt into
+`requireLogin2fa` at enrollment or later via `PATCH /auth/face/template`.
+
+**Citizen / Resolver sign-in (alternative to password):** the login page's
+Face tab issues a challenge, captures frames, and posts them with the email.
+A liveness-passed 1:1 match against that user's template returns the same JWT
+session a password login would. Failures are generic 401s; repeated failures
+lock the face path per email (5), per user (5), and per IP (20) within 15
+minutes — password/Google login is never blocked by these counters.
+
+**Admin / Superadmin step-up (optional convenience, not a control):** after a
+successful password or Google sign-in, accounts with `requireLogin2fa` pause
+with a short-lived `pending_2fa` token and must satisfy a face challenge
+(`POST /auth/face/verify-second-factor`). The user may skip —
+`POST /auth/complete-pending` issues a full session only once the account is
+actually locked out on face failures, otherwise 403. Because the lockout falls
+back to password-only login and no privileged login is ever face-only, this
+step hardens UX but does not raise the assurance floor.
+
+**Revocation:** owners delete their own template from `/profile`; superadmins
+can revoke any user's template from the users workspace. Every enrollment,
+match, failure, lockout, and deletion is audited (`face.*` actions) without
+storing embeddings or images in the audit trail.

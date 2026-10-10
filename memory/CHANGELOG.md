@@ -4,6 +4,122 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-10 — Merge `main` into `feature/face-auth` (conflict resolution)
+
+- Merged `main` (`9bef326`) into `feature/face-auth` (`f744be0`) so the face-auth
+  PR could be merged. Four conflicts, all resolved by keeping **both** sides:
+  - `components/admin/AdminGate.tsx` — the signed-in-as line: face-auth's
+    `{user.email || user.citizen_id || user.name}` fallback (face-only accounts
+    have no email) kept **inside** main's plain-language rewrite of the
+    sentence. Picking either side verbatim would have lost either the fallback
+    or the wording pass.
+  - `components/superadmin/SuperadminWorkspace.tsx` — the user-card row
+    (face-auth's `userLabel`/`userSub`/`isFaceOnly`, "Reset face login" token
+    reveal and "Revoke face" buttons) merged with main's department-card copy
+    ("Departments currently in use", placeholder "Short code"). The file stores
+    the grid as one mega-line, so the conflict was a single-line union.
+  - `memory/CHANGELOG.md`, `memory/SESSION_LOG.md` — both sides appended new
+    sections; both sets kept. The session log was re-ordered so main's
+    2026-10-09 entries precede face-auth's 2026-10-09 → 10-10 run, preserving
+    the file's append-chronological convention.
+- Auto-merged and verified rather than assumed: `lib/i18n/en.ts` kept main's
+  plain-language values (`formTitleLabel: "Issue title"`, `locPin`,
+  `emailLabel`, `passwordHint` all confirmed) **and** gained face-auth's new
+  keys (249 → 326); the other ten locales carry 55 face keys each;
+  `StaffSidebar.tsx` kept main's "Analytics" label and face-auth's
+  Profile/Notifications links.
+- Verification: `tsc --noEmit` clean, `npm run build` succeeds (18 routes,
+  including `/profile`, `/re-enroll`, `/signup/face`),
+  `node frontend/scripts/check-contract.mjs` passes, `py_compile` OK across 11
+  backend files, no conflict markers, no blue in the UI.
+- **Pre-existing on the branch, not introduced by this merge:** `npm run lint`
+  reports 4 errors in `components/FaceCapture.tsx` (3 ×
+  `react-hooks/set-state-in-effect`, 1 × conditional `useEffect` /
+  `rules-of-hooks`). `FaceCapture.tsx` is byte-identical to the branch tip, so
+  these predate the merge. Backend face tests remain **unverified here** —
+  `pytest` is not installed and `requirements-face.txt` pulls heavy
+  face-recognition dependencies.
+
+## 2026-10-10 — Citizen Passwordless Face Authentication: Login & Recovery (`feature/face-auth`)
+
+### Added
+- **Citizen 1:1 Face Login (`POST /auth/face/login`)**:
+  - Accepts `identifier` (10-digit phone, Citizen ID `CIT-...`, or email for legacy accounts).
+  - Strictly 1:1 lookup using `find_by_identifier`; template matching compares strictly against the loaded user's template.
+  - Restricted strictly to role `USER`. Privileged roles (`ADMIN`, `SUPERADMIN`, `RESOLVER`) and unknown identifiers return identical generic 401 `{"error": "Face sign-in failed"}`.
+  - Rate limiting & lockouts: 5 fails/15 min per-identifier, 20 fails/15 min per-IP. `MODEL_MISMATCH` never counts toward lockout counters and emits `X-Face-Reason: MODEL_MISMATCH`. Public login never touches internal user counter.
+- **Recovery & Admin Reset Flow**:
+  - `POST /auth/face/admin-reset/{user_id}`: ADMIN/SUPERADMIN only, audited. Deletes the user's template and issues a 24-hour single-use `re_enroll` token. Restricted to `face_only` accounts.
+  - `POST /auth/face/re-enroll`: Public endpoint accepting token, identifier, challenge_id, and frames. Runs full enrollment pipeline and replaces template. Burns token only upon success (remains valid on verification failure until 24-hr expiry).
+- **Frontend**:
+  - Login page Face tab: Single field "Mobile number or Citizen ID" plus camera without email references. 3-failure municipal office reset prompt. Clear re-enroll message on `MODEL_MISMATCH`. Link to `/re-enroll`.
+  - Superadmin UI: Flag-gated "Reset face login" button for `face_only` citizens revealing single-use token for in-person handoff.
+  - Profile page: Warning on biometric deletion for `face_only` users explaining removal of their sole sign-in method; link to `/re-enroll`.
+  - Public Recovery Page: `/re-enroll` allowing citizens holding a token to capture and store a new face template.
+  - i18n: Added 14 new keys (English strings) across all 11 language packs (`en`, `hi`, `bn`, `gu`, `kn`, `ml`, `mr`, `or`, `pa`, `ta`, `te`).
+- **Tests & Verification**:
+  - 6 new core integration tests in `tests/test_face_login_recovery.py` covering login, role gating, lockouts, admin reset, and token burning.
+  - All 140 face & drift tests pass; full suite confirms exactly the 22 known baseline failures (370 passed); TypeScript and Next.js production build clean.
+
+## 2026-10-10 — Face authentication accuracy and performance optimizations (`feature/face-auth`)
+
+### Added & Optimized
+- **Accuracy fixes (`c9f041e`)**:
+  - Webcam capture upgraded to 640x480 @ JPEG quality 0.92 (drastically improving landmark detection on laptop webcams).
+  - Preview mirror via CSS `-scale-x-100` while preserving natural un-mirrored frame orientation for liveness heading checks.
+  - Frontal-only 3-frame template matching: recognition extracts and compares embeddings only on the top 3 frontal frames (lowest `|yaw|`, highest `det_score`).
+  - `FACE_CONSISTENCY_THRESHOLD` (default 0.30) added to `config.py` and `.env.example` for pairwise consistency across captured frontal frames, decoupled from `FACE_MATCH_THRESHOLD` (0.45).
+  - Comprehensive `[FACE_DEBUG]` line logging raw metrics without logging embeddings, images, or tokens.
+  - Safe camera lifecycle management via `lib/camera.ts` (stopping tracks on capture completion, cancel, error, unmount, visibility change, and pagehide).
+- **Performance optimizations (`5b0bd68`)**:
+  - Model pruning: `allowed_modules=["detection", "landmark_2d_106", "recognition"]` avoids loading gender/age modules.
+  - Detector resolution: `det_size = max(320, config.FACE_DET_SIZE)` with `FACE_DET_SIZE=320` default for CPU speed.
+  - 3-frame embedding path: deferred recognition via `_real_embed` seam runs ArcFace only on the top 3 frontal frames instead of all 6 frames.
+  - Multi-threaded inference: `opts.intra_op_num_threads = min(4, os.cpu_count() or 1)` in ONNX Runtime with thread-safe lock.
+  - Frame tolerance: `FaceCapture.tsx` captures 6 frames at 250ms intervals; backend accepts 5-8 frames and tolerates 1 failed quality frame out of 6 as long as >=5 valid candidates exist and 3 frontal pass.
+  - Visual feedback: "Still working…" status indicator appears if face verification exceeds 5 seconds.
+  - Database round-trip optimizations:
+    - Atomic 1-RTT rate limits via MongoDB aggregation pipeline `find_one_and_update` with TTL (`windowExpiresAt`).
+    - Batch rate pre-check via `rate_counts` combining IP and email queries into a single round trip.
+    - MongoDB index conflict handler in `ensure_indexes` catching code 85 and migrating legacy indexes to `expireAfterSeconds=0`.
+    - Asynchronous startup preload thread `_warmup_face_auth` preventing cold-start latency spikes.
+  - All 112 unit tests and 15 config drift tests passing; TypeScript, Next.js production build, and contract checks passing cleanly.
+
+## 2026-10-09 — Optional face-recognition login (DEC-024, `feature/face-auth`)
+
+### Added
+- **Backend face auth** (flag `FACE_AUTH_ENABLED`, default off; `7fc2c0e`,
+  `a3d65a7`): `/auth/face/*` (challenge, enroll, login, verify-second-factor,
+  status, template PATCH/DELETE, superadmin revoke) behind `FaceRouteGuard`
+  (404 when off, HTTPS enforcement, 4 MB body cap); Fernet-encrypted
+  InsightFace templates; server-side liveness (turn/blink/smile) with
+  fail-closed quality gates; per-IP/per-email/per-user TTL lockout counters;
+  `MODEL_MISMATCH` re-enroll path that never counts toward lockout;
+  `GET /config` → `{faceAuthEnabled}`; optional deps in
+  `backend/requirements-face.txt`.
+- **Privileged optional step-up** — password/Google logins pause with a
+  5-minute `pending_2fa` token when `requireLogin2fa` is set;
+  `POST /auth/complete-pending` completes only a locked-out account (403
+  otherwise); face lockout always falls back to password-only login.
+- **Frontend** (`f6fd67f`): flag-gated Password/Face login tabs, 1:1 face
+  sign-in, 2FA step with skip, `/profile` consent/enroll/re-enroll/delete/
+  require-2FA toggle, superadmin "Revoke face", `FaceCapture` webcam
+  component, pending tokens under their own storage key, 45 i18n keys in all
+  11 packs.
+- **Env-tunable liveness/quality thresholds** (`be7266f`):
+  `FACE_TURN_MIN_DEGREES` (15.0), `FACE_BLINK_EAR_DROP` (0.7),
+  `FACE_SMILE_MOUTH_WIDEN` (1.08), `FACE_MIN_BLUR_VARIANCE` (30.0),
+  `FACE_MIN_FACE_PX` (80) — read at call time, mirrored in
+  `backend/.env.example`, for real-webcam tuning without code changes.
+- **Tests** — `tests/test_face_auth.py` (106) on synthetic frames + a fake
+  detection seam (no camera/model in CI), incl. the complete-pending gate,
+  MODEL_MISMATCH no-count, and unauthenticated-counter-protection checks.
+- **Docs/memory** — `docs/API.md` (`/config`, `/auth/face`, login pause,
+  complete-pending), `docs/SECURITY.md` (step-up is convenience not control;
+  embeddings = biometric data, consent, deletion), `docs/WORKFLOWS.md`,
+  `docs/DEVELOPMENT.md` + `README.md` install notes, DEC-024,
+  `memory/rbac/AUTHENTICATION.md`, TODO baseline (22 pre-existing failures
+  listed by name; password/refresh rate-limit gap).
 ## 2026-10-09 — Department-wise summary export on the admin analytics dashboard
 
 - Added an “Export summary (CSV)” button to `/admin/analytics` (available to

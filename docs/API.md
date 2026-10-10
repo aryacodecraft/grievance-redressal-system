@@ -87,6 +87,27 @@ Email/password login.
 **Response 200:** `{ "access_token", "refresh_token", "token_type": "bearer" }`
 **Errors:** 401 invalid credentials
 
+*Face step-up (optional, DEC-024):* when `FACE_AUTH_ENABLED=true` and the
+account has `requireLogin2fa` with an enrolled face template, a successful
+password login pauses instead of returning tokens:
+`{ "two_factor": "face", "token_type": "bearer", "pending_token" }`.
+Exchange the short-lived (5 min, `type: "pending_2fa"`) `pending_token` at
+`POST /auth/face/verify-second-factor` — or skip via
+`POST /auth/complete-pending` — for a full session. Google OAuth redirects
+with `?two_factor=face&pending_token=...` for the same step. A pending token
+never authorizes protected routes.
+
+---
+
+### POST /auth/complete-pending
+Convert a paused privileged login (`pending_2fa` token) into a full session.
+**Auth:** pending token.
+**Behaviour:** succeeds **only when the account is locked out on face
+verification failures** (escape hatch after the per-user lockout is reached);
+otherwise returns 403 `{"error": "Face verification required"}`. Face lockout
+never blocks the password/Google login itself.
+**Response 200:** `{ "access_token", "refresh_token", "token_type": "bearer" }`
+
 ---
 
 ### POST /auth/refresh
@@ -107,6 +128,98 @@ OAuth callback — exchanges code for tokens, creates or finds user.
 ### POST /auth/logout
 Invalidate refresh token.
 **Auth:** Required.
+
+---
+
+## /config
+
+### GET /config
+Public runtime flags consumed by the UI. No auth.
+
+**Response 200:**
+```json
+{ "faceAuthEnabled": false }
+```
+The frontend reads this before rendering any face option; when false every
+`/auth/face/*` route also answers 404.
+
+---
+
+## /auth/face
+
+> Present only when `FACE_AUTH_ENABLED=true` (DEC-024); otherwise every route
+> below returns 404. The `FaceRouteGuard` middleware additionally enforces
+> HTTPS (localhost excepted; `X-Forwarded-Proto` honoured only when
+> `TRUST_PROXY=true`) and a 4 MB request-body cap before JSON/base64 parsing.
+> All verification failures return generic messages — reason codes are for
+> audit logs only. Face templates store a Fernet-encrypted 512-d embedding
+> (never images; never returned by any endpoint).
+
+Every verification call requires a single-use `challenge_id` from
+`POST /auth/face/challenge` whose prompted `action` the client must satisfy
+server-side. Frames are base64 JPEG strings, 5–8 per request, ≤ 1 MB each,
+captured un-mirrored.
+
+### POST /auth/face/challenge
+No auth. Issues a single-use challenge (30 s TTL).
+**Response 200:** `{ "challenge_id", "action", "expires_in" }`
+(`action` ∈ `turn_left` | `turn_right` | `blink` | `smile`)
+
+### POST /auth/face/enroll
+**Auth:** access token (enrolling user).
+**Request:**
+```json
+{ "challenge_id": "string", "frames": ["base64jpeg", "..."], "consent": true, "require_login_2fa": false }
+```
+`consent` must be `true` — explicit DPDP biometric consent is required before
+any template is stored. `require_login_2fa` (ADMIN/SUPERADMIN only) opts the
+account into the optional post-password face step. Re-enrolling replaces the
+existing template (audit `face.template_updated`).
+**Response 200:** `{ "enrolled": true }`
+**Errors:** 401 generic (liveness/quality/match failure), 429 per-user/IP lockout.
+
+### POST /auth/face/login
+Public 1:1 face sign-in (alternative to password for any enrolled USER/
+RESOLVER; never sufficient alone for privileged roles).
+**Request:**
+```json
+{ "challenge_id": "string", "frames": ["base64jpeg", "..."], "email": "user@example.com" }
+```
+**Response 200:** same `AuthResponse` as `/auth/login`
+(`{ "access_token", "refresh_token", "token_type": "bearer" }`).
+**Errors:** 401 generic; 429 when the per-email (5) or per-IP (20) failure
+lockout within 15 minutes is active. `MODEL_MISMATCH` (template enrolled
+under a different `FACE_MODEL_NAME`) returns 401 and requires re-enrollment;
+it never increments lockout counters.
+
+### POST /auth/face/verify-second-factor
+Completes a paused privileged login (the `pending_token` from
+`POST /auth/login` or the Google callback).
+**Auth:** pending token.
+**Request:** `{ "challenge_id": "string", "frames": ["base64jpeg", "..."] }`
+**Response 200:** full `AuthResponse` (identical shape to password login —
+`require_role`/RBAC unchanged).
+**Errors:** 401 generic; 429 per-user lockout (5 failures / 15 min).
+
+### GET /auth/face/status
+**Auth:** access token.
+**Response 200:** `{ "enrolled": boolean }`
+(Does not expose the current `requireLogin2fa` value — see profile limitation.)
+
+### PATCH /auth/face/template
+**Auth:** ADMIN/SUPERADMIN only.
+**Request:** `{ "require_login_2fa": boolean }`
+**Response 200:** `{ "requireLogin2fa": boolean }`
+
+### DELETE /auth/face/template
+**Auth:** access token. Deletes the caller's own template (biometric-data
+deletion on request). Audit `face.template_deleted`.
+**Response 200:** `{ "deleted": true }`
+
+### DELETE /auth/face/template/{user_id}
+**Auth:** SUPERADMIN only. Revokes another user's template. Audit
+`face.template_revoked`.
+**Response 200:** `{ "deleted": true }`
 
 ---
 

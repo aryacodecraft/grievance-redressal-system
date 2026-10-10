@@ -8,6 +8,7 @@ Run from the repo root:
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -15,8 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from . import config
 from .config import CORS_ORIGINS
+from .services.face_service import MAX_REQUEST_BYTES
 from .routers import auth as auth_router
+from .routers import face_auth as face_auth_router
 from .routers import grievances, health, images
 from .routers import users as users_router
 from .routers import departments as dept_router
@@ -36,12 +40,103 @@ app = FastAPI(
     description="AI-assisted grievance submission, triage and officer review. JWT auth required.",
 )
 
+# ── Face route guard (DEC-024) ───────────────────────────────────────────────
+def _face_request_is_https(scope) -> bool:
+    headers = {
+        k.decode("latin-1").lower(): v.decode("latin-1")
+        for k, v in scope.get("headers", [])
+    }
+    if scope.get("scheme") == "https":
+        return True
+    if config.TRUST_PROXY:
+        forwarded = headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        if forwarded == "https":
+            return True
+    host = headers.get("host", "")
+    if host.startswith("["):  # IPv6 literal: [::1]:8000
+        hostname = host[1:].split("]")[0]
+    else:
+        hostname = host.split(":")[0]
+    return hostname.lower() in ("localhost", "127.0.0.1")
+
+
+class FaceRouteGuard:
+    """Feature flag, HTTPS enforcement and a 4 MB body cap for /auth/face/*.
+
+    A pure ASGI middleware that runs before routing (DEC-024):
+      * FACE_AUTH_ENABLED=false -> 404 for every face route, before any
+        request validation runs
+      * non-HTTPS -> 400 (localhost / 127.0.0.1 excepted; X-Forwarded-Proto
+        honoured only when TRUST_PROXY=true)
+      * body over 4 MB -> 413 before any JSON or base64 parsing (the body is
+        buffered once, then replayed to the app)
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        if path != "/auth/face" and not path.startswith("/auth/face/"):
+            return await self.app(scope, receive, send)
+
+        async def reply(status: int, message: str) -> None:
+            await JSONResponse({"error": message}, status_code=status)(scope, receive, send)
+
+        if not config.FACE_AUTH_ENABLED:
+            return await reply(404, "Not Found")
+        if not _face_request_is_https(scope):
+            return await reply(400, "HTTPS is required for face authentication")
+
+        headers = {
+            k.decode("latin-1").lower(): v.decode("latin-1")
+            for k, v in scope.get("headers", [])
+        }
+        content_length = headers.get("content-length", "")
+        if content_length.isdigit() and int(content_length) > MAX_REQUEST_BYTES:
+            return await reply(413, "Request body too large")
+
+        body = b""
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":
+                return  # client hung up mid-upload; nothing to serve
+            body += message.get("body", b"")
+            if len(body) > MAX_REQUEST_BYTES:
+                return await reply(413, "Request body too large")
+            if not message.get("more_body", False):
+                break
+
+        scope.setdefault("state", {})
+        scope["state"]["request_t0"] = time.perf_counter()
+        scope["state"]["body_bytes_len"] = len(body)
+
+        replayed = False
+
+        async def replay():
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        return await self.app(scope, replay, send)
+
+
+# Registered BEFORE the CORS middleware on purpose: Starlette runs the most
+# recently added middleware first, so CORSMiddleware stays outermost and adds
+# its headers to the guard's 404/400/413 replies too.
+app.add_middleware(FaceRouteGuard)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Face-Reason"],
 )
 
 
@@ -85,6 +180,7 @@ async def request_validation_handler(
 # ── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(health.router)
 app.include_router(auth_router.router)
+app.include_router(face_auth_router.router)
 app.include_router(grievances.router)
 app.include_router(images.router)
 app.include_router(users_router.router)
@@ -97,6 +193,50 @@ app.include_router(notif_router.router)
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────
+@app.on_event("startup")
+def _validate_face_auth() -> None:
+    """Fail fast when face auth is enabled but unusable (DEC-024).
+
+    validate_embed_key raises ValueError (missing/invalid FACE_EMBED_KEY) and
+    uvicorn aborts startup instead of serving a flag-on API that would fail
+    every enrollment at runtime.
+    """
+    from . import config as _config
+
+    if not _config.FACE_AUTH_ENABLED:
+        return
+    from .services.face_service import validate_embed_key
+
+    validate_embed_key()
+
+
+@app.on_event("startup")
+def _warmup_face_auth() -> None:
+    """Preload the face model in a background thread when enabled (DEC-024).
+
+    Avoids latency spikes on the first user request while preserving the lazy
+    fallback if warmup fails or is still finishing.
+    """
+    from . import config as _config
+
+    if not _config.FACE_AUTH_ENABLED:
+        return
+
+    import threading
+    from .services.face_service import _get_analyzer
+
+    def _warmup() -> None:
+        try:
+            logger.info("Preloading face model in background thread: %s", _config.FACE_MODEL_NAME)
+            _get_analyzer()
+            logger.info("Face model background preload complete: %s", _config.FACE_MODEL_NAME)
+        except Exception:
+            logger.exception("Face model background preload failed; lazy fallback active")
+
+    t = threading.Thread(target=_warmup, name="face-model-warmup", daemon=True)
+    t.start()
+
+
 @app.on_event("startup")
 def _seed_on_startup() -> None:
     """Seed admin / SUPERADMIN accounts at startup if env vars are set.

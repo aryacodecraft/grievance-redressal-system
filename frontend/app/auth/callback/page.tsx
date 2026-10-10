@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDemoUser } from "@/lib/session";
-import { getCurrentUser } from "@/lib/api";
+import { getCurrentUser, setStoredPendingToken } from "@/lib/api";
 import { Spinner } from "@/components/ui/Feedback";
 
 function CallbackHandler() {
@@ -18,6 +18,18 @@ function CallbackHandler() {
       if (err) {
         setError(err);
         setTimeout(() => router.push(`/login?error=${encodeURIComponent(err)}`), 1500);
+        return;
+      }
+
+      // Privileged Google login paused for the optional face step (DEC-024):
+      // stash the pending token (own key, never auto-attached) and let the
+      // login page open the 2FA screen. A pending token never becomes a
+      // session by itself.
+      const twoFactor = searchParams.get("two_factor");
+      const pendingToken = searchParams.get("pending_token");
+      if (twoFactor === "face" && pendingToken) {
+        setStoredPendingToken(pendingToken);
+        router.replace("/login?two_factor=face");
         return;
       }
 
@@ -47,10 +59,15 @@ function CallbackHandler() {
         const profile = await getCurrentUser();
         const authUser = {
           id: profile.id,
-          email: profile.email,
-          name: profile.full_name || profile.email.split("@")[0] || "User",
+          email: profile.email || null,
+          phone: profile.phone || null,
+          citizen_id: profile.citizen_id || null,
+          name:
+            profile.full_name ||
+            (profile.email ? profile.email.split("@")[0] : profile.citizen_id || "User"),
           role: profile.role,
           avatarUrl: profile.avatar_url,
+          authMethod: profile.auth_method,
         };
 
         setAuthSession(authUser, accessToken, refreshToken);

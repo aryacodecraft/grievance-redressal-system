@@ -87,6 +87,9 @@ Install runtime and development packages:
 # Using pip with your active Python environment:
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
+
+# Optional — only needed to run with face login enabled (FACE_AUTH_ENABLED=true):
+pip install -r backend/requirements-face.txt
 ```
 
 *(Or explicitly via `python -m pip install -r requirements-dev.txt`)*
@@ -114,6 +117,7 @@ Create your local `.env` file from the provided example template:
 - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`: Default admin credentials seeded automatically on startup:
   - **Email:** `admin@grievance.local`
   - **Password:** `Admin@2026!`
+- `FACE_AUTH_ENABLED`: Optional face-recognition login (DEC-024). **Off by default** — leave it `false` unless you installed `backend/requirements-face.txt` and set a `FACE_EMBED_KEY` (see `backend/.env.example`).
 
 #### 4. Start the backend server
 
@@ -261,4 +265,5 @@ npm --prefix frontend run build
 - **DEC-010** (`memory/DECISIONS.md`): FastAPI `backend/app/` is the active serving backend.
 - **DEC-011**: MongoDB is the primary database.
 - **DEC-017**: Cryptographic JWT authentication, role-based access control (RBAC), and Google OAuth support.
+- **DEC-024**: Optional, feature-flagged face-recognition login (1:1 verification, server-side liveness, encrypted embeddings) — convenience layer on top of JWT, never mandatory.
 - **Human-in-the-loop** (non-negotiable): AI provides advisory triage, human officers make all administrative decisions.

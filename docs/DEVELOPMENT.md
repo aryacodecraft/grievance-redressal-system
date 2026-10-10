@@ -80,6 +80,9 @@ python -m venv venv
 pip install -r requirements.txt          # runtime — what Render installs
 pip install -r requirements-dev.txt      # runtime + pytest (local dev/tests)
 
+# 2b. (Optional) face-auth stack — only needed to run with FACE_AUTH_ENABLED=true
+pip install -r requirements-face.txt     # insightface, onnxruntime, opencv-python-headless
+
 # 3. Configure environment
 cp backend/.env.example backend/.env    # Windows PowerShell: Copy-Item backend\.env.example backend\.env
 # Edit backend/.env and fill in your values (or leave blank to use in-memory mode)
@@ -106,7 +109,8 @@ pytest                      # all tests
 pytest tests/test_endpoints.py -v
 ```
 
-The suite has nine files:
+The suite has grown well past its original nine files; the face-auth suite is
+the newest addition:
 
 | File | Covers |
 |---|---|
@@ -114,6 +118,7 @@ The suite has nine files:
 | `tests/test_classification_cascade.py` | The HF → Groq → keyword cascade, including provider-outage fallback and the submit-time `modelInfo` shape |
 | `tests/test_config_drift.py` | Drift between `config.py`, `backend/.env.example`, `frontend/.env.example` and `render.yaml` — plus secret-leak and wildcard-CORS checks |
 | `tests/test_endpoints.py` | HTTP behaviour of the real FastAPI app (request/response shapes, status codes, error format, limit bounds, unicode/injection round-trips) |
+| `tests/test_face_auth.py` | Face auth (DEC-024): liveness/quality units, endpoints, pending-token step-up, lockouts, MODEL_MISMATCH, tunable thresholds — synthetic frames + a fake detection seam, no camera or model download |
 | `tests/test_id_allocation.py` | DEC-014: ids derived from stored data — restart resumption, year rollover, out-of-order ids, concurrent creates |
 | `tests/test_image_validation.py` | `/validate-image` contract and the accept/reject threshold boundary, plus the (documented) SSRF surface |
 | `tests/test_repository.py` | Both `GrievanceRepository` implementations + repository selection + the shared list contract |
@@ -217,10 +222,18 @@ CORS_ORIGINS=http://localhost:3000
 
 # Server
 PORT=10000
+
+# Face auth (optional, DEC-024 — off by default; see backend/.env.example)
+FACE_AUTH_ENABLED=false
+# FACE_EMBED_KEY (required when the flag is on), FACE_MODEL_NAME,
+# FACE_MATCH_THRESHOLD, and the tunable liveness thresholds
+# (FACE_TURN_MIN_DEGREES, FACE_BLINK_EAR_DROP, FACE_SMILE_MOUTH_WIDEN,
+#  FACE_MIN_BLUR_VARIANCE, FACE_MIN_FACE_PX) are documented in .env.example
 ```
 
-> JWT / Google OAuth vars are **not yet read by the backend** — real auth is
-> still a planned feature (see `docs/SECURITY.md`).
+> JWT auth (DEC-017) reads `JWT_SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`,
+> `REFRESH_TOKEN_EXPIRE_DAYS` and the seed/Google OAuth vars from
+> `backend/.env` — see `backend/.env.example`.
 
 ### Frontend (`frontend/.env.local`)
 

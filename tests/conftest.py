@@ -37,6 +37,28 @@ os.environ["SEED_SUPERADMIN_PASSWORD"] = ""
 # tests/test_seed_accounts.py invokes seed_test_accounts() directly.
 os.environ["SEED_TEST_ACCOUNTS"] = ""
 os.environ["SEED_TEST_PASSWORD"] = ""
+# Face auth (DEC-024): flag off so /auth/face routes 404 unless a test opts in
+# at runtime (face_on monkeypatches config.FACE_AUTH_ENABLED). A valid Fernet
+# key is generated per run so startup validation and encrypt/decrypt round
+# trips work when the flag is on — never a real secret.
+os.environ["FACE_AUTH_ENABLED"] = "false"
+os.environ.setdefault("FACE_MATCH_THRESHOLD", "0.45")
+os.environ.setdefault("FACE_MODEL_NAME", "buffalo_s")
+os.environ.setdefault("FACE_ANTISPOOF_MODEL_PATH", "")
+# Tunable liveness thresholds (DEC-024) — pinned so default-value tests stay
+# deterministic regardless of a developer's local backend/.env.
+os.environ["FACE_TURN_MIN_DEGREES"] = "15.0"
+os.environ["FACE_BLINK_EAR_DROP"] = "0.7"
+os.environ["FACE_SMILE_MOUTH_WIDEN"] = "1.08"
+os.environ["FACE_MIN_BLUR_VARIANCE"] = "30.0"
+os.environ["FACE_MIN_FACE_PX"] = "80"
+os.environ.setdefault("TRUST_PROXY", "false")
+try:
+    from cryptography.fernet import Fernet as _Fernet
+
+    os.environ.setdefault("FACE_EMBED_KEY", _Fernet.generate_key().decode())
+except ImportError:  # pragma: no cover — cryptography ships with requirements.txt
+    os.environ.setdefault("FACE_EMBED_KEY", "")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -63,6 +85,7 @@ def fresh_repository():
     """
     from backend.app import db, users_db
     from backend.app.repositories import audit as audit_repo_mod
+    from backend.app.repositories import face_templates as face_repo_mod
     from backend.app.repositories import progress as progress_repo_mod
     from backend.app.repositories import notifications as notif_repo_mod
     from backend.app.repositories import departments as dept_repo_mod
@@ -75,6 +98,7 @@ def fresh_repository():
     fresh_notif = notif_repo_mod.InMemoryNotificationRepository()
     fresh_dept = dept_repo_mod.InMemoryDepartmentRepository()
     fresh_sla = sla_repo_mod.InMemorySlaConfigRepository()
+    fresh_face = face_repo_mod.InMemoryFaceRepository()
 
     # Remember previous values for restore.
     saved: list[tuple[Any, str, Any]] = []
@@ -93,6 +117,7 @@ def fresh_repository():
     import backend.app.routers.audit as rau
     import backend.app.routers.notifications as rn
     import backend.app.routers.auth as rauth
+    import backend.app.routers.face_auth as rface
 
     # Grievance store on every router that reads/writes grievances.
     for mod in (rg, ra, rp, rad):
@@ -100,14 +125,19 @@ def fresh_repository():
     # Users store.
     _swap(rauth, "users_repository", fresh_users)
     _swap(ru, "users_repository", fresh_users)
+    _swap(rface, "users_repository", fresh_users)
     _swap(users_db, "users_repository", fresh_users)
+    # Face templates store (singleton + both routers that bind it).
+    _swap(face_repo_mod, "face_repository", fresh_face)
+    _swap(rauth, "face_repository", fresh_face)
+    _swap(rface, "face_repository", fresh_face)
     # Side-effect stores (singletons + direct router bindings).
     _swap(audit_repo_mod, "audit_repository", fresh_audit)
     _swap(progress_repo_mod, "progress_repository", fresh_progress)
     _swap(notif_repo_mod, "notif_repository", fresh_notif)
     _swap(dept_repo_mod, "dept_repository", fresh_dept)
     _swap(sla_repo_mod, "sla_repository", fresh_sla)
-    for mod in (ra, rp, rau, rd):
+    for mod in (ra, rp, rau, rd, rface):
         _swap(mod, "audit_repository", fresh_audit)
     for mod in (ra, rp, rn):
         _swap(mod, "notif_repository", fresh_notif)

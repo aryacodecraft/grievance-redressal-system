@@ -289,6 +289,24 @@ class MongoRepository:
 _storage_mode = "in-memory"
 
 
+def _configure_mongo_dns() -> None:
+    """Optionally configure custom nameservers for MongoDB SRV resolution."""
+    from .config import MONGO_DNS_SERVERS
+
+    if not MONGO_DNS_SERVERS:
+        return
+    try:
+        import dns.resolver
+
+        servers = [s.strip() for s in MONGO_DNS_SERVERS.replace(";", ",").split(",") if s.strip()]
+        if servers:
+            dns.resolver.default_resolver = dns.resolver.Resolver(configure=False)
+            dns.resolver.default_resolver.nameservers = servers
+            logger.info("Configured custom MongoDB DNS servers: %s", servers)
+    except Exception as exc:
+        logger.warning("Failed to configure MONGO_DNS_SERVERS (%s): %s", MONGO_DNS_SERVERS, exc)
+
+
 def _build_repository() -> GrievanceRepository:
     from .config import MONGODB_DB, MONGODB_URI
 
@@ -302,6 +320,7 @@ def _build_repository() -> GrievanceRepository:
         _storage_mode = "in-memory"
         return InMemoryRepository()
 
+    _configure_mongo_dns()
     repo = MongoRepository(MONGODB_URI, MONGODB_DB)
     # Set eagerly, not on ping success. It used to be assigned only after a
     # successful ping, so a cluster that was down at boot left health reporting

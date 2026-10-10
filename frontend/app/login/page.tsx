@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,14 +8,27 @@ import {
   EyeOff,
   ShieldCheck,
   ArrowRight,
+  ScanFace,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
+import { FaceCapture } from "@/components/FaceCapture";
 import { useDemoUser } from "@/lib/session";
 import { roleForEmail } from "@/lib/roles";
 import { TEST_ACCOUNTS } from "@/lib/testAccounts";
-import { getGoogleAuthUrl } from "@/lib/api";
+import {
+  FaceTwoFactorRequiredError,
+  clearStoredPendingToken,
+  completeFacePending,
+  faceLogin,
+  getGoogleAuthUrl,
+  getPublicConfig,
+  getStoredPendingToken,
+  issueFaceChallenge,
+  verifyFaceSecondFactor,
+} from "@/lib/api";
+import type { FaceChallenge } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 
 const REMEMBER_KEY = "grievai.remembered-email";
@@ -23,11 +36,28 @@ const REMEMBER_KEY = "grievai.remembered-email";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signInDemo, login, liveMode } = useDemoUser();
+  const { signInDemo, login, liveMode, applyAuthResponse } = useDemoUser();
   const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Face auth UI is gated on GET /config — hidden entirely when the backend
+  // runs with FACE_AUTH_ENABLED=false (the default).
+  const [faceEnabled, setFaceEnabled] = useState(false);
+  const [mode, setMode] = useState<"password" | "face">("password");
+  const [faceIdentifier, setFaceIdentifier] = useState("");
+  const [faceFailCount, setFaceFailCount] = useState(0);
+  const [faceBusy, setFaceBusy] = useState(false);
+  const [challenge, setChallenge] = useState<FaceChallenge | null>(null);
+  // 2FA step: entered via password login (FaceTwoFactorRequiredError) or the
+  // Google callback redirect (?two_factor=face) — both leave a pending token.
+  const [pending, setPending] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      searchParams.get("two_factor") === "face" &&
+      Boolean(getStoredPendingToken())
+  );
 
   // Initial state read lazily so the remembered email is present on the
   // very first client render. Guarded for SSR, where window is undefined.
@@ -49,9 +79,39 @@ function LoginForm() {
       : null
   );
 
+  useEffect(() => {
+    if (!liveMode) return;
+    let mounted = true;
+    void getPublicConfig().then((cfg) => {
+      if (mounted && cfg.faceAuthEnabled) setFaceEnabled(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [liveMode]);
+
   // Dev-only credential hint. Visible only when NEXT_PUBLIC_SHOW_DEV_CREDS
   // is "true" (local .env.local). Remove before any shared deployment.
   const showDevCreds = process.env.NEXT_PUBLIC_SHOW_DEV_CREDS === "true";
+
+  const errText = (e: unknown, fallback: string) =>
+    e instanceof Error ? e.message : fallback;
+
+  /** Where a successful live sign-in lands (staff dashboards win over ?next). */
+  function targetAfterLogin(role: string): string {
+    const upper = role.toUpperCase();
+    const staffHome =
+      upper === "SUPERADMIN"
+        ? "/superadmin"
+        : upper === "ADMIN"
+          ? "/admin"
+          : upper === "RESOLVER"
+            ? "/resolver"
+            : null;
+    const safeNext =
+      nextPath.startsWith("/") && nextPath !== "/submit" ? nextPath : null;
+    return staffHome ?? safeNext ?? "/submit";
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,10 +131,7 @@ function LoginForm() {
     try {
       if (liveMode) {
         const user = await login(email, password);
-        const role = user.role.toUpperCase();
-        const staffHome = role === "SUPERADMIN" ? "/superadmin" : role === "ADMIN" ? "/admin" : role === "RESOLVER" ? "/resolver" : null;
-        const safeNext = nextPath.startsWith("/") && nextPath !== "/submit" ? nextPath : null;
-        router.push(staffHome ?? safeNext ?? "/submit");
+        router.push(targetAfterLogin(user.role));
       } else {
         const role = roleForEmail(email);
         signInDemo(email, role);
@@ -83,7 +140,13 @@ function LoginForm() {
         router.push(staffHome ?? safeNext ?? "/submit");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("errInvalidCreds"));
+      if (err instanceof FaceTwoFactorRequiredError) {
+        // Password accepted; the account opted into the face step (DEC-024).
+        setPending(true);
+        setError(null);
+      } else {
+        setError(errText(err, t("errInvalidCreds")));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -92,6 +155,138 @@ function LoginForm() {
   function handleGoogleLogin() {
     window.location.href = getGoogleAuthUrl();
   }
+
+  /* ── Face flows (live mode only, flag-gated) ─────────────────────────── */
+
+  async function beginFaceChallenge() {
+    setError(null);
+    setFaceBusy(true);
+    try {
+      setChallenge(await issueFaceChallenge());
+    } catch (err) {
+      setError(errText(err, t("faceUnavailable")));
+    } finally {
+      setFaceBusy(false);
+    }
+  }
+
+  async function startFaceSignIn() {
+    if (!faceIdentifier.trim()) {
+      setError(t("errEnterCreds"));
+      return;
+    }
+    await beginFaceChallenge();
+  }
+
+  async function onFaceLoginFrames(frames: string[]) {
+    if (!challenge) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await faceLogin(faceIdentifier, {
+        challenge_id: challenge.challenge_id,
+        frames,
+      });
+      const user = applyAuthResponse(res);
+      clearStoredPendingToken();
+      setFaceFailCount(0);
+      router.push(targetAfterLogin(user.role));
+    } catch (err: unknown) {
+      const isMismatch = (err as { faceReason?: string })?.faceReason === "MODEL_MISMATCH";
+      if (isMismatch) {
+        setError(t("faceReenrollRequired"));
+      } else {
+        const nextFails = faceFailCount + 1;
+        setFaceFailCount(nextFails);
+        if (nextFails >= 3) {
+          setError(t("faceMaxFailsOfficeReset"));
+        } else {
+          setError(errText(err, t("faceUnavailable")));
+        }
+      }
+      // The challenge was consumed with the attempt — issue a fresh one.
+      setChallenge(null);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function onFaceVerifyFrames(frames: string[]) {
+    const token = getStoredPendingToken();
+    if (!challenge || !token) {
+      setPending(false);
+      setError(t("errSignIn", { reason: "session expired" }));
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await verifyFaceSecondFactor(
+        { challenge_id: challenge.challenge_id, frames },
+        token
+      );
+      clearStoredPendingToken();
+      const user = applyAuthResponse(res);
+      router.push(targetAfterLogin(user.role));
+    } catch (err) {
+      setError(errText(err, t("faceUnavailable")));
+      setChallenge(null);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  /** Skip path: /auth/complete-pending only succeeds once the account is
+   *  locked out of the face endpoint — otherwise it answers 403 and we show
+   *  that message; protected routes never accept the pending token. */
+  async function skipFaceStep() {
+    const token = getStoredPendingToken();
+    if (!token) {
+      setPending(false);
+      setError(t("errSignIn", { reason: "session expired" }));
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await completeFacePending(token);
+      clearStoredPendingToken();
+      const user = applyAuthResponse(res);
+      router.push(targetAfterLogin(user.role));
+    } catch (err) {
+      setError(errText(err, t("faceUnavailable")));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function backToSignIn() {
+    clearStoredPendingToken();
+    setPending(false);
+    setChallenge(null);
+    setError(null);
+  }
+
+  const faceActionPanel = challenge ? (
+    <FaceCapture
+      key={challenge.challenge_id}
+      action={challenge.action}
+      onCapture={pending ? onFaceVerifyFrames : onFaceLoginFrames}
+      disabled={isSubmitting}
+      verifying={isSubmitting}
+      onCancel={() => {
+        setChallenge(null);
+        setError(null);
+      }}
+    />
+  ) : null;
+
+  const tabClass = (active: boolean) =>
+    `rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+      active
+        ? "bg-white text-ink-950 shadow-xs ring-1 ring-ink-200"
+        : "text-ink-500 hover:text-ink-800"
+    }`;
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
@@ -102,14 +297,18 @@ function LoginForm() {
               {t("securePortal")}
             </span>
             <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950">
-              {t("signIn")}
+              {pending ? t("faceTwoFactorTitle") : t("signIn")}
             </h1>
             <p className="mt-1 text-sm text-ink-500">
-              {liveMode ? t("loginSubLive") : t("loginSubDemo")}
+              {pending
+                ? t("faceTwoFactorSub")
+                : liveMode
+                  ? t("loginSubLive")
+                  : t("loginSubDemo")}
             </p>
           </div>
 
-          {showDevCreds && (
+          {!pending && showDevCreds && (
             <div className="mb-5 rounded-sm border border-dashed border-ink-400 bg-ink-50 p-3 text-xs text-ink-700">
               <p className="font-semibold uppercase tracking-wider text-ink-900">
                 Dev test credentials
@@ -146,12 +345,128 @@ function LoginForm() {
             </div>
           )}
 
+          {!pending && faceEnabled && liveMode && (
+            <div
+              role="tablist"
+              aria-label={t("signIn")}
+              className="mb-5 grid grid-cols-2 gap-1 rounded-md border border-ink-200 bg-ink-50 p-1"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "password"}
+                onClick={() => {
+                  setMode("password");
+                  setChallenge(null);
+                  setError(null);
+                }}
+                className={tabClass(mode === "password")}
+              >
+                {t("passwordLabel")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === "face"}
+                onClick={() => {
+                  setMode("face");
+                  setChallenge(null);
+                  setError(null);
+                }}
+                className={tabClass(mode === "face")}
+              >
+                {t("faceSignInTab")}
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="mb-5">
               <Alert tone="error">{error}</Alert>
             </div>
           )}
 
+          {pending && (
+            <div className="space-y-3">
+              {faceActionPanel ?? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => void beginFaceChallenge()}
+                  disabled={faceBusy || isSubmitting}
+                >
+                  <ScanFace size={16} strokeWidth={2} />
+                  {faceBusy ? t("loading") : t("faceVerifyBtn")}
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => void skipFaceStep()}
+                disabled={isSubmitting}
+              >
+                {t("faceSkipBtn")}
+              </Button>
+              <button
+                type="button"
+                onClick={backToSignIn}
+                className="mx-auto block text-xs font-medium text-ink-500 hover:text-ink-800"
+              >
+                {t("backToSignIn")}
+              </button>
+            </div>
+          )}
+
+          {!pending && mode === "face" && (
+            <div className="space-y-4">
+              <Field label={t("faceIdentifierLabel")} required>
+                <Input
+                  type="text"
+                  name="identifier"
+                  autoComplete="username"
+                  placeholder={t("faceIdentifierPlaceholder")}
+                  value={faceIdentifier}
+                  onChange={(e) => setFaceIdentifier(e.target.value)}
+                  disabled={isSubmitting}
+                />
+              </Field>
+              {faceActionPanel ?? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => void startFaceSignIn()}
+                  disabled={faceBusy || isSubmitting}
+                >
+                  <ScanFace size={16} strokeWidth={2} />
+                  {faceBusy ? t("loading") : t("faceStart")}
+                </Button>
+              )}
+              <p className="text-xs text-ink-500">{t("faceLoginHint")}</p>
+              <div className="space-y-1.5 pt-2 text-center text-xs">
+                <div>
+                  <Link
+                    href="/signup/face"
+                    className="font-semibold text-primary-700 hover:text-primary-800 hover:underline"
+                  >
+                    {t("newHereFaceSignup")}
+                  </Link>
+                </div>
+                <div>
+                  <Link
+                    href="/re-enroll"
+                    className="text-ink-500 hover:text-ink-800 hover:underline"
+                  >
+                    {t("haveRecoveryToken")}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!pending && mode === "password" && (
           <form onSubmit={submit} className="space-y-4">
             <Field label={t("emailLabel")} required>
               <Input
@@ -215,8 +530,9 @@ function LoginForm() {
               {!isSubmitting && <ArrowRight size={16} strokeWidth={2} />}
             </Button>
           </form>
+          )}
 
-          {liveMode && (
+          {!pending && liveMode && (
             <div className="mt-5">
               <div className="relative my-4 flex items-center justify-center">
                 <div className="absolute inset-0 flex items-center">
@@ -256,7 +572,7 @@ function LoginForm() {
             </div>
           )}
 
-          {!liveMode && (
+          {!pending && !liveMode && (
             <div className="mt-5">
               <Alert>
                 Demo mode: any email works. Use an address containing &quot;admin&quot; to
@@ -265,15 +581,17 @@ function LoginForm() {
             </div>
           )}
 
-          <p className="mt-6 text-center text-sm text-ink-500">
-            {t("newHere")}{" "}
-            <Link
-              href="/register"
-              className="font-medium text-primary-700 hover:underline"
-            >
-              {t("createAccount")}
-            </Link>
-          </p>
+          {!pending && (
+            <p className="mt-6 text-center text-sm text-ink-500">
+              {t("newHere")}{" "}
+              <Link
+                href="/register"
+                className="font-medium text-primary-700 hover:underline"
+              >
+                {t("createAccount")}
+              </Link>
+            </p>
+          )}
         </div>
     </div>
   );

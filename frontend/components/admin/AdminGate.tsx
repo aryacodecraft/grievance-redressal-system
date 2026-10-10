@@ -81,7 +81,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
               Access not allowed
             </h1>
             <p className="mt-2 text-xs leading-relaxed text-ink-500">
-              You are signed in as <span className="font-semibold text-ink-800">{user.email}</span>.
+              You are signed in as <span className="font-semibold text-ink-800">{user.email || user.citizen_id || user.name}</span>.
               This dashboard is only for authorized officers.
             </p>
 

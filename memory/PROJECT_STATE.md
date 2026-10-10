@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-09 (public reference tracking works independently of login/history access)
+> Last updated: 2026-10-10 (citizen passwordless face signup, login, and recovery on `feature/face-auth`, DEC-024)
 
 ---
 
@@ -137,6 +137,33 @@ memory/        — AI agent persistent memory                                  I
   - `frontend/app/auth/callback/page.tsx`: Google OAuth redirect handler
 - **Tests**: `tests/test_auth.py` (30 tests) + inverted `tests/test_security_baseline.py` — 202 passed across full suite
 
+### Face authentication — IMPLEMENTED, flag-off default (2026-10-09, DEC-024, `feature/face-auth`)
+- **Optional 1:1 face login** — **IMPLEMENTED** behind `FACE_AUTH_ENABLED`
+  (default false; `/auth/face/*` 404s via `FaceRouteGuard`, `GET /config`
+  exposes `{faceAuthEnabled}` and the UI hides all face options):
+  - `backend/app/services/face_service.py` — lazy InsightFace embedder,
+    Fernet-encrypted 512-d templates (never images), fail-closed quality
+    (face count/size/blur/det score), server-side liveness
+    (turn/blink/smile), optional ONNX anti-spoof, `MODEL_MISMATCH` re-enroll
+  - `backend/app/repositories/face_templates.py` — in-memory templates,
+    single-use TTL challenges, TTL rate-limit counters
+  - `backend/app/routers/face_auth.py` — challenge/enroll/login/
+    verify-second-factor/status/template PATCH+DELETE + superadmin revoke;
+    generic 401s; audits (`face.*`) with reason codes, never embeddings
+  - Privileged optional step-up (`requireLogin2fa`, default off): password/
+    Google logins pause with a 5-min `pending_2fa` token; **convenience, not
+    a security control** — lockout falls back to password-only and
+    `complete-pending` completes only an actually-locked-out account (403
+    otherwise). RBAC/`require_role` unchanged (full tokens from face login).
+  - Frontend: flag-gated Password/Face tabs on `/login`, `FaceCapture`
+    component, 2FA step with skip, `/profile` consent/enroll/re-enroll/
+    delete/require-2FA, superadmin "Revoke face", i18n ×11 packs
+  - Env-tunable thresholds: `FACE_TURN_MIN_DEGREES`, `FACE_BLINK_EAR_DROP`,
+    `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`, `FACE_MIN_FACE_PX`
+  - Open follow-ups (TODO §10): real-webcam validation, anti-spoof model
+    provisioning, Mongo persistence for face stores, status/`requireLogin2fa`
+    readback. Optional deps: `backend/requirements-face.txt`
+
 ### AI Modules
 - Working classifiers in `backend/app/services/classification.py` (ported from
   `backend/server.py`) + `frontend/lib/tfidf.ts` —
@@ -152,16 +179,22 @@ memory/        — AI agent persistent memory                                  I
   **DELETED** (Phase 4); superseded by the Next.js admin board
 
 ### Testing
-- `tests/` (9 files, **207 tests**) + `pytest.ini` + `requirements-dev.txt` —
-  **IMPLEMENTED (Phase 6, DEC-012; expanded 2026-10-02 per DEC-016)**:
+- `tests/` (13+ files, **355 tests** incl. 106 face + 15 config-drift) +
+  `pytest.ini` + `requirements-dev.txt` —
+  **IMPLEMENTED (Phase 6, DEC-012; expanded 2026-10-02 per DEC-016; face
+  suite 2026-10-09 per DEC-024)**:
   classifier unit tests incl. the `CATEGORY_KEYS` ↔ `CATEGORIES` contract,
   endpoint tests over `TestClient`, both repository implementations + the
   shared list contract, DEC-014 id-allocation regressions, image-validation
   threshold, classifier cascade under provider outage, config drift across
   `config.py` / both `.env.example` files / `render.yaml`, a **security
-  baseline** that asserts today's insecure behaviour on purpose, and the four
-  conflicting status vocabularies. Mongo tests skip unless `TEST_MONGODB_URI`
-  is reachable — `pytest` is green with **207 passed** (with a local `mongod`)
+  baseline** that asserts today's insecure behaviour on purpose, the four
+  conflicting status vocabularies, and the face-auth suite (synthetic
+  checkerboard frames + a fake detection seam — no camera or model download
+  in CI). Mongo tests skip unless `TEST_MONGODB_URI` is reachable —
+  `pytest` currently runs **333 passed / 22 failed**; the 22 failures are a
+  pre-existing baseline of stale DEC-006/i18n expectations, listed by name in
+  `memory/TODO.md` §11, unrelated to face auth.
 - `frontend/scripts/check-contract.mjs` — **IMPLEMENTED (2026-10-02)**: 18
   offline checks with a stubbed `fetch` — `roleForEmail`/`isAdminEmail`
   (incl. the `BASELINE` substring escalation), the `useMocks()` switch, and the
