@@ -107,6 +107,9 @@ class InMemoryFaceRepository:
             return 0
         return int(entry["count"])
 
+    def rate_counts(self, keys: list[str]) -> dict[str, int]:
+        return {k: self.rate_count(k, 0) for k in keys}
+
     def rate_reset(self, key: str) -> None:
         self._counters.pop(key, None)
 
@@ -125,18 +128,25 @@ class MongoFaceRepository:
 
     def ensure_indexes(self) -> None:
         from pymongo import ASCENDING
+        from pymongo.errors import OperationFailure
 
         self._templates.create_index(
             "userId", unique=True, name="uniq_face_user"
         )
         # TTL indexes: MongoDB's background purge is lazy (~60 s), so every
         # read also checks expiry explicitly.
-        self._challenges.create_index(
-            [("expiresAt", ASCENDING)], name="face_challenge_ttl"
-        )
-        self._counters.create_index(
-            [("windowExpiresAt", ASCENDING)], name="face_rate_ttl"
-        )
+        for coll, key_spec, idx_name in [
+            (self._challenges, [("expiresAt", ASCENDING)], "face_challenge_ttl"),
+            (self._counters, [("windowExpiresAt", ASCENDING)], "face_rate_ttl"),
+        ]:
+            try:
+                coll.create_index(key_spec, name=idx_name, expireAfterSeconds=0)
+            except OperationFailure as exc:
+                if exc.code == 85:  # IndexOptionsConflict
+                    coll.drop_index(idx_name)
+                    coll.create_index(key_spec, name=idx_name, expireAfterSeconds=0)
+                else:
+                    raise
 
     @staticmethod
     def _out(raw: dict | None) -> Optional[dict]:
@@ -199,24 +209,60 @@ class MongoFaceRepository:
     def rate_hit(self, key: str, limit: int, window_seconds: int) -> RateResult:
         now = _now()
         expiry = now + timedelta(seconds=window_seconds)
-        # Start the window when absent; reset it once expired.
-        self._counters.update_one(
-            {"_id": key},
-            {"$setOnInsert": {"count": 0, "windowExpiresAt": expiry}},
-            upsert=True,
-        )
-        self._counters.update_one(
-            {"_id": key, "windowExpiresAt": {"$lte": now}},
-            {"$set": {"count": 0, "windowExpiresAt": expiry}},
-        )
-        # Atomic check-and-increment: only counts while below the limit.
+        from pymongo import ReturnDocument
+
         doc = self._counters.find_one_and_update(
-            {"_id": key, "count": {"$lt": limit}},
-            {"$inc": {"count": 1}},
+            {"_id": key},
+            [
+                {
+                    "$set": {
+                        "windowExpiresAt": {
+                            "$cond": [
+                                {
+                                    "$or": [
+                                        {"$eq": [{"$type": "$windowExpiresAt"}, "missing"]},
+                                        {"$lte": ["$windowExpiresAt", now]},
+                                    ]
+                                },
+                                expiry,
+                                "$windowExpiresAt",
+                            ]
+                        },
+                        "count": {
+                            "$cond": [
+                                {
+                                    "$or": [
+                                        {"$eq": [{"$type": "$count"}, "missing"]},
+                                        {"$lte": ["$windowExpiresAt", now]},
+                                    ]
+                                },
+                                1,
+                                {
+                                    "$cond": [
+                                        {"$gte": ["$count", limit]},
+                                        "$count",
+                                        {"$add": ["$count", 1]},
+                                    ]
+                                },
+                            ]
+                        },
+                    }
+                }
+            ],
+            upsert=True,
+            return_document=ReturnDocument.BEFORE,
         )
         if doc is None:
+            return True, limit - 1
+        exp = doc.get("windowExpiresAt")
+        if isinstance(exp, datetime) and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp is None or now > exp:
+            return True, limit - 1
+        cnt = int(doc.get("count", 0))
+        if cnt >= limit:
             return False, 0
-        return True, limit - (int(doc["count"]) + 1)
+        return True, limit - (cnt + 1)
 
     def rate_count(self, key: str, window_seconds: int) -> int:
         doc = self._counters.find_one({"_id": key})
@@ -229,6 +275,21 @@ class MongoFaceRepository:
             if _now() > expires_at:
                 return 0
         return int(doc.get("count", 0))
+
+    def rate_counts(self, keys: list[str]) -> dict[str, int]:
+        now = _now()
+        cursor = self._counters.find({"_id": {"$in": keys}})
+        counts: dict[str, int] = {k: 0 for k in keys}
+        for doc in cursor:
+            k = doc.get("_id")
+            exp = doc.get("windowExpiresAt")
+            if isinstance(exp, datetime):
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if now > exp:
+                    continue
+            counts[k] = int(doc.get("count", 0))
+        return counts
 
     def rate_reset(self, key: str) -> None:
         self._counters.delete_one({"_id": key})

@@ -1250,6 +1250,18 @@ class TestFaceService:
         assert out.min_pair_similarity == pytest.approx(1.0)
         assert float(np.linalg.norm(out.embedding)) == pytest.approx(1.0, abs=1e-5)
 
+    def test_verify_frames_three_frame_embedding_path(self, monkeypatch):
+        detector = FakeDetector()
+        embedder = FakeEmbedder()
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        monkeypatch.setattr(face_service, "_real_embed", embedder)
+        satisfy("turn_left", detector)
+        out = face_service.verify_frames(_frame_bytes(5), "turn_left")
+        assert out.frame_count == 3
+        assert len(embedder.calls) == 3
+        # In turn_left, yaws are [0, 12, 24, 36, 48]. Smallest |yaw| are indices 0, 1, 2.
+        assert embedder.calls == [0, 1, 2]
+
     def test_verify_frames_rejects_count_before_decoding(self):
         with pytest.raises(FaceAuthError) as exc:
             face_service.verify_frames([b"junk"] * 4, None)
@@ -1280,6 +1292,26 @@ class TestFaceService:
             face_service.verify_frames([_solid_jpeg()] + _frame_bytes(4), None)
         assert exc.value.code == "FACE_BLURRY"
 
+    def test_verify_frames_tolerates_one_failed_frame_out_of_six(self, monkeypatch):
+        detector = FakeDetector()
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        # 1 blurry frame + 5 valid frames = 6 frames total (tolerated)
+        verified = face_service.verify_frames([_solid_jpeg()] + _frame_bytes(5), None)
+        assert verified.frame_count == 3
+
+    def test_verify_frames_rejects_two_failed_frames_out_of_six(self, monkeypatch):
+        detector = FakeDetector()
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        # 2 blurry frames + 4 valid frames = 6 frames total (only 4 pass, so rejected)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.verify_frames([_solid_jpeg(), _solid_jpeg()] + _frame_bytes(4), None)
+        assert exc.value.code == "FACE_BLURRY"
+
+    def test_verify_frames_rejects_fewer_than_five_frames(self):
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.verify_frames(_frame_bytes(4), None)
+        assert exc.value.code == "FRAME_COUNT"
+
     def test_consistency_threshold_is_used_and_tunable(self, monkeypatch):
         v1 = np.zeros(512, dtype=np.float32)
         v1[0] = 1.0
@@ -1288,14 +1320,12 @@ class TestFaceService:
         v2[1] = np.sqrt(1.0 - 0.35**2)
 
         detector = FakeDetector()
+        monkeypatch.setattr(face_service, "_real_detections", detector)
         calls = [0]
-        def fake_dets(img):
-            dets = detector(img)
+        def embed_fn(img, det):
             calls[0] += 1
-            for d in dets:
-                d.embedding = v1 if calls[0] <= 1 else v2
-            return dets
-        monkeypatch.setattr(face_service, "_real_detections", fake_dets)
+            return v1 if calls[0] == 1 else v2
+        monkeypatch.setattr(face_service, "_real_embed", embed_fn)
 
         # Under default FACE_CONSISTENCY_THRESHOLD=0.30, 0.35 passes (even though FACE_MATCH_THRESHOLD=0.45)
         monkeypatch.setattr(config, "FACE_CONSISTENCY_THRESHOLD", 0.30)
@@ -1330,6 +1360,13 @@ class TestFaceRepository:
         ch = repo.create_challenge("smile", 30)
         repo._challenges[ch["id"]]["expiresAt"] = datetime.now(timezone.utc) - timedelta(seconds=1)
         assert repo.consume_challenge(ch["id"]) == (None, "expired")
+
+    def test_rate_counts(self, repo):
+        repo.rate_hit("k1", 5, 900)
+        repo.rate_hit("k1", 5, 900)
+        repo.rate_hit("k2", 5, 900)
+        counts = repo.rate_counts(["k1", "k2", "k3"])
+        assert counts == {"k1": 2, "k2": 1, "k3": 0}
 
     def test_rate_limit_counts_to_limit_then_blocks(self, repo):
         key = "face:fail:user:u1"

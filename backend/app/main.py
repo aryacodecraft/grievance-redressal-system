@@ -8,6 +8,7 @@ Run from the repo root:
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -108,6 +109,10 @@ class FaceRouteGuard:
             if not message.get("more_body", False):
                 break
 
+        scope.setdefault("state", {})
+        scope["state"]["request_t0"] = time.perf_counter()
+        scope["state"]["body_bytes_len"] = len(body)
+
         replayed = False
 
         async def replay():
@@ -202,6 +207,33 @@ def _validate_face_auth() -> None:
     from .services.face_service import validate_embed_key
 
     validate_embed_key()
+
+
+@app.on_event("startup")
+def _warmup_face_auth() -> None:
+    """Preload the face model in a background thread when enabled (DEC-024).
+
+    Avoids latency spikes on the first user request while preserving the lazy
+    fallback if warmup fails or is still finishing.
+    """
+    from . import config as _config
+
+    if not _config.FACE_AUTH_ENABLED:
+        return
+
+    import threading
+    from .services.face_service import _get_analyzer
+
+    def _warmup() -> None:
+        try:
+            logger.info("Preloading face model in background thread: %s", _config.FACE_MODEL_NAME)
+            _get_analyzer()
+            logger.info("Face model background preload complete: %s", _config.FACE_MODEL_NAME)
+        except Exception:
+            logger.exception("Face model background preload failed; lazy fallback active")
+
+    t = threading.Thread(target=_warmup, name="face-model-warmup", daemon=True)
+    t.start()
 
 
 @app.on_event("startup")

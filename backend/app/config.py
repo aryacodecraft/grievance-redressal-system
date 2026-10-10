@@ -103,6 +103,8 @@ FACE_BLINK_EAR_DROP = float(os.getenv("FACE_BLINK_EAR_DROP", "0.7"))
 FACE_SMILE_MOUTH_WIDEN = float(os.getenv("FACE_SMILE_MOUTH_WIDEN", "1.08"))
 FACE_MIN_BLUR_VARIANCE = float(os.getenv("FACE_MIN_BLUR_VARIANCE", "30.0"))
 FACE_MIN_FACE_PX = int(os.getenv("FACE_MIN_FACE_PX", "80"))
+# Input size for the SCRFD detector (square; min 320 for speed).
+FACE_DET_SIZE = max(320, int(os.getenv("FACE_DET_SIZE", "320")))
 # Local debug metrics logged per attempt (local only; never logs embeddings).
 FACE_DEBUG = os.getenv("FACE_DEBUG", "false").lower() == "true"
 

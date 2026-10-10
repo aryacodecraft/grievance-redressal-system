@@ -39,6 +39,7 @@ import base64
 import logging
 import math
 import secrets
+import time
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -61,6 +62,9 @@ from ..services.face_service import (
     USER_FAIL_LIMIT,
     VALID_ACTIONS,
     FaceAuthError,
+    FaceTiming,
+    _CURRENT_B64_TIME,
+    _CURRENT_TIMING,
 )
 from ..users_db import users_repository
 from .auth import PRIVILEGED_ROLES, _token_response
@@ -84,6 +88,7 @@ class FaceFramesRequest(BaseModel):
     @field_validator("frames", mode="before")
     @classmethod
     def _decode_frames(cls, value):
+        t0 = time.perf_counter()
         if not isinstance(value, list):
             return value
         decoded: list[bytes] = []
@@ -99,6 +104,7 @@ class FaceFramesRequest(BaseModel):
             if len(raw) > MAX_FRAME_BYTES:
                 raise ValueError("frame exceeds 1 MB")
             decoded.append(raw)
+        _CURRENT_B64_TIME.set((time.perf_counter() - t0) * 1000)
         return decoded
 
 
@@ -147,11 +153,21 @@ def _user_key(user_id: str) -> str:
 
 
 def _ip_locked(ip: str) -> bool:
-    return face_repository.rate_count(_ip_key(ip), RATE_WINDOW_SECONDS) >= IP_FAIL_LIMIT
+    t0 = time.perf_counter()
+    res = face_repository.rate_count(_ip_key(ip), RATE_WINDOW_SECONDS) >= IP_FAIL_LIMIT
+    timing = _CURRENT_TIMING.get()
+    if timing is not None:
+        timing.db_ratelimit_ms += (time.perf_counter() - t0) * 1000
+    return res
 
 
 def _email_locked(email: str) -> bool:
-    return face_repository.rate_count(_email_key(email), RATE_WINDOW_SECONDS) >= USER_FAIL_LIMIT
+    t0 = time.perf_counter()
+    res = face_repository.rate_count(_email_key(email), RATE_WINDOW_SECONDS) >= USER_FAIL_LIMIT
+    timing = _CURRENT_TIMING.get()
+    if timing is not None:
+        timing.db_ratelimit_ms += (time.perf_counter() - t0) * 1000
+    return res
 
 
 def _score_bucket(score: float) -> str:
@@ -188,12 +204,20 @@ def _audit_entry(
         entry["old"] = old
     if new is not None:
         entry["new"] = new
+    t0 = time.perf_counter()
     audit_repository.append(entry)
+    timing = _CURRENT_TIMING.get()
+    if timing is not None:
+        timing.db_audit_ms += (time.perf_counter() - t0) * 1000
 
 
 def _bump(key: str, limit: int, *, actor_id: str, actor_role: str, label: str, ip: str) -> None:
     """Record one failure against *key*; audit the lockout at the boundary."""
+    t0 = time.perf_counter()
     allowed, remaining = face_repository.rate_hit(key, limit, RATE_WINDOW_SECONDS)
+    timing = _CURRENT_TIMING.get()
+    if timing is not None:
+        timing.db_ratelimit_ms += (time.perf_counter() - t0) * 1000
     if allowed and remaining == 0:
         _audit_entry(
             "face.lockout",
@@ -299,143 +323,204 @@ def enroll_face(
     request: Request,
     current: Annotated[dict, Depends(get_current_user)],
 ):
-    """Store the caller's face template (consent required, re-enroll = replace).
+    """Enroll a new biometric template for the currently authenticated caller.
 
     Failures here answer with specific 400 messages: the caller is already
     authenticated, so there is no account oracle to protect.
     """
-    ip = _client_ip(request)
-    if _ip_locked(ip):
-        raise _locked_429()
-    if not payload.consent:
-        raise HTTPException(
-            status_code=400, detail="Face data consent is required to enroll a face template"
-        )
-
-    action, reason = face_repository.consume_challenge(payload.challenge_id)
-    if action is None:
-        _audit_entry(
-            "face.enroll_failed",
-            actor_id=current["user_id"],
-            actor_role=current["role"],
-            entity_id=current["user_id"],
-            reason=f"challenge_{reason}",
-            ip=ip,
-        )
-        raise HTTPException(status_code=400, detail="Challenge is invalid, expired, or already used")
-
-    try:
-        verified = face_service.verify_frames(payload.frames, action)
-    except FaceAuthError as exc:
-        _audit_entry(
-            "face.enroll_failed",
-            actor_id=current["user_id"],
-            actor_role=current["role"],
-            entity_id=current["user_id"],
-            reason=exc.code,
-            ip=ip,
-        )
-        raise HTTPException(status_code=400, detail=exc.message)
-
-    try:
-        encrypted = face_service.encrypt_embedding(verified.embedding)
-    except FaceAuthError as exc:
-        logger.error("face embedding encryption failed: %s", exc.code)
-        _audit_entry(
-            "face.enroll_failed",
-            actor_id=current["user_id"],
-            actor_role=current["role"],
-            entity_id=current["user_id"],
-            reason=exc.code,
-            ip=ip,
-        )
-        raise HTTPException(status_code=500, detail="Face service is unavailable")
-
-    face_repository.upsert_template(current["user_id"], {
-        "encryptedEmbedding": encrypted,
-        "modelName": config.FACE_MODEL_NAME,
-        "frameCount": verified.frame_count,
-        "consentAt": datetime.now(timezone.utc).isoformat(),
-        # The optional 2FA step only exists for privileged accounts (DEC-024).
-        "requireLogin2fa": bool(
-            payload.require_login_2fa and current["role"] in PRIVILEGED_ROLES
-        ),
-    })
-    _audit_entry(
-        "face.enrolled",
-        actor_id=current["user_id"],
-        actor_role=current["role"],
-        entity_id=current["user_id"],
-        reason="consent granted",
-        ip=ip,
+    t_enter = time.perf_counter()
+    req_t0 = getattr(request.state, "request_t0", t_enter)
+    body_len = getattr(request.state, "body_bytes_len", 0)
+    b64_ms = _CURRENT_B64_TIME.get() or 0.0
+    json_ms = max(0.0, (t_enter - req_t0) * 1000 - b64_ms)
+    timing = FaceTiming(
+        request_t0=req_t0,
+        body_size_kb=body_len / 1024.0,
+        json_parse_ms=json_ms,
+        base64_decode_ms=b64_ms,
     )
-    return {"enrolled": True}
+    token = _CURRENT_TIMING.set(timing)
+    try:
+        ip = _client_ip(request)
+        if _ip_locked(ip):
+            raise _locked_429()
+        if not payload.consent:
+            raise HTTPException(
+                status_code=400, detail="Face data consent is required to enroll a face template"
+            )
+
+        t_ch0 = time.perf_counter()
+        action, reason = face_repository.consume_challenge(payload.challenge_id)
+        timing.db_challenge_ms += (time.perf_counter() - t_ch0) * 1000
+        if action is None:
+            _audit_entry(
+                "face.enroll_failed",
+                actor_id=current["user_id"],
+                actor_role=current["role"],
+                entity_id=current["user_id"],
+                reason=f"challenge_{reason}",
+                ip=ip,
+            )
+            raise HTTPException(status_code=400, detail="Challenge is invalid, expired, or already used")
+
+        t_tm0 = time.perf_counter()
+        template = face_repository.get_template(current["user_id"])
+        timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+        try:
+            verified = face_service.verify_frames(
+                payload.frames, action, template=template, op="enroll"
+            )
+        except FaceAuthError as exc:
+            _audit_entry(
+                "face.enroll_failed",
+                actor_id=current["user_id"],
+                actor_role=current["role"],
+                entity_id=current["user_id"],
+                reason=exc.code,
+                ip=ip,
+            )
+            raise HTTPException(status_code=400, detail=exc.message)
+
+        try:
+            encrypted = face_service.encrypt_embedding(verified.embedding)
+        except FaceAuthError as exc:
+            logger.error("face embedding encryption failed: %s", exc.code)
+            _audit_entry(
+                "face.enroll_failed",
+                actor_id=current["user_id"],
+                actor_role=current["role"],
+                entity_id=current["user_id"],
+                reason=exc.code,
+                ip=ip,
+            )
+            raise HTTPException(status_code=500, detail="Face service is unavailable")
+
+        t_tm0 = time.perf_counter()
+        face_repository.upsert_template(current["user_id"], {
+            "encryptedEmbedding": encrypted,
+            "modelName": config.FACE_MODEL_NAME,
+            "frameCount": verified.frame_count,
+            "consentAt": datetime.now(timezone.utc).isoformat(),
+            # The optional 2FA step only exists for privileged accounts (DEC-024).
+            "requireLogin2fa": bool(
+                payload.require_login_2fa and current["role"] in PRIVILEGED_ROLES
+            ),
+        })
+        timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+        _audit_entry(
+            "face.enrolled",
+            actor_id=current["user_id"],
+            actor_role=current["role"],
+            entity_id=current["user_id"],
+            reason="consent granted",
+            ip=ip,
+        )
+        return {"enrolled": True}
+    finally:
+        timing.total_ms = (time.perf_counter() - timing.request_t0) * 1000
+        if config.FACE_DEBUG:
+            timing.log()
+        _CURRENT_TIMING.reset(token)
 
 
 @router.post("/login")
 def face_login(payload: FaceLoginRequest, request: Request):
-    """1:1 email + face sign-in for USER/RESOLVER accounts.
+    """1:1 face authentication for citizen (USER) accounts.
 
-    Always the generic 401 on failure; the frame pipeline runs before the
+    Fails closed on any issue. Every non-lockout failure returns the same
+    generic 401 with identical response body, after executing the same
     account-specific branches so known and unknown emails take the same
     expensive path (timing-shape anti-enumeration).
     """
-    ip = _client_ip(request)
-    if _ip_locked(ip):
-        raise _locked_429()
-    email = payload.email
-    subject = users_repository.find_by_email(email)
-    if subject is not None and subject.get("role") in ORDINARY_ROLES and _email_locked(email):
-        raise _locked_429()
-
-    action, reason = face_repository.consume_challenge(payload.challenge_id)
-    if action is None:
-        _fail_login(ip=ip, email=email, subject=subject, reason=f"challenge_{reason}")
-        raise _generic_401()
-    try:
-        verified = face_service.verify_frames(payload.frames, action)
-    except FaceAuthError as exc:
-        _fail_login(ip=ip, email=email, subject=subject, reason=exc.code)
-        raise _generic_401()
-
-    if subject is None:
-        _fail_login(ip=ip, email=email, subject=None, reason="unknown_user")
-        raise _generic_401()
-    if subject.get("role") in PRIVILEGED_ROLES:
-        _fail_login(ip=ip, email=email, subject=subject, reason="privileged_signin_denied")
-        raise _generic_401()
-    template = face_repository.get_template(subject["id"])
-    if template is None:
-        _fail_login(ip=ip, email=email, subject=subject, reason="not_enrolled")
-        raise _generic_401()
-    try:
-        score = face_service.similarity_to_template(template, verified)
-    except FaceAuthError as exc:
-        # MODEL_MISMATCH means the server-side model pack changed since
-        # enrollment — re-enroll, not lockout: audit but never count it.
-        _fail_login(
-            ip=ip,
-            email=email,
-            subject=subject,
-            reason=exc.code,
-            count=exc.code != "MODEL_MISMATCH",
-        )
-        raise _generic_401()
-    if score < config.FACE_MATCH_THRESHOLD:
-        _fail_login(ip=ip, email=email, subject=subject, reason="below_threshold", score=score)
-        raise _generic_401()
-
-    face_repository.rate_reset(_email_key(email))
-    _audit_entry(
-        "face.login_success",
-        actor_id=subject["id"],
-        actor_role=subject.get("role", ""),
-        entity_id=subject["id"],
-        reason="1:1 match",
-        ip=ip,
-        score=score,
+    t_enter = time.perf_counter()
+    req_t0 = getattr(request.state, "request_t0", t_enter)
+    body_len = getattr(request.state, "body_bytes_len", 0)
+    b64_ms = _CURRENT_B64_TIME.get() or 0.0
+    json_ms = max(0.0, (t_enter - req_t0) * 1000 - b64_ms)
+    timing = FaceTiming(
+        request_t0=req_t0,
+        body_size_kb=body_len / 1024.0,
+        json_parse_ms=json_ms,
+        base64_decode_ms=b64_ms,
     )
-    return _token_response(subject)
+    token = _CURRENT_TIMING.set(timing)
+    try:
+        ip = _client_ip(request)
+        email = payload.email
+        subject = users_repository.find_by_email(email)
+        keys_to_check = [_ip_key(ip)]
+        if subject is not None and subject.get("role") in ORDINARY_ROLES:
+            keys_to_check.append(_email_key(email))
+        t_rl0 = time.perf_counter()
+        counts = face_repository.rate_counts(keys_to_check)
+        timing.db_ratelimit_ms += (time.perf_counter() - t_rl0) * 1000
+        if counts.get(_ip_key(ip), 0) >= IP_FAIL_LIMIT:
+            raise _locked_429()
+        if counts.get(_email_key(email), 0) >= USER_FAIL_LIMIT:
+            raise _locked_429()
+
+        t_ch0 = time.perf_counter()
+        action, reason = face_repository.consume_challenge(payload.challenge_id)
+        timing.db_challenge_ms += (time.perf_counter() - t_ch0) * 1000
+        if action is None:
+            _fail_login(ip=ip, email=email, subject=subject, reason=f"challenge_{reason}")
+            raise _generic_401()
+
+        t_tm0 = time.perf_counter()
+        template = face_repository.get_template(subject["id"]) if subject else None
+        timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+        try:
+            verified = face_service.verify_frames(
+                payload.frames, action, template=template, op="login"
+            )
+        except FaceAuthError as exc:
+            _fail_login(ip=ip, email=email, subject=subject, reason=exc.code)
+            raise _generic_401()
+
+        if subject is None:
+            _fail_login(ip=ip, email=email, subject=None, reason="unknown_user")
+            raise _generic_401()
+        if subject.get("role") in PRIVILEGED_ROLES:
+            _fail_login(ip=ip, email=email, subject=subject, reason="privileged_signin_denied")
+            raise _generic_401()
+        if template is None:
+            _fail_login(ip=ip, email=email, subject=subject, reason="not_enrolled")
+            raise _generic_401()
+        try:
+            score = face_service.similarity_to_template(template, verified)
+        except FaceAuthError as exc:
+            # MODEL_MISMATCH means the server-side model pack changed since
+            # enrollment — re-enroll, not lockout: audit but never count it.
+            _fail_login(
+                ip=ip,
+                email=email,
+                subject=subject,
+                reason=exc.code,
+                count=exc.code != "MODEL_MISMATCH",
+            )
+            raise _generic_401()
+        if score < config.FACE_MATCH_THRESHOLD:
+            _fail_login(ip=ip, email=email, subject=subject, reason="below_threshold", score=score)
+            raise _generic_401()
+
+        t_r0 = time.perf_counter()
+        face_repository.rate_reset(_email_key(email))
+        timing.db_ratelimit_ms += (time.perf_counter() - t_r0) * 1000
+        _audit_entry(
+            "face.login_success",
+            actor_id=subject["id"],
+            actor_role=subject.get("role", ""),
+            entity_id=subject["id"],
+            reason="1:1 match",
+            ip=ip,
+            score=score,
+        )
+        return _token_response(subject)
+    finally:
+        timing.total_ms = (time.perf_counter() - timing.request_t0) * 1000
+        if config.FACE_DEBUG:
+            timing.log()
+        _CURRENT_TIMING.reset(token)
 
 
 @router.post("/verify-second-factor")
@@ -451,62 +536,91 @@ def verify_second_factor(
     counter. Success exchanges the pending token for the full token pair -
     identical shape to a password login, so RBAC is untouched.
     """
-    ip = _client_ip(request)
-    if pending["role"] not in PRIVILEGED_ROLES:
-        # Pending tokens are only minted for privileged accounts - fail closed.
-        raise _generic_401()
-    user_id = pending["user_id"]
-    role = pending["role"]
-    if face_repository.rate_count(_user_key(user_id), RATE_WINDOW_SECONDS) >= USER_FAIL_LIMIT:
-        raise _locked_429()
-
-    action, reason = face_repository.consume_challenge(payload.challenge_id)
-    if action is None:
-        _fail_verify(user_id=user_id, role=role, ip=ip, reason=f"challenge_{reason}")
-        raise _generic_401()
-    try:
-        verified = face_service.verify_frames(payload.frames, action)
-    except FaceAuthError as exc:
-        _fail_verify(user_id=user_id, role=role, ip=ip, reason=exc.code)
-        raise _generic_401()
-
-    user = users_repository.get(user_id)
-    if user is None:
-        _fail_verify(user_id=user_id, role=role, ip=ip, reason="user_missing")
-        raise _generic_401()
-    template = face_repository.get_template(user_id)
-    if template is None:
-        _fail_verify(user_id=user_id, role=role, ip=ip, reason="not_enrolled")
-        raise _generic_401()
-    try:
-        score = face_service.similarity_to_template(template, verified)
-    except FaceAuthError as exc:
-        # MODEL_MISMATCH means the server-side model pack changed since
-        # enrollment — re-enroll, not lockout: audit but never count it.
-        _fail_verify(
-            user_id=user_id,
-            role=role,
-            ip=ip,
-            reason=exc.code,
-            count=exc.code != "MODEL_MISMATCH",
-        )
-        raise _generic_401()
-    if score < config.FACE_MATCH_THRESHOLD:
-        _fail_verify(user_id=user_id, role=role, ip=ip, reason="below_threshold", score=score)
-        raise _generic_401()
-
-    face_repository.rate_reset(_user_key(user_id))
-    _audit_entry(
-        "face.verify_success",
-        actor_id=user_id,
-        actor_role=role,
-        entity_id=user_id,
-        reason="1:1 match",
-        ip=ip,
-        score=score,
+    t_enter = time.perf_counter()
+    req_t0 = getattr(request.state, "request_t0", t_enter)
+    body_len = getattr(request.state, "body_bytes_len", 0)
+    b64_ms = _CURRENT_B64_TIME.get() or 0.0
+    json_ms = max(0.0, (t_enter - req_t0) * 1000 - b64_ms)
+    timing = FaceTiming(
+        request_t0=req_t0,
+        body_size_kb=body_len / 1024.0,
+        json_parse_ms=json_ms,
+        base64_decode_ms=b64_ms,
     )
-    return _token_response(user)
+    token = _CURRENT_TIMING.set(timing)
+    try:
+        ip = _client_ip(request)
+        if pending["role"] not in PRIVILEGED_ROLES:
+            # Pending tokens are only minted for privileged accounts - fail closed.
+            raise _generic_401()
+        user_id = pending["user_id"]
+        role = pending["role"]
+        t_r0 = time.perf_counter()
+        if face_repository.rate_count(_user_key(user_id), RATE_WINDOW_SECONDS) >= USER_FAIL_LIMIT:
+            timing.db_ratelimit_ms += (time.perf_counter() - t_r0) * 1000
+            raise _locked_429()
+        timing.db_ratelimit_ms += (time.perf_counter() - t_r0) * 1000
 
+        t_ch0 = time.perf_counter()
+        action, reason = face_repository.consume_challenge(payload.challenge_id)
+        timing.db_challenge_ms += (time.perf_counter() - t_ch0) * 1000
+        if action is None:
+            _fail_verify(user_id=user_id, role=role, ip=ip, reason=f"challenge_{reason}")
+            raise _generic_401()
+
+        t_tm0 = time.perf_counter()
+        template = face_repository.get_template(user_id)
+        timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+        try:
+            verified = face_service.verify_frames(
+                payload.frames, action, template=template, op="verify"
+            )
+        except FaceAuthError as exc:
+            _fail_verify(user_id=user_id, role=role, ip=ip, reason=exc.code)
+            raise _generic_401()
+
+        user = users_repository.get(user_id)
+        if user is None:
+            _fail_verify(user_id=user_id, role=role, ip=ip, reason="user_missing")
+            raise _generic_401()
+        if template is None:
+            _fail_verify(user_id=user_id, role=role, ip=ip, reason="not_enrolled")
+            raise _generic_401()
+        try:
+            score = face_service.similarity_to_template(template, verified)
+        except FaceAuthError as exc:
+            # MODEL_MISMATCH means the server-side model pack changed since
+            # enrollment — re-enroll, not lockout: audit but never count it.
+            _fail_verify(
+                user_id=user_id,
+                role=role,
+                ip=ip,
+                reason=exc.code,
+                count=exc.code != "MODEL_MISMATCH",
+            )
+            raise _generic_401()
+        if score < config.FACE_MATCH_THRESHOLD:
+            _fail_verify(user_id=user_id, role=role, ip=ip, reason="below_threshold", score=score)
+            raise _generic_401()
+
+        t_r0 = time.perf_counter()
+        face_repository.rate_reset(_user_key(user_id))
+        timing.db_ratelimit_ms += (time.perf_counter() - t_r0) * 1000
+        _audit_entry(
+            "face.verify_success",
+            actor_id=user_id,
+            actor_role=role,
+            entity_id=user_id,
+            reason="1:1 match",
+            ip=ip,
+            score=score,
+        )
+        return _token_response(user)
+    finally:
+        timing.total_ms = (time.perf_counter() - timing.request_t0) * 1000
+        if config.FACE_DEBUG:
+            timing.log()
+        _CURRENT_TIMING.reset(token)
 @router.get("/status")
 def face_status(current: Annotated[dict, Depends(get_current_user)]):
     """Whether the caller has a stored face template."""

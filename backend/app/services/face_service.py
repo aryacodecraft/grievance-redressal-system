@@ -21,16 +21,64 @@ right and yields a positive yaw net change.
 
 from __future__ import annotations
 
+import contextvars
 import io
 import logging
 import math
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from .. import config
 
 logger = logging.getLogger("grievance-api")
+
+@dataclass
+class FaceTiming:
+    request_t0: float = field(default_factory=time.perf_counter)
+    body_size_kb: float = 0.0
+    json_parse_ms: float = 0.0
+    base64_decode_ms: float = 0.0
+    jpeg_decode_ms: float = 0.0
+    detection_ms: float = 0.0
+    landmarks_ms: float = 0.0
+    embedding_ms: float = 0.0
+    liveness_ms: float = 0.0
+    db_challenge_ms: float = 0.0
+    db_ratelimit_ms: float = 0.0
+    db_template_ms: float = 0.0
+    db_audit_ms: float = 0.0
+    total_ms: float = 0.0
+
+    def log(self):
+        logger.info(
+            "[FACE_TIMING] body_size_kb=%.1f, json_parse_ms=%.1f, base64_decode_ms=%.1f, "
+            "jpeg_decode_ms=%.1f, detection_ms=%.1f, landmarks_ms=%.1f, embedding_ms=%.1f, "
+            "liveness_ms=%.1f, db_ms=(challenge=%.1f, ratelimit=%.1f, template=%.1f, audit=%.1f), "
+            "total_ms=%.1f",
+            self.body_size_kb,
+            self.json_parse_ms,
+            self.base64_decode_ms,
+            self.jpeg_decode_ms,
+            self.detection_ms,
+            self.landmarks_ms,
+            self.embedding_ms,
+            self.liveness_ms,
+            self.db_challenge_ms,
+            self.db_ratelimit_ms,
+            self.db_template_ms,
+            self.db_audit_ms,
+            self.total_ms,
+        )
+
+
+_CURRENT_TIMING: contextvars.ContextVar[FaceTiming | None] = contextvars.ContextVar(
+    "current_face_timing", default=None
+)
+_CURRENT_B64_TIME: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "current_b64_time", default=0.0
+)
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -83,6 +131,7 @@ class Detection:
     yaw_degrees: float | None = None  # from the 5-point kps
     eye_aspect: float | None = None  # from 2d106 landmarks (None = unavailable)
     mouth_width: float | None = None  # mouth corner distance / interocular
+    kps: np.ndarray | None = None
 
 
 @dataclass
@@ -175,25 +224,31 @@ def validate_embed_key() -> None:
 
 def decode_frame(jpeg: bytes) -> np.ndarray:
     """Base64-decoded JPEG bytes → RGB uint8 array. Fails closed."""
-    if not jpeg:
-        raise FaceAuthError("IMAGE_INVALID", "empty frame")
-    if len(jpeg) > MAX_FRAME_BYTES:
-        raise FaceAuthError("FRAME_TOO_LARGE", "frame exceeds 1 MB")
-    if not jpeg.startswith(b"\xff\xd8"):
-        raise FaceAuthError("IMAGE_INVALID", "frame is not a JPEG")
-    from PIL import Image
-
+    t0 = time.perf_counter()
     try:
-        with Image.open(io.BytesIO(jpeg)) as img:
-            rgb = img.convert("RGB")
-            arr = np.asarray(rgb)
-    except FaceAuthError:
-        raise
-    except Exception as exc:
-        raise FaceAuthError("IMAGE_INVALID", "frame could not be decoded") from exc
-    if arr.ndim != 3 or arr.shape[2] != 3 or arr.size == 0:
-        raise FaceAuthError("IMAGE_INVALID", "frame decoded to an empty image")
-    return arr
+        if not jpeg:
+            raise FaceAuthError("IMAGE_INVALID", "empty frame")
+        if len(jpeg) > MAX_FRAME_BYTES:
+            raise FaceAuthError("FRAME_TOO_LARGE", "frame exceeds 1 MB")
+        if not jpeg.startswith(b"\xff\xd8"):
+            raise FaceAuthError("IMAGE_INVALID", "frame is not a JPEG")
+        from PIL import Image
+
+        try:
+            with Image.open(io.BytesIO(jpeg)) as img:
+                rgb = img.convert("RGB")
+                arr = np.asarray(rgb)
+        except FaceAuthError:
+            raise
+        except Exception as exc:
+            raise FaceAuthError("IMAGE_INVALID", "frame could not be decoded") from exc
+        if arr.ndim != 3 or arr.shape[2] != 3 or arr.size == 0:
+            raise FaceAuthError("IMAGE_INVALID", "frame decoded to an empty image")
+        return arr
+    finally:
+        timing = _CURRENT_TIMING.get()
+        if timing is not None:
+            timing.jpeg_decode_ms += (time.perf_counter() - t0) * 1000
 
 
 def laplacian_variance(gray: np.ndarray) -> float:
@@ -207,7 +262,7 @@ def laplacian_variance(gray: np.ndarray) -> float:
     return float(lap.var())
 
 
-def select_single_face(detections: list[Detection]) -> Detection:
+def select_single_face(detections: list[Detection], *, require_embedding: bool = True) -> Detection:
     """Exactly one sufficiently large, confident face — 0 or 2+ reject."""
     if len(detections) != 1:
         raise FaceAuthError("FACE_COUNT", f"expected 1 face, found {len(detections)}")
@@ -217,7 +272,7 @@ def select_single_face(detections: list[Detection]) -> Detection:
     x1, y1, x2, y2 = det.bbox
     if (x2 - x1) < config.FACE_MIN_FACE_PX or (y2 - y1) < config.FACE_MIN_FACE_PX:
         raise FaceAuthError("FACE_TOO_SMALL", "face too small in frame")
-    if det.embedding is None:
+    if require_embedding and det.embedding is None:
         raise FaceAuthError("DETECTION_FAILED", "no embedding for detected face")
     return det
 
@@ -281,50 +336,54 @@ def eye_aspect_from_landmarks(landmarks, kps) -> float | None:
 
 def check_action(action: str, detections: list[Detection]) -> None:
     """Verify the head-pose/landmark trace matches the challenge action."""
-    if action not in VALID_ACTIONS:
-        raise FaceAuthError("LIVENESS_FAILED", "unknown challenge action")
-    if len(detections) < 3:
-        raise FaceAuthError("LIVENESS_FAILED", "not enough frames for liveness")
+    t0 = time.perf_counter()
+    try:
+        if action not in VALID_ACTIONS:
+            raise FaceAuthError("LIVENESS_FAILED", "unknown challenge action")
+        if len(detections) < 3:
+            raise FaceAuthError("LIVENESS_FAILED", "not enough frames for liveness")
 
-    if action in ("turn_left", "turn_right"):
-        yaws = [d.yaw_degrees for d in detections]
-        if any(y is None for y in yaws):
-            raise FaceAuthError("LANDMARKS_UNAVAILABLE", "pose estimates missing")
-        net = yaws[-1] - yaws[0]
-        signed_net = net if action == "turn_left" else -net
-        if signed_net < config.FACE_TURN_MIN_DEGREES:
-            raise FaceAuthError("LIVENESS_FAILED", "head turn too small")
-        direction = 1.0 if signed_net > 0 else -1.0
-        deltas = [b - a for a, b in zip(yaws, yaws[1:])]
-        agreeing = sum(
-            1
-            for delta in deltas
-            if (delta if action == "turn_left" else -delta) * direction >= -TURN_DIRECTION_JITTER
-        )
-        if agreeing < math.ceil(TURN_AGREE_RATIO * len(deltas)):
-            raise FaceAuthError("LIVENESS_FAILED", "head turn direction inconsistent")
+        if action in ("turn_left", "turn_right"):
+            yaws = [d.yaw_degrees for d in detections]
+            if any(y is None for y in yaws):
+                raise FaceAuthError("LANDMARKS_UNAVAILABLE", "pose estimates missing")
+            net = yaws[-1] - yaws[0]
+            signed_net = net if action == "turn_left" else -net
+            if signed_net < config.FACE_TURN_MIN_DEGREES:
+                raise FaceAuthError("LIVENESS_FAILED", "head turn too small")
+            direction = 1.0 if signed_net > 0 else -1.0
+            deltas = [b - a for a, b in zip(yaws, yaws[1:])]
+            agreeing = sum(
+                1
+                for delta in deltas
+                if (delta if action == "turn_left" else -delta) * direction >= -TURN_DIRECTION_JITTER
+            )
+            if agreeing < math.ceil(TURN_AGREE_RATIO * len(deltas)):
+                raise FaceAuthError("LIVENESS_FAILED", "head turn direction inconsistent")
 
-    elif action == "blink":
-        ears = [d.eye_aspect for d in detections]
-        if any(e is None for e in ears):
-            raise FaceAuthError("LANDMARKS_UNAVAILABLE", "eye landmarks unavailable")
-        edge = min(ears[0], ears[-1])
-        mid = min(ears[1:-1])
-        if edge < MIN_OPEN_EAR:
-            raise FaceAuthError("LIVENESS_FAILED", "eyes not open at frame edges")
-        if mid > config.FACE_BLINK_EAR_DROP * edge:
-            raise FaceAuthError("LIVENESS_FAILED", "no blink observed")
+        elif action == "blink":
+            ears = [d.eye_aspect for d in detections]
+            if any(e is None for e in ears):
+                raise FaceAuthError("LANDMARKS_UNAVAILABLE", "eye landmarks unavailable")
+            edge = min(ears[0], ears[-1])
+            mid = min(ears[1:-1])
+            if edge < MIN_OPEN_EAR:
+                raise FaceAuthError("LIVENESS_FAILED", "eyes not open at frame edges")
+            if mid > config.FACE_BLINK_EAR_DROP * edge:
+                raise FaceAuthError("LIVENESS_FAILED", "no blink observed")
 
-    elif action == "smile":
-        widths = [d.mouth_width for d in detections]
-        if any(w is None for w in widths):
-            raise FaceAuthError("LANDMARKS_UNAVAILABLE", "mouth landmarks unavailable")
-        edge = (widths[0] + widths[-1]) / 2.0
-        mid = sum(widths[1:-1]) / (len(widths) - 2)
-        if mid < config.FACE_SMILE_MOUTH_WIDEN * edge:
-            raise FaceAuthError("LIVENESS_FAILED", "no smile observed")
-
-
+        elif action == "smile":
+            widths = [d.mouth_width for d in detections]
+            if any(w is None for w in widths):
+                raise FaceAuthError("LANDMARKS_UNAVAILABLE", "mouth landmarks unavailable")
+            edge = (widths[0] + widths[-1]) / 2.0
+            mid = sum(widths[1:-1]) / (len(widths) - 2)
+            if mid < config.FACE_SMILE_MOUTH_WIDEN * edge:
+                raise FaceAuthError("LIVENESS_FAILED", "no smile observed")
+    finally:
+        timing = _CURRENT_TIMING.get()
+        if timing is not None:
+            timing.liveness_ms += (time.perf_counter() - t0) * 1000
 # ── Anti-spoofing (optional) ─────────────────────────────────────────────────
 
 _antispoof_session: dict = {"path": None, "session": None}
@@ -377,7 +436,10 @@ def _antispoof_score(img: np.ndarray) -> float:
 
 # ── Detection seam (real insightface path) ───────────────────────────────────
 
+import threading as _threading
+
 _ANALYZERS: dict[str, object] = {}
+_ANALYZER_LOCK = _threading.Lock()
 
 
 def _get_analyzer():
@@ -386,20 +448,36 @@ def _get_analyzer():
     cached = _ANALYZERS.get(name)
     if cached is not None:
         return cached
-    try:
-        from insightface.app import FaceAnalysis
-    except Exception as exc:
-        logger.error("insightface unavailable: %s", exc)
-        raise FaceAuthError("SERVICE_UNAVAILABLE", "face model is not installed") from exc
-    try:
-        analyzer = FaceAnalysis(name=name, providers=["CPUExecutionProvider"])
-        analyzer.prepare(ctx_id=-1, det_size=(640, 640))
-    except Exception as exc:
-        logger.exception("failed to load face model %r", name)
-        raise FaceAuthError("SERVICE_UNAVAILABLE", "face model failed to load") from exc
-    _ANALYZERS[name] = analyzer
-    logger.info("Face model loaded: %s", name)
-    return analyzer
+    with _ANALYZER_LOCK:
+        cached = _ANALYZERS.get(name)
+        if cached is not None:
+            return cached
+        try:
+            from insightface.app import FaceAnalysis
+        except Exception as exc:
+            logger.error("insightface unavailable: %s", exc)
+            raise FaceAuthError("SERVICE_UNAVAILABLE", "face model is not installed") from exc
+        try:
+            import os
+            import onnxruntime as ort
+
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = min(4, os.cpu_count() or 1)
+
+            analyzer = FaceAnalysis(
+                name=name,
+                allowed_modules=["detection", "landmark_2d_106", "recognition"],
+                providers=["CPUExecutionProvider"],
+                sess_options=opts,
+            )
+            det_size = max(320, config.FACE_DET_SIZE)
+            analyzer.prepare(ctx_id=-1, det_size=(det_size, det_size))
+        except Exception as exc:
+            logger.exception("failed to load face model %r", name)
+            raise FaceAuthError("SERVICE_UNAVAILABLE", "face model failed to load") from exc
+        _ANALYZERS[name] = analyzer
+        logger.info("Face model loaded: %s (det_size=%d, allowed_modules=detection,landmark_2d_106,recognition)", name, det_size)
+        return analyzer
 
 
 def _to_detection(face) -> Detection:
@@ -433,19 +511,77 @@ def _to_detection(face) -> Detection:
         yaw_degrees=yaw,
         eye_aspect=ear,
         mouth_width=mouth,
+        kps=kps,
     )
 
 
 def _real_detections(img: np.ndarray) -> list[Detection]:
-    """Run insightface on one decoded frame (RGB → BGR for the model)."""
+    """Run insightface detection + landmarks on one decoded frame (RGB -> BGR)."""
+    timing = _CURRENT_TIMING.get()
     analyzer = _get_analyzer()
     bgr = np.ascontiguousarray(img[:, :, ::-1])
     try:
-        faces = analyzer.get(bgr)
+        t0 = time.perf_counter()
+        bboxes, kpss = analyzer.det_model.detect(bgr, max_num=0, metric="default")
+        if timing is not None:
+            timing.detection_ms += (time.perf_counter() - t0) * 1000
+
+        if bboxes.shape[0] == 0:
+            return []
+
+        from insightface.app.common import Face
+
+        faces = []
+        for i in range(bboxes.shape[0]):
+            face = Face(
+                bbox=bboxes[i, 0:4],
+                kps=kpss[i] if kpss is not None else None,
+                det_score=bboxes[i, 4],
+            )
+            t0 = time.perf_counter()
+            if "landmark_2d_106" in analyzer.models:
+                analyzer.models["landmark_2d_106"].get(bgr, face)
+            if timing is not None:
+                timing.landmarks_ms += (time.perf_counter() - t0) * 1000
+            # Recognition is deferred to _real_embed for the top 3 frontal frames.
+            faces.append(face)
     except Exception as exc:
         logger.exception("face detection failed")
         raise FaceAuthError("DETECTION_FAILED", "face detection failed") from exc
     return [_to_detection(face) for face in faces]
+
+
+def _real_embed(img: np.ndarray, det: Detection) -> np.ndarray:
+    """Run ArcFace embedding on one detected face crop (the 3-frame path)."""
+    timing = _CURRENT_TIMING.get()
+    t0 = time.perf_counter()
+    try:
+        if det.embedding is not None:
+            return normalize(det.embedding)
+        analyzer = _get_analyzer()
+        if "recognition" not in analyzer.models:
+            raise FaceAuthError("SERVICE_UNAVAILABLE", "recognition model not available")
+        from insightface.app.common import Face
+
+        face = Face(
+            bbox=np.asarray(det.bbox),
+            kps=det.kps,
+            det_score=det.det_score,
+        )
+        bgr = np.ascontiguousarray(img[:, :, ::-1])
+        analyzer.models["recognition"].get(bgr, face)
+        normed = getattr(face, "normed_embedding", None)
+        if normed is not None:
+            emb = np.asarray(normed, dtype=np.float32)
+        else:
+            raw = getattr(face, "embedding", None)
+            if raw is None:
+                raise FaceAuthError("DETECTION_FAILED", "failed to extract embedding")
+            emb = np.asarray(raw, dtype=np.float32)
+        return normalize(emb)
+    finally:
+        if timing is not None:
+            timing.embedding_ms += (time.perf_counter() - t0) * 1000
 
 
 # ── Orchestration ────────────────────────────────────────────────────────────
@@ -468,7 +604,7 @@ def _verify_frames_debug(
     yaws: list[float] = []
     ears: list[float] = []
     mouth_widths: list[float] = []
-    candidates: list[tuple[np.ndarray, Detection]] = []
+    embeddings: list[np.ndarray] = []
     detections: list[Detection] = []
     first_failing_check: str | None = None
     first_failing_exc: FaceAuthError | None = None
@@ -480,18 +616,17 @@ def _verify_frames_debug(
         first_failing_check = "LIVENESS_FAILED(unknown_action)"
         first_failing_exc = FaceAuthError("LIVENESS_FAILED", "unknown challenge action")
 
+    candidates: list[tuple[np.ndarray, Detection]] = []
+    frame_errors: list[tuple[str, FaceAuthError]] = []
     for jpeg in frames:
         img = None
+        current_frame_error: tuple[str, FaceAuthError] | None = None
         try:
             img = decode_frame(jpeg)
         except FaceAuthError as exc:
-            if first_failing_check is None:
-                first_failing_check = exc.code
-                first_failing_exc = exc
+            current_frame_error = (exc.code, exc)
         except Exception:
-            if first_failing_check is None:
-                first_failing_check = "IMAGE_INVALID"
-                first_failing_exc = FaceAuthError("IMAGE_INVALID", "frame could not be decoded")
+            current_frame_error = ("IMAGE_INVALID", FaceAuthError("IMAGE_INVALID", "frame could not be decoded"))
 
         if img is not None:
             gray = img.mean(axis=2)
@@ -500,9 +635,11 @@ def _verify_frames_debug(
             frame_passed_quality = True
             if b_var < config.FACE_MIN_BLUR_VARIANCE:
                 frame_passed_quality = False
-                if first_failing_check is None:
-                    first_failing_check = f"FACE_BLURRY(var={b_var:.1f}<{config.FACE_MIN_BLUR_VARIANCE})"
-                    first_failing_exc = FaceAuthError("FACE_BLURRY", "frame is too blurry")
+                if current_frame_error is None:
+                    current_frame_error = (
+                        f"FACE_BLURRY(var={b_var:.1f}<{config.FACE_MIN_BLUR_VARIANCE})",
+                        FaceAuthError("FACE_BLURRY", "frame is too blurry"),
+                    )
 
             try:
                 raw_dets = _real_detections(img)
@@ -517,14 +654,18 @@ def _verify_frames_debug(
 
                     if det.det_score < MIN_DET_SCORE:
                         frame_passed_quality = False
-                        if first_failing_check is None:
-                            first_failing_check = f"DETECTION_FAILED(det_score={det.det_score:.3f}<{MIN_DET_SCORE})"
-                            first_failing_exc = FaceAuthError("DETECTION_FAILED", "low detection confidence")
+                        if current_frame_error is None:
+                            current_frame_error = (
+                                f"DETECTION_FAILED(det_score={det.det_score:.3f}<{MIN_DET_SCORE})",
+                                FaceAuthError("DETECTION_FAILED", "low detection confidence"),
+                            )
                     elif min_side < config.FACE_MIN_FACE_PX:
                         frame_passed_quality = False
-                        if first_failing_check is None:
-                            first_failing_check = f"FACE_TOO_SMALL({min_side:.0f}px<{config.FACE_MIN_FACE_PX}px)"
-                            first_failing_exc = FaceAuthError("FACE_TOO_SMALL", "face too small in frame")
+                        if current_frame_error is None:
+                            current_frame_error = (
+                                f"FACE_TOO_SMALL({min_side:.0f}px<{config.FACE_MIN_FACE_PX}px)",
+                                FaceAuthError("FACE_TOO_SMALL", "face too small in frame"),
+                            )
 
                     if det.yaw_degrees is not None:
                         yaws.append(det.yaw_degrees)
@@ -537,26 +678,38 @@ def _verify_frames_debug(
                         _antispoof_score(img)
                     except FaceAuthError as exc:
                         frame_passed_quality = False
-                        if first_failing_check is None:
-                            first_failing_check = exc.code
-                            first_failing_exc = exc
+                        if current_frame_error is None:
+                            current_frame_error = (exc.code, exc)
 
-                    if frame_passed_quality:
+                    if frame_passed_quality and current_frame_error is None:
                         candidates.append((img, det))
                 else:
-                    if first_failing_check is None:
-                        first_failing_check = f"FACE_COUNT({len(raw_dets)})"
-                        first_failing_exc = FaceAuthError("FACE_COUNT", f"expected 1 face, found {len(raw_dets)}")
+                    if current_frame_error is None:
+                        current_frame_error = (
+                            f"FACE_COUNT({len(raw_dets)})",
+                            FaceAuthError("FACE_COUNT", f"expected 1 face, found {len(raw_dets)}"),
+                        )
             except FaceAuthError as exc:
-                if first_failing_check is None:
-                    first_failing_check = exc.code
-                    first_failing_exc = exc
+                if current_frame_error is None:
+                    current_frame_error = (exc.code, exc)
             except Exception:
-                if first_failing_check is None:
-                    first_failing_check = "DETECTION_FAILED"
-                    first_failing_exc = FaceAuthError("DETECTION_FAILED", "face detection failed")
+                if current_frame_error is None:
+                    current_frame_error = (
+                        "DETECTION_FAILED",
+                        FaceAuthError("DETECTION_FAILED", "face detection failed"),
+                    )
 
-    # Recognition and template matching on the 3 most frontal frames
+        if current_frame_error is not None:
+            frame_errors.append(current_frame_error)
+
+    # Frame tolerance: reject fewer than 5 valid frames; tolerate 1 failed frame out of 6
+    # as long as at least 3 frontal frames pass.
+    tolerated = frames_received == 6 and len(frame_errors) <= 1 and len(candidates) >= 5
+    if frame_errors and not tolerated and first_failing_check is None:
+        first_failing_check = frame_errors[0][0]
+        first_failing_exc = frame_errors[0][1]
+
+    # Run recognition only on the 3 most frontal frames that pass quality (smallest |yaw|, highest det_score).
     frontal = sorted(
         candidates,
         key=lambda item: (
@@ -564,7 +717,19 @@ def _verify_frames_debug(
             -item[1].det_score,
         ),
     )[:3]
-    embeddings: list[np.ndarray] = [normalize(d.embedding) for _, d in frontal if d.embedding is not None]
+    if len(frontal) < 3 and first_failing_check is None:
+        if frame_errors:
+            first_failing_check, first_failing_exc = frame_errors[0]
+        else:
+            first_failing_check = "DETECTION_FAILED"
+            first_failing_exc = FaceAuthError("DETECTION_FAILED", "fewer than 3 frontal frames passed quality")
+
+    for c_img, c_det in frontal:
+        try:
+            emb = _real_embed(c_img, c_det)
+            embeddings.append(emb)
+        except Exception:
+            pass
 
     pairwise_sims: list[float] = []
     for i in range(len(embeddings)):
@@ -584,7 +749,7 @@ def _verify_frames_debug(
         )
         first_failing_exc = FaceAuthError("INCONSISTENT_FRAMES", "frames show different faces")
 
-    if action is not None and len(detections) >= len(frames):
+    if action is not None and len(detections) >= 5:
         try:
             check_action(action, detections)
         except FaceAuthError as exc:
@@ -686,20 +851,27 @@ def verify_frames(
 
     detections: list[Detection] = []
     candidates: list[tuple[np.ndarray, Detection]] = []
+    frame_errors: list[FaceAuthError] = []
     for jpeg in frames:
-        img = decode_frame(jpeg)
-        det = select_single_face(_real_detections(img))
-        gray = img.mean(axis=2)
-        if laplacian_variance(gray) < config.FACE_MIN_BLUR_VARIANCE:
-            raise FaceAuthError("FACE_BLURRY", "frame is too blurry")
-        _antispoof_score(img)
-        detections.append(det)
-        candidates.append((img, det))
+        try:
+            img = decode_frame(jpeg)
+            det = select_single_face(_real_detections(img), require_embedding=False)
+            gray = img.mean(axis=2)
+            if laplacian_variance(gray) < config.FACE_MIN_BLUR_VARIANCE:
+                raise FaceAuthError("FACE_BLURRY", "frame is too blurry")
+            _antispoof_score(img)
+            detections.append(det)
+            candidates.append((img, det))
+        except FaceAuthError as exc:
+            frame_errors.append(exc)
 
-    if action is not None:
-        check_action(action, detections)
+    # Frame tolerance: reject fewer than 5 valid frames; tolerate 1 failed frame out of 6
+    # as long as at least 3 frontal frames pass.
+    tolerated = len(frames) == 6 and len(frame_errors) <= 1 and len(candidates) >= 5
+    if frame_errors and not tolerated:
+        raise frame_errors[0]
 
-    # Recognition and template matching on the 3 most frontal frames
+    # Select the 3 most frontal frames (smallest |yaw|, highest det_score).
     frontal = sorted(
         candidates,
         key=lambda item: (
@@ -707,9 +879,17 @@ def verify_frames(
             -item[1].det_score,
         ),
     )[:3]
-    embeddings = [normalize(det.embedding) for _, det in frontal if det.embedding is not None]
+    if len(frontal) < 3:
+        if frame_errors:
+            raise frame_errors[0]
+        raise FaceAuthError("DETECTION_FAILED", "fewer than 3 frontal frames passed quality")
 
-    # Pairwise consistency check across the 3 frontal frames
+    if action is not None:
+        check_action(action, detections)
+
+    embeddings: list[np.ndarray] = [_real_embed(c_img, c_det) for c_img, c_det in frontal]
+
+    # All 3 frontal frames must be the same person before any match against a template.
     min_sim = 1.0
     for i in range(len(embeddings)):
         for j in range(i + 1, len(embeddings)):
@@ -724,7 +904,6 @@ def verify_frames(
         min_pair_similarity=min_sim,
         yaw_trace=[d.yaw_degrees or 0.0 for d in detections],
     )
-
 
 def check_template_compatibility(template: dict) -> None:
     """A template from another model pack requires re-enrollment (DEC-024)."""

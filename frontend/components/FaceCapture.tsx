@@ -17,8 +17,8 @@ import { stopMediaStream } from "@/lib/camera";
  * preview image is ever persisted.
  */
 
-const FRAME_COUNT = 5; // backend accepts 5-8
-const FRAME_INTERVAL_MS = 300; // 5 frames over ~1.5 s
+const FRAME_COUNT = 6; // backend accepts 5-8
+const FRAME_INTERVAL_MS = 250; // 6 frames over ~1.5 s
 const CAPTURE_WIDTH = 640;
 const CAPTURE_HEIGHT = 480;
 const START_TIMEOUT_MS = 12_000;
@@ -61,6 +61,7 @@ export function FaceCapture({
   const unmountedRef = useRef(false);
   const [phase, setPhase] = useState<Phase>("starting");
   const [camError, setCamError] = useState<CamError | null>(null);
+  const [stillWorking, setStillWorking] = useState(false);
 
   const stopCamera = useCallback(() => {
     if (timerRef.current !== null) {
@@ -238,6 +239,17 @@ export function FaceCapture({
 
   const isVerifying = verifying || (phase === "done" && disabled);
 
+  useEffect(() => {
+    if (!isVerifying) {
+      setStillWorking(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setStillWorking(true);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [isVerifying]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 rounded-md border border-primary-200 bg-primary-50/70 px-3 py-2">
@@ -255,7 +267,7 @@ export function FaceCapture({
               aria-hidden
               className="h-4 w-4 animate-spin rounded-full border-2 border-primary-200 border-t-primary-700"
             />
-            <span>{t("faceVerifying")}</span>
+            <span>{stillWorking ? "Still working…" : t("faceVerifying")}</span>
           </div>
           <p className="text-[11px] text-ink-500">{t("faceVerifyingHint")}</p>
         </div>
