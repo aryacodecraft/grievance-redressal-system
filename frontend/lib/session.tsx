@@ -62,6 +62,10 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
                 id: profile.id,
                 email: profile.email || null,
                 phone: profile.phone || null,
+                phoneVerifiedAt: profile.phoneVerifiedAt || null,
+                phoneVerifiedMethod: profile.phoneVerifiedMethod || null,
+                smsConsent: profile.smsConsent === true,
+                smsOptOutAt: profile.smsOptOutAt || null,
                 citizen_id: profile.citizen_id || null,
                 name:
                   profile.full_name ||
@@ -126,6 +130,10 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
         id: res.user.id,
         email: res.user.email || null,
         phone: res.user.phone || null,
+        phoneVerifiedAt: res.user.phoneVerifiedAt || null,
+        phoneVerifiedMethod: res.user.phoneVerifiedMethod || null,
+        smsConsent: res.user.smsConsent === true,
+        smsOptOutAt: res.user.smsOptOutAt || null,
         citizen_id: res.user.citizen_id || null,
         name:
           res.user.full_name ||
