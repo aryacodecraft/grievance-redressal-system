@@ -1839,3 +1839,50 @@ threshold tunability + docs/memory.
 - Push `feature/face-auth` so the owner gets PRs/code review; real-webcam
   threshold tuning; optional SilentFace ONNX provisioning; Mongo persistence
   for face stores (all in TODO §10).
+
+---
+
+## 2026-10-10 — Face Authentication Accuracy and Performance Optimization
+
+### Goal
+Resolve webcam capture issues and optimize pipeline latency on `feature/face-auth`:
+1. High accuracy on laptop webcams without switching from InsightFace.
+2. Under ~3s response time for face login on laptop CPU.
+3. Decouple consistency and matching thresholds.
+4. Eliminate unnecessary DB round-trips for rate limits against remote MongoDB Atlas.
+5. Create separate accuracy and performance commits after running all 5 gates.
+
+### Context Read
+- PRD, AGENTS.md, DEC-024, `backend/app/services/face_service.py`, `backend/app/routers/face_auth.py`, `backend/app/repositories/face_templates.py`, `frontend/components/FaceCapture.tsx`.
+
+### Work Completed
+- **Commit A (`c9f041e`)**: Accuracy fixes:
+  - Capture upgraded to 640x480 @ JPEG 0.92.
+  - Video mirrored visually via CSS `-scale-x-100` without mirroring raw frames.
+  - 3-frame frontal template extraction and comparison.
+  - Added `FACE_CONSISTENCY_THRESHOLD` (default 0.30) to `config.py` and `.env.example`.
+  - Added `[FACE_DEBUG]` line logging raw metrics without logging embeddings, images, or tokens.
+  - Teardown safety for camera streams via `lib/camera.ts` across tab hide, unmount, and cancel.
+- **Commit B (`5b0bd68`)**: Speed optimizations:
+  - InsightFace module pruning: `allowed_modules=["detection", "landmark_2d_106", "recognition"]`.
+  - Detection resolution: `det_size = max(320, config.FACE_DET_SIZE)` (default 320 for CPU speed).
+  - 3-frame embedding: deferred recognition seam `_real_embed` runs ArcFace only on 3 frontal frames.
+  - Multi-threaded inference: `opts.intra_op_num_threads = min(4, os.cpu_count() or 1)` with thread-safe lock.
+  - Frame count: 6 frames at 250ms interval; tolerates 1 failed quality frame out of 6 as long as >=5 valid candidates exist and 3 frontal pass.
+  - Added "Still working…" status indicator in frontend when verification exceeds 5s.
+  - DB latency reduction:
+    - Reduced rate limiting to 1 round trip using atomic MongoDB aggregation pipeline `find_one_and_update` with TTL.
+    - Added `rate_counts` batch method to query IP and email lockout counters in 1 round trip.
+    - Handled MongoDB index conflict (code 85) for TTL indexes.
+    - Pre-warmed model asynchronously on FastAPI startup (`_warmup_face_auth`).
+
+### Verification
+- 5 gates run and passed before both commits:
+  - `pytest tests/test_face_auth.py -q`: 112 passed!
+  - `pytest tests/test_config_drift.py`: 15 passed!
+  - `npx tsc --noEmit`: 0 errors!
+  - `npm run build`: Production build succeeded!
+  - `node scripts/check-contract.mjs`: Contract checks passed!
+- Atlas ping measured: avg 32.8 - 36.5 ms, min 23.8 ms.
+- FACE_DEBUG verified to default to false and never logs sensitive biometric data.
+

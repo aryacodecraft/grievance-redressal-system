@@ -4,6 +4,30 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-10 — Face authentication accuracy and performance optimizations (`feature/face-auth`)
+
+### Added & Optimized
+- **Accuracy fixes (`c9f041e`)**:
+  - Webcam capture upgraded to 640x480 @ JPEG quality 0.92 (drastically improving landmark detection on laptop webcams).
+  - Preview mirror via CSS `-scale-x-100` while preserving natural un-mirrored frame orientation for liveness heading checks.
+  - Frontal-only 3-frame template matching: recognition extracts and compares embeddings only on the top 3 frontal frames (lowest `|yaw|`, highest `det_score`).
+  - `FACE_CONSISTENCY_THRESHOLD` (default 0.30) added to `config.py` and `.env.example` for pairwise consistency across captured frontal frames, decoupled from `FACE_MATCH_THRESHOLD` (0.45).
+  - Comprehensive `[FACE_DEBUG]` line logging raw metrics without logging embeddings, images, or tokens.
+  - Safe camera lifecycle management via `lib/camera.ts` (stopping tracks on capture completion, cancel, error, unmount, visibility change, and pagehide).
+- **Performance optimizations (`5b0bd68`)**:
+  - Model pruning: `allowed_modules=["detection", "landmark_2d_106", "recognition"]` avoids loading gender/age modules.
+  - Detector resolution: `det_size = max(320, config.FACE_DET_SIZE)` with `FACE_DET_SIZE=320` default for CPU speed.
+  - 3-frame embedding path: deferred recognition via `_real_embed` seam runs ArcFace only on the top 3 frontal frames instead of all 6 frames.
+  - Multi-threaded inference: `opts.intra_op_num_threads = min(4, os.cpu_count() or 1)` in ONNX Runtime with thread-safe lock.
+  - Frame tolerance: `FaceCapture.tsx` captures 6 frames at 250ms intervals; backend accepts 5-8 frames and tolerates 1 failed quality frame out of 6 as long as >=5 valid candidates exist and 3 frontal pass.
+  - Visual feedback: "Still working…" status indicator appears if face verification exceeds 5 seconds.
+  - Database round-trip optimizations:
+    - Atomic 1-RTT rate limits via MongoDB aggregation pipeline `find_one_and_update` with TTL (`windowExpiresAt`).
+    - Batch rate pre-check via `rate_counts` combining IP and email queries into a single round trip.
+    - MongoDB index conflict handler in `ensure_indexes` catching code 85 and migrating legacy indexes to `expireAfterSeconds=0`.
+    - Asynchronous startup preload thread `_warmup_face_auth` preventing cold-start latency spikes.
+  - All 112 unit tests and 15 config drift tests passing; TypeScript, Next.js production build, and contract checks passing cleanly.
+
 ## 2026-10-09 — Optional face-recognition login (DEC-024, `feature/face-auth`)
 
 ### Added
