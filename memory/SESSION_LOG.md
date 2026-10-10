@@ -2070,3 +2070,31 @@ their grievance is in. Owner asked for this to be written up as a plan first.
 ### Verification
 Not applicable — documentation only, no code touched. `git status` clean apart
 from the three `memory/` files.
+
+## 2026-10-10 — Phone OTP binding and SMS dry-run implementation (DEC-025)
+
+### What changed
+- Added `to_e164`, verified-phone lookup gating, OTP challenge repository
+  (HMAC digest, five-minute expiry, three attempts, burn-on-success), phone API
+  routes, masked audit values, and a local-only OTP debug response.
+- Added independent SMS consent at face signup and Profile controls for OTP
+  bind/unbind and consent withdrawal. Translated face-login guidance across
+  all 11 Indian language packs.
+- Added English-only stage labels for all 15 grievance states, seven permitted
+  citizen stages, best-effort background dispatch, consent checks, a
+  160-character cap, and process-local duplicate/rate caps.
+- SMS provider remains dry-run/off; no Twilio credentials, WhatsApp, staff SMS,
+  or external delivery code was added.
+
+### Verification
+- `pytest tests/test_phone_sms.py -q`: 7 passed.
+- Python `py_compile`, `npx tsc --noEmit`, and frontend API contract checks pass.
+- Production build was blocked by sandbox: Turbopack worker creation failed
+  while binding a port. Full TestClient/browser flows remain to be checked;
+  live delivery is not implemented.
+
+### Follow-up
+- Persist SMS idempotency/rate counters across processes and validate the phone
+  routes through TestClient/browser when that environment is stable.
+- Live Twilio remains deferred pending DLT registration, credentials, approved
+  templates, and carrier validation.

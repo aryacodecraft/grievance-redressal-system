@@ -1282,4 +1282,32 @@ run yet (thresholds are tunable via env for that purpose).
 - **Recovery:** `POST /auth/face/admin-reset/{user_id}` (restricted to ADMIN/SUPERADMIN, audited) deletes template and returns a single-use 24-hour re-enrollment token for staff to deliver in person. `POST /auth/face/re-enroll` allows the citizen to capture a new template and burns the token on success.
 - **Frontend:** Single-field "Mobile number or Citizen ID" on the Face tab without email references; 3-failure municipal office reset prompt; dedicated public `/re-enroll` page; Superadmin UI reset button with one-time token display; profile warning on biometric deletion for face-only citizens.
 
+## DEC-025 — OTP-Proven Indian Phone Binding and Dry-Run Citizen SMS
+
+**ID:** DEC-025
+**Date:** 2026-10-10
+**Status:** ACCEPTED (prototype scope)
+
+**Context:** TODO §13 found that face login treated an unverified signup phone
+as an account identifier. Owner approved implementation with OTP for binding
+only, OTP-required unbinding, citizen-only English SMS, no WhatsApp/staff SMS,
+and no live provider credentials in scope.
+
+**Decision:** Keep normalized 10-digit storage; `to_e164()` is a provider
+boundary helper. Face login by phone requires `phoneVerifiedAt`. OTP is
+HMAC-hashed, expires in five minutes, allows three attempts, and is limited by
+account, HMAC(phone), and hashed IP. SMS is consent-gated, informational, and
+background-dispatched. Only `dry-run` and `off` are supported; dry-run does not
+log message bodies or OTPs. An explicit local-only flag may return a demo OTP
+to exercise binding. SMS consent remains distinct from biometric consent.
+
+**Reason:** Fix account phone ownership without expanding into external
+delivery or changing the administrative authority model.
+
+**Consequences:** Phone routes, profile controls, stage labels, notifications,
+and tests are added. Mongo TTL storage exists for OTP challenges; rate counters
+and SMS dedup/caps remain process-local. Twilio is deferred pending DLT,
+credentials, and carrier validation; the feature remains EXPERIMENTAL until
+endpoint and browser workflows are validated.
+
 

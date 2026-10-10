@@ -4,6 +4,23 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-10 — Phone binding and citizen SMS dry-run prototype (DEC-025)
+
+- Added India E.164 conversion while retaining normalized 10-digit storage;
+  phone-based face login now requires OTP verification. Added hashed, expiring
+  OTP challenges, per-account/phone/IP request throttles, citizen bind/unbind
+  routes, consent tracking, and masked audit/user-list output.
+- Added Profile phone controls and separate optional SMS consent; face signup
+  now validates a 10-digit Indian mobile and records optional SMS consent.
+  Updated translated signup/login copy in all 11 locales.
+- Added citizen-only English stage templates and best-effort background
+  dry-run hooks for submission, assignment, key lifecycle transitions,
+  resolution approval, closure, and rejection. No provider sends messages.
+- `tests/test_phone_sms.py`: 7 passed. Python compile checks, TypeScript, and
+  frontend contract checks pass. `next build` was blocked because the sandbox
+  denied Turbopack worker port binding. Full endpoint/browser workflow and live
+  delivery remain unvalidated/deferred.
+
 ## 2026-10-10 — Plan recorded: India phone, phone↔face binding, Twilio SMS (PLANNED, no code)
 
 - Recorded a plan for India phone numbers, OTP-proven facial-recognition
