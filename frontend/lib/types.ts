@@ -68,6 +68,10 @@ export interface AuthUser {
   id: string;
   email?: string | null;
   phone?: string | null;
+  phoneVerifiedAt?: string | null;
+  phoneVerifiedMethod?: string | null;
+  smsConsent?: boolean;
+  smsOptOutAt?: string | null;
   citizen_id?: string | null;
   name: string;
   role: "USER" | "ADMIN" | "RESOLVER" | "SUPERADMIN" | "citizen" | "admin" | string;
@@ -84,6 +88,10 @@ export interface AuthResponse {
     id: string;
     email?: string | null;
     phone?: string | null;
+    phoneVerifiedAt?: string | null;
+    phoneVerifiedMethod?: string | null;
+    smsConsent?: boolean;
+    smsOptOutAt?: string | null;
     citizen_id?: string | null;
     full_name: string;
     role: string;
