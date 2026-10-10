@@ -25,6 +25,7 @@ import contextvars
 import io
 import logging
 import math
+import statistics
 import time
 from dataclasses import dataclass, field
 
@@ -363,23 +364,27 @@ def check_action(action: str, detections: list[Detection]) -> None:
                 raise FaceAuthError("LIVENESS_FAILED", "head turn direction inconsistent")
 
         elif action == "blink":
-            ears = [d.eye_aspect for d in detections]
-            if any(e is None for e in ears):
+            valid_ears = [d.eye_aspect for d in detections if d.eye_aspect is not None]
+            if len(valid_ears) < 3:
                 raise FaceAuthError("LANDMARKS_UNAVAILABLE", "eye landmarks unavailable")
-            edge = min(ears[0], ears[-1])
-            mid = min(ears[1:-1])
-            if edge < MIN_OPEN_EAR:
+            sorted_ears = sorted(valid_ears)
+            top_half = sorted_ears[len(sorted_ears) // 2:]
+            baseline = float(statistics.median(top_half))
+            if baseline < MIN_OPEN_EAR:
                 raise FaceAuthError("LIVENESS_FAILED", "eyes not open at frame edges")
-            if mid > config.FACE_BLINK_EAR_DROP * edge:
+            min_ear = min(valid_ears)
+            if min_ear > config.FACE_BLINK_EAR_DROP * baseline:
                 raise FaceAuthError("LIVENESS_FAILED", "no blink observed")
 
         elif action == "smile":
-            widths = [d.mouth_width for d in detections]
-            if any(w is None for w in widths):
+            valid_widths = [d.mouth_width for d in detections if d.mouth_width is not None]
+            if len(valid_widths) < 3:
                 raise FaceAuthError("LANDMARKS_UNAVAILABLE", "mouth landmarks unavailable")
-            edge = (widths[0] + widths[-1]) / 2.0
-            mid = sum(widths[1:-1]) / (len(widths) - 2)
-            if mid < config.FACE_SMILE_MOUTH_WIDEN * edge:
+            sorted_w = sorted(valid_widths)
+            half_len = max(1, len(sorted_w) // 2)
+            baseline = float(statistics.median(sorted_w[:half_len]))
+            max_width = max(valid_widths)
+            if max_width < config.FACE_SMILE_MOUTH_WIDEN * baseline:
                 raise FaceAuthError("LIVENESS_FAILED", "no smile observed")
     finally:
         timing = _CURRENT_TIMING.get()
@@ -729,9 +734,9 @@ def _verify_frames_debug(
         if current_frame_error is not None:
             frame_errors.append(current_frame_error)
 
-    # Frame tolerance: reject fewer than 5 valid frames; tolerate 1 failed frame out of 6
+    # Frame tolerance: reject fewer than 5 valid frames; tolerate 1 failed frame out of >=6
     # as long as at least 3 frontal frames pass.
-    tolerated = frames_received == 6 and len(frame_errors) <= 1 and len(candidates) >= 5
+    tolerated = len(frames) >= 6 and len(frame_errors) <= 1 and len(candidates) >= 5
     if frame_errors and not tolerated and first_failing_check is None:
         first_failing_check = frame_errors[0][0]
         first_failing_exc = frame_errors[0][1]
@@ -825,14 +830,20 @@ def _verify_frames_debug(
                 first_failing_check = f"TEMPLATE_ERROR({exc})"
 
     ear_ratio_str = "N/A"
-    if ears and max(ears) > 0:
-        ear_ratio_str = f"{min(ears) / max(ears):.2f}"
+    valid_ears = [e for e in ears if e is not None]
+    if valid_ears:
+        sorted_ears = sorted(valid_ears)
+        top_half = sorted_ears[len(sorted_ears) // 2:]
+        base_ear = float(statistics.median(top_half))
+        ear_ratio_str = f"{min(valid_ears) / base_ear:.2f}" if base_ear > 0 else "N/A"
 
     smile_ratio_str = "N/A"
-    if mouth_widths and len(mouth_widths) >= 3:
-        edge_mw = (mouth_widths[0] + mouth_widths[-1]) / 2.0
-        mid_mw = sum(mouth_widths[1:-1]) / (len(mouth_widths) - 2)
-        smile_ratio_str = f"{mid_mw / edge_mw:.2f}" if edge_mw > 0 else "N/A"
+    valid_w = [w for w in mouth_widths if w is not None]
+    if valid_w:
+        sorted_w = sorted(valid_w)
+        half_len = max(1, len(sorted_w) // 2)
+        base_w = float(statistics.median(sorted_w[:half_len]))
+        smile_ratio_str = f"{max(valid_w) / base_w:.2f}" if base_w > 0 else "N/A"
 
     yaw_str = "N/A"
     if yaws:
@@ -841,6 +852,11 @@ def _verify_frames_debug(
         y_delta = y_last - y_first
         y_list = ", ".join(f"{y:+.1f}" for y in yaws)
         yaw_str = f"[{y_list}] (first={y_first:+.1f}, last={y_last:+.1f}, delta={y_delta:+.1f})"
+
+    ear_list = ", ".join(f"{e:.3f}" if e is not None else "None" for e in ears)
+    ear_frame_str = f"[{ear_list}]" if ears else "N/A"
+    mw_list = ", ".join(f"{w:.3f}" if w is not None else "None" for w in mouth_widths)
+    mw_frame_str = f"[{mw_list}]" if mouth_widths else "N/A"
 
     det_score_min_str = f"{min(det_scores):.3f}" if det_scores else "N/A"
     bbox_px_min_str = f"{int(min(bbox_pxs))}" if bbox_pxs else "N/A"
@@ -855,7 +871,8 @@ def _verify_frames_debug(
     logger.info(
         "[FACE_DEBUG] action=%s, frames_received=%d, frames_with_exactly_one_face=%d, "
         "det_score min=%s, bbox px min=%s, blur variance min=%s, "
-        "yaw per frame=%s, EAR min/max ratio=%s, smile spread ratio=%s, "
+        "yaw per frame=%s, EAR per frame=%s, mouth width per frame=%s, "
+        "EAR min/max ratio=%s, smile spread ratio=%s, "
         "pairwise cosine min/mean across frames=%s/%s, similarity to template=%s, "
         "binding score=%s, threshold=%.2f, first failing check name=%s",
         f"{op}:{action}" if action else op,
@@ -865,6 +882,8 @@ def _verify_frames_debug(
         bbox_px_min_str,
         blur_var_min_str,
         yaw_str,
+        ear_frame_str,
+        mw_frame_str,
         ear_ratio_str,
         smile_ratio_str,
         pair_min_str,
@@ -923,9 +942,9 @@ def verify_frames(
         except FaceAuthError as exc:
             frame_errors.append(exc)
 
-    # Frame tolerance: reject fewer than 5 valid frames; tolerate 1 failed frame out of 6
+    # Frame tolerance: reject fewer than 5 valid frames; tolerate 1 failed frame out of >=6
     # as long as at least 3 frontal frames pass.
-    tolerated = len(frames) == 6 and len(frame_errors) <= 1 and len(candidates) >= 5
+    tolerated = len(frames) >= 6 and len(frame_errors) <= 1 and len(candidates) >= 5
     if frame_errors and not tolerated:
         raise frame_errors[0]
 

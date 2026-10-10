@@ -363,7 +363,7 @@ def issue_challenge(request: Request):
     if _ip_locked(ip):
         raise _locked_429()
     challenge = face_repository.create_challenge(
-        secrets.choice(VALID_ACTIONS), CHALLENGE_TTL_SECONDS
+        secrets.choice(config.FACE_CHALLENGES), CHALLENGE_TTL_SECONDS
     )
     return {
         "challenge_id": challenge["id"],
@@ -393,7 +393,7 @@ def signup_start(payload: FaceSignupStartRequest, request: Request):
     if users_repository.find_by_phone(phone_clean):
         raise HTTPException(status_code=400, detail="Could not complete signup")
 
-    action = secrets.choice(VALID_ACTIONS)
+    action = secrets.choice(config.FACE_CHALLENGES)
     challenge = face_repository.create_challenge(action, 300)
     token = create_signup_token(phone_clean, name)
     return {

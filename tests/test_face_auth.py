@@ -1121,9 +1121,18 @@ class TestFaceService:
     def test_blink_liveness_pass(self):
         face_service.check_action("blink", self._dets(ears=[0.30, 0.05, 0.05, 0.05, 0.30]))
 
+    def test_blink_single_closed_frame_passes(self):
+        # Even a single closed frame passes under median top-half baseline
+        face_service.check_action("blink", self._dets(ears=[0.30, 0.30, 0.05, 0.30, 0.30]))
+
     def test_blink_liveness_no_blink(self):
         with pytest.raises(FaceAuthError) as exc:
             face_service.check_action("blink", self._dets(ears=[0.30] * 5))
+        assert exc.value.code == "LIVENESS_FAILED"
+
+    def test_blink_no_closed_frame_fails(self):
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.check_action("blink", self._dets(ears=[0.30, 0.28, 0.29, 0.30, 0.31]))
         assert exc.value.code == "LIVENESS_FAILED"
 
     def test_blink_liveness_eyes_closed_at_edges(self):
@@ -1141,9 +1150,18 @@ class TestFaceService:
             "smile", self._dets(mouths=[0.60, 0.70, 0.70, 0.70, 0.60])
         )
 
+    def test_smile_single_widened_frame_passes(self):
+        # Even a single smile frame passes against neutral lowest-half baseline
+        face_service.check_action("smile", self._dets(mouths=[0.60, 0.60, 0.72, 0.60, 0.60]))
+
     def test_smile_liveness_no_smile(self):
         with pytest.raises(FaceAuthError) as exc:
             face_service.check_action("smile", self._dets(mouths=[0.60] * 5))
+        assert exc.value.code == "LIVENESS_FAILED"
+
+    def test_smile_constant_mouth_fails(self):
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.check_action("smile", self._dets(mouths=[0.60, 0.60, 0.60, 0.60, 0.60]))
         assert exc.value.code == "LIVENESS_FAILED"
 
     def test_smile_requires_mouth_landmarks(self):
@@ -1160,6 +1178,7 @@ class TestFaceService:
         assert config.FACE_SMILE_MOUTH_WIDEN == 1.08
         assert config.FACE_MIN_BLUR_VARIANCE == 30.0
         assert config.FACE_MIN_FACE_PX == 80
+        assert config.FACE_CHALLENGES == ["turn_left", "turn_right", "blink", "smile"]
 
     def test_turn_min_degrees_is_env_tunable(self, monkeypatch):
         trace = [0.0, 12.0, 24.0, 36.0, 48.0]
@@ -1329,6 +1348,19 @@ class TestFaceService:
         # 1 blurry frame + 5 valid frames = 6 frames total (tolerated)
         verified = face_service.verify_frames([_solid_jpeg()] + _frame_bytes(5), None)
         assert verified.frame_count == 3
+
+    def test_verify_frames_tolerates_one_failed_frame_out_of_eight(self, monkeypatch):
+        detector = FakeDetector()
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        # 1 blurry frame + 7 valid frames = 8 frames total (tolerated)
+        verified = face_service.verify_frames([_solid_jpeg()] + _frame_bytes(7), None)
+        assert verified.frame_count == 3
+
+    def test_challenge_selection_uses_face_challenges_config(self, fclient, monkeypatch):
+        monkeypatch.setattr(config, "FACE_CHALLENGES", ["smile"])
+        res = fclient.post("/auth/face/challenge")
+        assert res.status_code == 200
+        assert res.json()["action"] == "smile"
 
     def test_verify_frames_rejects_two_failed_frames_out_of_six(self, monkeypatch):
         detector = FakeDetector()

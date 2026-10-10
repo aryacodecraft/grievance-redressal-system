@@ -23,7 +23,7 @@ const CAPTURE_WIDTH = 640;
 const CAPTURE_HEIGHT = 480;
 const START_TIMEOUT_MS = 12_000;
 
-type Phase = "starting" | "live" | "capturing" | "done";
+type Phase = "starting" | "live" | "countdown" | "capturing" | "done";
 type CamError = "denied" | "missing" | "timeout" | "unknown";
 
 const ACTION_KEYS: Record<string, MessageKey> = {
@@ -58,8 +58,10 @@ export function FaceCapture({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
   const [phase, setPhase] = useState<Phase>("starting");
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [camError, setCamError] = useState<CamError | null>(null);
   const [stillWorking, setStillWorking] = useState(false);
 
@@ -68,6 +70,11 @@ export function FaceCapture({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (countdownTimerRef.current !== null) {
+      clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    setCountdown(null);
     if (streamRef.current) {
       stopMediaStream(streamRef.current);
       streamRef.current = null;
@@ -144,8 +151,7 @@ export function FaceCapture({
     }
   }, [stopCamera]);
 
-  const capture = useCallback(() => {
-    if (phase !== "live" || disabled || verifying) return;
+  const startCapturingFrames = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
     setPhase("capturing");
@@ -154,12 +160,17 @@ export function FaceCapture({
     canvas.width = CAPTURE_WIDTH;
     canvas.height = CAPTURE_HEIGHT;
     const ctx = canvas.getContext("2d");
+
+    const isFast = action === "blink" || action === "smile";
+    const targetFrameCount = isFast ? 8 : 6;
+    const targetIntervalMs = isFast ? 150 : 250;
+
     timerRef.current = setInterval(() => {
       if (!ctx || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
       ctx.drawImage(video, 0, 0, CAPTURE_WIDTH, CAPTURE_HEIGHT);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       frames.push(dataUrl.slice(dataUrl.indexOf(",") + 1));
-      if (frames.length >= FRAME_COUNT) {
+      if (frames.length >= targetFrameCount) {
         if (timerRef.current !== null) {
           clearInterval(timerRef.current);
           timerRef.current = null;
@@ -169,8 +180,22 @@ export function FaceCapture({
         setPhase("done");
         onCapture(frames);
       }
-    }, FRAME_INTERVAL_MS);
-  }, [phase, disabled, verifying, onCapture, stopCamera]);
+    }, targetIntervalMs);
+  }, [action, onCapture, stopCamera]);
+
+  const capture = useCallback(() => {
+    if (phase !== "live" || disabled || verifying) return;
+    setPhase("countdown");
+    setCountdown(2);
+
+    countdownTimerRef.current = setTimeout(() => {
+      setCountdown(1);
+      countdownTimerRef.current = setTimeout(() => {
+        setCountdown(null);
+        startCapturingFrames();
+      }, 1000);
+    }, 1000);
+  }, [phase, disabled, verifying, startCapturingFrames]);
 
   // Camera lifecycle: open on mount, always close on unmount, tab hide, or page unload.
   useEffect(() => {
@@ -239,6 +264,19 @@ export function FaceCapture({
 
   const isVerifying = verifying || (phase === "done" && disabled);
 
+  let cueTitle = "";
+  let cueSubtitle = "";
+  if (action === "blink") {
+    cueTitle = "BLINK now";
+    cueSubtitle = "Blink slowly 2 times";
+  } else if (action === "smile") {
+    cueTitle = "SMILE now";
+  } else if (action === "turn_left") {
+    cueTitle = "TURN LEFT";
+  } else if (action === "turn_right") {
+    cueTitle = "TURN RIGHT";
+  }
+
   useEffect(() => {
     if (!isVerifying) {
       setStillWorking(false);
@@ -272,26 +310,62 @@ export function FaceCapture({
           <p className="text-[11px] text-ink-500">{t("faceVerifyingHint")}</p>
         </div>
       ) : (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          aria-label={t("faceCameraPreview")}
-          className="aspect-[4/3] w-full rounded-md border border-ink-200 bg-ink-950 object-cover -scale-x-100"
-        />
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border border-ink-200 bg-ink-950">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            aria-label={t("faceCameraPreview")}
+            className="h-full w-full object-cover -scale-x-100"
+          />
+
+          {/* 2-second countdown overlay with live camera preview running underneath */}
+          {phase === "countdown" && countdown !== null && (
+            <div
+              className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[1px]"
+              role="status"
+            >
+              <span className="text-xs font-semibold tracking-wider uppercase text-white/90">
+                Get ready...
+              </span>
+              <span className="font-mono text-5xl font-black text-white drop-shadow-md">
+                {countdown}
+              </span>
+            </div>
+          )}
+
+          {/* Big on-screen cue at capture start */}
+          {phase === "capturing" && cueTitle && (
+            <div
+              className="pointer-events-none absolute inset-x-0 top-3 flex flex-col items-center justify-center px-3"
+              role="status"
+            >
+              <div className="rounded-lg bg-black/80 px-4 py-2 text-center text-white shadow-lg backdrop-blur-sm border border-white/20">
+                <p className="text-lg font-black tracking-wide text-amber-300 uppercase">
+                  {cueTitle}
+                </p>
+                {cueSubtitle && (
+                  <p className="text-xs font-semibold text-white/90 mt-0.5">
+                    {cueSubtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {phase === "live" && !isVerifying && (
+      {(phase === "live" || phase === "countdown") && !isVerifying && (
         <div className="flex gap-2">
           <Button
             type="button"
             className="flex-1"
             onClick={capture}
-            disabled={disabled || verifying}
+            disabled={disabled || verifying || phase === "countdown"}
           >
             <Camera size={16} strokeWidth={2} />
-            {t("faceCapture")}
+            {phase === "countdown" ? `Get ready... (${countdown})` : t("faceCapture")}
           </Button>
           {onCancel && (
             <Button

@@ -111,6 +111,11 @@ FACE_MIN_FACE_PX = int(os.getenv("FACE_MIN_FACE_PX", "80"))
 FACE_DET_SIZE = max(320, int(os.getenv("FACE_DET_SIZE", "320")))
 # Local debug metrics logged per attempt (local only; never logs embeddings).
 FACE_DEBUG = os.getenv("FACE_DEBUG", "false").lower() == "true"
+FACE_CHALLENGES = [
+    c.strip()
+    for c in os.getenv("FACE_CHALLENGES", "turn_left,turn_right,blink,smile").split(",")
+    if c.strip()
+] or ["turn_left", "turn_right", "blink", "smile"]
 
 # --- Proxy -------------------------------------------------------------------
 # When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.
