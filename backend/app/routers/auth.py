@@ -129,6 +129,10 @@ def _user_to_profile(user: dict) -> dict:
         "role": user.get("role", "USER"),
         "departmentId": user.get("departmentId"),
         "avatar_url": user.get("avatar_url"),
+        "phoneVerifiedAt": user.get("phoneVerifiedAt"),
+        "phoneVerifiedMethod": user.get("phoneVerifiedMethod"),
+        "smsConsent": user.get("smsConsent", False),
+        "smsOptOutAt": user.get("smsOptOutAt"),
     }
 
 

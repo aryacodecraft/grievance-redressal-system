@@ -156,6 +156,7 @@ class FaceSignupStartRequest(BaseModel):
     full_name: str
     phone: str
     consent: bool = True
+    sms_consent: bool = False
 
 
 class FaceSignupCompleteRequest(FaceFramesRequest):
@@ -395,7 +396,7 @@ def signup_start(payload: FaceSignupStartRequest, request: Request):
 
     action = secrets.choice(config.FACE_CHALLENGES)
     challenge = face_repository.create_challenge(action, 300)
-    token = create_signup_token(phone_clean, name)
+    token = create_signup_token(phone_clean, name, payload.sms_consent)
     return {
         "signup_token": token,
         "challenge_id": challenge["id"],
@@ -501,6 +502,9 @@ def signup_complete(payload: FaceSignupCompleteRequest, request: Request):
             "citizen_id": citizen_id,
             "role": "USER",
             "auth_method": "face_only",
+            "phoneVerifiedAt": None,
+            "smsConsent": bool(data.get("sms_consent")),
+            "smsConsentAt": datetime.now(timezone.utc).isoformat() if data.get("sms_consent") else None,
         })
     except Exception as exc:
         logger.warning("Failed creating user for face signup: %s", exc)

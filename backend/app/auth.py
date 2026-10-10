@@ -72,12 +72,13 @@ def create_pending_token(user_id: str, role: str, email: str | None = None, depa
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def create_signup_token(phone: str, full_name: str) -> str:
+def create_signup_token(phone: str, full_name: str, sms_consent: bool = False) -> str:
     """Short-lived signup token carrying normalized phone and full_name (5 min)."""
     payload = {
         "sub": phone,
         "phone": phone,
         "full_name": full_name,
+        "sms_consent": bool(sms_consent),
         "type": "signup",
         "jti": secrets.token_hex(16),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
