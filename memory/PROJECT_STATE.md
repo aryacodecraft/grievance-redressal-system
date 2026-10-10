@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-10 (citizen passwordless face signup, login, and recovery on `feature/face-auth`, DEC-024)
+> Last updated: 2026-10-10 (plan recorded for India phone numbers, OTP-proven phone↔face binding, and Twilio SMS stage notifications — `memory/TODO.md` §13, **PLANNED**, nothing implemented)
 
 ---
 
@@ -163,6 +163,35 @@ memory/        — AI agent persistent memory                                  I
   - Open follow-ups (TODO §10): real-webcam validation, anti-spoof model
     provisioning, Mongo persistence for face stores, status/`requireLogin2fa`
     readback. Optional deps: `backend/requirements-face.txt`
+
+### India phone numbers, phone↔face binding, Twilio SMS — PLANNED only (2026-10-10, TODO §13)
+- **Nothing here is implemented.** Full plan in `memory/TODO.md` §13; no DEC
+  recorded yet because the load-bearing choices are still open questions.
+- **Already present in the tree** (verified before planning — do not rebuild):
+  `normalize_phone()` (`users_db.py:20`, strips `+91`/`91`/`0`, accepts only 10
+  digits starting `6-9`), `find_by_phone`, `find_by_identifier`, the
+  `uniq_user_phone` index, and `POST /auth/face/login` which **already accepts a
+  phone as the identifier**. `/signup/face` already collects phone with consent.
+- **Actual gaps**: no E.164 export for the SMS provider; no frontend phone
+  validation; phone is **claimed but never verified** (so face-login-by-phone
+  authenticates against an unverified identifier — the highest-value fix in the
+  plan); no binding of a phone to an existing email account; and no SMS
+  transport (`repositories/notifications.py` still reads "in-app v1, no
+  email/SMS").
+- **Blocking external prerequisite**: TRAI DLT registration — entity, a
+  6-character sender ID, and pre-registered content templates. Carriers drop
+  unregistered/free-form SMS, so this decides whether the feature works in India
+  at all. Marked `CREDENTIALS REQUIRED`.
+- **Planned shape**: `SMS_PROVIDER` defaults to `dry-run` so the repo runs with
+  zero credentials and only the live-send phase needs DLT; SMS is fire-and-forget
+  async and must never fail a grievance state change; message bodies are fixed
+  templates with slots and 160-char capped (reasons stay in-app only); a
+  `STAGE_SMS_LABEL` map keeps enum values away from citizens; OTP-proven binding
+  gates phone login on `phoneVerifiedAt`.
+- **HITL (non-negotiable)**: SMS is informational only — no message may trigger
+  or authorise an administrative action.
+- Two separate DPDP Act 2023 consents are required: face biometrics (exists) and
+  SMS updates (new, unchecked by default).
 
 ### AI Modules
 - Working classifiers in `backend/app/services/classification.py` (ported from

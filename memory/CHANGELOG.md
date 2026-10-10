@@ -4,6 +4,33 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-10 — Plan recorded: India phone, phone↔face binding, Twilio SMS (PLANNED, no code)
+
+- Recorded a plan for India phone numbers, OTP-proven facial-recognition
+  binding keyed on the phone number, and Twilio SMS grievance-stage
+  notifications. **Nothing is implemented** — this is documentation only.
+- The survey found that much of the phone work already exists from face-auth:
+  `normalize_phone()` already enforces 10-digit Indian mobiles starting `6-9`
+  and strips `+91`/`91`/`0`, there is a `uniq_user_phone` index plus
+  `find_by_phone`/`find_by_identifier`, and `POST /auth/face/login` already
+  accepts a phone as its identifier. The plan records this explicitly so it is
+  not rebuilt.
+- Real gaps identified: no E.164 export for the SMS provider, no frontend
+  phone validation, no OTP, and no SMS transport.
+- Two findings drive the design. First, **phone is currently claimed rather
+  than proven**, so face-login-by-phone authenticates against an unverified
+  identifier — OTP-proven binding is ranked above the SMS work. Second, **TRAI
+  DLT registration** (entity, 6-character sender ID, pre-registered templates)
+  decides whether SMS is deliverable in India at all, which forces fixed
+  template bodies with slots, human stage labels instead of enum values, and a
+  160-char cap with reason text kept in-app only.
+- `SMS_PROVIDER` defaults to `dry-run` so the repository keeps running with zero
+  credentials; SMS is fire-and-forget async and must never fail a grievance
+  state change; SMS stays informational only per the HITL principle.
+- Written to `memory/TODO.md` §13 with a matching `memory/PROJECT_STATE.md`
+  section. `memory/DECISIONS.md` was intentionally left alone — the
+  load-bearing choices are still open questions, so no DEC has been accepted.
+
 ## 2026-10-10 — Merge `main` into `feature/face-auth` (conflict resolution)
 
 - Merged `main` (`9bef326`) into `feature/face-auth` (`f744be0`) so the face-auth

@@ -2008,3 +2008,65 @@ Profile/Notifications links.
 - Backend face suites **not** run: no `pytest` in this environment and
   `requirements-face.txt` pulls heavy face-recognition dependencies. The
   branch's own log claims 115 + 4 + 6 + 15 passing; unconfirmed here.
+
+## 2026-10-10 — Plan recorded: India phone numbers, phone↔face binding, Twilio SMS
+
+### Request
+Add India phone number support, facial-recognition login/account binding keyed
+on the phone number, and Twilio SMS notifications telling citizens which stage
+their grievance is in. Owner asked for this to be written up as a plan first.
+
+### Investigation (nothing implemented — read-only survey)
+- Found that a substantial part of "India phone support" already ships with
+  face-auth: `normalize_phone()` (`users_db.py:20`) already strips `+91`/`91`/
+  `0` and separators and accepts only 10 digits starting `6-9`;
+  `find_by_phone`/`find_by_identifier`, the `uniq_user_phone` index and
+  duplicate rejection are all present; `POST /auth/face/login` already accepts a
+  phone as `identifier`; `/signup/face` already collects phone with consent.
+  Recording this explicitly so a future agent does not rebuild it.
+- Confirmed the real gaps: no E.164 export (Twilio needs `+91…` while storage is
+  bare 10 digits), no frontend validation, no OTP, and no SMS transport at all
+  (`repositories/notifications.py:1` still says "in-app v1, no email/SMS").
+- Mapped the SMS hook point: `_notify()` at `assignments.py:40` with 16 call
+  sites, plus separate notification paths in `grievances.py` and `progress.py`.
+  Enumerated all 15 `GrievanceState` values for the stage-message set.
+
+### Key findings that shaped the plan
+- **The security-critical gap is that phone is claimed, not proven.**
+  Face-login-by-phone currently authenticates against an identifier anyone can
+  type into a signup form. OTP-proven binding (gate login on `phoneVerifiedAt`)
+  is ranked above the SMS work.
+- **TRAI DLT decides whether SMS works in India** — entity registration, a
+  6-character sender ID, and pre-registered content templates; carriers drop
+  unregistered or free-form bodies. Consequences carried into the design:
+  fixed template bodies with slots only, human stage labels rather than enum
+  values, and a 160-char cap with reason/comment text kept in-app only.
+- **`SMS_PROVIDER` defaults to `dry-run`** so the repository still runs with
+  zero credentials, following the existing `GROQ_API_KEY` degrade-gracefully
+  pattern and the no-secrets rule.
+- **SMS must be fire-and-forget async and must never raise** — an isolation test
+  specifically covers "provider down must not fail an officer's state change."
+- HITL (non-negotiable per AGENTS.md): SMS is informational only; no message may
+  trigger or authorise an administrative action.
+
+### Written
+- `memory/TODO.md` §13 — the full plan (12 sub-sections: what already exists,
+  Phase 0 prerequisites, workstreams A/B/C, the canonical DLT message set,
+  sequencing, security/compliance, open questions, risks, testing, docs).
+- `memory/PROJECT_STATE.md` — new "PLANNED only" section under the face-auth
+  entry plus an updated last-updated line, so the plan is visible as planned
+  rather than implemented work.
+- `memory/DECISIONS.md` was **deliberately not** updated: the load-bearing
+  choices (DLT vs dry-run deliverable, stage set, unbind policy, WhatsApp,
+  SMS language) are still open, so there is no accepted DEC to record yet.
+
+### Blockers flagged
+- `pytest` is still not installed and there is no venv, so the backend suites
+  cannot be run — the same reason the face suites were never re-verified. The
+  plan's Phase 0 includes establishing an installable backend test env.
+- Twilio trial accounts can only message verified destinations, so end-to-end
+  carrier delivery cannot be validated without real DLT-registered credentials.
+
+### Verification
+Not applicable — documentation only, no code touched. `git status` clean apart
+from the three `memory/` files.
