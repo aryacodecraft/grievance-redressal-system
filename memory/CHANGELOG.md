@@ -4,6 +4,42 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-10 — Merge `main` into `feature/face-auth` (conflict resolution)
+
+- Merged `main` (`9bef326`) into `feature/face-auth` (`f744be0`) so the face-auth
+  PR could be merged. Four conflicts, all resolved by keeping **both** sides:
+  - `components/admin/AdminGate.tsx` — the signed-in-as line: face-auth's
+    `{user.email || user.citizen_id || user.name}` fallback (face-only accounts
+    have no email) kept **inside** main's plain-language rewrite of the
+    sentence. Picking either side verbatim would have lost either the fallback
+    or the wording pass.
+  - `components/superadmin/SuperadminWorkspace.tsx` — the user-card row
+    (face-auth's `userLabel`/`userSub`/`isFaceOnly`, "Reset face login" token
+    reveal and "Revoke face" buttons) merged with main's department-card copy
+    ("Departments currently in use", placeholder "Short code"). The file stores
+    the grid as one mega-line, so the conflict was a single-line union.
+  - `memory/CHANGELOG.md`, `memory/SESSION_LOG.md` — both sides appended new
+    sections; both sets kept. The session log was re-ordered so main's
+    2026-10-09 entries precede face-auth's 2026-10-09 → 10-10 run, preserving
+    the file's append-chronological convention.
+- Auto-merged and verified rather than assumed: `lib/i18n/en.ts` kept main's
+  plain-language values (`formTitleLabel: "Issue title"`, `locPin`,
+  `emailLabel`, `passwordHint` all confirmed) **and** gained face-auth's new
+  keys (249 → 326); the other ten locales carry 55 face keys each;
+  `StaffSidebar.tsx` kept main's "Analytics" label and face-auth's
+  Profile/Notifications links.
+- Verification: `tsc --noEmit` clean, `npm run build` succeeds (18 routes,
+  including `/profile`, `/re-enroll`, `/signup/face`),
+  `node frontend/scripts/check-contract.mjs` passes, `py_compile` OK across 11
+  backend files, no conflict markers, no blue in the UI.
+- **Pre-existing on the branch, not introduced by this merge:** `npm run lint`
+  reports 4 errors in `components/FaceCapture.tsx` (3 ×
+  `react-hooks/set-state-in-effect`, 1 × conditional `useEffect` /
+  `rules-of-hooks`). `FaceCapture.tsx` is byte-identical to the branch tip, so
+  these predate the merge. Backend face tests remain **unverified here** —
+  `pytest` is not installed and `requirements-face.txt` pulls heavy
+  face-recognition dependencies.
+
 ## 2026-10-10 — Citizen Passwordless Face Authentication: Login & Recovery (`feature/face-auth`)
 
 ### Added

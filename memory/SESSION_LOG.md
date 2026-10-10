@@ -1974,3 +1974,37 @@ Implement Step 2 (LOGIN) and Step 3 (RECOVERY) for passwordless citizen face aut
 - Full test suite: 370 passed, exactly the 22 known baseline failures, 4 skipped.
 
 
+
+## 2026-10-10 — Conflict resolution: `main` merged into `feature/face-auth`
+
+### Goal
+Make the `feature/face-auth` PR mergeable with `main`. Branch had 12 commits
+(+9,225 lines, 62 files) forked from `4688a4d`; `main` had since gained the
+plain-language wording pass and the department-wise CSV summary export.
+
+### Resolution
+Four conflicts, each resolved by combining both sides rather than picking one:
+- `AdminGate.tsx` — face-auth's `{user.email || user.citizen_id || user.name}`
+  fallback retained inside main's plainer sentence. Face-only accounts carry no
+  email, so the fallback is load-bearing.
+- `SuperadminWorkspace.tsx` — face-auth's face-management user row kept, and
+  main's department-card copy re-applied to the same mega-line.
+- `CHANGELOG.md` / `SESSION_LOG.md` — both sides' appended sections retained;
+  session log re-ordered to stay append-chronological.
+
+Auto-merged files were checked, not assumed: `en.ts` kept main's wording values
+and picked up face-auth's keys (249 → 326), all ten other locales carry 55 face
+keys, and `StaffSidebar.tsx` retained both "Analytics" and the new
+Profile/Notifications links.
+
+### Verification
+- `tsc --noEmit` clean; `npm run build` OK at 18 routes (new: `/profile`,
+  `/re-enroll`, `/signup/face`); `check-contract.mjs` passed; `py_compile` OK
+  across 11 backend files; no conflict markers; no blue in the UI.
+- `npm run lint` reports 4 errors in `FaceCapture.tsx` (conditional `useEffect`,
+  setState-in-effect). Verified pre-existing: that file is byte-identical to
+  the branch tip, so the merge did not introduce them. Left as-is — fixing
+  another agent's React hook ordering is outside a merge's scope.
+- Backend face suites **not** run: no `pytest` in this environment and
+  `requirements-face.txt` pulls heavy face-recognition dependencies. The
+  branch's own log claims 115 + 4 + 6 + 15 passing; unconfirmed here.
