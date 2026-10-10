@@ -35,7 +35,12 @@ def normalize_phone(raw: str) -> str:
 
     if len(cleaned) == 10 and cleaned.isdigit() and cleaned[0] in "6789":
         return cleaned
-    raise ValueError(f"Invalid phone number: {raw!r}. Must be a 10-digit mobile number starting with 6-9.")
+    raise ValueError("Invalid Indian mobile number; enter 10 digits starting with 6-9.")
+
+
+def to_e164(raw: str) -> str:
+    """Return an Indian mobile number in provider format without changing storage."""
+    return f"+91{normalize_phone(raw)}"
 
 
 def generate_citizen_id() -> str:
@@ -158,7 +163,8 @@ class InMemoryUsersRepository:
         if "@" in raw:
             return self.find_by_email(raw)
         try:
-            return self.find_by_phone(raw)
+            user = self.find_by_phone(raw)
+            return user if user and user.get("phoneVerifiedAt") else None
         except Exception:
             return None
 
@@ -363,7 +369,8 @@ class MongoUsersRepository:
         if "@" in raw:
             return self.find_by_email(raw)
         try:
-            return self.find_by_phone(raw)
+            user = self.find_by_phone(raw)
+            return user if user and user.get("phoneVerifiedAt") else None
         except Exception:
             return None
 
