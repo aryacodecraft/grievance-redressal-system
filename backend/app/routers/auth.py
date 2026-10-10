@@ -121,7 +121,10 @@ class RefreshRequest(BaseModel):
 def _user_to_profile(user: dict) -> dict:
     return {
         "id": user["id"],
-        "email": user["email"],
+        "email": user.get("email"),
+        "phone": user.get("phone"),
+        "citizen_id": user.get("citizen_id"),
+        "auth_method": user.get("auth_method", "password"),
         "full_name": user.get("full_name", ""),
         "role": user.get("role", "USER"),
         "departmentId": user.get("departmentId"),
@@ -186,7 +189,11 @@ def login(payload: LoginRequest):
     instead — password/Google login itself always succeeds.
     """
     user = users_repository.find_by_email(payload.email)
-    if not user or not _verify_password(payload.password, user.get("hashed_password", "")):
+    if (
+        not user
+        or user.get("auth_method") == "face_only"
+        or not _verify_password(payload.password, user.get("hashed_password") or "")
+    ):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if _face_step_required(user):
         return {
@@ -336,6 +343,8 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
 
     # Find or create the user
     user = users_repository.find_by_email(google_email)
+    if user and user.get("auth_method") == "face_only":
+        return RedirectResponse(url=f"{_FRONTEND_URL}/login?error=invalid_credentials")
     if not user:
         uid = users_repository.create({
             "email": google_email.lower(),

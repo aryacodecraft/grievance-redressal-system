@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-h-screen w-full">
         <StaffSidebar
           links={linksForRole(role, user?.departmentId)}
-          email={user?.email}
+          email={user?.email || user?.citizen_id || user?.name || undefined}
           roleLabel={roleLabelOf(role)}
           onSignOut={signOut}
         />

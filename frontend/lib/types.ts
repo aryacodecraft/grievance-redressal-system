@@ -66,11 +66,14 @@ export interface SubmitResult {
 
 export interface AuthUser {
   id: string;
-  email: string;
+  email?: string | null;
+  phone?: string | null;
+  citizen_id?: string | null;
   name: string;
   role: "USER" | "ADMIN" | "RESOLVER" | "SUPERADMIN" | "citizen" | "admin" | string;
   avatarUrl?: string;
   departmentId?: string | null;
+  authMethod?: string;
 }
 
 export interface AuthResponse {
@@ -79,11 +82,14 @@ export interface AuthResponse {
   token_type: string;
   user: {
     id: string;
-    email: string;
+    email?: string | null;
+    phone?: string | null;
+    citizen_id?: string | null;
     full_name: string;
     role: string;
     avatar_url?: string;
     departmentId?: string | null;
+    auth_method?: string;
   };
 }
 

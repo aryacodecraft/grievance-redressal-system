@@ -23,7 +23,7 @@ export function MyGrievances() {
     if (!user || !liveMode) return;
     const unsub = subscribeGrievances(
       user.id,
-      user.email,
+      user.email ?? null,
       (data) => setLiveItems(data),
       () => setLiveItems(null),
       { scopeToUser: true }

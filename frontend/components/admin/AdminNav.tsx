@@ -28,7 +28,7 @@ export function AdminHeader({
         </div>
         {user && (
           <span className="text-xs text-ink-500">
-            Signed in as: <strong className="font-medium text-ink-800">{user.email}</strong>
+            Signed in as: <strong className="font-medium text-ink-800">{user.email || user.citizen_id || user.name}</strong>
           </span>
         )}
       </div>

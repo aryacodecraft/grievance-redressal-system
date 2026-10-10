@@ -59,10 +59,15 @@ function CallbackHandler() {
         const profile = await getCurrentUser();
         const authUser = {
           id: profile.id,
-          email: profile.email,
-          name: profile.full_name || profile.email.split("@")[0] || "User",
+          email: profile.email || null,
+          phone: profile.phone || null,
+          citizen_id: profile.citizen_id || null,
+          name:
+            profile.full_name ||
+            (profile.email ? profile.email.split("@")[0] : profile.citizen_id || "User"),
           role: profile.role,
           avatarUrl: profile.avatar_url,
+          authMethod: profile.auth_method,
         };
 
         setAuthSession(authUser, accessToken, refreshToken);

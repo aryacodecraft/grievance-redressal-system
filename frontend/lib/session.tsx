@@ -60,11 +60,16 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
             if (isMounted && profile) {
               const authUser: AuthUser = {
                 id: profile.id,
-                email: profile.email,
-                name: profile.full_name || profile.email.split("@")[0] || "User",
+                email: profile.email || null,
+                phone: profile.phone || null,
+                citizen_id: profile.citizen_id || null,
+                name:
+                  profile.full_name ||
+                  (profile.email ? profile.email.split("@")[0] : profile.citizen_id || "User"),
                 role: profile.role,
                 avatarUrl: profile.avatar_url,
                 departmentId: profile.departmentId,
+                authMethod: profile.auth_method,
               };
               setUser(authUser);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
@@ -119,11 +124,17 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
     (res: AuthResponse): AuthUser => {
       const authUser: AuthUser = {
         id: res.user.id,
-        email: res.user.email,
-        name: res.user.full_name || res.user.email.split("@")[0] || "User",
+        email: res.user.email || null,
+        phone: res.user.phone || null,
+        citizen_id: res.user.citizen_id || null,
+        name:
+          res.user.full_name ||
+          res.user.citizen_id ||
+          (res.user.email ? res.user.email.split("@")[0] : "Citizen"),
         role: res.user.role,
         avatarUrl: res.user.avatar_url,
         departmentId: res.user.departmentId,
+        authMethod: res.user.auth_method,
       };
       setAuthSession(authUser, res.access_token, res.refresh_token);
       return authUser;

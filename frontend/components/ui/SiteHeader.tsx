@@ -65,7 +65,7 @@ export function SiteHeader() {
               <NotificationBadgeLink Icon={Bell} compact className="rounded p-2 text-ink-600 hover:bg-ink-100 hover:text-ink-950" />
               <div className="hidden items-center gap-1.5 sm:flex">
                 <span className="max-w-40 truncate text-xs font-medium text-ink-600">
-                  {user.email}
+                  {user.email || user.citizen_id || user.name}
                 </span>
                 <span className="rounded-sm bg-primary-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-700 border border-primary-200">
                   Citizen

@@ -106,7 +106,9 @@ def require_permission(permission: str, recheck_db: bool = False):
         if recheck_db:
             # Re-validate role from DB to catch post-issuance role changes
             from .users_db import users_repository
-            db_user = users_repository.find_by_email(current.get("email", ""))
+            db_user = users_repository.get(current.get("user_id", ""))
+            if not db_user and current.get("email"):
+                db_user = users_repository.find_by_email(current["email"])
             if not db_user:
                 raise HTTPException(status_code=401, detail="User not found")
             user_role = db_user.get("role", "")

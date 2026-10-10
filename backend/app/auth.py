@@ -29,11 +29,11 @@ _bearer = HTTPBearer(auto_error=False)
 
 # ── Token creation ───────────────────────────────────────────────────────────
 
-def create_access_token(user_id: str, role: str, email: str, department_id: str | None = None) -> str:
+def create_access_token(user_id: str, role: str, email: str | None = None, department_id: str | None = None) -> str:
     payload = {
         "sub": user_id,
         "role": role,
-        "email": email,
+        "email": email or "",
         "departmentId": department_id,
         "type": "access",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_EXPIRE_MINUTES),
@@ -65,6 +65,23 @@ def create_pending_token(user_id: str, role: str, email: str, department_id: str
         "departmentId": department_id,
         "type": "pending_2fa",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=PENDING_EXPIRE_MINUTES),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+import secrets
+
+
+def create_signup_token(phone: str, full_name: str) -> str:
+    """Short-lived signup token carrying normalized phone and full_name (5 min)."""
+    payload = {
+        "sub": phone,
+        "phone": phone,
+        "full_name": full_name,
+        "type": "signup",
+        "jti": secrets.token_hex(16),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

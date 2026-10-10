@@ -126,7 +126,7 @@ export function StaffSidebar({
 
       <div className="border-t border-ink-100 p-2 sm:p-3">
         <p className="hidden truncate text-xs font-medium text-ink-600 sm:block">
-          {email}
+          {email || "Staff"}
         </p>
         <span className="mt-1 hidden sm:inline-block rounded-sm border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-700">
           {roleLabel}

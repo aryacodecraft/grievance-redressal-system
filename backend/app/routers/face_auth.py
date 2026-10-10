@@ -47,11 +47,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from .. import config
-from ..auth import get_current_user, get_pending_user
+from ..auth import (
+    _decode,
+    create_signup_token,
+    get_current_user,
+    get_pending_user,
+)
 from ..permissions import require_permission
 from ..repositories.audit import audit_repository
 from ..repositories.face_templates import face_repository
 from ..services import face_service
+from ..users_db import normalize_phone, users_repository
 from ..services.face_service import (
     CHALLENGE_TTL_SECONDS,
     IP_FAIL_LIMIT,
@@ -67,7 +73,7 @@ from ..services.face_service import (
     _CURRENT_TIMING,
 )
 from ..users_db import users_repository
-from .auth import PRIVILEGED_ROLES, _token_response
+from .auth import PRIVILEGED_ROLES, _token_response, _token_response
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter(prefix="/auth/face", tags=["auth"])
@@ -111,6 +117,17 @@ class FaceFramesRequest(BaseModel):
 class EnrollRequest(FaceFramesRequest):
     consent: bool = False
     require_login_2fa: bool = False
+
+
+class FaceSignupStartRequest(BaseModel):
+    full_name: str
+    phone: str
+    consent: bool = True
+
+
+class FaceSignupCompleteRequest(FaceFramesRequest):
+    signup_token: str
+
 
 
 class FaceLoginRequest(FaceFramesRequest):
@@ -421,6 +438,293 @@ def enroll_face(
         if config.FACE_DEBUG:
             timing.log()
         _CURRENT_TIMING.reset(token)
+
+
+@router.post("/signup/start")
+def signup_start(payload: FaceSignupStartRequest, request: Request):
+    """Start face-only signup for citizens: validate phone, mint 5-min signup token + challenge."""
+    ip = _client_ip(request)
+    if _ip_locked(ip):
+        raise _locked_429()
+    if not payload.consent:
+        raise HTTPException(
+            status_code=400, detail="Consent is required to sign up with face"
+        )
+    name = payload.full_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    try:
+        phone_clean = normalize_phone(payload.phone)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid phone number")
+
+    if users_repository.find_by_phone(phone_clean):
+        raise HTTPException(status_code=400, detail="Could not complete signup")
+
+    action = secrets.choice(VALID_ACTIONS)
+    challenge = face_repository.create_challenge(action, 300)
+    token = create_signup_token(phone_clean, name)
+    return {
+        "signup_token": token,
+        "challenge_id": challenge["id"],
+        "action": challenge["action"],
+        "expires_in": 300,
+    }
+
+
+@router.post("/signup/complete")
+def signup_complete(payload: FaceSignupCompleteRequest, request: Request):
+    """Complete face-only signup: verify enrollment pipeline, create citizen account + template."""
+    t_enter = time.perf_counter()
+    req_t0 = getattr(request.state, "request_t0", t_enter)
+    body_len = getattr(request.state, "body_bytes_len", 0)
+    b64_ms = _CURRENT_B64_TIME.get() or 0.0
+    json_ms = max(0.0, (t_enter - req_t0) * 1000 - b64_ms)
+    timing = FaceTiming(
+        request_t0=req_t0,
+        body_size_kb=body_len / 1024.0,
+        json_parse_ms=json_ms,
+        base64_decode_ms=b64_ms,
+    )
+    _CURRENT_TIMING.set(timing)
+
+    ip = _client_ip(request)
+    if _ip_locked(ip):
+        raise _locked_429()
+
+    try:
+        data = _decode(payload.signup_token)
+    except HTTPException:
+        raise HTTPException(status_code=400, detail="Invalid or expired signup token")
+    if data.get("type") != "signup":
+        raise HTTPException(status_code=400, detail="Invalid token type")
+
+    phone = data.get("phone") or data.get("sub")
+    full_name = data.get("full_name") or ""
+    jti = data.get("jti")
+
+    if jti:
+        if face_repository.rate_count(f"face:signup_used:{jti}", 300) > 0:
+            raise HTTPException(status_code=400, detail="Signup token already used")
+        face_repository.rate_hit(f"face:signup_used:{jti}", limit=1, window_seconds=300)
+
+    t_ch0 = time.perf_counter()
+    action, reason = face_repository.consume_challenge(payload.challenge_id)
+    timing.db_challenge_ms += (time.perf_counter() - t_ch0) * 1000
+    if action is None:
+        _audit_entry(
+            "face.signup_failed",
+            actor_id="",
+            actor_role="",
+            entity_id="",
+            reason=f"challenge_{reason}",
+            ip=ip,
+        )
+        raise HTTPException(status_code=400, detail="Challenge is invalid, expired, or already used")
+
+    if users_repository.find_by_phone(phone):
+        _audit_entry(
+            "face.signup_failed",
+            actor_id="",
+            actor_role="",
+            entity_id="",
+            reason="duplicate_phone",
+            ip=ip,
+        )
+        raise HTTPException(status_code=400, detail="Could not complete signup")
+
+    try:
+        verified = face_service.verify_frames(
+            payload.frames, action, template=None, op="enroll"
+        )
+    except FaceAuthError as exc:
+        _audit_entry(
+            "face.signup_failed",
+            actor_id="",
+            actor_role="",
+            entity_id="",
+            reason=exc.code,
+            ip=ip,
+        )
+        raise HTTPException(status_code=400, detail=exc.message)
+
+    try:
+        encrypted = face_service.encrypt_embedding(verified.embedding)
+    except FaceAuthError as exc:
+        _audit_entry(
+            "face.signup_failed",
+            actor_id="",
+            actor_role="",
+            entity_id="",
+            reason=exc.code,
+            ip=ip,
+        )
+        raise HTTPException(status_code=500, detail="Face service is unavailable")
+
+    citizen_id = users_repository.generate_unique_citizen_id()
+    try:
+        user_id = users_repository.create({
+            "full_name": full_name,
+            "phone": phone,
+            "citizen_id": citizen_id,
+            "role": "USER",
+            "auth_method": "face_only",
+        })
+    except Exception as exc:
+        logger.warning("Failed creating user for face signup: %s", exc)
+        _audit_entry(
+            "face.signup_failed",
+            actor_id="",
+            actor_role="",
+            entity_id="",
+            reason="user_create_failed",
+            ip=ip,
+        )
+        raise HTTPException(status_code=400, detail="Could not complete signup")
+
+    t_tm0 = time.perf_counter()
+    try:
+        face_repository.upsert_template(user_id, {
+            "encryptedEmbedding": encrypted,
+            "modelName": config.FACE_MODEL_NAME,
+            "frameCount": verified.frame_count,
+            "consentAt": datetime.now(timezone.utc).isoformat(),
+            "requireLogin2fa": False,
+        })
+    except Exception:
+        logger.exception("Failed storing face template for newly created user %s; deleting user", user_id)
+        users_repository.delete(user_id)
+        _audit_entry(
+            "face.signup_failed",
+            actor_id=user_id,
+            actor_role="USER",
+            entity_id=user_id,
+            reason="template_write_failed",
+            ip=ip,
+        )
+        raise HTTPException(status_code=500, detail="Could not store face template")
+    timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+
+    _audit_entry(
+        "face.signup_success",
+        actor_id=user_id,
+        actor_role="USER",
+        entity_id=user_id,
+        reason="signup_enrolled",
+        ip=ip,
+    )
+
+    user = users_repository.get(user_id)
+    resp = _token_response(user)
+    resp["citizen_id"] = citizen_id
+    return resp
+
+
+@router.post("/enroll")
+def enroll_face(
+    payload: EnrollRequest,
+    request: Request,
+    current: Annotated[dict, Depends(get_current_user)],
+):
+    """Enroll a new biometric template for the currently authenticated caller.
+
+    Failures here answer with specific 400 messages: the caller is already
+    authenticated, so there is no account oracle to protect.
+    """
+    t_enter = time.perf_counter()
+    req_t0 = getattr(request.state, "request_t0", t_enter)
+    body_len = getattr(request.state, "body_bytes_len", 0)
+    b64_ms = _CURRENT_B64_TIME.get() or 0.0
+    json_ms = max(0.0, (t_enter - req_t0) * 1000 - b64_ms)
+    timing = FaceTiming(
+        request_t0=req_t0,
+        body_size_kb=body_len / 1024.0,
+        json_parse_ms=json_ms,
+        base64_decode_ms=b64_ms,
+    )
+    token = _CURRENT_TIMING.set(timing)
+    try:
+        ip = _client_ip(request)
+        if _ip_locked(ip):
+            raise _locked_429()
+        if not payload.consent:
+            raise HTTPException(
+                status_code=400, detail="Face data consent is required to enroll a face template"
+            )
+
+        t_ch0 = time.perf_counter()
+        action, reason = face_repository.consume_challenge(payload.challenge_id)
+        timing.db_challenge_ms += (time.perf_counter() - t_ch0) * 1000
+        if action is None:
+            _audit_entry(
+                "face.enroll_failed",
+                actor_id=current["user_id"],
+                actor_role=current["role"],
+                entity_id=current["user_id"],
+                reason=f"challenge_{reason}",
+                ip=ip,
+            )
+            raise HTTPException(status_code=400, detail="Challenge is invalid, expired, or already used")
+
+        t_tm0 = time.perf_counter()
+        template = face_repository.get_template(current["user_id"])
+        timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+        try:
+            verified = face_service.verify_frames(
+                payload.frames, action, template=template, op="enroll"
+            )
+        except FaceAuthError as exc:
+            _audit_entry(
+                "face.enroll_failed",
+                actor_id=current["user_id"],
+                actor_role=current["role"],
+                entity_id=current["user_id"],
+                reason=exc.code,
+                ip=ip,
+            )
+            raise HTTPException(status_code=400, detail=exc.message)
+
+        try:
+            encrypted = face_service.encrypt_embedding(verified.embedding)
+        except FaceAuthError as exc:
+            logger.error("face embedding encryption failed: %s", exc.code)
+            _audit_entry(
+                "face.enroll_failed",
+                actor_id=current["user_id"],
+                actor_role=current["role"],
+                entity_id=current["user_id"],
+                reason=exc.code,
+                ip=ip,
+            )
+            raise HTTPException(status_code=500, detail="Face service is unavailable")
+
+        t_tm0 = time.perf_counter()
+        face_repository.upsert_template(current["user_id"], {
+            "encryptedEmbedding": encrypted,
+            "modelName": config.FACE_MODEL_NAME,
+            "frameCount": verified.frame_count,
+            "consentAt": datetime.now(timezone.utc).isoformat(),
+            # The optional 2FA step only exists for privileged accounts (DEC-024).
+            "requireLogin2fa": bool(
+                payload.require_login_2fa and current["role"] in PRIVILEGED_ROLES
+            ),
+        })
+        timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
+        _audit_entry(
+            "face.enrolled",
+            actor_id=current["user_id"],
+            actor_role=current["role"],
+            entity_id=current["user_id"],
+            reason="consent granted",
+            ip=ip,
+        )
+        return {"enrolled": True}
+    finally:
+        timing.total_ms = (time.perf_counter() - timing.request_t0) * 1000
+        if config.FACE_DEBUG:
+            timing.log()
+        _CURRENT_TIMING.reset(token)
+
 
 
 @router.post("/login")

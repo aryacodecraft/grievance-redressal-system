@@ -81,7 +81,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
               Administrative Access Restricted
             </h1>
             <p className="mt-2 text-xs leading-relaxed text-ink-500">
-              You are signed in as <span className="font-semibold text-ink-800">{user.email}</span> (Citizen role).
+              You are signed in as <span className="font-semibold text-ink-800">{user.email || user.citizen_id || user.name}</span> (Citizen role).
               Only authorized municipal officers can open this dashboard.
             </p>
 
