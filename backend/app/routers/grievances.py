@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.responses import JSONResponse
 
 from ..auth import get_current_user, get_optional_user, require_role
@@ -44,6 +44,7 @@ router = APIRouter()
 @router.post("/submit-grievance")
 def submit_grievance(
     payload: SubmitGrievanceRequest,
+    background_tasks: BackgroundTasks,
     current: Annotated[dict, Depends(get_current_user)],
 ):
     title = payload.title.strip()
@@ -199,6 +200,8 @@ def submit_grievance(
         "title": f"Grievance {doc_id} registered",
         "message": f"Your complaint was classified under {category} and is awaiting department review.",
     })
+    from ..services.sms import queue_stage_update
+    queue_stage_update(background_tasks, user_id, doc_id, "SUBMITTED")
 
     return {
         "message": "Grievance submitted successfully",

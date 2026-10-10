@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Annotated
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from ..auth import get_current_user
 from ..db import repository
@@ -53,6 +53,7 @@ def assign_grievance(
     grievance_id: str,
     payload: AssignRequest,
     current: Annotated[dict, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     role = current["role"]
     if role not in ("ADMIN", "SUPERADMIN"):
@@ -116,6 +117,9 @@ def assign_grievance(
         pass
     
     _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been routed to the {department_id} department")
+    if is_initial_assignment:
+        from ..services.sms import queue_stage_update
+        queue_stage_update(background_tasks, doc.get("userId"), grievance_id, "ASSIGNED")
     if payload.ownerId:
         _notify(payload.ownerId, "grievance.assigned_to_you", grievance_id, f"New task assigned: {doc.get('title', grievance_id)}", f"{grievance_id} · {priority} priority · Due {due_date}")
     action = "grievance.department_reviewed" if is_initial_assignment else "grievance.department_reassigned"
@@ -226,6 +230,7 @@ def transition_grievance_state(
     grievance_id: str,
     payload: StateTransitionRequest,
     current: Annotated[dict, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     doc = _get_doc_or_404(grievance_id)
     state = _canon_state(doc)
@@ -247,6 +252,8 @@ def transition_grievance_state(
         pass
     
     _notify(doc.get("userId"), f"grievance.state.{payload.to_state.lower()}", grievance_id, f"Your grievance status is now {payload.to_state.replace('_', ' ').title()}", payload.reason)
+    from ..services.sms import queue_stage_update
+    queue_stage_update(background_tasks, doc.get("userId"), grievance_id, payload.to_state)
     _emit_audit(current, "grievance.state_changed", grievance_id, {"state": state}, {"state": payload.to_state}, payload.reason)
     return {"message": "State updated", "state": payload.to_state}
 
@@ -344,6 +351,7 @@ def accept_assignment(grievance_id: str, current: Annotated[dict, Depends(get_cu
 def approve_resolution(
     grievance_id: str,
     current: Annotated[dict, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     role = current["role"]
     if role not in ("ADMIN", "SUPERADMIN"):
@@ -362,6 +370,8 @@ def approve_resolution(
         pass
     
     _notify(doc.get("userId"), "grievance.resolved", grievance_id, f"Your grievance {grievance_id} has been resolved", "The department manager approved the submitted resolution.")
+    from ..services.sms import queue_stage_update
+    queue_stage_update(background_tasks, doc.get("userId"), grievance_id, "RESOLVED")
     _notify(doc.get("ownerId"), "grievance.resolution_approved", grievance_id, f"Grievance {grievance_id} resolution approved")
     _emit_audit(current, "grievance.resolution_approved", grievance_id, {"state": state}, {"state": "RESOLVED"}, "Approved")
     return {"message": "Resolution approved, grievance resolved"}
@@ -399,6 +409,7 @@ def close_grievance(
     grievance_id: str,
     payload: CloseRequest,
     current: Annotated[dict, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     role = current["role"]
     if role not in ("ADMIN", "SUPERADMIN"):
@@ -418,6 +429,8 @@ def close_grievance(
         pass
     
     _notify(doc.get("userId"), "grievance.closed", grievance_id, f"Your grievance {grievance_id} has been closed")
+    from ..services.sms import queue_stage_update
+    queue_stage_update(background_tasks, doc.get("userId"), grievance_id, "CLOSED")
     _emit_audit(current, "grievance.closed", grievance_id, {"state": state}, {"state": "CLOSED"}, payload.reason)
     return {"message": "Grievance closed"}
 
@@ -485,6 +498,7 @@ def reject_grievance(
     grievance_id: str,
     payload: RejectRequest,
     current: Annotated[dict, Depends(get_current_user)],
+    background_tasks: BackgroundTasks,
 ):
     role = current["role"]
     if role not in ("ADMIN", "SUPERADMIN"):
@@ -503,5 +517,7 @@ def reject_grievance(
         pass
     
     _notify(doc.get("userId"), "grievance.rejected", grievance_id, f"Your grievance {grievance_id} has been rejected: {payload.reason}")
+    from ..services.sms import queue_stage_update
+    queue_stage_update(background_tasks, doc.get("userId"), grievance_id, "REJECTED")
     _emit_audit(current, "grievance.rejected", grievance_id, {"state": state}, {"state": "REJECTED"}, payload.reason)
     return {"message": "Grievance rejected"}
