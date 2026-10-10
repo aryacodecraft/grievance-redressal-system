@@ -484,25 +484,41 @@ export function getGoogleAuthUrl(): string {
 
 /* ── Face authentication (feature flag: FACE_AUTH_ENABLED, DEC-024) ───────── */
 
+export const FACE_REQUEST_TIMEOUT_MS = 60_000;
+export const FACE_TIMEOUT_MESSAGE =
+  "First run loads the face model, this can take a minute. Try again.";
+
 /**
  * POST with an explicit Authorization header and NO auto-refresh on 401.
  * Face endpoints answer with the generic "Face sign-in failed" on 401 — a
  * silent refresh-and-retry would mask it behind the stale-token path.
+ * Includes a 60 s timeout to handle cold model loads gracefully.
  */
 function faceJson<T>(
   path: string,
   body: unknown,
-  bearer?: string
+  bearer?: string,
+  timeoutMs = FACE_REQUEST_TIMEOUT_MS
 ): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   return requestJson<T>(
     path,
     {
       method: "POST",
       body: JSON.stringify(body),
+      signal: controller.signal,
       ...(bearer ? { headers: { Authorization: `Bearer ${bearer}` } } : {}),
     },
     false
-  );
+  )
+    .catch((err) => {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error(FACE_TIMEOUT_MESSAGE);
+      }
+      throw err;
+    })
+    .finally(() => clearTimeout(timer));
 }
 
 /** Public config gate — every face UI element renders only when this is true. */

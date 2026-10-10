@@ -92,6 +92,8 @@ FACE_EMBED_KEY = os.getenv("FACE_EMBED_KEY", "")
 FACE_MODEL_NAME = os.getenv("FACE_MODEL_NAME", "buffalo_s")
 # Cosine similarity threshold for 1:1 template matching.
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
+# Pairwise cosine similarity threshold across frontal frames.
+FACE_CONSISTENCY_THRESHOLD = float(os.getenv("FACE_CONSISTENCY_THRESHOLD", "0.30"))
 # Optional Silent-Face-Anti-Spoofing ONNX model; empty disables the check.
 FACE_ANTISPOOF_MODEL_PATH = os.getenv("FACE_ANTISPOOF_MODEL_PATH", "")
 # Liveness/quality thresholds — defaults tuned against synthetic frames; tune
@@ -101,6 +103,8 @@ FACE_BLINK_EAR_DROP = float(os.getenv("FACE_BLINK_EAR_DROP", "0.7"))
 FACE_SMILE_MOUTH_WIDEN = float(os.getenv("FACE_SMILE_MOUTH_WIDEN", "1.08"))
 FACE_MIN_BLUR_VARIANCE = float(os.getenv("FACE_MIN_BLUR_VARIANCE", "30.0"))
 FACE_MIN_FACE_PX = int(os.getenv("FACE_MIN_FACE_PX", "80"))
+# Local debug metrics logged per attempt (local only; never logs embeddings).
+FACE_DEBUG = os.getenv("FACE_DEBUG", "false").lower() == "true"
 
 # --- Proxy -------------------------------------------------------------------
 # When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.

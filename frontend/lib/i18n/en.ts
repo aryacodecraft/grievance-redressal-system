@@ -346,6 +346,8 @@ const en = {
   faceCapture: "Capture frames",
   faceCapturing: "Capturing…",
   faceCaptured: "Frames captured",
+  faceVerifying: "Verifying your face…",
+  faceVerifyingHint: "Checking liveness and biometric template match.",
   faceRetry: "Try camera again",
   faceCameraPreview: "Live camera preview",
   faceCameraDenied:

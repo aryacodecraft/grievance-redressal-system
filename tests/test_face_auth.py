@@ -118,6 +118,21 @@ class FakeDetector:
         ]
 
 
+class FakeEmbedder:
+    """Synthetic replacement for the ``face_service._real_embed`` seam."""
+
+    def __init__(self, person: int = 1) -> None:
+        self.person = person
+        self.person_for = None
+        self.calls: list[int] = []
+
+    def __call__(self, img: np.ndarray, det: Detection) -> np.ndarray:
+        idx = frame_index(img)
+        self.calls.append(idx)
+        person = self.person_for(idx) if self.person_for else self.person
+        return person_vector(person)
+
+
 def satisfy(action: str, fake: FakeDetector) -> None:
     """Program the fake so the given challenge action passes liveness."""
     if action == "turn_left":
@@ -1231,7 +1246,7 @@ class TestFaceService:
         monkeypatch.setattr(face_service, "_real_detections", detector)
         satisfy("turn_left", detector)
         out = face_service.verify_frames(_frame_bytes(5), "turn_left")
-        assert out.frame_count == 5
+        assert out.frame_count == 3
         assert out.min_pair_similarity == pytest.approx(1.0)
         assert float(np.linalg.norm(out.embedding)) == pytest.approx(1.0, abs=1e-5)
 
@@ -1252,7 +1267,7 @@ class TestFaceService:
 
     def test_verify_frames_rejects_split_identity(self, monkeypatch):
         detector = FakeDetector()
-        detector.person_for = lambda idx: 1 if idx < 3 else 2
+        detector.person_for = lambda idx: 1 if idx == 0 else 2
         monkeypatch.setattr(face_service, "_real_detections", detector)
         with pytest.raises(FaceAuthError) as exc:
             face_service.verify_frames(_frame_bytes(5), None)
@@ -1264,6 +1279,36 @@ class TestFaceService:
         with pytest.raises(FaceAuthError) as exc:
             face_service.verify_frames([_solid_jpeg()] + _frame_bytes(4), None)
         assert exc.value.code == "FACE_BLURRY"
+
+    def test_consistency_threshold_is_used_and_tunable(self, monkeypatch):
+        v1 = np.zeros(512, dtype=np.float32)
+        v1[0] = 1.0
+        v2 = np.zeros(512, dtype=np.float32)
+        v2[0] = 0.35
+        v2[1] = np.sqrt(1.0 - 0.35**2)
+
+        detector = FakeDetector()
+        calls = [0]
+        def fake_dets(img):
+            dets = detector(img)
+            calls[0] += 1
+            for d in dets:
+                d.embedding = v1 if calls[0] <= 1 else v2
+            return dets
+        monkeypatch.setattr(face_service, "_real_detections", fake_dets)
+
+        # Under default FACE_CONSISTENCY_THRESHOLD=0.30, 0.35 passes (even though FACE_MATCH_THRESHOLD=0.45)
+        monkeypatch.setattr(config, "FACE_CONSISTENCY_THRESHOLD", 0.30)
+        monkeypatch.setattr(config, "FACE_MATCH_THRESHOLD", 0.45)
+        verified = face_service.verify_frames(_frame_bytes(5), None)
+        assert verified.frame_count == 3
+
+        # If FACE_CONSISTENCY_THRESHOLD is set above 0.35, it fails
+        monkeypatch.setattr(config, "FACE_CONSISTENCY_THRESHOLD", 0.40)
+        calls[0] = 0
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.verify_frames(_frame_bytes(5), None)
+        assert exc.value.code == "INCONSISTENT_FRAMES"
 
 
 class TestFaceRepository:

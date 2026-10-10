@@ -450,20 +450,242 @@ def _real_detections(img: np.ndarray) -> list[Detection]:
 
 # ── Orchestration ────────────────────────────────────────────────────────────
 
-def verify_frames(frames: list[bytes], action: str | None) -> VerifiedFace:
+def _verify_frames_debug(
+    frames: list[bytes],
+    action: str | None,
+    *,
+    template: dict | None = None,
+    op: str = "verify",
+) -> VerifiedFace:
+    """Full-diagnostic path when FACE_DEBUG=true. Inspects all frames, logs one
+    detailed metric line, and then raises the first failing check if any."""
+    frames_received = len(frames)
+    threshold = config.FACE_MATCH_THRESHOLD
+    frames_with_exactly_one_face = 0
+    det_scores: list[float] = []
+    bbox_pxs: list[float] = []
+    blur_vars: list[float] = []
+    yaws: list[float] = []
+    ears: list[float] = []
+    mouth_widths: list[float] = []
+    candidates: list[tuple[np.ndarray, Detection]] = []
+    detections: list[Detection] = []
+    first_failing_check: str | None = None
+    first_failing_exc: FaceAuthError | None = None
+
+    if not (MIN_FRAMES <= frames_received <= MAX_FRAMES):
+        first_failing_check = "FRAME_COUNT"
+        first_failing_exc = FaceAuthError("FRAME_COUNT", f"expected {MIN_FRAMES}-{MAX_FRAMES} frames")
+    elif action is not None and action not in VALID_ACTIONS:
+        first_failing_check = "LIVENESS_FAILED(unknown_action)"
+        first_failing_exc = FaceAuthError("LIVENESS_FAILED", "unknown challenge action")
+
+    for jpeg in frames:
+        img = None
+        try:
+            img = decode_frame(jpeg)
+        except FaceAuthError as exc:
+            if first_failing_check is None:
+                first_failing_check = exc.code
+                first_failing_exc = exc
+        except Exception:
+            if first_failing_check is None:
+                first_failing_check = "IMAGE_INVALID"
+                first_failing_exc = FaceAuthError("IMAGE_INVALID", "frame could not be decoded")
+
+        if img is not None:
+            gray = img.mean(axis=2)
+            b_var = laplacian_variance(gray)
+            blur_vars.append(b_var)
+            frame_passed_quality = True
+            if b_var < config.FACE_MIN_BLUR_VARIANCE:
+                frame_passed_quality = False
+                if first_failing_check is None:
+                    first_failing_check = f"FACE_BLURRY(var={b_var:.1f}<{config.FACE_MIN_BLUR_VARIANCE})"
+                    first_failing_exc = FaceAuthError("FACE_BLURRY", "frame is too blurry")
+
+            try:
+                raw_dets = _real_detections(img)
+                if len(raw_dets) == 1:
+                    frames_with_exactly_one_face += 1
+                    det = raw_dets[0]
+                    detections.append(det)
+                    det_scores.append(det.det_score)
+                    x1, y1, x2, y2 = det.bbox
+                    min_side = min(x2 - x1, y2 - y1)
+                    bbox_pxs.append(min_side)
+
+                    if det.det_score < MIN_DET_SCORE:
+                        frame_passed_quality = False
+                        if first_failing_check is None:
+                            first_failing_check = f"DETECTION_FAILED(det_score={det.det_score:.3f}<{MIN_DET_SCORE})"
+                            first_failing_exc = FaceAuthError("DETECTION_FAILED", "low detection confidence")
+                    elif min_side < config.FACE_MIN_FACE_PX:
+                        frame_passed_quality = False
+                        if first_failing_check is None:
+                            first_failing_check = f"FACE_TOO_SMALL({min_side:.0f}px<{config.FACE_MIN_FACE_PX}px)"
+                            first_failing_exc = FaceAuthError("FACE_TOO_SMALL", "face too small in frame")
+
+                    if det.yaw_degrees is not None:
+                        yaws.append(det.yaw_degrees)
+                    if det.eye_aspect is not None:
+                        ears.append(det.eye_aspect)
+                    if det.mouth_width is not None:
+                        mouth_widths.append(det.mouth_width)
+
+                    try:
+                        _antispoof_score(img)
+                    except FaceAuthError as exc:
+                        frame_passed_quality = False
+                        if first_failing_check is None:
+                            first_failing_check = exc.code
+                            first_failing_exc = exc
+
+                    if frame_passed_quality:
+                        candidates.append((img, det))
+                else:
+                    if first_failing_check is None:
+                        first_failing_check = f"FACE_COUNT({len(raw_dets)})"
+                        first_failing_exc = FaceAuthError("FACE_COUNT", f"expected 1 face, found {len(raw_dets)}")
+            except FaceAuthError as exc:
+                if first_failing_check is None:
+                    first_failing_check = exc.code
+                    first_failing_exc = exc
+            except Exception:
+                if first_failing_check is None:
+                    first_failing_check = "DETECTION_FAILED"
+                    first_failing_exc = FaceAuthError("DETECTION_FAILED", "face detection failed")
+
+    # Recognition and template matching on the 3 most frontal frames
+    frontal = sorted(
+        candidates,
+        key=lambda item: (
+            abs(item[1].yaw_degrees if item[1].yaw_degrees is not None else 0.0),
+            -item[1].det_score,
+        ),
+    )[:3]
+    embeddings: list[np.ndarray] = [normalize(d.embedding) for _, d in frontal if d.embedding is not None]
+
+    pairwise_sims: list[float] = []
+    for i in range(len(embeddings)):
+        for j in range(i + 1, len(embeddings)):
+            pairwise_sims.append(similarity(embeddings[i], embeddings[j]))
+
+    min_pair_sim = min(pairwise_sims) if pairwise_sims else None
+    mean_pair_sim = (sum(pairwise_sims) / len(pairwise_sims)) if pairwise_sims else None
+
+    if (
+        min_pair_sim is not None
+        and min_pair_sim < config.FACE_CONSISTENCY_THRESHOLD
+        and first_failing_check is None
+    ):
+        first_failing_check = (
+            f"INCONSISTENT_FRAMES(min_cos={min_pair_sim:.3f}<{config.FACE_CONSISTENCY_THRESHOLD:.2f})"
+        )
+        first_failing_exc = FaceAuthError("INCONSISTENT_FRAMES", "frames show different faces")
+
+    if action is not None and len(detections) >= len(frames):
+        try:
+            check_action(action, detections)
+        except FaceAuthError as exc:
+            if first_failing_check is None:
+                first_failing_check = f"LIVENESS_FAILED({exc.message})"
+                first_failing_exc = exc
+
+    sim_to_template = None
+    if template is not None and embeddings:
+        try:
+            stored = decrypt_embedding(template.get("encryptedEmbedding", ""))
+            agg_emb = aggregate_embeddings(embeddings)
+            sim_to_template = similarity(stored, agg_emb)
+            if sim_to_template < threshold and first_failing_check is None:
+                first_failing_check = f"below_threshold(sim={sim_to_template:.3f}<{threshold:.2f})"
+        except Exception as exc:
+            if first_failing_check is None:
+                first_failing_check = f"TEMPLATE_ERROR({exc})"
+
+    ear_ratio_str = "N/A"
+    if ears and max(ears) > 0:
+        ear_ratio_str = f"{min(ears) / max(ears):.2f}"
+
+    smile_ratio_str = "N/A"
+    if mouth_widths and len(mouth_widths) >= 3:
+        edge_mw = (mouth_widths[0] + mouth_widths[-1]) / 2.0
+        mid_mw = sum(mouth_widths[1:-1]) / (len(mouth_widths) - 2)
+        smile_ratio_str = f"{mid_mw / edge_mw:.2f}" if edge_mw > 0 else "N/A"
+
+    yaw_str = "N/A"
+    if yaws:
+        y_first = yaws[0]
+        y_last = yaws[-1]
+        y_delta = y_last - y_first
+        y_list = ", ".join(f"{y:+.1f}" for y in yaws)
+        yaw_str = f"[{y_list}] (first={y_first:+.1f}, last={y_last:+.1f}, delta={y_delta:+.1f})"
+
+    det_score_min_str = f"{min(det_scores):.3f}" if det_scores else "N/A"
+    bbox_px_min_str = f"{int(min(bbox_pxs))}" if bbox_pxs else "N/A"
+    blur_var_min_str = f"{min(blur_vars):.1f}" if blur_vars else "N/A"
+    pair_min_str = f"{min_pair_sim:.3f}" if min_pair_sim is not None else "N/A"
+    pair_mean_str = f"{mean_pair_sim:.3f}" if mean_pair_sim is not None else "N/A"
+    sim_template_str = f"{sim_to_template:.3f}" if sim_to_template is not None else "N/A"
+    failing_name_str = first_failing_check if first_failing_check is not None else "None"
+
+    # Exactly one log line with the required metrics
+    logger.info(
+        "[FACE_DEBUG] action=%s, frames_received=%d, frames_with_exactly_one_face=%d, "
+        "det_score min=%s, bbox px min=%s, blur variance min=%s, "
+        "yaw per frame=%s, EAR min/max ratio=%s, smile spread ratio=%s, "
+        "pairwise cosine min/mean across frames=%s/%s, similarity to template=%s, "
+        "threshold=%.2f, first failing check name=%s",
+        f"{op}:{action}" if action else op,
+        frames_received,
+        frames_with_exactly_one_face,
+        det_score_min_str,
+        bbox_px_min_str,
+        blur_var_min_str,
+        yaw_str,
+        ear_ratio_str,
+        smile_ratio_str,
+        pair_min_str,
+        pair_mean_str,
+        sim_template_str,
+        threshold,
+        failing_name_str,
+    )
+
+    if first_failing_exc is not None:
+        raise first_failing_exc
+
+    return VerifiedFace(
+        embedding=aggregate_embeddings(embeddings),
+        frame_count=len(embeddings),
+        min_pair_similarity=min_pair_sim if min_pair_sim is not None else 1.0,
+        yaw_trace=[d.yaw_degrees or 0.0 for d in detections],
+    )
+
+
+def verify_frames(
+    frames: list[bytes],
+    action: str | None,
+    *,
+    template: dict | None = None,
+    op: str = "verify",
+) -> VerifiedFace:
     """Decode, quality-check, anti-spoof, liveness-check and embed the frames.
 
     Raises FaceAuthError (fail closed) on any violation. On success the frame
     embeddings are mutually consistent and reduced to one mean vector.
     """
+    if config.FACE_DEBUG:
+        return _verify_frames_debug(frames, action, template=template, op=op)
+
     if not (MIN_FRAMES <= len(frames) <= MAX_FRAMES):
         raise FaceAuthError("FRAME_COUNT", f"expected {MIN_FRAMES}-{MAX_FRAMES} frames")
     if action is not None and action not in VALID_ACTIONS:
         raise FaceAuthError("LIVENESS_FAILED", "unknown challenge action")
 
     detections: list[Detection] = []
-    embeddings: list[np.ndarray] = []
-    threshold = config.FACE_MATCH_THRESHOLD
+    candidates: list[tuple[np.ndarray, Detection]] = []
     for jpeg in frames:
         img = decode_frame(jpeg)
         det = select_single_face(_real_detections(img))
@@ -472,19 +694,29 @@ def verify_frames(frames: list[bytes], action: str | None) -> VerifiedFace:
             raise FaceAuthError("FACE_BLURRY", "frame is too blurry")
         _antispoof_score(img)
         detections.append(det)
-        embeddings.append(normalize(det.embedding))
+        candidates.append((img, det))
 
-    # All frames must be the same person before any match against a template.
+    if action is not None:
+        check_action(action, detections)
+
+    # Recognition and template matching on the 3 most frontal frames
+    frontal = sorted(
+        candidates,
+        key=lambda item: (
+            abs(item[1].yaw_degrees if item[1].yaw_degrees is not None else 0.0),
+            -item[1].det_score,
+        ),
+    )[:3]
+    embeddings = [normalize(det.embedding) for _, det in frontal if det.embedding is not None]
+
+    # Pairwise consistency check across the 3 frontal frames
     min_sim = 1.0
     for i in range(len(embeddings)):
         for j in range(i + 1, len(embeddings)):
             pair = similarity(embeddings[i], embeddings[j])
             min_sim = min(min_sim, pair)
-            if pair < threshold:
+            if pair < config.FACE_CONSISTENCY_THRESHOLD:
                 raise FaceAuthError("INCONSISTENT_FRAMES", "frames show different faces")
-
-    if action is not None:
-        check_action(action, detections)
 
     return VerifiedFace(
         embedding=aggregate_embeddings(embeddings),

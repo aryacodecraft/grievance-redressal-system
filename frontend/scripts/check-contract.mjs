@@ -293,4 +293,27 @@ assert.equal(location.formatCityState({ city: "Panaji", state: null }), "Panaji"
 assert.equal(location.formatCityState(null), null);
 log("parseCityState/formatCityState city-state labels");
 
+/* ── 5. Camera track stopping & face request timeout ──────────────────────── */
+const camera = await import("../lib/camera.ts");
+
+let stoppedCount = 0;
+const mockTracks = [
+  { stop: () => { stoppedCount++; } },
+  { stop: () => { stoppedCount++; } },
+  { stop: () => { throw new Error("already stopped"); } },
+];
+const mockStream = { getTracks: () => mockTracks };
+
+camera.stopMediaStream(mockStream);
+assert.equal(stoppedCount, 2, "all valid tracks must be stopped");
+camera.stopMediaStream(null); // safe on null
+log("stopMediaStream teardown", "all tracks stopped safely without unhandled throws");
+
+assert.equal(api.FACE_REQUEST_TIMEOUT_MS, 60_000);
+assert.equal(
+  api.FACE_TIMEOUT_MESSAGE,
+  "First run loads the face model, this can take a minute. Try again."
+);
+log("face request timeout constants", "60s cap with model load explanation");
+
 console.log("\ncontract checks passed");

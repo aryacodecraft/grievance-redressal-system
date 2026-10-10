@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ScanFace, Trash2 } from "lucide-react";
+import { RefreshCw, ScanFace, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -114,6 +114,12 @@ export default function ProfilePage() {
       setNotice(
         wasEnrolled ? t("faceReenrolledNotice") : t("faceEnrolledNotice")
       );
+      try {
+        const status = await getFaceStatus();
+        setEnrolled(status.enrolled);
+      } catch {
+        // non-fatal status refresh fallback
+      }
     } catch (e) {
       setError(msg(e, t("faceUnavailable")));
       setChallenge(null);
@@ -200,7 +206,21 @@ export default function ProfilePage() {
             </div>
 
             {notice && <Alert>{notice}</Alert>}
-            {error && <Alert tone="error">{error}</Alert>}
+            {error && (
+              <div className="space-y-2">
+                <Alert tone="error">{error}</Alert>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void beginEnroll()}
+                  disabled={busy}
+                >
+                  <RefreshCw size={14} strokeWidth={2} />
+                  {t("faceRetry")}
+                </Button>
+              </div>
+            )}
 
             {enrolled && <Alert tone="info">{t("faceReenrollHint")}</Alert>}
 
@@ -210,6 +230,11 @@ export default function ProfilePage() {
                 action={challenge.action}
                 onCapture={onCaptured}
                 disabled={busy}
+                verifying={busy}
+                onCancel={() => {
+                  setChallenge(null);
+                  resetFeedback();
+                }}
               />
             ) : (
               <div className="space-y-4">

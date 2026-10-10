@@ -259,6 +259,11 @@ function LoginForm() {
       action={challenge.action}
       onCapture={pending ? onFaceVerifyFrames : onFaceLoginFrames}
       disabled={isSubmitting}
+      verifying={isSubmitting}
+      onCancel={() => {
+        setChallenge(null);
+        setError(null);
+      }}
     />
   ) : null;
 

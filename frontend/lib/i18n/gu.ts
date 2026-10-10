@@ -330,6 +330,8 @@ const gu: Messages = {
   faceCapture: "ફ્રેમ કેપ્ચર કરો",
   faceCapturing: "કેપ્ચર થઈ રહ્યું છે…",
   faceCaptured: "ફ્રેમ કેપ્ચર થયા",
+  faceVerifying: "તમારા ચહેરાની ચકાસણી થઈ રહી છે…",
+  faceVerifyingHint: "જીવંતતા અને બાયોમેટ્રિક ટેમ્પલેટ મેળ ચકાસી રહ્યું છે.",
   faceRetry: "કેમેરો ફરી અજમાવો",
   faceCameraPreview: "લાઇવ કેમેરા પ્રિવ્યૂ",
   faceCameraDenied: "કેમેરા ઍક્સેસ નામંજૂર થયો. બ્રાઉઝર સેટિંગ્સમાં આ સાઇટ માટે કેમેરાને પરવાનગી આપો અને ફરી અજમાવો.",

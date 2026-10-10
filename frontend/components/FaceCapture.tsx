@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, RefreshCw } from "lucide-react";
+import { Camera, CheckCircle2, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Feedback";
 import { useI18n, type MessageKey } from "@/lib/i18n";
+import { stopMediaStream } from "@/lib/camera";
 
 /**
  * Live camera capture for the face-auth flows (DEC-024).
@@ -16,10 +17,10 @@ import { useI18n, type MessageKey } from "@/lib/i18n";
  * preview image is ever persisted.
  */
 
-const FRAME_COUNT = 6; // backend accepts 5-8
-const FRAME_INTERVAL_MS = 330; // 6 frames over ~1.7 s
-const CAPTURE_WIDTH = 320;
-const CAPTURE_HEIGHT = 240;
+const FRAME_COUNT = 5; // backend accepts 5-8
+const FRAME_INTERVAL_MS = 300; // 5 frames over ~1.5 s
+const CAPTURE_WIDTH = 640;
+const CAPTURE_HEIGHT = 480;
 const START_TIMEOUT_MS = 12_000;
 
 type Phase = "starting" | "live" | "capturing" | "done";
@@ -43,11 +44,15 @@ export function FaceCapture({
   action,
   onCapture,
   disabled = false,
+  verifying = false,
+  onCancel,
 }: {
   /** Challenge action the captured frames must perform (e.g. "turn_left"). */
   action: string;
   onCapture: (frames: string[]) => void;
   disabled?: boolean;
+  verifying?: boolean;
+  onCancel?: () => void;
 }) {
   const { t } = useI18n();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -63,8 +68,11 @@ export function FaceCapture({
       timerRef.current = null;
     }
     if (streamRef.current) {
-      for (const track of streamRef.current.getTracks()) track.stop();
+      stopMediaStream(streamRef.current);
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   }, []);
 
@@ -90,13 +98,24 @@ export function FaceCapture({
         }),
         timeout,
       ]);
+
+      // React strict-mode double mount guard: if unmounted while getUserMedia was resolving
       if (unmountedRef.current) {
-        for (const track of stream.getTracks()) track.stop();
+        stopMediaStream(stream);
         return;
       }
+
+      // Stop any existing stream before replacing
+      if (streamRef.current) {
+        stopMediaStream(streamRef.current);
+      }
+
       streamRef.current = stream;
       const video = videoRef.current;
-      if (!video) return;
+      if (!video) {
+        stopCamera();
+        return;
+      }
       video.srcObject = stream;
       await video.play().catch(() => undefined);
       if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
@@ -114,6 +133,7 @@ export function FaceCapture({
       }
       setPhase("live");
     } catch (err) {
+      stopCamera();
       if (unmountedRef.current) return;
       const name = err instanceof DOMException ? err.name : "";
       if (err instanceof Error && err.message === "timeout") setCamError("timeout");
@@ -124,7 +144,7 @@ export function FaceCapture({
   }, [stopCamera]);
 
   const capture = useCallback(() => {
-    if (phase !== "live" || disabled) return;
+    if (phase !== "live" || disabled || verifying) return;
     const video = videoRef.current;
     if (!video) return;
     setPhase("capturing");
@@ -136,45 +156,78 @@ export function FaceCapture({
     timerRef.current = setInterval(() => {
       if (!ctx || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
       ctx.drawImage(video, 0, 0, CAPTURE_WIDTH, CAPTURE_HEIGHT);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       frames.push(dataUrl.slice(dataUrl.indexOf(",") + 1));
       if (frames.length >= FRAME_COUNT) {
         if (timerRef.current !== null) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
+        // Stop all tracks immediately after the last frame is captured (before network call)
+        stopCamera();
         setPhase("done");
         onCapture(frames);
       }
     }, FRAME_INTERVAL_MS);
-  }, [phase, disabled, onCapture]);
+  }, [phase, disabled, verifying, onCapture, stopCamera]);
 
-  // Camera lifecycle: open on mount, always close on unmount. Starting the
-  // stream is an external-system sync, so the initial phase setState here is
-  // intentional (same pattern as SuperadminWorkspace's load effect).
+  // Camera lifecycle: open on mount, always close on unmount, tab hide, or page unload.
   useEffect(() => {
     unmountedRef.current = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void startCamera();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stopCamera();
+      }
+    };
+    window.addEventListener("pagehide", stopCamera);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       unmountedRef.current = true;
       stopCamera();
+      window.removeEventListener("pagehide", stopCamera);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [startCamera, stopCamera]);
+
+  // Stop camera immediately if verifying state becomes active externally
+  useEffect(() => {
+    if (verifying) {
+      stopCamera();
+    }
+  }, [verifying, stopCamera]);
 
   if (camError) {
     return (
       <div className="space-y-3">
         <Alert tone="error">{t(CAMERA_ERROR_KEYS[camError])}</Alert>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void startCamera()}
-        >
-          <RefreshCw size={14} strokeWidth={2} />
-          {t("faceRetry")}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void startCamera()}
+          >
+            <RefreshCw size={14} strokeWidth={2} />
+            {t("faceRetry")}
+          </Button>
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                stopCamera();
+                onCancel();
+              }}
+            >
+              <X size={14} strokeWidth={2} />
+              Cancel
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -183,37 +236,75 @@ export function FaceCapture({
     action: t(ACTION_KEYS[action] ?? "faceActSmile"),
   });
 
+  const isVerifying = verifying || (phase === "done" && disabled);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 rounded-md border border-primary-200 bg-primary-50/70 px-3 py-2">
         <Camera size={15} strokeWidth={2} className="shrink-0 text-primary-700" />
         <p className="text-xs font-semibold text-primary-900">{instruction}</p>
       </div>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        aria-label={t("faceCameraPreview")}
-        className="aspect-[4/3] w-full rounded-md border border-ink-200 bg-ink-950 object-cover"
-      />
-      {phase === "live" && (
-        <Button
-          type="button"
-          className="w-full"
-          onClick={capture}
-          disabled={disabled}
+
+      {isVerifying ? (
+        <div
+          className="flex flex-col items-center justify-center gap-2 rounded-md border border-primary-200 bg-primary-50/60 py-10 text-center"
+          role="status"
         >
-          <Camera size={16} strokeWidth={2} />
-          {t("faceCapture")}
-        </Button>
+          <div className="flex items-center gap-2.5 text-xs font-semibold text-primary-900">
+            <span
+              aria-hidden
+              className="h-4 w-4 animate-spin rounded-full border-2 border-primary-200 border-t-primary-700"
+            />
+            <span>{t("faceVerifying")}</span>
+          </div>
+          <p className="text-[11px] text-ink-500">{t("faceVerifyingHint")}</p>
+        </div>
+      ) : (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          aria-label={t("faceCameraPreview")}
+          className="aspect-[4/3] w-full rounded-md border border-ink-200 bg-ink-950 object-cover -scale-x-100"
+        />
       )}
+
+      {phase === "live" && !isVerifying && (
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            className="flex-1"
+            onClick={capture}
+            disabled={disabled || verifying}
+          >
+            <Camera size={16} strokeWidth={2} />
+            {t("faceCapture")}
+          </Button>
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                stopCamera();
+                onCancel();
+              }}
+              disabled={disabled || verifying}
+            >
+              <X size={16} strokeWidth={2} />
+              Cancel
+            </Button>
+          )}
+        </div>
+      )}
+
       {phase === "capturing" && (
         <p className="text-center text-xs font-medium text-ink-500" role="status">
           {t("faceCapturing")}
         </p>
       )}
-      {phase === "done" && (
+
+      {phase === "done" && !isVerifying && (
         <p
           className="flex items-center justify-center gap-1.5 text-center text-xs font-semibold text-emerald-700"
           role="status"
