@@ -12,6 +12,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import jwt  # PyJWT
 
+import secrets
+
 logger = logging.getLogger("grievance-api")
 
 # ── Settings ────────────────────────────────────────────────────────────────
@@ -52,7 +54,7 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def create_pending_token(user_id: str, role: str, email: str, department_id: str | None = None) -> str:
+def create_pending_token(user_id: str, role: str, email: str | None = None, department_id: str | None = None) -> str:
     """Half-authenticated login: credentials verified, face step still open.
 
     Not a full access token — `get_current_user` rejects any type other than
@@ -61,16 +63,13 @@ def create_pending_token(user_id: str, role: str, email: str, department_id: str
     payload = {
         "sub": user_id,
         "role": role,
-        "email": email,
+        "email": email or "",
         "departmentId": department_id,
         "type": "pending_2fa",
         "exp": datetime.now(timezone.utc) + timedelta(minutes=PENDING_EXPIRE_MINUTES),
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-
-
-import secrets
 
 
 def create_signup_token(phone: str, full_name: str) -> str:
@@ -82,6 +81,20 @@ def create_signup_token(phone: str, full_name: str) -> str:
         "type": "signup",
         "jti": secrets.token_hex(16),
         "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def create_reenroll_token(user_id: str, phone: str | None = None, citizen_id: str | None = None) -> str:
+    """One-time re-enrollment token valid for 24 hours."""
+    payload = {
+        "sub": user_id,
+        "phone": phone or "",
+        "citizen_id": citizen_id or "",
+        "type": "re_enroll",
+        "jti": secrets.token_hex(16),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
         "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

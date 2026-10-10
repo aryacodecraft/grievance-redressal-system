@@ -70,6 +70,12 @@ an authentication factor that increases assurance.
   `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`,
   `FACE_MIN_FACE_PX`) — see `backend/.env.example`.
 
+### Citizen Face-Only Authentication & Biometrics (DEC-024)
+- Face-only authentication is lower assurance than a password; phone numbers are unverified identifiers.
+- Face is the only credential for these users, so explicit consent, delete-my-data, and staff reset exist.
+- Management step-up is a convenience, not a control (lockouts fall back to deterministic auth).
+- The `X-Face-Reason` response header reveals that an account needs re-enrollment (accepted for demo).
+
 ---
 
 ## Authorization — Role-Based Access Control (RBAC)

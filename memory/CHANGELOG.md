@@ -4,6 +4,27 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-10 — Citizen Passwordless Face Authentication: Login & Recovery (`feature/face-auth`)
+
+### Added
+- **Citizen 1:1 Face Login (`POST /auth/face/login`)**:
+  - Accepts `identifier` (10-digit phone, Citizen ID `CIT-...`, or email for legacy accounts).
+  - Strictly 1:1 lookup using `find_by_identifier`; template matching compares strictly against the loaded user's template.
+  - Restricted strictly to role `USER`. Privileged roles (`ADMIN`, `SUPERADMIN`, `RESOLVER`) and unknown identifiers return identical generic 401 `{"error": "Face sign-in failed"}`.
+  - Rate limiting & lockouts: 5 fails/15 min per-identifier, 20 fails/15 min per-IP. `MODEL_MISMATCH` never counts toward lockout counters and emits `X-Face-Reason: MODEL_MISMATCH`. Public login never touches internal user counter.
+- **Recovery & Admin Reset Flow**:
+  - `POST /auth/face/admin-reset/{user_id}`: ADMIN/SUPERADMIN only, audited. Deletes the user's template and issues a 24-hour single-use `re_enroll` token. Restricted to `face_only` accounts.
+  - `POST /auth/face/re-enroll`: Public endpoint accepting token, identifier, challenge_id, and frames. Runs full enrollment pipeline and replaces template. Burns token only upon success (remains valid on verification failure until 24-hr expiry).
+- **Frontend**:
+  - Login page Face tab: Single field "Mobile number or Citizen ID" plus camera without email references. 3-failure municipal office reset prompt. Clear re-enroll message on `MODEL_MISMATCH`. Link to `/re-enroll`.
+  - Superadmin UI: Flag-gated "Reset face login" button for `face_only` citizens revealing single-use token for in-person handoff.
+  - Profile page: Warning on biometric deletion for `face_only` users explaining removal of their sole sign-in method; link to `/re-enroll`.
+  - Public Recovery Page: `/re-enroll` allowing citizens holding a token to capture and store a new face template.
+  - i18n: Added 14 new keys (English strings) across all 11 language packs (`en`, `hi`, `bn`, `gu`, `kn`, `ml`, `mr`, `or`, `pa`, `ta`, `te`).
+- **Tests & Verification**:
+  - 6 new core integration tests in `tests/test_face_login_recovery.py` covering login, role gating, lockouts, admin reset, and token burning.
+  - All 140 face & drift tests pass; full suite confirms exactly the 22 known baseline failures (370 passed); TypeScript and Next.js production build clean.
+
 ## 2026-10-10 — Face authentication accuracy and performance optimizations (`feature/face-auth`)
 
 ### Added & Optimized

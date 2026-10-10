@@ -46,6 +46,8 @@ function LoginForm() {
   // runs with FACE_AUTH_ENABLED=false (the default).
   const [faceEnabled, setFaceEnabled] = useState(false);
   const [mode, setMode] = useState<"password" | "face">("password");
+  const [faceIdentifier, setFaceIdentifier] = useState("");
+  const [faceFailCount, setFaceFailCount] = useState(0);
   const [faceBusy, setFaceBusy] = useState(false);
   const [challenge, setChallenge] = useState<FaceChallenge | null>(null);
   // 2FA step: entered via password login (FaceTwoFactorRequiredError) or the
@@ -169,7 +171,7 @@ function LoginForm() {
   }
 
   async function startFaceSignIn() {
-    if (!email) {
+    if (!faceIdentifier.trim()) {
       setError(t("errEnterCreds"));
       return;
     }
@@ -181,15 +183,27 @@ function LoginForm() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const res = await faceLogin(email, {
+      const res = await faceLogin(faceIdentifier, {
         challenge_id: challenge.challenge_id,
         frames,
       });
       const user = applyAuthResponse(res);
       clearStoredPendingToken();
+      setFaceFailCount(0);
       router.push(targetAfterLogin(user.role));
-    } catch (err) {
-      setError(errText(err, t("faceUnavailable")));
+    } catch (err: unknown) {
+      const isMismatch = (err as { faceReason?: string })?.faceReason === "MODEL_MISMATCH";
+      if (isMismatch) {
+        setError(t("faceReenrollRequired"));
+      } else {
+        const nextFails = faceFailCount + 1;
+        setFaceFailCount(nextFails);
+        if (nextFails >= 3) {
+          setError(t("faceMaxFailsOfficeReset"));
+        } else {
+          setError(errText(err, t("faceUnavailable")));
+        }
+      }
       // The challenge was consumed with the attempt — issue a fresh one.
       setChallenge(null);
     } finally {
@@ -407,14 +421,14 @@ function LoginForm() {
 
           {!pending && mode === "face" && (
             <div className="space-y-4">
-              <Field label={t("emailLabel")} required>
+              <Field label={t("faceIdentifierLabel")} required>
                 <Input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  placeholder="you@example.in"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  name="identifier"
+                  autoComplete="username"
+                  placeholder={t("faceIdentifierPlaceholder")}
+                  value={faceIdentifier}
+                  onChange={(e) => setFaceIdentifier(e.target.value)}
                   disabled={isSubmitting}
                 />
               </Field>
@@ -431,6 +445,24 @@ function LoginForm() {
                 </Button>
               )}
               <p className="text-xs text-ink-500">{t("faceLoginHint")}</p>
+              <div className="space-y-1.5 pt-2 text-center text-xs">
+                <div>
+                  <Link
+                    href="/signup/face"
+                    className="font-semibold text-primary-700 hover:text-primary-800 hover:underline"
+                  >
+                    {t("newHereFaceSignup")}
+                  </Link>
+                </div>
+                <div>
+                  <Link
+                    href="/re-enroll"
+                    className="text-ink-500 hover:text-ink-800 hover:underline"
+                  >
+                    {t("haveRecoveryToken")}
+                  </Link>
+                </div>
+              </div>
             </div>
           )}
 

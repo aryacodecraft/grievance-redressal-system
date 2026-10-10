@@ -1272,3 +1272,14 @@ counters are in-memory (reset on restart), `GET /status` does not expose the
 current `requireLogin2fa` value, and no physical-webcam validation has been
 run yet (thresholds are tunable via env for that purpose).
 
+---
+
+### DEC-024 Amendment — Citizen Passwordless Face Auth & Recovery (2026-10-10)
+
+- **Data Model:** Citizens (`role: USER`) may register with `auth_method: "face_only"`, nullable email and password, normalized 10-digit phone number, and unique server-generated `citizen_id` (`CIT-<8 digits>`). Existing password and Google authentication remain unaffected.
+- **Signup:** Two-step flow via `POST /auth/face/signup/start` (mints short-lived 5-minute signup token carrying phone + full name + liveness challenge) and `POST /auth/face/signup/complete` (verifies quality/liveness/identity binding, stores template, and creates citizen account atomically).
+- **Login:** `POST /auth/face/login` strictly 1:1 against the citizen's own template loaded via `find_by_identifier` (phone or Citizen ID, with email preserved for backwards compatibility). Restricted strictly to role USER; privileged roles (ADMIN, SUPERADMIN, RESOLVER) and unknown identifiers receive the same generic 401. Standard rate limiting (5 fails/15 min per identifier, 20 fails/15 min per IP); `MODEL_MISMATCH` never counts toward lockouts. Management 2FA step-up stays optional convenience.
+- **Recovery:** `POST /auth/face/admin-reset/{user_id}` (restricted to ADMIN/SUPERADMIN, audited) deletes template and returns a single-use 24-hour re-enrollment token for staff to deliver in person. `POST /auth/face/re-enroll` allows the citizen to capture a new template and burns the token on success.
+- **Frontend:** Single-field "Mobile number or Citizen ID" on the Face tab without email references; 3-failure municipal office reset prompt; dedicated public `/re-enroll` page; Superadmin UI reset button with one-time token display; profile warning on biometric deletion for face-only citizens.
+
+

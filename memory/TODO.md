@@ -197,25 +197,25 @@
 
 ---
 
-## 10. Face authentication follow-ups (DEC-024, shipped 2026-10-09)
+## 10. Face authentication & Citizen Passwordless Auth (DEC-024, updated 2026-10-10)
 
-Shipped on `feature/face-auth` (service/repo `7fc2c0e`, endpoints/step-up
-`a3d65a7`, 3-check fixes + frontend `f6fd67f`, tunable thresholds `be7266f`,
-docs/memory `—`). All remaining items are non-blocking:
-
+Shipped on `feature/face-auth` (DEC-024 base `7fc2c0e`..`be7266f`, accuracy/perf `c9f041e`/`5b0bd68`, citizen signup/login/recovery implemented):
+- [x] **Citizen Passwordless Signup** — `POST /auth/face/signup/start` + `POST /auth/face/signup/complete` with 10-digit normalized phone, generated `citizen_id`, and frontal template creation.
+- [x] **Citizen 1:1 Login** — `POST /auth/face/login` strictly 1:1 for `role: USER` with phone / Citizen ID / email identifier; privileged accounts and unknown identifiers return identical generic 401; lockout counters intact with MODEL_MISMATCH no-count.
+- [x] **Recovery & Admin Reset** — `POST /auth/face/admin-reset/{user_id}` (admin/superadmin audited, 24h single-use token) + public `POST /auth/face/re-enroll` (burns token on success); Superadmin UI reset button; citizen `/re-enroll` page.
 - [ ] **Real-webcam validation** — run enrollment/login on physical cameras and tune `FACE_TURN_MIN_DEGREES`, `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`, `FACE_MIN_FACE_PX` via env (no code change needed).
 - [ ] **Anti-spoof model not provisioned** — `FACE_ANTISPOOF_MODEL_PATH` wiring exists but no SilentFace ONNX model is bundled; drop a model path into `backend/.env` to enable.
 - [ ] **Mongo persistence for face stores** — templates, challenges and rate-limit counters are in-memory only (reset on restart); port `repositories/face_templates.py` to a `face_templates` collection behind the same repository interface.
 - [ ] **`GET /auth/face/status` does not expose `requireLogin2fa`** — the profile toggle starts unchecked on a fresh page load (PATCH still works; the value is stored on the template).
-- [ ] **Browser pass** — no desktop browser was connected; eyeball `/login` face tab, the 2FA step, and `/profile` enrollment on a real camera.
+- [ ] **Browser pass** — eyeball `/login` face tab, the 2FA step, `/signup/face`, `/re-enroll`, and `/profile` on a real camera.
 
 ---
 
-## 11. Known pre-existing test baseline (NOT face auth, as of 2026-10-09)
+## 11. Known pre-existing test baseline (NOT face auth, as of 2026-10-10)
 
-Full suite: **333 passed / 22 failed**. The 22 failures predate DEC-024
+Full suite: **370 passed / 22 failed**. The 22 failures predate DEC-024
 (stale DEC-006 status-machine and i18n/vocabulary expectations) and are
-unrelated to face auth — all 106 face tests and 15 config-drift tests pass:
+unrelated to face auth — all 140 face & drift tests pass:
 
 - `tests/test_auth.py::TestGrievanceRBAC::test_admin_can_patch_status`
 - `tests/test_endpoints.py::test_grievance_optional_fields_are_null_tolerated`

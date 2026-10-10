@@ -126,9 +126,14 @@ async function requestJson<T>(
 
   const json = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(
+    const err = new Error(
       (json && (json.error as string)) || `Request failed (${res.status})`
     );
+    const faceReason = res.headers?.get ? res.headers.get("x-face-reason") : null;
+    if (faceReason) {
+      (err as unknown as { faceReason?: string }).faceReason = faceReason;
+    }
+    throw err;
   }
   return json as T;
 }
@@ -540,6 +545,37 @@ export function issueFaceChallenge(): Promise<FaceChallenge> {
   return faceJson<FaceChallenge>("/auth/face/challenge", {});
 }
 
+/** Start face-only citizen signup: returns short-lived signup token and challenge. */
+export function startFaceSignup(body: {
+  full_name: string;
+  phone: string;
+  consent: boolean;
+}): Promise<{
+  signup_token: string;
+  challenge_id: string;
+  action: "turn_left" | "turn_right" | "blink" | "smile";
+  expires_in: number;
+}> {
+  return faceJson<{
+    signup_token: string;
+    challenge_id: string;
+    action: "turn_left" | "turn_right" | "blink" | "smile";
+    expires_in: number;
+  }>("/auth/face/signup/start", body);
+}
+
+/** Complete face-only citizen signup: creates account and returns AuthResponse with citizen_id. */
+export function completeFaceSignup(body: {
+  signup_token: string;
+  challenge_id: string;
+  frames: string[];
+}): Promise<AuthResponse & { citizen_id: string }> {
+  return faceJson<AuthResponse & { citizen_id: string }>(
+    "/auth/face/signup/complete",
+    body
+  );
+}
+
 /**
  * Store the caller's face template. `require_login_2fa` only takes effect for
  * ADMIN/SUPERADMIN (the backend enforces that).
@@ -553,15 +589,20 @@ export function enrollFace(body: {
   return faceJson<{ enrolled: boolean }>("/auth/face/enroll", body);
 }
 
-/** 1:1 email + face sign-in (USER/RESOLVER only — never privileged roles). */
+/** 1:1 face sign-in for citizens (phone or Citizen ID, or email for backwards compatibility). */
 export function faceLogin(
-  email: string,
+  identifier: string,
   body: { challenge_id: string; frames: string[] }
 ): Promise<AuthResponse> {
-  return faceJson<AuthResponse>("/auth/face/login", {
+  const trimmed = identifier.trim();
+  const payload: Record<string, unknown> = {
     ...body,
-    email: email.trim().toLowerCase(),
-  });
+    identifier: trimmed,
+  };
+  if (trimmed.includes("@")) {
+    payload.email = trimmed.toLowerCase();
+  }
+  return faceJson<AuthResponse>("/auth/face/login", payload);
 }
 
 /** Privileged step-up; `pendingToken` is the pending_2fa token from login. */
@@ -617,5 +658,28 @@ export function revokeUserFaceTemplate(
   return requestJson<{ deleted: boolean }>(
     `/auth/face/template/${encodeURIComponent(userId)}`,
     { method: "DELETE" }
+  );
+}
+
+/** Staff action: reset face login credential for a face_only citizen, returning a 24h token. */
+export function adminResetFace(
+  userId: string
+): Promise<{ re_enroll_token: string; expires_in: number }> {
+  return postJson<{ re_enroll_token: string; expires_in: number }>(
+    `/auth/face/admin-reset/${encodeURIComponent(userId)}`,
+    {}
+  );
+}
+
+/** Public recovery: re-enroll face template using a staff-issued one-time token. */
+export function reEnrollFace(body: {
+  token: string;
+  identifier: string;
+  challenge_id: string;
+  frames: string[];
+}): Promise<AuthResponse & { re_enrolled: boolean }> {
+  return faceJson<AuthResponse & { re_enrolled: boolean }>(
+    "/auth/face/re-enroll",
+    body
   );
 }

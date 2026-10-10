@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-09 (optional face-recognition login shipped on `feature/face-auth`, DEC-024)
+> Last updated: 2026-10-10 (citizen passwordless face signup, login, and recovery on `feature/face-auth`, DEC-024)
 
 ---
 

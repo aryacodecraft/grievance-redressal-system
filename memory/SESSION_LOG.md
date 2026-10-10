@@ -1886,3 +1886,40 @@ Resolve webcam capture issues and optimize pipeline latency on `feature/face-aut
 - Atlas ping measured: avg 32.8 - 36.5 ms, min 23.8 ms.
 - FACE_DEBUG verified to default to false and never logs sensitive biometric data.
 
+---
+
+## 2026-10-10 — Citizen Passwordless Face Authentication (Step 2: Login & Step 3: Recovery)
+
+### Goal
+Implement Step 2 (LOGIN) and Step 3 (RECOVERY) for passwordless citizen face authentication on branch `feature/face-auth`:
+1. `POST /auth/face/login`: 1:1 login with phone or citizen_id (email preserved for legacy accounts). Restricted strictly to role USER; privileged roles and unknown identifiers return identical generic 401. Lockout limits: 5 fails/15 min per identifier, 20 fails/15 min per IP. MODEL_MISMATCH never counts toward lockout counters.
+2. Frontend Face Login: Single field "Mobile number or Citizen ID" plus camera on Face tab (no email wording). 3-failure municipal office reset prompt. Clear re-enroll message on MODEL_MISMATCH.
+3. Recovery Flow:
+   - `POST /auth/face/admin-reset/{user_id}`: ADMIN/SUPERADMIN only, audited. Deletes template and mints 24-hr single-use re-enrollment token for in-person handoff.
+   - `POST /auth/face/re-enroll`: Public endpoint accepting token, identifier, challenge_id, and frames. Runs full enrollment pipeline and replaces template. Burns token only upon success.
+   - UI: Superadmin "Reset face login" button showing one-time token; Profile page warning for face_only deletion; dedicated `/re-enroll` citizen recovery page.
+   - i18n: Added English strings across all 11 language packs.
+
+### Files Changed
+- `backend/app/routers/face_auth.py`: Added identifier normalization, 1:1 USER-only login, admin-reset, and re-enroll endpoints.
+- `backend/app/auth.py`: Added `create_reenroll_token`.
+- `frontend/lib/api.ts`: Added `adminResetFace`, `reEnrollFace`, updated `faceLogin` to use identifier and capture `x-face-reason`.
+- `frontend/app/login/page.tsx`: Single identifier input on Face tab; 3-failure reset message; MODEL_MISMATCH prompt; link to `/re-enroll`.
+- `frontend/components/superadmin/SuperadminWorkspace.tsx`: Flag-gated "Reset face login" button with single-use token reveal for `face_only` users.
+- `frontend/app/profile/page.tsx`: Warning on deleting face data for `face_only` users; link to re-enroll.
+- `frontend/app/re-enroll/page.tsx`: Dedicated public re-enrollment page.
+- `frontend/lib/i18n/*.ts`: All 11 language packs updated with 14 new keys.
+- `tests/test_face_login_recovery.py`: 6 core integration tests covering login, role gating, lockouts, admin reset, and token burning.
+- `docs/SECURITY.md` & `memory/DECISIONS.md`: Documented DEC-024 citizen face auth amendment and 5-line security notes.
+
+### Verification
+- `pytest tests/test_face_auth.py -q`: 115 passed.
+- `pytest tests/test_face_signup.py -q`: 4 passed.
+- `pytest tests/test_face_login_recovery.py -q`: 6 passed.
+- `pytest tests/test_config_drift.py -q`: 15 passed.
+- `npx tsc --noEmit`: Clean (0 errors).
+- `npm run build`: Production build succeeded (18 static routes).
+- `node frontend/scripts/check-contract.mjs`: Contract checks passed.
+- Full test suite: 370 passed, exactly the 22 known baseline failures, 4 skipped.
+
+

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { RefreshCw, ScanFace, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -129,7 +130,9 @@ export default function ProfilePage() {
   }
 
   async function deleteFace() {
-    if (!window.confirm(t("faceDeleteConfirm"))) return;
+    const isFaceOnly = user?.authMethod === "face_only" || (user as { auth_method?: string })?.auth_method === "face_only";
+    const confirmMessage = isFaceOnly ? t("faceDeleteWarningFaceOnly") : t("faceDeleteConfirm");
+    if (!window.confirm(confirmMessage)) return;
     resetFeedback();
     setBusy(true);
     try {
@@ -175,7 +178,10 @@ export default function ProfilePage() {
       </div>
 
       <Card>
-        <CardHeader title={t("profileTitle")} subtitle={user?.email} />
+        <CardHeader
+          title={t("profileTitle")}
+          subtitle={user?.email || (user?.citizen_id ? `Citizen ID: ${user.citizen_id}` : undefined)}
+        />
         <CardBody className="space-y-1 text-sm text-ink-600">
           <p>
             <span className="font-semibold text-ink-900">{user?.name}</span>
@@ -299,6 +305,16 @@ export default function ProfilePage() {
                       {t("faceDeleteBtn")}
                     </Button>
                   )}
+                </div>
+
+                <div className="pt-3 border-t border-ink-100 flex items-center justify-between text-xs text-ink-500">
+                  <span>{t("faceOfficeResetNotice")}</span>
+                  <Link
+                    href="/re-enroll"
+                    className="font-semibold text-primary-700 hover:text-primary-800 hover:underline"
+                  >
+                    {t("haveRecoveryToken")} →
+                  </Link>
                 </div>
               </div>
             )}
