@@ -50,6 +50,8 @@ IMAGE_LLM_THRESHOLD = float(os.getenv("IMAGE_LLM_THRESHOLD", "60.0"))
 # --- Storage (Phase 3 wires MongoDB to this) ------------------------------
 MONGODB_URI = os.getenv("MONGODB_URI", "")
 MONGODB_DB = os.getenv("MONGODB_DB", "grievance")
+# Optional custom DNS nameservers for MongoDB SRV resolution (default empty uses system DNS).
+MONGO_DNS_SERVERS = os.getenv("MONGO_DNS_SERVERS", "").strip()
 
 # --- Cloudinary -----------------------------------------------------------
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
@@ -94,6 +96,8 @@ FACE_MODEL_NAME = os.getenv("FACE_MODEL_NAME", "buffalo_s")
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
 # Pairwise cosine similarity threshold across frontal frames.
 FACE_CONSISTENCY_THRESHOLD = float(os.getenv("FACE_CONSISTENCY_THRESHOLD", "0.30"))
+# Cosine similarity binding threshold between liveness action frame and frontal face (0..1).
+FACE_BINDING_THRESHOLD = float(os.getenv("FACE_BINDING_THRESHOLD", "0.25"))
 # Optional Silent-Face-Anti-Spoofing ONNX model; empty disables the check.
 FACE_ANTISPOOF_MODEL_PATH = os.getenv("FACE_ANTISPOOF_MODEL_PATH", "")
 # Liveness/quality thresholds — defaults tuned against synthetic frames; tune

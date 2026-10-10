@@ -142,6 +142,7 @@ class VerifiedFace:
     frame_count: int
     min_pair_similarity: float
     yaw_trace: list[float]
+    binding_score: float | None = None
 
 
 # ── Vector helpers ───────────────────────────────────────────────────────────
@@ -384,6 +385,30 @@ def check_action(action: str, detections: list[Detection]) -> None:
         timing = _CURRENT_TIMING.get()
         if timing is not None:
             timing.liveness_ms += (time.perf_counter() - t0) * 1000
+
+
+def pick_action_candidate(
+    candidates: list[tuple[np.ndarray, Detection]], action: str
+) -> tuple[np.ndarray, Detection] | None:
+    """Select the candidate frame that corresponds to the liveness action."""
+    if not candidates:
+        return None
+    if action in ("turn_left", "turn_right"):
+        return max(
+            candidates,
+            key=lambda item: abs(item[1].yaw_degrees if item[1].yaw_degrees is not None else 0.0),
+        )
+    if action == "blink":
+        valid = [c for c in candidates if c[1].eye_aspect is not None]
+        if valid:
+            return min(valid, key=lambda item: item[1].eye_aspect)  # type: ignore[arg-type]
+        return candidates[0]
+    if action == "smile":
+        valid = [c for c in candidates if c[1].mouth_width is not None]
+        if valid:
+            return max(valid, key=lambda item: item[1].mouth_width)  # type: ignore[arg-type]
+        return candidates[0]
+    return None
 # ── Anti-spoofing (optional) ─────────────────────────────────────────────────
 
 _antispoof_session: dict = {"path": None, "session": None}
@@ -578,7 +603,9 @@ def _real_embed(img: np.ndarray, det: Detection) -> np.ndarray:
             if raw is None:
                 raise FaceAuthError("DETECTION_FAILED", "failed to extract embedding")
             emb = np.asarray(raw, dtype=np.float32)
-        return normalize(emb)
+        res = normalize(emb)
+        det.embedding = res
+        return res
     finally:
         if timing is not None:
             timing.embedding_ms += (time.perf_counter() - t0) * 1000
@@ -757,6 +784,34 @@ def _verify_frames_debug(
                 first_failing_check = f"LIVENESS_FAILED({exc.message})"
                 first_failing_exc = exc
 
+    binding_sim: float | None = None
+    if action is not None and candidates and embeddings:
+        action_cand = pick_action_candidate(candidates, action)
+        if action_cand is not None:
+            try:
+                action_emb = _real_embed(action_cand[0], action_cand[1])
+                agg_frontal = aggregate_embeddings(embeddings)
+                binding_sim = similarity(action_emb, agg_frontal)
+                if (
+                    binding_sim < config.FACE_BINDING_THRESHOLD
+                    and first_failing_check is None
+                ):
+                    first_failing_check = (
+                        f"LIVENESS_IDENTITY_MISMATCH(binding_sim={binding_sim:.3f}<{config.FACE_BINDING_THRESHOLD:.2f})"
+                    )
+                    first_failing_exc = FaceAuthError(
+                        "LIVENESS_IDENTITY_MISMATCH",
+                        "liveness frame does not match frontal face",
+                    )
+            except FaceAuthError as exc:
+                if first_failing_check is None:
+                    first_failing_check = exc.code
+                    first_failing_exc = exc
+            except Exception as exc:
+                if first_failing_check is None:
+                    first_failing_check = f"EMBED_ERROR({exc})"
+                    first_failing_exc = FaceAuthError("DETECTION_FAILED", "embedding failed")
+
     sim_to_template = None
     if template is not None and embeddings:
         try:
@@ -793,6 +848,7 @@ def _verify_frames_debug(
     pair_min_str = f"{min_pair_sim:.3f}" if min_pair_sim is not None else "N/A"
     pair_mean_str = f"{mean_pair_sim:.3f}" if mean_pair_sim is not None else "N/A"
     sim_template_str = f"{sim_to_template:.3f}" if sim_to_template is not None else "N/A"
+    binding_str = f"{binding_sim:.3f}" if binding_sim is not None else "N/A"
     failing_name_str = first_failing_check if first_failing_check is not None else "None"
 
     # Exactly one log line with the required metrics
@@ -801,7 +857,7 @@ def _verify_frames_debug(
         "det_score min=%s, bbox px min=%s, blur variance min=%s, "
         "yaw per frame=%s, EAR min/max ratio=%s, smile spread ratio=%s, "
         "pairwise cosine min/mean across frames=%s/%s, similarity to template=%s, "
-        "threshold=%.2f, first failing check name=%s",
+        "binding score=%s, threshold=%.2f, first failing check name=%s",
         f"{op}:{action}" if action else op,
         frames_received,
         frames_with_exactly_one_face,
@@ -814,6 +870,7 @@ def _verify_frames_debug(
         pair_min_str,
         pair_mean_str,
         sim_template_str,
+        binding_str,
         threshold,
         failing_name_str,
     )
@@ -826,6 +883,7 @@ def _verify_frames_debug(
         frame_count=len(embeddings),
         min_pair_similarity=min_pair_sim if min_pair_sim is not None else 1.0,
         yaw_trace=[d.yaw_degrees or 0.0 for d in detections],
+        binding_score=binding_sim,
     )
 
 
@@ -898,11 +956,25 @@ def verify_frames(
             if pair < config.FACE_CONSISTENCY_THRESHOLD:
                 raise FaceAuthError("INCONSISTENT_FRAMES", "frames show different faces")
 
+    binding_sim: float | None = None
+    if action is not None and candidates:
+        action_cand = pick_action_candidate(candidates, action)
+        if action_cand is not None:
+            action_emb = _real_embed(action_cand[0], action_cand[1])
+            agg_frontal = aggregate_embeddings(embeddings)
+            binding_sim = similarity(action_emb, agg_frontal)
+            if binding_sim < config.FACE_BINDING_THRESHOLD:
+                raise FaceAuthError(
+                    "LIVENESS_IDENTITY_MISMATCH",
+                    "liveness frame does not match frontal face",
+                )
+
     return VerifiedFace(
         embedding=aggregate_embeddings(embeddings),
         frame_count=len(embeddings),
         min_pair_similarity=min_sim,
         yaw_trace=[d.yaw_degrees or 0.0 for d in detections],
+        binding_score=binding_sim,
     )
 
 def check_template_compatibility(template: dict) -> None:

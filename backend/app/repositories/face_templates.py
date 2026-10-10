@@ -117,14 +117,14 @@ class InMemoryFaceRepository:
 # ── MongoDB-backed implementation ────────────────────────────────────────────
 
 class MongoFaceRepository:
-    def __init__(self, uri: str, db_name: str) -> None:
+    def __init__(self, uri: str, db_name: str, counters_collection: str = "face_rate_limits") -> None:
         from pymongo import MongoClient
 
         client = MongoClient(uri)
         db = client[db_name]
         self._templates = db["face_templates"]
         self._challenges = db["face_challenges"]
-        self._counters = db["face_rate_limits"]
+        self._counters = db[counters_collection]
 
     def ensure_indexes(self) -> None:
         from pymongo import ASCENDING
@@ -210,48 +210,57 @@ class MongoFaceRepository:
         now = _now()
         expiry = now + timedelta(seconds=window_seconds)
         from pymongo import ReturnDocument
+        from pymongo.errors import DuplicateKeyError
 
-        doc = self._counters.find_one_and_update(
-            {"_id": key},
-            [
-                {
-                    "$set": {
-                        "windowExpiresAt": {
-                            "$cond": [
-                                {
-                                    "$or": [
-                                        {"$eq": [{"$type": "$windowExpiresAt"}, "missing"]},
-                                        {"$lte": ["$windowExpiresAt", now]},
-                                    ]
-                                },
-                                expiry,
-                                "$windowExpiresAt",
-                            ]
-                        },
-                        "count": {
-                            "$cond": [
-                                {
-                                    "$or": [
-                                        {"$eq": [{"$type": "$count"}, "missing"]},
-                                        {"$lte": ["$windowExpiresAt", now]},
-                                    ]
-                                },
-                                1,
-                                {
+        doc = None
+        for attempt in range(2):
+            try:
+                doc = self._counters.find_one_and_update(
+                    {"_id": key},
+                    [
+                        {
+                            "$set": {
+                                "windowExpiresAt": {
                                     "$cond": [
-                                        {"$gte": ["$count", limit]},
-                                        "$count",
-                                        {"$add": ["$count", 1]},
+                                        {
+                                            "$or": [
+                                                {"$eq": [{"$type": "$windowExpiresAt"}, "missing"]},
+                                                {"$lte": ["$windowExpiresAt", now]},
+                                            ]
+                                        },
+                                        expiry,
+                                        "$windowExpiresAt",
                                     ]
                                 },
-                            ]
-                        },
-                    }
-                }
-            ],
-            upsert=True,
-            return_document=ReturnDocument.BEFORE,
-        )
+                                "count": {
+                                    "$cond": [
+                                        {
+                                            "$or": [
+                                                {"$eq": [{"$type": "$count"}, "missing"]},
+                                                {"$lte": ["$windowExpiresAt", now]},
+                                            ]
+                                        },
+                                        1,
+                                        {
+                                            "$cond": [
+                                                {"$gte": ["$count", limit]},
+                                                "$count",
+                                                {"$add": ["$count", 1]},
+                                            ]
+                                        },
+                                    ]
+                                },
+                            }
+                        }
+                    ],
+                    upsert=True,
+                    return_document=ReturnDocument.BEFORE,
+                )
+                break
+            except DuplicateKeyError:
+                if attempt == 1:
+                    raise
+                continue
         if doc is None:
             return True, limit - 1
         exp = doc.get("windowExpiresAt")

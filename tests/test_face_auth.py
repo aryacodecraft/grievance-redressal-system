@@ -1258,9 +1258,40 @@ class TestFaceService:
         satisfy("turn_left", detector)
         out = face_service.verify_frames(_frame_bytes(5), "turn_left")
         assert out.frame_count == 3
-        assert len(embedder.calls) == 3
+        assert len(embedder.calls) == 4
         # In turn_left, yaws are [0, 12, 24, 36, 48]. Smallest |yaw| are indices 0, 1, 2.
-        assert embedder.calls == [0, 1, 2]
+        # Action frame (largest |yaw|) is index 4.
+        assert embedder.calls == [0, 1, 2, 4]
+        assert out.binding_score == pytest.approx(1.0)
+
+    def test_verify_frames_rejects_action_frame_different_identity(self, monkeypatch):
+        detector = FakeDetector()
+        # Frontal frames (0, 1, 2) get person 1; action frame (idx 4 for turn_left) gets person 2
+        detector.person_for = lambda idx: 2 if idx == 4 else 1
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        satisfy("turn_left", detector)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.verify_frames(_frame_bytes(5), "turn_left")
+        assert exc.value.code == "LIVENESS_IDENTITY_MISMATCH"
+
+    def test_verify_frames_passes_action_frame_same_identity(self, monkeypatch):
+        detector = FakeDetector()
+        detector.person_for = lambda idx: 1
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        satisfy("turn_left", detector)
+        out = face_service.verify_frames(_frame_bytes(5), "turn_left")
+        assert out.binding_score is not None
+        assert out.binding_score >= config.FACE_BINDING_THRESHOLD
+
+    def test_verify_frames_debug_rejects_action_frame_different_identity(self, monkeypatch):
+        monkeypatch.setattr(config, "FACE_DEBUG", True)
+        detector = FakeDetector()
+        detector.person_for = lambda idx: 2 if idx == 4 else 1
+        monkeypatch.setattr(face_service, "_real_detections", detector)
+        satisfy("turn_left", detector)
+        with pytest.raises(FaceAuthError) as exc:
+            face_service.verify_frames(_frame_bytes(5), "turn_left")
+        assert exc.value.code == "LIVENESS_IDENTITY_MISMATCH"
 
     def test_verify_frames_rejects_count_before_decoding(self):
         with pytest.raises(FaceAuthError) as exc:
