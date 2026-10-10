@@ -17,6 +17,11 @@ import {
   getPublicConfig,
   issueFaceChallenge,
   setFaceRequireLogin2fa,
+  requestPhoneOtp,
+  verifyPhoneOtp,
+  bindPhone,
+  unbindPhone,
+  updateSmsConsent,
 } from "@/lib/api";
 import type { FaceChallenge } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
@@ -45,9 +50,31 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [phoneValue, setPhoneValue] = useState(user?.phone || "");
+  const [accountPhone, setAccountPhone] = useState(user?.phone || "");
+  const [otp, setOtp] = useState("");
+  const [otpIssued, setOtpIssued] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(Boolean(user?.phoneVerifiedAt));
+  const [smsConsent, setSmsConsent] = useState(user?.smsConsent === true);
+  const [otpPurpose, setOtpPurpose] = useState<"bind" | "unbind">("bind");
 
   const role = user?.role?.toUpperCase() ?? "";
   const isPrivileged = PRIVILEGED_ROLES.includes(role);
+
+  // Sync the phone card when the signed-in account changes. Adjusted during
+  // render rather than in an effect: an effect would call setState
+  // synchronously (react-hooks/set-state-in-effect) and would also clobber a
+  // half-typed number whenever `user` is re-fetched. Keyed on the id so a
+  // refreshed profile object for the same account leaves the input alone.
+  const syncedUserId = user?.id ?? null;
+  const [prevSyncedUserId, setPrevSyncedUserId] = useState(syncedUserId);
+  if (syncedUserId !== prevSyncedUserId) {
+    setPrevSyncedUserId(syncedUserId);
+    setPhoneValue(user?.phone || "");
+    setAccountPhone(user?.phone || "");
+    setPhoneVerified(Boolean(user?.phoneVerifiedAt));
+    setSmsConsent(user?.smsConsent === true);
+  }
 
   useEffect(() => {
     if (!isLoading && liveMode && !user) {
@@ -191,6 +218,36 @@ export default function ProfilePage() {
           </p>
         </CardBody>
       </Card>
+
+      {liveMode && user?.role === "USER" && (
+        <Card>
+          <CardHeader title={t("phoneSectionTitle")} subtitle={t("phoneSectionDesc")} />
+          <CardBody className="space-y-4">
+            <p className="text-sm text-ink-600">{t("phoneCurrentLabel")}: {accountPhone ? `${accountPhone.slice(0, 2)}***${accountPhone.slice(-5)}` : t("phoneNotLinked")} {phoneVerified && <Badge tone="emerald">{t("phoneVerifiedBadge")}</Badge>}</p>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex overflow-hidden rounded-lg border border-ink-200">
+                <span className="flex items-center border-r border-ink-200 bg-ink-50 px-3 text-sm text-ink-600" aria-hidden="true">+91</span>
+                <input aria-label={t("mobileLabel")} inputMode="numeric" value={phoneValue} onChange={(e) => setPhoneValue(e.target.value.replace(/\D/g, "").slice(-10))} placeholder="9876543210" className="min-w-48 px-3 py-2 text-sm outline-none" />
+              </div>
+              <Button type="button" variant="outline" disabled={busy || !/^[6-9]\d{9}$/.test(phoneValue)} onClick={async () => {
+                resetFeedback(); setBusy(true);
+                try { const res = await requestPhoneOtp(phoneValue); setOtpPurpose(accountPhone === phoneValue ? "unbind" : "bind"); setOtpIssued(true); setOtp(""); setNotice(res.debug_code ? `Demo verification code: ${res.debug_code}` : res.message); }
+                catch (e) { setError(msg(e, "Could not request a verification code")); } finally { setBusy(false); }
+              }}>{t("phoneSendCode")}</Button>
+            </div>
+            {otpIssued && <div className="flex flex-wrap gap-2">
+              <input aria-label={t("phoneCodePlaceholder")} inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={t("phoneCodePlaceholder")} className="w-36 rounded-lg border border-ink-200 px-3 py-2 text-sm" />
+              <Button type="button" disabled={busy || otp.length !== 6} onClick={async () => {
+                resetFeedback(); setBusy(true);
+                try { await verifyPhoneOtp(phoneValue, otp); if (otpPurpose === "bind") { await bindPhone(phoneValue); setAccountPhone(phoneValue); setPhoneVerified(true); setNotice(t("phoneLinkedNotice")); } else { await unbindPhone(); setAccountPhone(""); setPhoneVerified(false); setSmsConsent(false); setNotice(t("phoneUnlinkedNotice")); } setOtpIssued(false); }
+                catch (e) { setError(msg(e, "Verification failed")); } finally { setBusy(false); }
+              }}>{otpPurpose === "bind" ? t("phoneLinkAction") : t("phoneUnlinkAction")}</Button>
+            </div>}
+            {accountPhone && <label className="flex items-start gap-2 text-sm text-ink-700"><input type="checkbox" checked={smsConsent} onChange={async (e) => { const enabled = e.target.checked; setSmsConsent(enabled); try { await updateSmsConsent(enabled); } catch (err) { setSmsConsent(!enabled); setError(msg(err, "Could not update SMS preference")); } }} />{t("phoneSmsOptIn")}</label>}
+            {notice && <Alert>{notice}</Alert>}{error && <Alert tone="error">{error}</Alert>}
+          </CardBody>
+        </Card>
+      )}
 
       {!liveMode && (
         <Alert>

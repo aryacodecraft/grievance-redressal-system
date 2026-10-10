@@ -22,6 +22,7 @@ export default function FaceSignupPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,8 +67,9 @@ export default function FaceSignupPage() {
     try {
       const res = await startFaceSignup({
         full_name: fullName.trim(),
-        phone: phone.trim(),
+        phone: phone,
         consent: true,
+        sms_consent: smsConsent,
       });
       setSignupToken(res.signup_token);
       setChallengeId(res.challenge_id);
@@ -168,16 +170,21 @@ export default function FaceSignupPage() {
               />
             </Field>
 
-            <Field label={t("mobileLabel")} required hint="10-digit mobile number">
-              <Input
-                type="tel"
-                name="phone"
-                placeholder="9876543210"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={isSubmitting}
-                required
-              />
+            <Field label={t("mobileLabel")} required hint="+91 · 10-digit Indian mobile number">
+              <div className="flex overflow-hidden rounded-lg border border-ink-200 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
+                <span className="flex items-center border-r border-ink-200 bg-ink-50 px-3 text-sm text-ink-600" aria-hidden="true">+91</span>
+                <Input
+                  type="tel"
+                  name="phone"
+                  inputMode="numeric"
+                  placeholder="9876543210"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  disabled={isSubmitting}
+                  required
+                  className="rounded-none border-0 focus:ring-0"
+                />
+              </div>
             </Field>
 
             <div className="pt-1">
@@ -193,11 +200,16 @@ export default function FaceSignupPage() {
               </label>
             </div>
 
+            <label className="flex items-start gap-2.5 text-xs text-ink-600 cursor-pointer">
+              <input type="checkbox" checked={smsConsent} onChange={(e) => setSmsConsent(e.target.checked)} disabled={isSubmitting} className="mt-0.5 h-4 w-4 rounded border-ink-300 text-primary-600 focus:ring-primary-500" />
+              <span>{t("smsConsentLabel")}</span>
+            </label>
+
             <Button
               type="submit"
               size="lg"
               className="w-full"
-              disabled={isSubmitting || !fullName.trim() || !phone.trim() || !consent}
+              disabled={isSubmitting || !fullName.trim() || !/^[6-9]\d{9}$/.test(phone) || !consent}
             >
               <ScanFace size={16} strokeWidth={2} />
               {isSubmitting ? t("loading") : t("faceStart")}
