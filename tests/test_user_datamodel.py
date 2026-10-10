@@ -109,6 +109,7 @@ class TestInMemoryUsersRepositoryDataModel:
         repo.create({
             "full_name": "Citizen One",
             "phone": "9876543210",
+            "phoneVerifiedAt": "test-otp-verified",
             "citizen_id": cid,
             "auth_method": "face_only",
         })
