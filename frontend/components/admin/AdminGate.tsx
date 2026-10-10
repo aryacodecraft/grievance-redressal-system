@@ -20,7 +20,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-8 bg-white">
-        <Spinner label="Verifying administrative privileges…" />
+        <Spinner label="Checking your access…" />
       </div>
     );
   }
@@ -34,20 +34,20 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
               <Lock size={24} />
             </div>
             <h1 className="mt-4 text-xl font-bold tracking-tight text-ink-950">
-              Authentication Required
+              Sign in required
             </h1>
             <p className="mt-2 text-xs leading-relaxed text-ink-500">
-              The Administrative Control Centre is restricted to authorized municipal officers.
-              Please sign in with your administrative credentials to proceed.
+              This dashboard is for authorized officers only.
+              Please sign in to continue.
             </p>
 
             <div className="mt-6 flex flex-col gap-2.5">
               <Link href="/login" className="w-full">
-                <Button className="w-full">Sign in as Administrator</Button>
+                <Button className="w-full">Sign in</Button>
               </Link>
               <Link href="/" className="w-full">
                 <Button variant="outline" className="w-full">
-                  Return to Home
+                  Back to home
                 </Button>
               </Link>
             </div>
@@ -78,16 +78,16 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
               <ShieldAlert size={24} />
             </div>
             <h1 className="mt-4 text-xl font-bold tracking-tight text-ink-950">
-              Administrative Access Restricted
+              Access not allowed
             </h1>
             <p className="mt-2 text-xs leading-relaxed text-ink-500">
-              You are signed in as <span className="font-semibold text-ink-800">{user.email || user.citizen_id || user.name}</span> (Citizen role).
-              Only authorized municipal officers can open this dashboard.
+              You are signed in as <span className="font-semibold text-ink-800">{user.email || user.citizen_id || user.name}</span>.
+              This dashboard is only for authorized officers.
             </p>
 
             <div className="mt-6 flex flex-col gap-2.5">
               <Link href="/submit" className="w-full">
-                <Button className="w-full">Go to Citizen Portal</Button>
+                <Button className="w-full">Go to my grievances</Button>
               </Link>
               <button
                 type="button"
@@ -98,7 +98,7 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
                 className="w-full"
               >
                 <Button variant="outline" className="w-full">
-                  Sign in with Admin Account
+                  Sign in with an admin account
                 </Button>
               </button>
             </div>

@@ -279,14 +279,14 @@ Attached Photo
               </div>
 
               {departmentManager ? (
-                <Field label="Assign to employee" hint="Choose an active employee from your department.">
+                <Field label="Assign to an employee" hint="Choose an active employee from your department.">
                   <Select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} disabled={submitting || employees.length === 0}>
                     <option value="">{employees.length ? "Select an employee" : "No active employees available"}</option>
                     {employees.filter((employee) => employee.isActive !== false).map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.email || employee.id}</option>)}
                   </Select>
                 </Field>
               ) : (
-                <Field label="Assign to Department" hint="Pick the team that will fix this issue.">
+                <Field label="Assign to a department" hint="Pick the team that will fix this issue.">
                   <Select value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={submitting}>
                     {DEPARTMENTS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
                   </Select>
@@ -295,8 +295,8 @@ Attached Photo
 
 
               <Field
-                label="Officer Notes (Optional)"
-                hint="Saved with the complaint so citizens can see what was done."
+                label="Note for the citizen (optional)"
+                hint="Shown on the complaint so the citizen knows what was done."
               >
                 <Input
                   placeholder="e.g. Dispatched repair van 4B; leak plugged and road cleared."
@@ -317,10 +317,10 @@ Attached Photo
                   className="flex items-center justify-center gap-1.5"
                 >
                   <Building2 size={14} />
-                  Review department assignment
+                  Assign to this department
                 </Button>}
 
-                {departmentManager && <Button type="button" onClick={() => void assignEmployee()} disabled={submitting || !employeeId || !onEmployeeAssign} className="flex items-center justify-center gap-1.5"><Building2 size={14} />Assign to employee</Button>}
+                {departmentManager && <Button type="button" onClick={() => void assignEmployee()} disabled={submitting || !employeeId || !onEmployeeAssign} className="flex items-center justify-center gap-1.5"><Building2 size={14} />Assign to this employee</Button>}
 
                 <Button
                   type="button"
@@ -330,7 +330,7 @@ Attached Photo
                   className="flex items-center justify-center gap-1.5"
                 >
                   <Wrench size={14} />
-                  In Progress
+                  Mark in progress
                 </Button>
 
                 <Button

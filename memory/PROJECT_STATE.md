@@ -75,7 +75,7 @@ memory/        — AI agent persistent memory                                  I
 - `lib/tfidf.ts` + `components/admin/AdminMap.tsx` / `AdminClusters.tsx` — legacy parity, now surfaced on `/admin/analytics` (DEC-018)
 - `lib/sla.ts` — prototype deterministic SLA indicator (`Overdue`/`On Track`/`Closed`); DEC-018
 - `components/admin/AdminBoard.tsx` — lean full-width triage **table** (KPI cards, department tabs, filters, SLA column, pagination); row opens `GrievanceReviewModal` for live assign/resolve
-- `components/admin/AdminAnalytics.tsx` + `app/admin/analytics/page.tsx` — executive dashboard (macro metrics, charts, map, clusters, CSV export)
+- `components/admin/AdminAnalytics.tsx` + `app/admin/analytics/page.tsx` — executive dashboard (macro metrics, charts, map, clusters); CSV exports built in `lib/report.ts` (`buildComplaintsCsv` flat list + `buildSummaryCsv` department-wise summary)
 - `components/admin/{AdminGate,AdminNav,useAdminGrievanceFeed,departments}.tsx|ts` — shared admin chrome/data (DEC-018)
 - `components/grievance/MyGrievances.tsx` — citizen's own submissions on `/submit`
 - **`lib/firebase.ts` deleted** — frontend has no Firebase dependency

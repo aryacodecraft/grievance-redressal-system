@@ -1775,6 +1775,57 @@ navigation is handled by the left-side drawer.
   complaint progress timeline and updated the corresponding label across all
   supported Indian language translations.
 
+## 2026-10-09 — Input field wording pass (English only)
+
+- Goal: make every form field title and description clearer and less technical
+  for all users. Scope was explicitly English-only, so only the values in
+  `frontend/lib/i18n/en.ts` changed (keys preserved) and the ten other locale
+  files were left untouched. Form structure and validation were not changed.
+- Citizen form: “Issue title”, “Describe the issue”, “Suggested department
+  (optional)”, “Photo of the issue”, “Issue location”, “Use my current
+  location”, “Not sure? Choose for me”, with friendlier hints, placeholders
+  and error text; the submit button no longer says “Classifying”.
+- Staff forms: plain-language labels in `GrievanceReviewModal`,
+  `AdminBoard` (search + filters), `DepartmentEmployeesWorkspace`,
+  `SuperadminWorkspace`, and `ResolverWorkspace`.
+- Verification: `npx tsc --noEmit` clean, `npm run build` succeeds (15 routes),
+  `npm run lint` 0 errors (one pre-existing `<img>` warning in
+  `ResolverWorkspace.tsx`). Confirmed the new strings are present in the built
+  client chunks. Not committed, per request.
+
+## 2026-10-09 — Admin + employee wording pass
+
+- Applied the same plain-language treatment to the admin (queue, analytics,
+  employees, superadmin) and employee/resolver surfaces: page titles, access
+  screens, section headings, action buttons, table headers, and input hints/
+  placeholders. Examples: “Administrative Control Centre” → “Admin dashboard”,
+  “Assignee” → “Assigned to”, “Fix-by Date” → “Due by”, “Age” → “Waiting”,
+  “Raise ticket” → “Send to manager”, “Submit completion” → “Send for
+  review”, “Verifying administrative privileges…” → “Checking your access…”.
+- Left domain terminology, status/role/department/issue-type names, CSV column
+  headers, code identifiers, and all non-English locales untouched.
+- Verification: `npx tsc --noEmit` clean, `npm run build` exit 0 (15 routes),
+  `npm run lint` 0 errors (one pre-existing `<img>` warning). New strings
+  confirmed in the built client chunks. Not committed, per request.
+
+## 2026-10-09 — Department-wise summary CSV export
+
+- Added “Export summary (CSV)” to the admin analytics dashboard for admins and
+  superadmins. The file carries a department summary block (totals, open, in
+  progress, resolved/closed, urgent, past deadline, % resolved) plus a detail
+  block of every registered complaint — description, AI summary, keywords,
+  priority, status, assignee, registered/due/resolved dates, coordinates and a
+  map link — grouped under its department.
+- Moved CSV building into a new pure module `frontend/lib/report.ts`
+  (`buildComplaintsCsv`, `buildSummaryCsv`) so the two export buttons share one
+  implementation and the builders run without a browser. The existing flat
+  export keeps its output and is relabelled “Export complaints (CSV)”.
+- Verification: executed `buildSummaryCsv` against three fixture complaints via
+  a Node type-stripping harness (custom resolve hook for the extensionless
+  relative imports) and asserted the department counts, detail columns, quote
+  escaping, and blank-location handling; `npx tsc --noEmit` clean, `npm run
+  build` exit 0 (15 routes), `npm run lint` 0 errors (one pre-existing `<img>`
+  warning). New strings present in the built chunks. Nothing committed.
 ## 2026-10-09 — Face-recognition login (DEC-024, `feature/face-auth`)
 
 ### Request
