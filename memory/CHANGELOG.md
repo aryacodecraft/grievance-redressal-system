@@ -4,6 +4,17 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-11 — Optional completed work photo in employee submission form
+
+- Added optional completed work photo attachment in `frontend/components/resolver/ResolverWorkspace.tsx`
+  under the "Submit your work for review" section, with file selection, Cloudinary upload,
+  preview, and removal support.
+- Updated `submitResolution` call to pass `completionPhotoUrl` to `POST /grievances/{id}/resolution`.
+- Updated `frontend/lib/types.ts` and `frontend/lib/api.ts` with `resolution` object typing including `completionPhotoUrl`.
+- Updated `backend/app/db.py` (`to_api`) to include the `resolution` object in serialized grievance payloads.
+- Added completed work photo and resolution notes display in `frontend/components/admin/GrievanceReviewModal.tsx`
+  so reviewing managers can inspect submitted proof of work before approving.
+
 ## 2026-10-10 — Phone binding and citizen SMS dry-run prototype (DEC-025)
 
 - Added India E.164 conversion while retaining normalized 10-digit storage;

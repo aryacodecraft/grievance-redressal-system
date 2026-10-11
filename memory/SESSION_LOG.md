@@ -2098,3 +2098,23 @@ from the three `memory/` files.
   routes through TestClient/browser when that environment is stable.
 - Live Twilio remains deferred pending DLT registration, credentials, approved
   templates, and carrier validation.
+
+---
+
+## 2026-10-11 — Optional completed work photo in employee work submission form
+
+### What changed
+- Added an optional completed work photo attachment input to the employee work submission
+  form in `frontend/components/resolver/ResolverWorkspace.tsx`.
+- Integrated image validation (formats, max size) and direct upload to Cloudinary.
+- Displays thumbnail preview with removal option and link to view full photo.
+- Wire `completionPhotoUrl` into the `submitResolution` API call to `POST /grievances/{id}/resolution`.
+- Added `resolution` typing in `frontend/lib/types.ts` and `frontend/lib/api.ts` `grievanceSchema`.
+- Included `resolution` in `backend/app/db.py` `to_api` projection.
+- Added visual display of the submitted resolution note and completed work photo in
+  `frontend/components/admin/GrievanceReviewModal.tsx` for manager verification.
+
+### Verification
+- `npx tsc --noEmit` passes with 0 errors.
+- Python compilation passes.
+
