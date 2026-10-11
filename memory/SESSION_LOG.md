@@ -2120,6 +2120,43 @@ from the three `memory/` files.
 
 ---
 
+## 2026-10-11 — Homepage redesign (action-first, citizen-centric portal)
+
+### What changed
+- Re-architected `frontend/app/page.tsx` based on `memory/Redesign_homepage.md`:
+  - Action-oriented hero with headline "Every grievance deserves a clear next step", primary "Report a Grievance" CTA, and secondary "Track Existing Grievance" action.
+  - Built `frontend/components/home/HomeTrackPanel.tsx` providing an instant tracking form right on the hero section with input validation, sample ID helper, live lookup, status badge card, and deep link to the full activity timeline.
+  - Implemented 3-stage process overview (Submit, Review & Assign, Track & Resolve).
+  - Designed interactive Category Explorer with issue examples and preselection navigation to `/submit?category=<id>`.
+  - Added URL parameter preselection support (`?category=...`) in `frontend/components/grievance/SubmitForm.tsx`.
+  - Added realistic grievance lifecycle breakdown matching backend states (Submitted → Assisted Triage → Assigned → In Progress → Reviewed & Resolved) with indicative timelines and SLAs.
+  - Added "Prepare Before Reporting" checklist outlining required vs optional items (description, pinned GPS location, optional photo).
+  - Concrete "AI-assisted triage with human decisions" section emphasizing that officers remain fully in charge of administrative decisions.
+  - Enabled deep tracking on `frontend/app/track/page.tsx` via `?id=` query parameter.
+  - Standardized terminology to "Register Grievance" and "Track Grievance" in navigation and translations.
+
+### Verification
+- `npx tsc --noEmit` passes with 0 errors.
+
+---
+
+## 2026-10-11 — Homepage redesign cleanup, linter polish, and obsolete code removal
+
+### What changed
+- Removed obsolete `frontend/components/home/RequestLifecycle.tsx` following Section 12 of `Redesign_homepage.md`.
+- Cleaned unused imports and variables across `frontend/app/page.tsx` (`Building2`, `Badge`, `MessageKey`, `useI18n`, `index`).
+- Cleaned unused icons in `frontend/components/home/HomeTrackPanel.tsx` (`ShieldAlert`, `CheckCircle2`).
+- Fixed synchronous `setState` in `useEffect` in `frontend/app/track/page.tsx` by wrapping URL query parameter lookup in a timer to eliminate cascading render lint warning.
+- Verified all 11 i18n locale files (`en`, `hi`, `bn`, `gu`, `kn`, `ml`, `mr`, `or`, `pa`, `ta`, `te`) already have complete matching localized strings for `register` and `track`.
+
+### Verification
+- `npx tsc --noEmit` passes cleanly with 0 errors.
+- `node frontend/scripts/check-contract.mjs` passes all 21 contract checks.
+- `./.venv/bin/pytest tests/test_phone_sms.py -q`: 7 passed.
+- Pre-existing failures in `test_rbac_workflow.py` match documented known baseline in `memory/TODO.md` §11.
+
+---
+
 ## 2026-10-11 — Frontend language scope cut to en/hi/mr (DEC-026)
 
 ### Request

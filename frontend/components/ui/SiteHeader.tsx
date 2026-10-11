@@ -13,8 +13,8 @@ import { NotificationBadgeLink } from "@/components/notifications/NotificationBa
  */
 const links = [
   { href: "/", label: "Home" },
-  { href: "/submit", label: "Register Complaint" },
-  { href: "/track", label: "Track Status" },
+  { href: "/submit", label: "Register Grievance" },
+  { href: "/track", label: "Track Grievance" },
 ];
 
 export function SiteHeader() {

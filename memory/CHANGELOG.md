@@ -20,6 +20,21 @@
 - Verified: `npx tsc --noEmit` clean, `npx eslint` clean, `npm run build`
   green (18 routes), `node scripts/check-contract.mjs` passed.
 
+## 2026-10-11 — Homepage redesign (action-first, citizen-centric portal)
+
+- Redesigned `frontend/app/page.tsx` according to `memory/Redesign_homepage.md`:
+  - Hero with strong civic headline, primary "Report a Grievance" and secondary "Track Existing Grievance" actions, and trust statement.
+  - Added `frontend/components/home/HomeTrackPanel.tsx`: real-time reference ID tracking with keyboard submission, validation, sample ID, status preview, and direct transition to full activity timeline.
+  - Compact 3-stage grievance workflow overview (Submit, Review & Assign, Track & Resolve).
+  - Category explorer with clean cards, issue examples, and direct links to `/submit?category=<id>` with preselection support in `SubmitForm.tsx`.
+  - Realistic lifecycle breakdown (Submitted → Assisted Triage → Assigned → In Progress → Reviewed & Resolved) with SLAs and accountability notes.
+  - "Prepare Before Reporting" checklist (description, GPS location, optional photo, contact).
+  - Trust & AI transparency section distinguishing AI-assisted categorization from human officer decisions.
+- Updated `frontend/app/track/page.tsx` to read `?id=` query parameter on mount and trigger immediate status search.
+- Updated header labels in `frontend/components/ui/SiteHeader.tsx` and `frontend/lib/i18n/en.ts` to consistent "Register Grievance" and "Track Grievance" naming.
+- Removed obsolete `frontend/components/home/RequestLifecycle.tsx` per Section 12 of `Redesign_homepage.md`.
+- Polished ESLint warnings in `page.tsx`, `HomeTrackPanel.tsx`, and `track/page.tsx`.
+
 ## 2026-10-11 — Optional completed work photo in employee submission form
 
 - Added optional completed work photo attachment in `frontend/components/resolver/ResolverWorkspace.tsx`
