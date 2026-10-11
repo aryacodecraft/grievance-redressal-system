@@ -146,9 +146,23 @@
 
 ## 5. Full Multilingual System Support & Dynamic Translation
 
-- [ ] **Frontend Internationalization (i18n)**
-  - Language selector in top navigation bar (English, Hindi, Marathi, Tamil, Telugu, Bengali, Kannada, Gujarati, etc.).
-  - Localization framework (e.g. `next-intl` or `react-i18next`) for UI copy, forms, status badges, timelines, and alerts.
+> **Scope (DEC-026, 2026-10-11, owner-confirmed):** UI picker offers **English,
+> Hindi, Marathi only**. The other 8 packs stay in-tree but hidden (unhide =
+> one picker line, no gating). Staff surfaces are English-only by decision.
+> Backend complaint translation + multilingual AI below remain deferred.
+
+- [x] **Frontend Internationalization (i18n) — citizen scope**
+  - Language selector in top navigation bar: English, Hindi, Marathi
+  (`frontend/lib/i18n/index.tsx` `LANGUAGES`; `SiteHeader` dropdown).
+  - `en.ts` is the `MessageKey` source of truth; `hi`/`mr` in sync (471 keys);
+  hidden packs kept complete via English placeholders (strict typing stays green).
+- [ ] **Frontend i18n — deferred**: unhiding a hidden language (translate over
+  placeholders + re-add picker line); staff surfaces stay English-only.
+
+- [ ] **Frontend i18n — remaining**: citizen `hi`/`mr` copy review by a native
+  reader (current values landed unreviewed); unhide a hidden language only when
+  its placeholders are really translated. Provider is a custom `useI18n`
+  context (not `next-intl`/`react-i18next`) — that framework choice is settled.
 - [ ] **Dynamic Bi-Directional Complaint Translation**
   - Translate citizen submissions (text and voice transcripts in regional languages/Hinglish) into standardized English for administrative review and backend AI processing.
   - Store original language text alongside translated text in the grievance document (`originalText`, `detectedLanguage`, `translatedText`).

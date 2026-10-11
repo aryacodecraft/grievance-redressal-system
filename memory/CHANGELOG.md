@@ -4,6 +4,22 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-11 — Frontend language scope cut to English/Hindi/Marathi (DEC-026)
+
+- `frontend/lib/i18n/index.tsx`: the UI picker (`LANGUAGES`) now offers only
+  `en` / `hi` / `mr`. All 11 packs stay imported in the `translations`
+  registry — nothing deleted; unhiding a language is a one-line picker entry.
+  Saved `localStorage` codes outside the picker set fall back to `en`.
+- `frontend/lib/i18n/{kn,ml,or,pa}.ts`: backfilled the 131 missing homepage
+  keys each with English placeholders under a `TODO i18n` header. This fixes a
+  latent `tsc` failure on the working tree (strict `Record<MessageKey, string>`
+  typing); runtime behavior is unchanged (the provider already fell back to
+  English for missing keys).
+- Staff surfaces (`/admin`, `/resolver`, `/superadmin`, `/notifications`) are
+  English-only by owner decision; existing `t()` calls there are frozen.
+- Verified: `npx tsc --noEmit` clean, `npx eslint` clean, `npm run build`
+  green (18 routes), `node scripts/check-contract.mjs` passed.
+
 ## 2026-10-11 — Optional completed work photo in employee submission form
 
 - Added optional completed work photo attachment in `frontend/components/resolver/ResolverWorkspace.tsx`

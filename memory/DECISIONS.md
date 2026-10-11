@@ -1310,4 +1310,52 @@ and SMS dedup/caps remain process-local. Twilio is deferred pending DLT,
 credentials, and carrier validation; the feature remains EXPERIMENTAL until
 endpoint and browser workflows are validated.
 
+---
+
+## DEC-026 — Frontend Language Scope: English/Hindi/Marathi Picker, Hidden Packs Kept, Staff English-Only
+
+**ID:** DEC-026
+**Date:** 2026-10-11
+**Status:** ACCEPTED
+
+**Context:**
+The frontend carried 11 locale packs (`frontend/lib/i18n/`) with the picker
+offering all of them, but only `en`/`hi`/`mr` are needed. Four packs
+(`kn`, `ml`, `pa`, `or`) had fallen 131 keys behind `en.ts` (the uncommitted
+homepage-redesign keys), which was a latent `tsc` failure since every pack is
+typed `Record<MessageKey, string>`. Staff surfaces were partially translated
+with no decision on whether that was required.
+
+**Decision:**
+1. The UI picker (`LANGUAGES` in `frontend/lib/i18n/index.tsx`, rendered only
+   by the citizen `SiteHeader`) offers exactly `en` / `hi` / `mr`.
+2. All 11 packs stay in-tree and in the `translations` registry — nothing is
+   deleted. Unhiding a language is one line: re-add its `[code, label]` entry
+   to `LANGUAGES`. No completeness threshold or other gating.
+3. The 4 stale packs are backfilled with English placeholder values under a
+   `TODO i18n` section header (identical to the runtime English fallback, so
+   no user-visible change) to keep strict typing green.
+4. A saved `localStorage` language code outside the picker set falls back to
+   `en` (grandfathered selections are not honored).
+5. Staff surfaces (`/admin`, `/resolver`, `/superadmin`, `/notifications` and
+   their components) are English-only by decision. Existing `t()` calls there
+   are frozen in place — not reverted, not extended — and hardcoded English
+   staff strings are not bugs.
+
+**Alternatives Considered:**
+- Deleting the 8 hidden packs: rejected by the owner — keep them for a future
+  translation pass.
+- Relaxing locale typing to `Partial<Messages>`: rejected — the strict type is
+  the mechanism that caught this exact staleness; placeholders preserve it.
+
+**Consequences:**
+- `TODO.md` §5 frontend-i18n scope is en/hi/mr citizen surfaces; backend
+  complaint translation and multilingual AI remain deferred.
+- A future agent finishing a hidden language backfills real translations over
+  the placeholders and re-adds the one picker line.
+
+**Affected Components:** `frontend/lib/i18n/index.tsx`,
+`frontend/lib/i18n/{kn,ml,or,pa}.ts`, `frontend/components/ui/SiteHeader.tsx`
+(unchanged — maps over `LANGUAGES`)
+
 

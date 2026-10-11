@@ -2118,3 +2118,37 @@ from the three `memory/` files.
 - `npx tsc --noEmit` passes with 0 errors.
 - Python compilation passes.
 
+---
+
+## 2026-10-11 — Frontend language scope cut to en/hi/mr (DEC-026)
+
+### Request
+Owner: only English, Hindi, Marathi support needed; do not delete the other
+language files; staff stays English-only.
+
+### What changed
+- `frontend/lib/i18n/index.tsx`: `LANGUAGES` (picker) trimmed to en/hi/mr;
+  `translations` registry keeps all 11 packs with an exhaustive record type.
+  Saved non-picker `localStorage` codes fall back to `en`. The picker renders
+  only in the citizen `SiteHeader` — staff chrome has no picker, so staff stay
+  on English.
+- `frontend/lib/i18n/{kn,ml,or,pa}.ts`: 131 missing homepage keys each
+  backfilled with English placeholders under a `TODO i18n` header
+  (script at `/tmp/opencode/backfill_i18n.py`, exact `en.ts` source blocks).
+- No deletions, no typing relaxation, no staff-surface edits (frozen per DEC-026).
+
+### Verification
+- `npx tsc --noEmit` clean — this also fixes a latent tree breakage: the four
+  stale packs failed strict `Record<MessageKey, string>` typing before this
+  change (prior "tsc clean" claims did not hold on this working tree).
+- `npx eslint` on touched files clean; `node scripts/check-contract.mjs`
+  passed; `npm run build` green (18 routes).
+- `check-contract.mjs` asserts nothing about locale counts — no update needed.
+
+### Follow-up
+- `hi`/`mr` copy for the new homepage keys landed unreviewed; needs a native
+  reader pass (TODO §5).
+- Memory updated: DEC-026, TODO §5 scope note, CHANGELOG, PROJECT_STATE.
+
+
+
