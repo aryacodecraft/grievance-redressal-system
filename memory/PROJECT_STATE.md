@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-11 (frontend picker scoped to en/hi/mr per DEC-026; other 8 packs kept hidden in-tree; staff English-only)
+> Last updated: 2026-10-11 (Twilio provider code complete per DEC-027, vars pending; picker scoped en/hi/mr per DEC-026)
 
 ---
 

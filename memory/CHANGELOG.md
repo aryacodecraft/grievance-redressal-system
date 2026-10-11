@@ -4,6 +4,26 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-11 — Twilio SMS provider implementation (DEC-027, vars pending)
+
+- `SMS_PROVIDER=twilio` now delivers stage updates and OTP codes through a
+  Twilio Messaging Service (`backend/app/services/sms.py`): lazy client,
+  fail-closed without credentials, at-most-once dedup preserved, never raises
+  into workflows. `POST /phone/request-otp` sends the code when live; the
+  response stays generic and `debug_code` remains dry-run-only.
+- New env contract (`backend/.env.example` + `render.yaml`, all empty by
+  default): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_MESSAGING_SERVICE_SID`, `DLT_ENTITY_ID`, `DLT_TEMPLATE_ID_STAGE`,
+  `DLT_TEMPLATE_ID_OTP`. `twilio>=9.0.0` added to requirements (install verified).
+- 6 new tests in `tests/test_phone_sms.py` (fake-client dispatch, incomplete
+  creds, failure isolation, OTP body + no-code-in-logs, unsupported provider,
+  live OTP request without oracle). Targeted suites: 28 passed. Full suite:
+  363 passed / 23 failed — 22 known baseline plus one env-specific
+  `FACE_CHALLENGES` failure from the local `backend/.env` (fails on clean
+  tree too; recorded in TODO §11).
+- `docs/DEVELOPMENT.md` gains the operator checklist (Messaging Service,
+  DLT registration order, trial limits, 160-char cap warning).
+
 ## 2026-10-11 — Frontend language scope cut to English/Hindi/Marathi (DEC-026)
 
 - `frontend/lib/i18n/index.tsx`: the UI picker (`LANGUAGES`) now offers only

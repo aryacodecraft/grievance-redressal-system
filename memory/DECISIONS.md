@@ -1358,4 +1358,60 @@ with no decision on whether that was required.
 `frontend/lib/i18n/{kn,ml,or,pa}.ts`, `frontend/components/ui/SiteHeader.tsx`
 (unchanged — maps over `LANGUAGES`)
 
+---
+
+## DEC-027 — Live Twilio SMS Provider (Code Complete, Credentials Pending)
+
+**ID:** DEC-027
+**Date:** 2026-10-11
+**Status:** ACCEPTED (implementation; delivery blocked on operator vars)
+
+**Context:**
+DEC-025 scoped SMS to `dry-run`/`off` with no live provider code. The owner
+has now approved building the full Twilio implementation ahead of receiving
+credentials, DLT registration, and a sender setup, and will supply the vars
+later.
+
+**Decision:**
+1. `SMS_PROVIDER=twilio` delivers stage updates and OTP codes through a
+   Twilio Messaging Service (`messages.create` with `messaging_service_sid`,
+   `to` in E.164, `body`). The `twilio` client is built lazily so the package
+   is only required when live; a seam (`_twilio_client`) keeps it testable.
+2. Fail-closed without credentials: empty SID/token/service-SID refuses to
+   send (warning, `False`) instead of erroring. Any provider exception is
+   caught — dispatch never disrupts a grievance workflow or an OTP request.
+3. At-most-once preserved: dedup/rate-cap bookkeeping runs before dispatch,
+   so a failed send burns its `(grievanceId, stage)` slot rather than
+   retrying into a duplicate.
+4. OTP responses stay generic regardless of delivery outcome (no oracle);
+   `debug_code` remains dry-run-only. OTP bodies must match the registered
+   DLT template verbatim (`render_otp_message`), as must stage bodies.
+5. New env contract (all empty by default, secrets never in git):
+   `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+   `TWILIO_MESSAGING_SERVICE_SID`, `DLT_ENTITY_ID`, `DLT_TEMPLATE_ID_STAGE`,
+   `DLT_TEMPLATE_ID_OTP` — mirrored in `backend/.env.example` and
+   `render.yaml` (`sync: false`), enforced by the config-drift suite.
+
+**Alternatives Considered:**
+- Raw Twilio phone number (`From`) instead of Messaging Service: rejected —
+  Indian delivery requires the DLT-registered sender header, which rides the
+  Messaging Service (TODO §13 Phase 0 finding).
+- Retrying failed sends: rejected — violates the at-most-once dedup rule;
+  the OTP challenge survives failure so re-request covers it.
+
+**Consequences:**
+- `twilio>=9.0.0` added to `backend/requirements.txt` (verified installable;
+   test suite fakes the client, so CI needs no credentials or network).
+- SMS remains `dry-run` by default; live delivery is still `CREDENTIALS
+  REQUIRED` (DLT registration, approved templates, carrier verification).
+- The 160-char cap is now load-bearing for DLT: over-long bodies are skipped
+  before dispatch, so the track-link length must be settled before template
+  registration.
+
+**Affected Components:** `backend/app/services/sms.py`,
+`backend/app/routers/phone.py` (`request-otp` delivery call),
+`backend/app/config.py`, `backend/requirements.txt`,
+`backend/.env.example`, `render.yaml`, `tests/test_phone_sms.py`,
+`docs/DEVELOPMENT.md`
+
 

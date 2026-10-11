@@ -254,6 +254,13 @@ unrelated to face auth — all 140 face & drift tests pass:
 - `tests/test_status_vocabularies.py::test_dec_006_states_are_disjoint_from_the_current_lowercase_set`
 - `tests/test_status_vocabularies.py::test_no_component_already_speaks_dec_006`
 
+Plus one environment-specific failure outside that baseline (fails on a clean
+tree too — the local gitignored `backend/.env` pins it, not the code):
+- `tests/test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned`
+  — local `backend/.env` sets `FACE_CHALLENGES=turn_left,turn_right` (2 items)
+  while the test expects the 4-item `.env.example` default. Passes with the
+  stock example env; fails with the developer's local override.
+
 ---
 
 ## 12. Open auth gap: password login / refresh have no rate limiting
@@ -270,12 +277,14 @@ unrelated to face auth — all 140 face & drift tests pass:
 
 ## 13. India phone numbers, phone↔face binding, Twilio SMS stage notifications (IN PROGRESS, 2026-10-10)
 
-> **Status: prototype implementation exists; validation and live delivery remain.** Written against `main` @
-> `11949d2` (face-auth / DEC-024 merged). Full working copy of this plan also
+> **Status (2026-10-11, DEC-027): live-provider code is implemented and
+> tested; live delivery still needs the operator vars (Twilio SID/token/
+> Messaging Service + DLT entity/template IDs).** Full working copy of this plan also
 > lives outside the repo at `/home/arsen1c/.opencode/plan/india-phone-face-bind-twilio-sms.md`;
 > this section is the in-repo source of truth.
 >
-> DEC-025 records the prototype decisions. Live SMS remains deferred until DLT/provider prerequisites are met.
+> DEC-025 records the prototype decisions; DEC-027 adds the Twilio provider
+> branch. Live SMS remains deferred until DLT/provider prerequisites are met.
 
 ### 13.1 Already exists — do NOT rebuild
 
@@ -362,6 +371,11 @@ against an unverified identifier. This is the highest-value item in the plan.
 - [x] `config.py` + `backend/.env.example`: `SMS_PROVIDER=dry-run|off`
       (**default `dry-run`**) and rate caps. Twilio variables are intentionally
       absent because live provider integration is deferred.
+      *(2026-10-11, DEC-027: provider code landed — `SMS_PROVIDER=twilio`
+      plus `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/
+      `TWILIO_MESSAGING_SERVICE_SID` and `DLT_ENTITY_ID`/
+      `DLT_TEMPLATE_ID_STAGE`/`DLT_TEMPLATE_ID_OTP`, mirrored in
+      `render.yaml`; all empty by default, fail-closed without them.)*
 - [x] `services/sms.py` — `send_stage_update()`. **Never raises
       into the caller**; returns `False` and logs a warning. Send via
       `BackgroundTasks` (a synchronous Twilio call inside a state-transition
@@ -412,7 +426,7 @@ Keep it small; **citizen-facing only** (staff notifications stay in-app):
 | 3 | C: canonical templates + `_notify` hook, `dry-run` end-to-end | 2 |
 | 4 | B: OTP + binding + face-login gate | 1, 2 |
 | 5 | Frontend: binding UI, consent, login hints, 11 locales | 3, 4 |
-| 6 | Live Twilio send + carrier verification | 0, 3 |
+| 6 | Live Twilio send + carrier verification | 0, 3 (provider code done per DEC-027; needs DLT IDs + creds) |
 | 7 | Docs + memory | all |
 
 Phases 1–3 and 5 are deliverable **without** Twilio credentials via `dry-run`.

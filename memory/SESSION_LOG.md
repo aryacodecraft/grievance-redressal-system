@@ -2187,5 +2187,46 @@ language files; staff stays English-only.
   reader pass (TODO §5).
 - Memory updated: DEC-026, TODO §5 scope note, CHANGELOG, PROJECT_STATE.
 
+---
+
+## 2026-10-11 — Twilio SMS provider implementation (DEC-027, vars pending)
+
+### Request
+Owner: set up all the Twilio code now; credentials/DLT vars come later.
+
+### What changed
+- `backend/app/services/sms.py`: `SMS_PROVIDER=twilio` branch with lazy
+  `_twilio_client()` seam, `_deliver_via_twilio()` (Messaging Service SID,
+  E.164 `to`, SID-only logging), `render_otp_message()` +
+  `send_otp_code()`. Dedup/rate-cap bookkeeping still runs first
+  (at-most-once even on provider failure). Unsupported providers stay `False`.
+- `backend/app/routers/phone.py`: `request-otp` calls `send_otp_code()` when
+  live — inline (citizen waits on the code), best-effort, response unchanged.
+- `backend/app/config.py`: six new vars (SID/token/service SID, entity +
+  two DLT template IDs), all empty by default, fail-closed without them.
+- `backend/requirements.txt`: `twilio>=9.0.0`. `backend/.env.example` +
+  `render.yaml` (`sync: false`) document the full contract — the config-drift
+  suite enforces it.
+- `docs/DEVELOPMENT.md`: operator checklist (service → DLT order → vars →
+  trial limits → 160-char/link warning).
+
+### Verification
+- New: 6 Twilio tests (fake client, incomplete creds, failure isolation,
+  OTP body + caplog PII check, unsupported provider, live OTP sans oracle).
+- `tests/test_phone_sms.py` + `tests/test_config_drift.py`: **28 passed**.
+- Real `twilio` 9.11.2 install + import verified in `.venv`.
+- Full suite: **363 passed / 23 failed** — the 22 known baseline plus
+  `test_tunable_defaults_are_pinned`, proven pre-existing via stash rerun
+  (local `backend/.env` overrides `FACE_CHALLENGES` to 2 items; recorded in
+  TODO §11).
+
+### Follow-up
+- Owner supplies: Twilio SID/token/Messaging Service SID, DLT entity ID,
+  both DLT template IDs. Then dry-run log check → live receipt → carrier
+  verification (TODO §13 Phase 6).
+- Settle the stage-message track-link length *before* DLT template
+  registration (160-char skip is now load-bearing).
+- Memory updated: DEC-027, TODO §§11/13, CHANGELOG, PROJECT_STATE.
+
 
 
