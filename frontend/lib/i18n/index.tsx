@@ -20,24 +20,25 @@ import ml from "./ml";
 import pa from "./pa";
 import or from "./or";
 
-/** Native-name picker entries — language names are never translated. */
+/**
+ * Languages offered in the UI picker (DEC-026: English, Hindi, Marathi only).
+ *
+ * The other bundled packs (bn, te, ta, gu, kn, ml, pa, or) are kept in-tree
+ * and in the `translations` registry below, but hidden from the picker.
+ * To unhide a language, add its `[code, label]` entry here — one line, no
+ * other gating. Native names are never translated.
+ */
 export const LANGUAGES = [
   ["en", "English"],
   ["hi", "हिन्दी"],
-  ["bn", "বাংলা"],
-  ["te", "తెలుగు"],
   ["mr", "मराठी"],
-  ["ta", "தமிழ்"],
-  ["gu", "ગુજરાતી"],
-  ["kn", "ಕನ್ನಡ"],
-  ["ml", "മലയാളം"],
-  ["pa", "ਪੰਜਾਬੀ"],
-  ["or", "ଓଡ଼ିଆ"],
 ] as const;
 
 export type LanguageCode = (typeof LANGUAGES)[number][0];
 
-const translations: Record<LanguageCode, Messages> = { en, hi, bn, te, mr, ta, gu, kn, ml, pa, or };
+/** Every bundled pack, including picker-hidden ones. Keep this exhaustive:
+ *  removing an import orphans its file silently. */
+const translations: Record<LanguageCode | "bn" | "te" | "ta" | "gu" | "kn" | "ml" | "pa" | "or", Messages> = { en, hi, bn, te, mr, ta, gu, kn, ml, pa, or };
 
 const I18nContext = createContext<{
   language: LanguageCode;
@@ -56,8 +57,12 @@ function interpolate(template: string, vars?: Record<string, string | number>): 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<LanguageCode>(() => {
     if (typeof window === "undefined") return "en";
-    const saved = localStorage.getItem("grievai-language") as LanguageCode | null;
-    return saved && translations[saved] ? saved : "en";
+    const saved = localStorage.getItem("grievai-language");
+    // Only picker-offered languages are valid at runtime; a saved code for a
+    // hidden language (e.g. from before DEC-026) falls back to English.
+    return saved && LANGUAGES.some(([code]) => code === saved)
+      ? (saved as LanguageCode)
+      : "en";
   });
   useEffect(() => {
     document.documentElement.lang = language;
