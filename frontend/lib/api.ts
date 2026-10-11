@@ -220,10 +220,18 @@ const grievanceSchema = z.object({
   closedAt: z.string().nullish(),
   stateHistory: z.array(z.record(z.string(), z.unknown())).nullish(),
   assignmentHistory: z.array(z.record(z.string(), z.unknown())).nullish(),
-  // `to_api()` emits this whenever an image was attached, and lib/types.ts
-  // declares it on Grievance detail views need it back — without it here the
-  // stored verdict is stripped by zod before any component can read it.
   imageValidation: imageValidationSchema.nullish(),
+  resolution: z
+    .object({
+      text: z.string().optional(),
+      actions: z.array(z.string()).optional(),
+      by: z.string().optional(),
+      at: z.string().optional(),
+      completionPhotoUrl: z.string().nullish(),
+      supportingDocumentUrl: z.string().nullish(),
+    })
+    .passthrough()
+    .nullish(),
 });
 
 const grievanceListSchema = z.array(grievanceSchema);

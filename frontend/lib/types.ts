@@ -32,6 +32,14 @@ export interface Grievance {
   closedAt?: string | null;
   stateHistory?: StateHistoryEntry[] | null;
   assignmentHistory?: StateHistoryEntry[] | null;
+  resolution?: {
+    text?: string;
+    actions?: string[];
+    by?: string;
+    at?: string;
+    completionPhotoUrl?: string | null;
+    supportingDocumentUrl?: string | null;
+  } | null;
 }
 
 export interface StateHistoryEntry {

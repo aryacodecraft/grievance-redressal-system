@@ -381,7 +381,8 @@ def to_api(doc: dict[str, Any]) -> dict[str, Any]:
         "userId", "imageUrl", "imageValidation", "latitude", "longitude",
         "assignee",
         "departmentId", "ownerId", "managerId", "dueDate", "resolvedAt", "closedAt",
-        "stateHistory", "assignmentHistory", "priorityHistory", "deadlineHistory"
+        "stateHistory", "assignmentHistory", "priorityHistory", "deadlineHistory",
+        "resolution",
     ):
         value = doc.get(key)
         if value is not None:
