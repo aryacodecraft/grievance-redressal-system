@@ -82,6 +82,13 @@ def request_otp(payload: PhoneRequest, request: Request, current: Annotated[dict
     code = f"{secrets.randbelow(1_000_000):06d}"
     key = _key(current["user_id"], phone, purpose)
     otp_repository.put(key, _hash(key, code), purpose, 300)
+    # Live delivery is best-effort and synchronous here: the citizen is
+    # waiting on this code. Failures never raise and never surface in the
+    # response (still generic — no delivery oracle); the challenge remains
+    # valid so the citizen can simply re-request within rate limits.
+    if config.SMS_PROVIDER == "twilio":
+        from ..services.sms import send_otp_code
+        send_otp_code(phone, code)
     # Dry-run never emits OTP values in logs. Local developers may explicitly
     # enable a response-only code; this is disabled by default and forbidden
     # when external delivery is configured.

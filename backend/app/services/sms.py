@@ -1,4 +1,8 @@
-"""Citizen-only SMS templates. Provider delivery intentionally remains dry-run/off."""
+"""Citizen-only SMS templates with dry-run/off/Twilio delivery.
+
+Live delivery needs Twilio credentials plus Indian DLT registration; until
+both are configured the provider refuses to send (fail-closed, never raises).
+"""
 from __future__ import annotations
 
 import logging
@@ -34,6 +38,64 @@ def render_stage_message(grievance_id: str, stage: str) -> str:
     return f"GRV: Grievance {grievance_id} is {STAGE_SMS_LABEL[stage]}. Track: {link}"
 
 
+def render_otp_message(code: str) -> str:
+    """OTP body. Keep in sync with the registered DLT template verbatim —
+    carriers drop messages that drift from it."""
+    return f"Your GrievAI verification code is {code}. Valid for 5 minutes."
+
+
+def _twilio_client():
+    """Lazily built so `twilio` is only importable-required when live.
+
+    Tests monkeypatch this seam with a fake; production gets the real client.
+    """
+    from twilio.rest import Client
+    return Client(config.TWILIO_ACCOUNT_SID, config.TWILIO_AUTH_TOKEN)
+
+
+def _deliver_via_twilio(to_number: str, body: str) -> bool:
+    """One best-effort Twilio send. True when accepted; never raises."""
+    try:
+        if not (config.TWILIO_ACCOUNT_SID and config.TWILIO_AUTH_TOKEN
+                and config.TWILIO_MESSAGING_SERVICE_SID):
+            logger.warning("SMS_PROVIDER=twilio but Twilio credentials are incomplete; skipped")
+            return False
+        message = _twilio_client().messages.create(
+            messaging_service_sid=config.TWILIO_MESSAGING_SERVICE_SID,
+            to=to_number,
+            body=body,
+        )
+        # SID only — never the destination, body, or OTP.
+        logger.info("SMS accepted provider=twilio sid=%s", getattr(message, "sid", "?"))
+        return True
+    except Exception:
+        logger.exception("Twilio dispatch failed; grievance workflow unaffected")
+        return False
+
+
+def send_otp_code(phone10: str, code: str) -> bool:
+    """Best-effort OTP delivery. True when handed to a provider; never raises,
+    never logs the code or the destination."""
+    try:
+        if config.SMS_PROVIDER == "off":
+            return False
+        body = render_otp_message(code)
+        if len(body) > 160:
+            logger.warning("SMS OTP template exceeds single segment; skipped")
+            return False
+        if config.SMS_PROVIDER == "dry-run":
+            _ = to_e164(phone10)
+            logger.info("SMS dry-run OTP queued")
+            return True
+        if config.SMS_PROVIDER == "twilio":
+            return _deliver_via_twilio(to_e164(phone10), body)
+        logger.warning("Unsupported SMS provider; OTP not delivered")
+        return False
+    except Exception:
+        logger.exception("SMS OTP dispatch failed")
+        return False
+
+
 def send_stage_update(user_id: str, grievance_id: str, stage: str) -> bool:
     """Best-effort informational dispatch; never lets SMS disrupt a workflow."""
     try:
@@ -61,14 +123,18 @@ def send_stage_update(user_id: str, grievance_id: str, stage: str) -> bool:
             _sent.add(dedupe_key)
             _user_dispatches[user_id] = [*user_recent, now]
             _grievance_dispatches[grievance_id] = [*grievance_recent, now]
-        if config.SMS_PROVIDER != "dry-run":
-            logger.warning("Unsupported SMS provider; update notification not delivered")
-            return False
-        # This prototype records dispatch intent only. It deliberately does not
-        # log destination, rendered content, OTP, or grievance detail.
-        _ = to_e164(user["phone"])
-        logger.info("SMS dry-run stage notification queued stage=%s", stage)
-        return True
+        # Bookkeeping above runs first deliberately: at-most-once delivery
+        # per grievance+stage, even if the provider fails below.
+        if config.SMS_PROVIDER == "dry-run":
+            # This prototype records dispatch intent only. It deliberately does not
+            # log destination, rendered content, OTP, or grievance detail.
+            _ = to_e164(user["phone"])
+            logger.info("SMS dry-run stage notification queued stage=%s", stage)
+            return True
+        if config.SMS_PROVIDER == "twilio":
+            return _deliver_via_twilio(to_e164(user["phone"]), body)
+        logger.warning("Unsupported SMS provider; update notification not delivered")
+        return False
     except Exception:
         logger.exception("SMS notification failed; grievance workflow unaffected")
         return False

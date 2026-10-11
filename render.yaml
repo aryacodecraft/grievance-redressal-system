@@ -34,3 +34,19 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # Live citizen SMS. All operator-supplied (dashboard only, never in git);
+      # the provider refuses to send until SID + token + service SID are set.
+      - key: SMS_PROVIDER
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_MESSAGING_SERVICE_SID
+        sync: false
+      - key: DLT_ENTITY_ID
+        sync: false
+      - key: DLT_TEMPLATE_ID_STAGE
+        sync: false
+      - key: DLT_TEMPLATE_ID_OTP
+        sync: false
