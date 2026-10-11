@@ -13,6 +13,16 @@
 
 ## Grievance State Machine
 
+### Citizen phone and SMS preferences
+
+Citizens may link a mobile number from Profile after OTP verification. The
+stored phone stays in normalized 10-digit form; phone-based face login is
+available only after the server records `phoneVerifiedAt`. Unlinking requires
+OTP verification of the current number and automatically opts the account out
+of SMS updates. SMS consent is a separate, unchecked-by-default preference.
+With the prototype's dry-run provider, stage notification intent is logged
+without phone numbers, message bodies, or OTP values; no external SMS is sent.
+
 ```
                     ┌─────────────┐
               ┌────▶│  SUBMITTED  │

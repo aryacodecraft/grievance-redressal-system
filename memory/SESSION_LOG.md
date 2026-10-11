@@ -2008,3 +2008,225 @@ Profile/Notifications links.
 - Backend face suites **not** run: no `pytest` in this environment and
   `requirements-face.txt` pulls heavy face-recognition dependencies. The
   branch's own log claims 115 + 4 + 6 + 15 passing; unconfirmed here.
+
+## 2026-10-10 — Plan recorded: India phone numbers, phone↔face binding, Twilio SMS
+
+### Request
+Add India phone number support, facial-recognition login/account binding keyed
+on the phone number, and Twilio SMS notifications telling citizens which stage
+their grievance is in. Owner asked for this to be written up as a plan first.
+
+### Investigation (nothing implemented — read-only survey)
+- Found that a substantial part of "India phone support" already ships with
+  face-auth: `normalize_phone()` (`users_db.py:20`) already strips `+91`/`91`/
+  `0` and separators and accepts only 10 digits starting `6-9`;
+  `find_by_phone`/`find_by_identifier`, the `uniq_user_phone` index and
+  duplicate rejection are all present; `POST /auth/face/login` already accepts a
+  phone as `identifier`; `/signup/face` already collects phone with consent.
+  Recording this explicitly so a future agent does not rebuild it.
+- Confirmed the real gaps: no E.164 export (Twilio needs `+91…` while storage is
+  bare 10 digits), no frontend validation, no OTP, and no SMS transport at all
+  (`repositories/notifications.py:1` still says "in-app v1, no email/SMS").
+- Mapped the SMS hook point: `_notify()` at `assignments.py:40` with 16 call
+  sites, plus separate notification paths in `grievances.py` and `progress.py`.
+  Enumerated all 15 `GrievanceState` values for the stage-message set.
+
+### Key findings that shaped the plan
+- **The security-critical gap is that phone is claimed, not proven.**
+  Face-login-by-phone currently authenticates against an identifier anyone can
+  type into a signup form. OTP-proven binding (gate login on `phoneVerifiedAt`)
+  is ranked above the SMS work.
+- **TRAI DLT decides whether SMS works in India** — entity registration, a
+  6-character sender ID, and pre-registered content templates; carriers drop
+  unregistered or free-form bodies. Consequences carried into the design:
+  fixed template bodies with slots only, human stage labels rather than enum
+  values, and a 160-char cap with reason/comment text kept in-app only.
+- **`SMS_PROVIDER` defaults to `dry-run`** so the repository still runs with
+  zero credentials, following the existing `GROQ_API_KEY` degrade-gracefully
+  pattern and the no-secrets rule.
+- **SMS must be fire-and-forget async and must never raise** — an isolation test
+  specifically covers "provider down must not fail an officer's state change."
+- HITL (non-negotiable per AGENTS.md): SMS is informational only; no message may
+  trigger or authorise an administrative action.
+
+### Written
+- `memory/TODO.md` §13 — the full plan (12 sub-sections: what already exists,
+  Phase 0 prerequisites, workstreams A/B/C, the canonical DLT message set,
+  sequencing, security/compliance, open questions, risks, testing, docs).
+- `memory/PROJECT_STATE.md` — new "PLANNED only" section under the face-auth
+  entry plus an updated last-updated line, so the plan is visible as planned
+  rather than implemented work.
+- `memory/DECISIONS.md` was **deliberately not** updated: the load-bearing
+  choices (DLT vs dry-run deliverable, stage set, unbind policy, WhatsApp,
+  SMS language) are still open, so there is no accepted DEC to record yet.
+
+### Blockers flagged
+- `pytest` is still not installed and there is no venv, so the backend suites
+  cannot be run — the same reason the face suites were never re-verified. The
+  plan's Phase 0 includes establishing an installable backend test env.
+- Twilio trial accounts can only message verified destinations, so end-to-end
+  carrier delivery cannot be validated without real DLT-registered credentials.
+
+### Verification
+Not applicable — documentation only, no code touched. `git status` clean apart
+from the three `memory/` files.
+
+## 2026-10-10 — Phone OTP binding and SMS dry-run implementation (DEC-025)
+
+### What changed
+- Added `to_e164`, verified-phone lookup gating, OTP challenge repository
+  (HMAC digest, five-minute expiry, three attempts, burn-on-success), phone API
+  routes, masked audit values, and a local-only OTP debug response.
+- Added independent SMS consent at face signup and Profile controls for OTP
+  bind/unbind and consent withdrawal. Translated face-login guidance across
+  all 11 Indian language packs.
+- Added English-only stage labels for all 15 grievance states, seven permitted
+  citizen stages, best-effort background dispatch, consent checks, a
+  160-character cap, and process-local duplicate/rate caps.
+- SMS provider remains dry-run/off; no Twilio credentials, WhatsApp, staff SMS,
+  or external delivery code was added.
+
+### Verification
+- `pytest tests/test_phone_sms.py -q`: 7 passed.
+- Python `py_compile`, `npx tsc --noEmit`, and frontend API contract checks pass.
+- Production build was blocked by sandbox: Turbopack worker creation failed
+  while binding a port. Full TestClient/browser flows remain to be checked;
+  live delivery is not implemented.
+
+### Follow-up
+- Persist SMS idempotency/rate counters across processes and validate the phone
+  routes through TestClient/browser when that environment is stable.
+- Live Twilio remains deferred pending DLT registration, credentials, approved
+  templates, and carrier validation.
+
+---
+
+## 2026-10-11 — Optional completed work photo in employee work submission form
+
+### What changed
+- Added an optional completed work photo attachment input to the employee work submission
+  form in `frontend/components/resolver/ResolverWorkspace.tsx`.
+- Integrated image validation (formats, max size) and direct upload to Cloudinary.
+- Displays thumbnail preview with removal option and link to view full photo.
+- Wire `completionPhotoUrl` into the `submitResolution` API call to `POST /grievances/{id}/resolution`.
+- Added `resolution` typing in `frontend/lib/types.ts` and `frontend/lib/api.ts` `grievanceSchema`.
+- Included `resolution` in `backend/app/db.py` `to_api` projection.
+- Added visual display of the submitted resolution note and completed work photo in
+  `frontend/components/admin/GrievanceReviewModal.tsx` for manager verification.
+
+### Verification
+- `npx tsc --noEmit` passes with 0 errors.
+- Python compilation passes.
+
+---
+
+## 2026-10-11 — Homepage redesign (action-first, citizen-centric portal)
+
+### What changed
+- Re-architected `frontend/app/page.tsx` based on `memory/Redesign_homepage.md`:
+  - Action-oriented hero with headline "Every grievance deserves a clear next step", primary "Report a Grievance" CTA, and secondary "Track Existing Grievance" action.
+  - Built `frontend/components/home/HomeTrackPanel.tsx` providing an instant tracking form right on the hero section with input validation, sample ID helper, live lookup, status badge card, and deep link to the full activity timeline.
+  - Implemented 3-stage process overview (Submit, Review & Assign, Track & Resolve).
+  - Designed interactive Category Explorer with issue examples and preselection navigation to `/submit?category=<id>`.
+  - Added URL parameter preselection support (`?category=...`) in `frontend/components/grievance/SubmitForm.tsx`.
+  - Added realistic grievance lifecycle breakdown matching backend states (Submitted → Assisted Triage → Assigned → In Progress → Reviewed & Resolved) with indicative timelines and SLAs.
+  - Added "Prepare Before Reporting" checklist outlining required vs optional items (description, pinned GPS location, optional photo).
+  - Concrete "AI-assisted triage with human decisions" section emphasizing that officers remain fully in charge of administrative decisions.
+  - Enabled deep tracking on `frontend/app/track/page.tsx` via `?id=` query parameter.
+  - Standardized terminology to "Register Grievance" and "Track Grievance" in navigation and translations.
+
+### Verification
+- `npx tsc --noEmit` passes with 0 errors.
+
+---
+
+## 2026-10-11 — Homepage redesign cleanup, linter polish, and obsolete code removal
+
+### What changed
+- Removed obsolete `frontend/components/home/RequestLifecycle.tsx` following Section 12 of `Redesign_homepage.md`.
+- Cleaned unused imports and variables across `frontend/app/page.tsx` (`Building2`, `Badge`, `MessageKey`, `useI18n`, `index`).
+- Cleaned unused icons in `frontend/components/home/HomeTrackPanel.tsx` (`ShieldAlert`, `CheckCircle2`).
+- Fixed synchronous `setState` in `useEffect` in `frontend/app/track/page.tsx` by wrapping URL query parameter lookup in a timer to eliminate cascading render lint warning.
+- Verified all 11 i18n locale files (`en`, `hi`, `bn`, `gu`, `kn`, `ml`, `mr`, `or`, `pa`, `ta`, `te`) already have complete matching localized strings for `register` and `track`.
+
+### Verification
+- `npx tsc --noEmit` passes cleanly with 0 errors.
+- `node frontend/scripts/check-contract.mjs` passes all 21 contract checks.
+- `./.venv/bin/pytest tests/test_phone_sms.py -q`: 7 passed.
+- Pre-existing failures in `test_rbac_workflow.py` match documented known baseline in `memory/TODO.md` §11.
+
+---
+
+## 2026-10-11 — Frontend language scope cut to en/hi/mr (DEC-026)
+
+### Request
+Owner: only English, Hindi, Marathi support needed; do not delete the other
+language files; staff stays English-only.
+
+### What changed
+- `frontend/lib/i18n/index.tsx`: `LANGUAGES` (picker) trimmed to en/hi/mr;
+  `translations` registry keeps all 11 packs with an exhaustive record type.
+  Saved non-picker `localStorage` codes fall back to `en`. The picker renders
+  only in the citizen `SiteHeader` — staff chrome has no picker, so staff stay
+  on English.
+- `frontend/lib/i18n/{kn,ml,or,pa}.ts`: 131 missing homepage keys each
+  backfilled with English placeholders under a `TODO i18n` header
+  (script at `/tmp/opencode/backfill_i18n.py`, exact `en.ts` source blocks).
+- No deletions, no typing relaxation, no staff-surface edits (frozen per DEC-026).
+
+### Verification
+- `npx tsc --noEmit` clean — this also fixes a latent tree breakage: the four
+  stale packs failed strict `Record<MessageKey, string>` typing before this
+  change (prior "tsc clean" claims did not hold on this working tree).
+- `npx eslint` on touched files clean; `node scripts/check-contract.mjs`
+  passed; `npm run build` green (18 routes).
+- `check-contract.mjs` asserts nothing about locale counts — no update needed.
+
+### Follow-up
+- `hi`/`mr` copy for the new homepage keys landed unreviewed; needs a native
+  reader pass (TODO §5).
+- Memory updated: DEC-026, TODO §5 scope note, CHANGELOG, PROJECT_STATE.
+
+---
+
+## 2026-10-11 — Twilio SMS provider implementation (DEC-027, vars pending)
+
+### Request
+Owner: set up all the Twilio code now; credentials/DLT vars come later.
+
+### What changed
+- `backend/app/services/sms.py`: `SMS_PROVIDER=twilio` branch with lazy
+  `_twilio_client()` seam, `_deliver_via_twilio()` (Messaging Service SID,
+  E.164 `to`, SID-only logging), `render_otp_message()` +
+  `send_otp_code()`. Dedup/rate-cap bookkeeping still runs first
+  (at-most-once even on provider failure). Unsupported providers stay `False`.
+- `backend/app/routers/phone.py`: `request-otp` calls `send_otp_code()` when
+  live — inline (citizen waits on the code), best-effort, response unchanged.
+- `backend/app/config.py`: six new vars (SID/token/service SID, entity +
+  two DLT template IDs), all empty by default, fail-closed without them.
+- `backend/requirements.txt`: `twilio>=9.0.0`. `backend/.env.example` +
+  `render.yaml` (`sync: false`) document the full contract — the config-drift
+  suite enforces it.
+- `docs/DEVELOPMENT.md`: operator checklist (service → DLT order → vars →
+  trial limits → 160-char/link warning).
+
+### Verification
+- New: 6 Twilio tests (fake client, incomplete creds, failure isolation,
+  OTP body + caplog PII check, unsupported provider, live OTP sans oracle).
+- `tests/test_phone_sms.py` + `tests/test_config_drift.py`: **28 passed**.
+- Real `twilio` 9.11.2 install + import verified in `.venv`.
+- Full suite: **363 passed / 23 failed** — the 22 known baseline plus
+  `test_tunable_defaults_are_pinned`, proven pre-existing via stash rerun
+  (local `backend/.env` overrides `FACE_CHALLENGES` to 2 items; recorded in
+  TODO §11).
+
+### Follow-up
+- Owner supplies: Twilio SID/token/Messaging Service SID, DLT entity ID,
+  both DLT template IDs. Then dry-run log check → live receipt → carrier
+  verification (TODO §13 Phase 6).
+- Settle the stage-message track-link length *before* DLT template
+  registration (160-char skip is now load-bearing).
+- Memory updated: DEC-027, TODO §§11/13, CHANGELOG, PROJECT_STATE.
+
+
+

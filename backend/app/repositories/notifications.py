@@ -1,4 +1,4 @@
-"""Notification persistence — in-app v1, no email/SMS."""
+"""In-app notification persistence. Citizen SMS is dispatched separately."""
 
 from __future__ import annotations
 

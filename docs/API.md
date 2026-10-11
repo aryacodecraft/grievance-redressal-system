@@ -61,6 +61,28 @@ fix an unreachable Atlas. Probe liveness separately if you need it.
 
 ## /auth
 
+### Citizen phone verification (`/phone/*`)
+
+All routes require a citizen (`USER`) access token. `POST /phone/request-otp`
+accepts `{ "phone": "9876543210" }` and responds generically; OTP challenges
+are HMAC-hashed, expire after five minutes, allow three attempts, and are
+limited by account, phone, and client IP. `POST /phone/verify-otp` accepts the
+phone and six-digit code. After successful verification, call `POST
+/phone/bind` with the same phone. `POST /phone/unbind` requires a separately
+verified OTP for the currently linked number. `PATCH /phone/consent` accepts
+`{ "enabled": true|false }`; this preference is independent from biometric
+consent. In dry-run mode no code is delivered: local testing may explicitly
+set `OTP_DEBUG_RETURN_CODE=true`; do not use this in deployments.
+
+Phone numbers remain stored in normalized 10-digit Indian form. Face login by
+phone now resolves only accounts with `phoneVerifiedAt`; Citizen ID login is
+unchanged.
+
+Citizen SMS stage notifications are best-effort background tasks, currently
+`SMS_PROVIDER=dry-run` or `off` only. They require verified phone + explicit
+SMS consent, use fixed English-only templates and omit free-text reasons. Live
+Twilio delivery is not implemented and requires approved DLT registration.
+
 ### POST /auth/register
 Register a new user (USER role by default).
 

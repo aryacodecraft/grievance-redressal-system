@@ -95,6 +95,36 @@ Backend API available at: `http://localhost:10000`
 Interactive docs: `http://localhost:10000/docs` (Swagger UI)
 Alternative docs: `http://localhost:10000/redoc`
 
+### Phone OTP and SMS prototype
+
+The default `SMS_PROVIDER=dry-run` sends no external messages. To exercise
+phone binding locally, set `OTP_DEBUG_RETURN_CODE=true` in the local
+`backend/.env`; the authenticated OTP request returns a demo code in its JSON
+response. Keep this false outside local testing. `SMS_PROVIDER=off` disables
+stage dispatch entirely.
+
+`SMS_PROVIDER=twilio` enables live delivery through a Twilio Messaging
+Service. Operator checklist (all dashboard-side; nothing secret goes in git):
+
+1. Twilio account with a Messaging Service; note its `MG...` SID.
+2. Indian DLT registration: entity ID, 6-character sender header, and one
+   approved content template per message (`DLT_TEMPLATE_ID_STAGE`,
+   `DLT_TEMPLATE_ID_OTP`). Carriers drop anything unregistered or drifted
+   from the approved text — keep `render_stage_message()` /
+   `render_otp_message()` in `backend/app/services/sms.py` verbatim in sync
+   with the registered templates.
+3. Fill `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+   `TWILIO_MESSAGING_SERVICE_SID`, `DLT_ENTITY_ID`, `DLT_TEMPLATE_ID_STAGE`,
+   `DLT_TEMPLATE_ID_OTP` in `backend/.env` (local) or the Render dashboard
+   (`sync: false` entries already in `render.yaml`). Empty values fail closed:
+   the provider refuses to send rather than erroring.
+4. Trial accounts only reach verified numbers — upgrade and verify
+   end-to-end ( dry-run log → live receipt) before opening to citizens.
+
+Watch the 160 GSM-7 character cap: over-long stage bodies are skipped, and
+each segment is billed. Keep `FRONTEND_URL` short or drop the track link
+*before* registering the DLT stage template.
+
 > Run `uvicorn` from the **repository root** (not from inside `backend/`) so
 > that `backend.app` resolves as a package.
 

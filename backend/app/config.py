@@ -117,6 +117,26 @@ FACE_CHALLENGES = [
     if c.strip()
 ] or ["turn_left", "turn_right", "blink", "smile"]
 
+# Citizen SMS. `dry-run` logs metadata only, `off` disables SMS entirely,
+# `twilio` delivers via the Twilio Messaging Service below. `twilio` refuses
+# to send until the SID, token, and messaging-service SID are all set, so a
+# fresh clone cannot accidentally emit messages.
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "dry-run").strip().lower()
+OTP_DEBUG_RETURN_CODE = os.getenv("OTP_DEBUG_RETURN_CODE", "false").lower() == "true"
+OTP_HASH_SECRET = os.getenv("OTP_HASH_SECRET", "") or JWT_SECRET_KEY
+SMS_RATE_LIMIT_PER_USER_HOUR = int(os.getenv("SMS_RATE_LIMIT_PER_USER_HOUR", "4"))
+SMS_RATE_LIMIT_PER_GRIEVANCE_DAY = int(os.getenv("SMS_RATE_LIMIT_PER_GRIEVANCE_DAY", "3"))
+# Live Twilio delivery (TODO §13 Phase 6). Secrets live in `backend/.env` or
+# the deploy dashboard only — never in git. Empty by default.
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
+TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "")
+# Indian DLT registration, recorded for traceability. Carriers enforce these:
+# a body that drifts from the registered template is dropped before delivery.
+DLT_ENTITY_ID = os.getenv("DLT_ENTITY_ID", "")
+DLT_TEMPLATE_ID_STAGE = os.getenv("DLT_TEMPLATE_ID_STAGE", "")
+DLT_TEMPLATE_ID_OTP = os.getenv("DLT_TEMPLATE_ID_OTP", "")
+
 # --- Proxy -------------------------------------------------------------------
 # When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.
 TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"

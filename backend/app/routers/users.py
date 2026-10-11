@@ -155,4 +155,8 @@ def delete_employee(user_id: str, current: Annotated[dict, Depends(require_permi
     return {"message": "Employee deleted", "userId": user_id}
 
 def _safe_user(u: dict) -> dict:
-    return {k: v for k, v in u.items() if k not in ("hashed_password",)}
+    safe = {k: v for k, v in u.items() if k not in ("hashed_password",)}
+    phone = safe.get("phone")
+    if phone and len(phone) == 10:
+        safe["phone"] = f"{phone[:2]}***{phone[-5:]}"
+    return safe

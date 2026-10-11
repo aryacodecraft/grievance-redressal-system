@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-10 (citizen passwordless face signup, login, and recovery on `feature/face-auth`, DEC-024)
+> Last updated: 2026-10-11 (Twilio provider code complete per DEC-027, vars pending; picker scoped en/hi/mr per DEC-026)
 
 ---
 
@@ -163,6 +163,17 @@ memory/        — AI agent persistent memory                                  I
   - Open follow-ups (TODO §10): real-webcam validation, anti-spoof model
     provisioning, Mongo persistence for face stores, status/`requireLogin2fa`
     readback. Optional deps: `backend/requirements-face.txt`
+
+### India phone numbers, phone↔face binding, SMS (2026-10-10, DEC-025)
+- **EXPERIMENTAL / prototype:** `to_e164()` retains 10-digit storage; phone-based face login requires `phoneVerifiedAt`; citizens can request/verify OTP, bind/unbind, and manage separate SMS consent. Superadmin user-list phone numbers are masked.
+- OTP challenges are HMAC-hashed, five-minute, three-attempt; Mongo TTL storage is selected when Mongo is configured. Rate limits and SMS dedup/caps currently live in process memory.
+- Citizen lifecycle templates cover all 15 states and seven approved send stages. Background dispatch requires verified phone + consent. `SMS_PROVIDER` supports `dry-run` and `off`; no live provider exists. Local `OTP_DEBUG_RETURN_CODE=true` is required to exercise OTP manually in dry-run mode.
+- **Remaining:** endpoint/full backend suite and browser validation; durable SMS dedup/rate limiting; live delivery deferred pending DLT registration, credentials, and carrier validation.
+- Live carrier delivery remains blocked on TRAI DLT registration (entity,
+  registered sender/header and templates), provider credentials, and carrier
+  verification. SMS never authorizes an administrative action.
+- Face-biometric consent and SMS-update consent remain independent; SMS consent
+  defaults false and can be withdrawn.
 
 ### AI Modules
 - Working classifiers in `backend/app/services/classification.py` (ported from

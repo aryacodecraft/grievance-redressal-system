@@ -32,6 +32,14 @@ export interface Grievance {
   closedAt?: string | null;
   stateHistory?: StateHistoryEntry[] | null;
   assignmentHistory?: StateHistoryEntry[] | null;
+  resolution?: {
+    text?: string;
+    actions?: string[];
+    by?: string;
+    at?: string;
+    completionPhotoUrl?: string | null;
+    supportingDocumentUrl?: string | null;
+  } | null;
 }
 
 export interface StateHistoryEntry {
@@ -68,6 +76,10 @@ export interface AuthUser {
   id: string;
   email?: string | null;
   phone?: string | null;
+  phoneVerifiedAt?: string | null;
+  phoneVerifiedMethod?: string | null;
+  smsConsent?: boolean;
+  smsOptOutAt?: string | null;
   citizen_id?: string | null;
   name: string;
   role: "USER" | "ADMIN" | "RESOLVER" | "SUPERADMIN" | "citizen" | "admin" | string;
@@ -84,6 +96,10 @@ export interface AuthResponse {
     id: string;
     email?: string | null;
     phone?: string | null;
+    phoneVerifiedAt?: string | null;
+    phoneVerifiedMethod?: string | null;
+    smsConsent?: boolean;
+    smsOptOutAt?: string | null;
     citizen_id?: string | null;
     full_name: string;
     role: string;

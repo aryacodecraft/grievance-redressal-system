@@ -1282,4 +1282,136 @@ run yet (thresholds are tunable via env for that purpose).
 - **Recovery:** `POST /auth/face/admin-reset/{user_id}` (restricted to ADMIN/SUPERADMIN, audited) deletes template and returns a single-use 24-hour re-enrollment token for staff to deliver in person. `POST /auth/face/re-enroll` allows the citizen to capture a new template and burns the token on success.
 - **Frontend:** Single-field "Mobile number or Citizen ID" on the Face tab without email references; 3-failure municipal office reset prompt; dedicated public `/re-enroll` page; Superadmin UI reset button with one-time token display; profile warning on biometric deletion for face-only citizens.
 
+## DEC-025 — OTP-Proven Indian Phone Binding and Dry-Run Citizen SMS
+
+**ID:** DEC-025
+**Date:** 2026-10-10
+**Status:** ACCEPTED (prototype scope)
+
+**Context:** TODO §13 found that face login treated an unverified signup phone
+as an account identifier. Owner approved implementation with OTP for binding
+only, OTP-required unbinding, citizen-only English SMS, no WhatsApp/staff SMS,
+and no live provider credentials in scope.
+
+**Decision:** Keep normalized 10-digit storage; `to_e164()` is a provider
+boundary helper. Face login by phone requires `phoneVerifiedAt`. OTP is
+HMAC-hashed, expires in five minutes, allows three attempts, and is limited by
+account, HMAC(phone), and hashed IP. SMS is consent-gated, informational, and
+background-dispatched. Only `dry-run` and `off` are supported; dry-run does not
+log message bodies or OTPs. An explicit local-only flag may return a demo OTP
+to exercise binding. SMS consent remains distinct from biometric consent.
+
+**Reason:** Fix account phone ownership without expanding into external
+delivery or changing the administrative authority model.
+
+**Consequences:** Phone routes, profile controls, stage labels, notifications,
+and tests are added. Mongo TTL storage exists for OTP challenges; rate counters
+and SMS dedup/caps remain process-local. Twilio is deferred pending DLT,
+credentials, and carrier validation; the feature remains EXPERIMENTAL until
+endpoint and browser workflows are validated.
+
+---
+
+## DEC-026 — Frontend Language Scope: English/Hindi/Marathi Picker, Hidden Packs Kept, Staff English-Only
+
+**ID:** DEC-026
+**Date:** 2026-10-11
+**Status:** ACCEPTED
+
+**Context:**
+The frontend carried 11 locale packs (`frontend/lib/i18n/`) with the picker
+offering all of them, but only `en`/`hi`/`mr` are needed. Four packs
+(`kn`, `ml`, `pa`, `or`) had fallen 131 keys behind `en.ts` (the uncommitted
+homepage-redesign keys), which was a latent `tsc` failure since every pack is
+typed `Record<MessageKey, string>`. Staff surfaces were partially translated
+with no decision on whether that was required.
+
+**Decision:**
+1. The UI picker (`LANGUAGES` in `frontend/lib/i18n/index.tsx`, rendered only
+   by the citizen `SiteHeader`) offers exactly `en` / `hi` / `mr`.
+2. All 11 packs stay in-tree and in the `translations` registry — nothing is
+   deleted. Unhiding a language is one line: re-add its `[code, label]` entry
+   to `LANGUAGES`. No completeness threshold or other gating.
+3. The 4 stale packs are backfilled with English placeholder values under a
+   `TODO i18n` section header (identical to the runtime English fallback, so
+   no user-visible change) to keep strict typing green.
+4. A saved `localStorage` language code outside the picker set falls back to
+   `en` (grandfathered selections are not honored).
+5. Staff surfaces (`/admin`, `/resolver`, `/superadmin`, `/notifications` and
+   their components) are English-only by decision. Existing `t()` calls there
+   are frozen in place — not reverted, not extended — and hardcoded English
+   staff strings are not bugs.
+
+**Alternatives Considered:**
+- Deleting the 8 hidden packs: rejected by the owner — keep them for a future
+  translation pass.
+- Relaxing locale typing to `Partial<Messages>`: rejected — the strict type is
+  the mechanism that caught this exact staleness; placeholders preserve it.
+
+**Consequences:**
+- `TODO.md` §5 frontend-i18n scope is en/hi/mr citizen surfaces; backend
+  complaint translation and multilingual AI remain deferred.
+- A future agent finishing a hidden language backfills real translations over
+  the placeholders and re-adds the one picker line.
+
+**Affected Components:** `frontend/lib/i18n/index.tsx`,
+`frontend/lib/i18n/{kn,ml,or,pa}.ts`, `frontend/components/ui/SiteHeader.tsx`
+(unchanged — maps over `LANGUAGES`)
+
+---
+
+## DEC-027 — Live Twilio SMS Provider (Code Complete, Credentials Pending)
+
+**ID:** DEC-027
+**Date:** 2026-10-11
+**Status:** ACCEPTED (implementation; delivery blocked on operator vars)
+
+**Context:**
+DEC-025 scoped SMS to `dry-run`/`off` with no live provider code. The owner
+has now approved building the full Twilio implementation ahead of receiving
+credentials, DLT registration, and a sender setup, and will supply the vars
+later.
+
+**Decision:**
+1. `SMS_PROVIDER=twilio` delivers stage updates and OTP codes through a
+   Twilio Messaging Service (`messages.create` with `messaging_service_sid`,
+   `to` in E.164, `body`). The `twilio` client is built lazily so the package
+   is only required when live; a seam (`_twilio_client`) keeps it testable.
+2. Fail-closed without credentials: empty SID/token/service-SID refuses to
+   send (warning, `False`) instead of erroring. Any provider exception is
+   caught — dispatch never disrupts a grievance workflow or an OTP request.
+3. At-most-once preserved: dedup/rate-cap bookkeeping runs before dispatch,
+   so a failed send burns its `(grievanceId, stage)` slot rather than
+   retrying into a duplicate.
+4. OTP responses stay generic regardless of delivery outcome (no oracle);
+   `debug_code` remains dry-run-only. OTP bodies must match the registered
+   DLT template verbatim (`render_otp_message`), as must stage bodies.
+5. New env contract (all empty by default, secrets never in git):
+   `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+   `TWILIO_MESSAGING_SERVICE_SID`, `DLT_ENTITY_ID`, `DLT_TEMPLATE_ID_STAGE`,
+   `DLT_TEMPLATE_ID_OTP` — mirrored in `backend/.env.example` and
+   `render.yaml` (`sync: false`), enforced by the config-drift suite.
+
+**Alternatives Considered:**
+- Raw Twilio phone number (`From`) instead of Messaging Service: rejected —
+  Indian delivery requires the DLT-registered sender header, which rides the
+  Messaging Service (TODO §13 Phase 0 finding).
+- Retrying failed sends: rejected — violates the at-most-once dedup rule;
+  the OTP challenge survives failure so re-request covers it.
+
+**Consequences:**
+- `twilio>=9.0.0` added to `backend/requirements.txt` (verified installable;
+   test suite fakes the client, so CI needs no credentials or network).
+- SMS remains `dry-run` by default; live delivery is still `CREDENTIALS
+  REQUIRED` (DLT registration, approved templates, carrier verification).
+- The 160-char cap is now load-bearing for DLT: over-long bodies are skipped
+  before dispatch, so the track-link length must be settled before template
+  registration.
+
+**Affected Components:** `backend/app/services/sms.py`,
+`backend/app/routers/phone.py` (`request-otp` delivery call),
+`backend/app/config.py`, `backend/requirements.txt`,
+`backend/.env.example`, `render.yaml`, `tests/test_phone_sms.py`,
+`docs/DEVELOPMENT.md`
+
 

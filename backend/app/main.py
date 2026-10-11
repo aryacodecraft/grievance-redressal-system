@@ -29,6 +29,7 @@ from .routers import assignments as assignment_router
 from .routers import admin as admin_router
 from .routers import audit as audit_router
 from .routers import notifications as notif_router
+from .routers import phone as phone_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -190,6 +191,7 @@ app.include_router(assignment_router.router)
 app.include_router(admin_router.router)
 app.include_router(audit_router.router)
 app.include_router(notif_router.router)
+app.include_router(phone_router.router)
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────

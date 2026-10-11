@@ -143,7 +143,25 @@ def _signup_citizen(client, face_env, phone: str = "9876543210", name: str = "As
         },
     )
     assert res_comp.status_code == 200, res_comp.text
+    # Most face-login tests model an account that has completed phone binding.
+    # Dedicated coverage below removes this marker to verify the unproven-phone gate.
+    from backend.app.users_db import users_repository
+    users_repository.update(res_comp.json()["user"]["id"], {"phoneVerifiedAt": "test-otp-verified"})
     return res_comp.json()
+
+
+def test_unverified_phone_cannot_be_used_for_face_login(client, face_env):
+    signup_data = _signup_citizen(client, face_env, phone="9876543211")
+    user_id = signup_data["user"]["id"]
+    from backend.app.users_db import users_repository
+    users_repository.update(user_id, {"phoneVerifiedAt": None})
+    cid, action = _challenge(client)
+    satisfy(action, face_env)
+    response = client.post("/auth/face/login", json={
+        "identifier": "9876543211", "challenge_id": cid, "frames": _frames(5),
+    })
+    assert response.status_code == 401
+    assert response.json() == {"error": "Face sign-in failed"}
 
 
 def test_login_works_with_phone_and_citizen_id(client, face_env):

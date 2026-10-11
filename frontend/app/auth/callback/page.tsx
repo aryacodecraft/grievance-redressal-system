@@ -61,6 +61,10 @@ function CallbackHandler() {
           id: profile.id,
           email: profile.email || null,
           phone: profile.phone || null,
+          phoneVerifiedAt: profile.phoneVerifiedAt || null,
+          phoneVerifiedMethod: profile.phoneVerifiedMethod || null,
+          smsConsent: profile.smsConsent === true,
+          smsOptOutAt: profile.smsOptOutAt || null,
           citizen_id: profile.citizen_id || null,
           name:
             profile.full_name ||

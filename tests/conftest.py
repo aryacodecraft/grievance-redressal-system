@@ -90,6 +90,7 @@ def fresh_repository():
     from backend.app.repositories import notifications as notif_repo_mod
     from backend.app.repositories import departments as dept_repo_mod
     from backend.app.repositories import sla_config as sla_repo_mod
+    from backend.app.repositories import otp_codes as otp_repo_mod
 
     fresh_grievances = db.InMemoryRepository()
     fresh_users = users_db.InMemoryUsersRepository()
@@ -99,6 +100,7 @@ def fresh_repository():
     fresh_dept = dept_repo_mod.InMemoryDepartmentRepository()
     fresh_sla = sla_repo_mod.InMemorySlaConfigRepository()
     fresh_face = face_repo_mod.InMemoryFaceRepository()
+    fresh_otp = otp_repo_mod.InMemoryOtpRepository()
 
     # Remember previous values for restore.
     saved: list[tuple[Any, str, Any]] = []
@@ -118,6 +120,8 @@ def fresh_repository():
     import backend.app.routers.notifications as rn
     import backend.app.routers.auth as rauth
     import backend.app.routers.face_auth as rface
+    import backend.app.routers.phone as rphone
+    from backend.app.services import sms as sms_service
 
     # Grievance store on every router that reads/writes grievances.
     for mod in (rg, ra, rp, rad):
@@ -126,11 +130,16 @@ def fresh_repository():
     _swap(rauth, "users_repository", fresh_users)
     _swap(ru, "users_repository", fresh_users)
     _swap(rface, "users_repository", fresh_users)
+    _swap(rphone, "users_repository", fresh_users)
+    _swap(sms_service, "users_repository", fresh_users)
     _swap(users_db, "users_repository", fresh_users)
     # Face templates store (singleton + both routers that bind it).
     _swap(face_repo_mod, "face_repository", fresh_face)
     _swap(rauth, "face_repository", fresh_face)
     _swap(rface, "face_repository", fresh_face)
+    _swap(rphone, "face_repository", fresh_face)
+    _swap(otp_repo_mod, "otp_repository", fresh_otp)
+    _swap(rphone, "otp_repository", fresh_otp)
     # Side-effect stores (singletons + direct router bindings).
     _swap(audit_repo_mod, "audit_repository", fresh_audit)
     _swap(progress_repo_mod, "progress_repository", fresh_progress)

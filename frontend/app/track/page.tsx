@@ -39,6 +39,44 @@ export default function TrackPage() {
     if (!liveMode) return;
     void getDepartmentCounts().then((result) => setRegistryCounts(result.counts)).catch(() => setRegistryCounts(null));
   }, [liveMode]);
+
+  // Support direct tracking via query param: /track?id=GRV-2026-0001
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (!idParam) return;
+
+    const timer = setTimeout(() => {
+      setTab("search");
+      setQuery(idParam);
+      setBusy(true);
+      setSearched(false);
+      void (async () => {
+        try {
+          if (liveMode) {
+            const res = await fetchGrievanceById(idParam);
+            setFound(res);
+            if (res) {
+              const updates = await getGrievanceHistory(res.id).catch(() => []);
+              setHistory(updates as Record<string, unknown>[]);
+            } else {
+              setHistory([]);
+            }
+          } else {
+            setFound(findMockGrievance(idParam) ?? null);
+          }
+        } catch {
+          setFound(null);
+        } finally {
+          setSearched(true);
+          setBusy(false);
+        }
+      })();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [liveMode]);
   const displayedRecent = liveMode ? recent : MOCK_GRIEVANCES;
   const departmentCounts = displayedRecent.reduce<Record<string, number>>((counts, grievance) => {
     const key = (grievance.category || "other").toLowerCase();

@@ -4,6 +4,112 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-11 — Twilio SMS provider implementation (DEC-027, vars pending)
+
+- `SMS_PROVIDER=twilio` now delivers stage updates and OTP codes through a
+  Twilio Messaging Service (`backend/app/services/sms.py`): lazy client,
+  fail-closed without credentials, at-most-once dedup preserved, never raises
+  into workflows. `POST /phone/request-otp` sends the code when live; the
+  response stays generic and `debug_code` remains dry-run-only.
+- New env contract (`backend/.env.example` + `render.yaml`, all empty by
+  default): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_MESSAGING_SERVICE_SID`, `DLT_ENTITY_ID`, `DLT_TEMPLATE_ID_STAGE`,
+  `DLT_TEMPLATE_ID_OTP`. `twilio>=9.0.0` added to requirements (install verified).
+- 6 new tests in `tests/test_phone_sms.py` (fake-client dispatch, incomplete
+  creds, failure isolation, OTP body + no-code-in-logs, unsupported provider,
+  live OTP request without oracle). Targeted suites: 28 passed. Full suite:
+  363 passed / 23 failed — 22 known baseline plus one env-specific
+  `FACE_CHALLENGES` failure from the local `backend/.env` (fails on clean
+  tree too; recorded in TODO §11).
+- `docs/DEVELOPMENT.md` gains the operator checklist (Messaging Service,
+  DLT registration order, trial limits, 160-char cap warning).
+
+## 2026-10-11 — Frontend language scope cut to English/Hindi/Marathi (DEC-026)
+
+- `frontend/lib/i18n/index.tsx`: the UI picker (`LANGUAGES`) now offers only
+  `en` / `hi` / `mr`. All 11 packs stay imported in the `translations`
+  registry — nothing deleted; unhiding a language is a one-line picker entry.
+  Saved `localStorage` codes outside the picker set fall back to `en`.
+- `frontend/lib/i18n/{kn,ml,or,pa}.ts`: backfilled the 131 missing homepage
+  keys each with English placeholders under a `TODO i18n` header. This fixes a
+  latent `tsc` failure on the working tree (strict `Record<MessageKey, string>`
+  typing); runtime behavior is unchanged (the provider already fell back to
+  English for missing keys).
+- Staff surfaces (`/admin`, `/resolver`, `/superadmin`, `/notifications`) are
+  English-only by owner decision; existing `t()` calls there are frozen.
+- Verified: `npx tsc --noEmit` clean, `npx eslint` clean, `npm run build`
+  green (18 routes), `node scripts/check-contract.mjs` passed.
+
+## 2026-10-11 — Homepage redesign (action-first, citizen-centric portal)
+
+- Redesigned `frontend/app/page.tsx` according to `memory/Redesign_homepage.md`:
+  - Hero with strong civic headline, primary "Report a Grievance" and secondary "Track Existing Grievance" actions, and trust statement.
+  - Added `frontend/components/home/HomeTrackPanel.tsx`: real-time reference ID tracking with keyboard submission, validation, sample ID, status preview, and direct transition to full activity timeline.
+  - Compact 3-stage grievance workflow overview (Submit, Review & Assign, Track & Resolve).
+  - Category explorer with clean cards, issue examples, and direct links to `/submit?category=<id>` with preselection support in `SubmitForm.tsx`.
+  - Realistic lifecycle breakdown (Submitted → Assisted Triage → Assigned → In Progress → Reviewed & Resolved) with SLAs and accountability notes.
+  - "Prepare Before Reporting" checklist (description, GPS location, optional photo, contact).
+  - Trust & AI transparency section distinguishing AI-assisted categorization from human officer decisions.
+- Updated `frontend/app/track/page.tsx` to read `?id=` query parameter on mount and trigger immediate status search.
+- Updated header labels in `frontend/components/ui/SiteHeader.tsx` and `frontend/lib/i18n/en.ts` to consistent "Register Grievance" and "Track Grievance" naming.
+- Removed obsolete `frontend/components/home/RequestLifecycle.tsx` per Section 12 of `Redesign_homepage.md`.
+- Polished ESLint warnings in `page.tsx`, `HomeTrackPanel.tsx`, and `track/page.tsx`.
+
+## 2026-10-11 — Optional completed work photo in employee submission form
+
+- Added optional completed work photo attachment in `frontend/components/resolver/ResolverWorkspace.tsx`
+  under the "Submit your work for review" section, with file selection, Cloudinary upload,
+  preview, and removal support.
+- Updated `submitResolution` call to pass `completionPhotoUrl` to `POST /grievances/{id}/resolution`.
+- Updated `frontend/lib/types.ts` and `frontend/lib/api.ts` with `resolution` object typing including `completionPhotoUrl`.
+- Updated `backend/app/db.py` (`to_api`) to include the `resolution` object in serialized grievance payloads.
+- Added completed work photo and resolution notes display in `frontend/components/admin/GrievanceReviewModal.tsx`
+  so reviewing managers can inspect submitted proof of work before approving.
+
+## 2026-10-10 — Phone binding and citizen SMS dry-run prototype (DEC-025)
+
+- Added India E.164 conversion while retaining normalized 10-digit storage;
+  phone-based face login now requires OTP verification. Added hashed, expiring
+  OTP challenges, per-account/phone/IP request throttles, citizen bind/unbind
+  routes, consent tracking, and masked audit/user-list output.
+- Added Profile phone controls and separate optional SMS consent; face signup
+  now validates a 10-digit Indian mobile and records optional SMS consent.
+  Updated translated signup/login copy in all 11 locales.
+- Added citizen-only English stage templates and best-effort background
+  dry-run hooks for submission, assignment, key lifecycle transitions,
+  resolution approval, closure, and rejection. No provider sends messages.
+- `tests/test_phone_sms.py`: 7 passed. Python compile checks, TypeScript, and
+  frontend contract checks pass. `next build` was blocked because the sandbox
+  denied Turbopack worker port binding. Full endpoint/browser workflow and live
+  delivery remain unvalidated/deferred.
+
+## 2026-10-10 — Plan recorded: India phone, phone↔face binding, Twilio SMS (PLANNED, no code)
+
+- Recorded a plan for India phone numbers, OTP-proven facial-recognition
+  binding keyed on the phone number, and Twilio SMS grievance-stage
+  notifications. **Nothing is implemented** — this is documentation only.
+- The survey found that much of the phone work already exists from face-auth:
+  `normalize_phone()` already enforces 10-digit Indian mobiles starting `6-9`
+  and strips `+91`/`91`/`0`, there is a `uniq_user_phone` index plus
+  `find_by_phone`/`find_by_identifier`, and `POST /auth/face/login` already
+  accepts a phone as its identifier. The plan records this explicitly so it is
+  not rebuilt.
+- Real gaps identified: no E.164 export for the SMS provider, no frontend
+  phone validation, no OTP, and no SMS transport.
+- Two findings drive the design. First, **phone is currently claimed rather
+  than proven**, so face-login-by-phone authenticates against an unverified
+  identifier — OTP-proven binding is ranked above the SMS work. Second, **TRAI
+  DLT registration** (entity, 6-character sender ID, pre-registered templates)
+  decides whether SMS is deliverable in India at all, which forces fixed
+  template bodies with slots, human stage labels instead of enum values, and a
+  160-char cap with reason text kept in-app only.
+- `SMS_PROVIDER` defaults to `dry-run` so the repository keeps running with zero
+  credentials; SMS is fire-and-forget async and must never fail a grievance
+  state change; SMS stays informational only per the HITL principle.
+- Written to `memory/TODO.md` §13 with a matching `memory/PROJECT_STATE.md`
+  section. `memory/DECISIONS.md` was intentionally left alone — the
+  load-bearing choices are still open questions, so no DEC has been accepted.
+
 ## 2026-10-10 — Merge `main` into `feature/face-auth` (conflict resolution)
 
 - Merged `main` (`9bef326`) into `feature/face-auth` (`f744be0`) so the face-auth

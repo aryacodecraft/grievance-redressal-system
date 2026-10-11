@@ -220,10 +220,18 @@ const grievanceSchema = z.object({
   closedAt: z.string().nullish(),
   stateHistory: z.array(z.record(z.string(), z.unknown())).nullish(),
   assignmentHistory: z.array(z.record(z.string(), z.unknown())).nullish(),
-  // `to_api()` emits this whenever an image was attached, and lib/types.ts
-  // declares it on Grievance detail views need it back — without it here the
-  // stored verdict is stripped by zod before any component can read it.
   imageValidation: imageValidationSchema.nullish(),
+  resolution: z
+    .object({
+      text: z.string().optional(),
+      actions: z.array(z.string()).optional(),
+      by: z.string().optional(),
+      at: z.string().optional(),
+      completionPhotoUrl: z.string().nullish(),
+      supportingDocumentUrl: z.string().nullish(),
+    })
+    .passthrough()
+    .nullish(),
 });
 
 const grievanceListSchema = z.array(grievanceSchema);
@@ -483,6 +491,26 @@ export async function getCurrentUser(): Promise<AuthResponse["user"]> {
   return requestJson<AuthResponse["user"]>("/auth/me", { method: "GET" });
 }
 
+export function requestPhoneOtp(phone: string): Promise<{ message: string; expires_in: number; debug_code?: string }> {
+  return requestJson("/phone/request-otp", { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+export function verifyPhoneOtp(phone: string, code: string): Promise<{ verified: boolean; purpose: string }> {
+  return requestJson("/phone/verify-otp", { method: "POST", body: JSON.stringify({ phone, code }) });
+}
+
+export function bindPhone(phone: string): Promise<{ phone: string; phoneVerifiedAt: string }> {
+  return requestJson("/phone/bind", { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+export function unbindPhone(): Promise<{ unbound: boolean }> {
+  return requestJson("/phone/unbind", { method: "POST", body: JSON.stringify({}) });
+}
+
+export function updateSmsConsent(enabled: boolean): Promise<{ smsConsent: boolean }> {
+  return requestJson("/phone/consent", { method: "PATCH", body: JSON.stringify({ enabled }) });
+}
+
 export function getGoogleAuthUrl(): string {
   return `${API_URL}/auth/google`;
 }
@@ -550,6 +578,7 @@ export function startFaceSignup(body: {
   full_name: string;
   phone: string;
   consent: boolean;
+  sms_consent?: boolean;
 }): Promise<{
   signup_token: string;
   challenge_id: string;

@@ -146,9 +146,23 @@
 
 ## 5. Full Multilingual System Support & Dynamic Translation
 
-- [ ] **Frontend Internationalization (i18n)**
-  - Language selector in top navigation bar (English, Hindi, Marathi, Tamil, Telugu, Bengali, Kannada, Gujarati, etc.).
-  - Localization framework (e.g. `next-intl` or `react-i18next`) for UI copy, forms, status badges, timelines, and alerts.
+> **Scope (DEC-026, 2026-10-11, owner-confirmed):** UI picker offers **English,
+> Hindi, Marathi only**. The other 8 packs stay in-tree but hidden (unhide =
+> one picker line, no gating). Staff surfaces are English-only by decision.
+> Backend complaint translation + multilingual AI below remain deferred.
+
+- [x] **Frontend Internationalization (i18n) — citizen scope**
+  - Language selector in top navigation bar: English, Hindi, Marathi
+  (`frontend/lib/i18n/index.tsx` `LANGUAGES`; `SiteHeader` dropdown).
+  - `en.ts` is the `MessageKey` source of truth; `hi`/`mr` in sync (471 keys);
+  hidden packs kept complete via English placeholders (strict typing stays green).
+- [ ] **Frontend i18n — deferred**: unhiding a hidden language (translate over
+  placeholders + re-add picker line); staff surfaces stay English-only.
+
+- [ ] **Frontend i18n — remaining**: citizen `hi`/`mr` copy review by a native
+  reader (current values landed unreviewed); unhide a hidden language only when
+  its placeholders are really translated. Provider is a custom `useI18n`
+  context (not `next-intl`/`react-i18next`) — that framework choice is settled.
 - [ ] **Dynamic Bi-Directional Complaint Translation**
   - Translate citizen submissions (text and voice transcripts in regional languages/Hinglish) into standardized English for administrative review and backend AI processing.
   - Store original language text alongside translated text in the grievance document (`originalText`, `detectedLanguage`, `translatedText`).
@@ -240,6 +254,13 @@ unrelated to face auth — all 140 face & drift tests pass:
 - `tests/test_status_vocabularies.py::test_dec_006_states_are_disjoint_from_the_current_lowercase_set`
 - `tests/test_status_vocabularies.py::test_no_component_already_speaks_dec_006`
 
+Plus one environment-specific failure outside that baseline (fails on a clean
+tree too — the local gitignored `backend/.env` pins it, not the code):
+- `tests/test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned`
+  — local `backend/.env` sets `FACE_CHALLENGES=turn_left,turn_right` (2 items)
+  while the test expects the 4-item `.env.example` default. Passes with the
+  stock example env; fails with the developer's local override.
+
 ---
 
 ## 12. Open auth gap: password login / refresh have no rate limiting
@@ -251,3 +272,224 @@ unrelated to face auth — all 140 face & drift tests pass:
   per-account throttling (in-memory v1 acceptable, mirroring
   `repositories/face_templates.py` counters) — also gap #8 in
   `memory/rbac/AUTHENTICATION.md`.
+
+---
+
+## 13. India phone numbers, phone↔face binding, Twilio SMS stage notifications (IN PROGRESS, 2026-10-10)
+
+> **Status (2026-10-11, DEC-027): live-provider code is implemented and
+> tested; live delivery still needs the operator vars (Twilio SID/token/
+> Messaging Service + DLT entity/template IDs).** Full working copy of this plan also
+> lives outside the repo at `/home/arsen1c/.opencode/plan/india-phone-face-bind-twilio-sms.md`;
+> this section is the in-repo source of truth.
+>
+> DEC-025 records the prototype decisions; DEC-027 adds the Twilio provider
+> branch. Live SMS remains deferred until DLT/provider prerequisites are met.
+
+### 13.1 Already exists — do NOT rebuild
+
+Verified present in the tree before planning:
+
+- `backend/app/users_db.py:20` `normalize_phone()` — strips spaces/dashes/dots/
+  parens and leading `+91`, `91` (12-digit), `0` (11-digit); accepts only 10
+  digits starting `6-9`; else `ValueError`.
+- `find_by_phone()` (`users_db.py:132`, `:341`), `find_by_identifier()` (`:155`,
+  dispatch: `CIT-` → citizen_id, `@` → email, else phone), `uniq_user_phone`
+  index (`:269`), duplicate-phone rejection (`:84`).
+- `POST /auth/face/login` already accepts **`identifier` = phone OR citizen_id**
+  (`routers/face_auth.py:665`), with identifier validator (`:127`) and
+  per-identifier/per-IP lockouts (`:281-313`).
+- Frontend: `app/signup/face/page.tsx` already collects `phone` (required, with
+  consent gate at `:200`); `phone` carried through `lib/types.ts:70,86`,
+  `lib/session.tsx:64,128`, `app/auth/callback/page.tsx:63`.
+- Notification infra: `_notify()` at `routers/assignments.py:40` with **16 call
+  sites**, all in `assignments.py`. `repositories/notifications.py:1` still
+  reads `"""...in-app v1, no email/SMS."""`.
+- State machine: 15 `GrievanceState` values (`state_machine.py:14`),
+  role-gated transitions (`:41`, `:104`).
+
+**Current gaps:** no carrier delivery; manual dry-run OTP requires the local
+debug-response flag; durable SMS dedup/rate limiting and browser/full endpoint
+validation remain.
+
+### 13.2 Phase 0 — blocking prerequisites
+
+- [ ] **TRAI DLT registration** (`CREDENTIALS REQUIRED`) — entity registration,
+  a **6-character sender ID/header**, and **pre-registered content templates**.
+  Carriers drop unregistered/free-form SMS. This is the #1 reason the feature
+  "works in the Twilio console but no citizen receives anything."
+- [ ] Twilio project with India SMS enabled; prefer `TWILIO_MESSAGING_SERVICE_SID`
+  over a raw number (it carries the registered header). Note: trial accounts can
+  only message **verified** destinations.
+- [x] Decide **demo (`dry-run`) vs production** before writing send code — dry-run/off only.
+- [x] Set up an **installable backend test env** — repository `venv/` is available.
+
+### 13.3 Workstream A — India phone hardening
+
+- [x] `to_e164()` in `users_db.py` — bare 10 digits → `+91XXXXXXXXXX`. **Keep
+      `normalize_phone` as the single internal canonical form; do not change the
+      stored format or the existing unique index.** Reject non-Indian shapes
+      loudly rather than silently coercing.
+- [x] Frontend validation mirroring the backend rule exactly (`^[6-9]\d{9}$`
+      after normalization); render `+91` as a fixed non-editable prefix.
+- [ ] Add error i18n keys to **all 11 locales** (`MessageKey` derives from
+      `en.ts`, so an `en.ts`-only key is a TypeScript error).
+- [x] Mask phone (`98***43210`) in logs, audit entries and the superadmin list
+      (`SuperadminWorkspace` currently prints `u.phone` raw).
+- [ ] Defer phone collection on the legacy `/register` path — cover it via the
+      binding flow in B instead, keeping `/register` unchanged.
+
+### 13.4 Workstream B — OTP-proven phone↔face binding (security-critical)
+
+Phone is currently *claimed*, not *proven*, so face-login-by-phone authenticates
+against an unverified identifier. This is the highest-value item in the plan.
+
+- [x] User fields (both repos): `phoneVerifiedAt`, `phoneVerifiedMethod`
+      (`"otp_sms"`), `smsConsent`, `smsOptOutAt`.
+- [x] `find_by_identifier` must **prefer verified phones** for login; an
+      unverified phone must not be a sufficient login identifier.
+- [x] OTP service/repository — 6-digit code, **hashed at rest**, 5-min TTL, max 3
+      attempts, burn-on-success, regeneration invalidates the previous code.
+      Per-phone **and** per-IP rate limits, mirroring the face lockout pattern.
+      Codes must never be logged (follow the face module's "never logs
+      embeddings" rule).
+- [x] `repositories/otp_codes.py` (Mongo TTL + in-memory fallback).
+- [x] New `routers/phone.py` mounted in `main.py`:
+      `POST /phone/request-otp` (rate-limited generic response),
+      `POST /phone/verify-otp`, `POST /phone/bind` (JWT + **step-up auth**;
+      reject if the phone is already bound to another user),
+      `POST /phone/unbind`.
+- [x] Gate `routers/face_auth.py` phone login on `phoneVerifiedAt`; leave
+      `citizen_id` behaviour unchanged.
+- [x] Audit every bind/unbind via `audit_repository` (who / old→new / when /
+      reason / human-vs-system), per the AGENTS.md auditability requirement.
+- [x] Frontend: Profile phone card (add → OTP → verified badge), Face-tab hint,
+      and signup consent in all 11 language packs.
+
+### 13.5 Workstream C — Twilio SMS stage notifications
+
+- [x] `config.py` + `backend/.env.example`: `SMS_PROVIDER=dry-run|off`
+      (**default `dry-run`**) and rate caps. Twilio variables are intentionally
+      absent because live provider integration is deferred.
+      *(2026-10-11, DEC-027: provider code landed — `SMS_PROVIDER=twilio`
+      plus `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/
+      `TWILIO_MESSAGING_SERVICE_SID` and `DLT_ENTITY_ID`/
+      `DLT_TEMPLATE_ID_STAGE`/`DLT_TEMPLATE_ID_OTP`, mirrored in
+      `render.yaml`; all empty by default, fail-closed without them.)*
+- [x] `services/sms.py` — `send_stage_update()`. **Never raises
+      into the caller**; returns `False` and logs a warning. Send via
+      `BackgroundTasks` (a synchronous Twilio call inside a state-transition
+      request would add hundreds of ms to every officer action).
+- [x] Respect `smsConsent` + `smsOptOutAt`; skip silently when either says no.
+- [x] **Dedup** — never SMS the same `grievanceId` + `stage` twice (currently process-local;
+      reassignment, reopen loops).
+- [x] Hook submission, initial department assignment, core state transitions,
+      resolution approval, close, and reject. Standalone progress-note entries
+      do not trigger stage SMS.
+- [x] Consent checkbox at `/signup/face`, **separate from and unchecked by
+      default** alongside the existing face-biometrics consent (DPDP Act 2023:
+      specific, granular, withdrawable, timestamped, purpose-limited).
+
+### 13.6 Canonical message set — register exactly these with DLT
+
+Keep it small; **citizen-facing only** (staff notifications stay in-app):
+
+| `template_key` | Trigger |
+|---|---|
+| `grievance_received` | `SUBMITTED` |
+| `grievance_assigned` | `ASSIGNED` / department routed |
+| `grievance_in_progress` | `IN_PROGRESS` |
+| `grievance_blocked` | `BLOCKED` |
+| `grievance_resolved` | `RESOLVED` |
+| `grievance_rejected` | `REJECTED` |
+| `grievance_closed` | `CLOSED` |
+| `otp_code` | OTP request |
+
+- [x] **`STAGE_SMS_LABEL` map** — human words per state. Enum values must never
+      reach a citizen (`RESOLUTION_SUBMITTED` → "awaiting review").
+- [x] Add a test that **fails if a new `GrievanceState` is added without a
+      label**.
+- [x] **160 GSM-7 char cap.** Strip reason/comment free-text — it is unbounded,
+      would blow past one segment, and would break the registered template.
+      Keep reasons in-app only.
+- [x] Bodies are fixed with slots only, e.g.
+      `GRV: Grievance {{id}} is now {{stage}}. Track: {{link}}` — never
+      ad-hoc `f"...{state.title()}"`.
+
+### 13.7 Sequencing
+
+| Phase | Scope | Depends on |
+|---|---|---|
+| 0 | Twilio + DLT; demo-vs-prod decision; working test env | — |
+| 1 | A: `to_e164` + frontend validation | — |
+| 2 | C: SMS service in `dry-run` + config | — |
+| 3 | C: canonical templates + `_notify` hook, `dry-run` end-to-end | 2 |
+| 4 | B: OTP + binding + face-login gate | 1, 2 |
+| 5 | Frontend: binding UI, consent, login hints, 11 locales | 3, 4 |
+| 6 | Live Twilio send + carrier verification | 0, 3 (provider code done per DEC-027; needs DLT IDs + creds) |
+| 7 | Docs + memory | all |
+
+Phases 1–3 and 5 are deliverable **without** Twilio credentials via `dry-run`.
+Only Phase 6 needs real DLT.
+
+### 13.8 Security, compliance, project rules
+
+- [x] No secrets in git — env vars only; every new key documented in
+      `backend/.env.example` with a comment, matching existing style.
+- [x] Server-side authority — validate phone with `normalize_phone` even when
+      the client already checked; never trust a client consent/role claim.
+- [x] PII minimisation — masked phone in logs/audit/UI; **no OTP in logs ever**.
+- [x] **HITL (non-negotiable, AGENTS.md)** — SMS is informational only. No SMS
+      may trigger or authorise an administrative action; no message links that
+      mutate state. Citizens track through the authenticated app.
+- [x] Mark Twilio-dependent pieces `CREDENTIALS REQUIRED` and the OTP/biometric
+      binding `EXPERIMENTAL` until validated. Do **not** claim delivery rates.
+
+### 13.9 Decisions and remaining blockers
+
+- DEC-025: dry-run/off only; approved stage set; binding OTP only; OTP-proven
+  unbind; no WhatsApp/staff SMS; English-only templates.
+- Live Twilio delivery remains `CREDENTIALS REQUIRED` (DLT registration,
+  provider credentials, approved templates, and carrier verification).
+- Dry-run does not deliver OTP. `OTP_DEBUG_RETURN_CODE=true` is a local-only
+  demo facility, disabled by default.
+- Remaining implementation: durable SMS dedup/rate counters, robust rate
+  limit sharing across workers, browser validation, and complete endpoint
+  tests. Existing face-auth test expectations for unverified phone login need
+  updating to exercise the new proof gate.
+
+### 13.10 Risks
+
+| Risk | Mitigation |
+|---|---|
+| DLT missing → zero delivery in India while the Twilio console looks fine | `dry-run` default; Phase 0 gate; carrier-level verification in Phase 6 |
+| SMS failure breaking officer workflows | fire-and-forget async, never raises, explicit isolation test |
+| Unverified phone becomes a login identifier | gate `face/login` on `phoneVerifiedAt` |
+| OTP brute force | 3 attempts, hashed at rest, per-phone + per-IP caps reusing the face lockout pattern |
+| Template drift vs DLT registration | one central template registry, bodies in a single file, listed in docs |
+| Cost / segment overrun | 160-char cap, no free-text reasons, per-user and per-grievance caps |
+| Shipping unverified | Phase 0 includes a working backend test env |
+
+### 13.11 Testing
+
+- Unit: `normalize_phone` edge cases (`+91…`, `91…`, `0…`, separators, `+1`
+  rejection, `6-9` first digit); `to_e164` round-trip; OTP expiry / max
+  attempts / burn-on-success / regeneration; `STAGE_SMS_LABEL` covers all 15
+  states.
+- Integration: request→verify→bind; bind rejected when the phone belongs to
+  another user; unbind forced-review path; face login by **unverified** phone
+  rejected vs **verified** accepted; state transition → correct template +
+  variables.
+- **Isolation: the SMS provider raising must not fail the state change** — this
+  is the critical one.
+- Isolation: `smsConsent=False` and `smsOptOutAt` set → no send.
+- Rate: per-user hourly / per-grievance daily caps; OTP per-phone + per-IP caps.
+- `node frontend/scripts/check-contract.mjs` for the new API helpers.
+
+### 13.12 Documentation required when this is implemented
+
+`docs/API.md` (`/phone/*`, login identifier change), `docs/WORKFLOWS.md`
+(binding + SMS journeys, opt-out), `docs/SECURITY.md` (OTP threat model,
+binding as a credential change, PII), `docs/DEVELOPMENT.md` (Twilio setup, DLT,
+`dry-run`, trial limits), `backend/.env.example`, and new DEC entries in
+`memory/DECISIONS.md` once §13.9 is answered.

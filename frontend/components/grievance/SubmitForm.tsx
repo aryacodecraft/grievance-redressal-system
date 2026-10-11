@@ -50,8 +50,19 @@ export function SubmitForm() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  // Preselect category if passed in URL query param (e.g. /submit?category=water)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const cat = params.get("category");
+    if (cat && CATEGORIES.includes(cat as (typeof CATEGORIES)[number])) {
+      setValue("categoryHint", cat);
+    }
+  }, [setValue]);
 
   async function onSubmit(values: FormValues) {
     setError(null);
