@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { GrievanceCard } from "./GrievanceCard";
+import { GrievanceDetailModal } from "./GrievanceDetailModal";
 import { EmptyState } from "@/components/ui/Feedback";
 import { MOCK_GRIEVANCES } from "@/lib/mock";
 import { subscribeGrievances } from "@/lib/grievances";
@@ -13,11 +14,13 @@ import type { Grievance } from "@/lib/types";
 /**
  * "Your Grievances" — the citizen's own submissions.
  * Parity with the legacy `grievance-app.html` list under the submit form.
+ * Clicking a card opens a detailed progress popup dialog.
  */
 export function MyGrievances() {
   const { user, liveMode } = useDemoUser();
   const { t } = useI18n();
   const [liveItems, setLiveItems] = useState<Grievance[] | null>(null);
+  const [selectedGrievance, setSelectedGrievance] = useState<Grievance | null>(null);
 
   useEffect(() => {
     if (!user || !liveMode) return;
@@ -64,12 +67,21 @@ export function MyGrievances() {
       ) : (
         <div className="space-y-3">
           {items.map((g) => (
-            <GrievanceCard key={g.id} grievance={g} />
+            <GrievanceCard
+              key={g.id}
+              grievance={g}
+              onClick={() => setSelectedGrievance(g)}
+            />
           ))}
         </div>
       )}
 
-
+      {selectedGrievance && (
+        <GrievanceDetailModal
+          grievance={selectedGrievance}
+          onClose={() => setSelectedGrievance(null)}
+        />
+      )}
     </div>
   );
 }
