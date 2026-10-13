@@ -195,3 +195,71 @@ export function reverseCityState(
   addressInFlight.set(key, p);
   return p.then((address) => (address ? parseCityState(address) : null));
 }
+
+export interface GeocodeSearchResult {
+  name: string;
+  displayName: string;
+  latitude: number;
+  longitude: number;
+}
+
+const forwardCache = new Map<string, GeocodeSearchResult[]>();
+
+/**
+ * Forward geocoding: human-typed address, landmark, or city name → coordinates.
+ * Also parses explicit coordinates (e.g. "28.6318, 77.2194").
+ */
+export async function forwardGeocode(query: string): Promise<GeocodeSearchResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  // Check if query is direct coordinates: e.g. "28.6317, 77.2193"
+  const coordMatch = trimmed.match(/^([-+]?\d{1,2}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lon = parseFloat(coordMatch[2]);
+    if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      return [
+        {
+          name: `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+          displayName: `Coordinates: ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+          latitude: lat,
+          longitude: lon,
+        },
+      ];
+    }
+  }
+
+  const cacheKey = trimmed.toLowerCase();
+  const cached = forwardCache.get(cacheKey);
+  if (cached) return cached;
+
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(trimmed)}&countrycodes=in&limit=5`;
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: timeoutSignal(6000),
+    });
+    if (!res.ok) return [];
+    const data: Array<{
+      lat: string;
+      lon: string;
+      name?: string;
+      display_name?: string;
+    }> = await res.json();
+
+    const results = data.map((item) => ({
+      name: item.name || (item.display_name ? item.display_name.split(",")[0].trim() : "Location"),
+      displayName: item.display_name || "",
+      latitude: parseFloat(item.lat),
+      longitude: parseFloat(item.lon),
+    }));
+
+    if (results.length > 0) {
+      forwardCache.set(cacheKey, results);
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}

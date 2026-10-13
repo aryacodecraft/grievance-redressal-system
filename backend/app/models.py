@@ -19,6 +19,7 @@ class SubmitGrievanceRequest(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     imageUrl: str | None = None
+    address: str | None = None
 
 
 class ValidateImageRequest(BaseModel):

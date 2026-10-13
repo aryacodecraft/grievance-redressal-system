@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Select, Textarea } from "@/components/ui/Field";
+import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { AnalysisPanel } from "./GrievanceCard";
@@ -14,15 +14,14 @@ import { LocationCapture, type Coords } from "./LocationCapture";
 import type { UploadedImage } from "./ImageUpload";
 import { submitGrievance } from "@/lib/api";
 import { useDemoUser } from "@/lib/session";
-import { CATEGORIES, type SubmitResult } from "@/lib/types";
-import { departmentKey, useI18n } from "@/lib/i18n";
+import type { SubmitResult } from "@/lib/types";
+import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/ToastProvider";
 
 const makeSchema = (t: ReturnType<typeof useI18n>["t"]) =>
   z.object({
     title: z.string().min(5, t("errTitleShort")),
     description: z.string().min(20, t("errDescShort")),
-    categoryHint: z.string().optional(),
   });
 
 type FormValues = z.infer<ReturnType<typeof makeSchema>>;
@@ -50,19 +49,8 @@ export function SubmitForm() {
     register,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
-
-  // Preselect category if passed in URL query param (e.g. /submit?category=water)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const cat = params.get("category");
-    if (cat && CATEGORIES.includes(cat as (typeof CATEGORIES)[number])) {
-      setValue("categoryHint", cat);
-    }
-  }, [setValue]);
 
   async function onSubmit(values: FormValues) {
     setError(null);
@@ -79,6 +67,7 @@ export function SubmitForm() {
         userId: user?.id,
         latitude: coords.latitude,
         longitude: coords.longitude,
+        ...(coords.address ? { address: coords.address } : {}),
         ...(image?.url ? { imageUrl: image.url } : {}),
       });
       setResult(res);
@@ -126,19 +115,6 @@ export function SubmitForm() {
                 placeholder={t("formDescPlaceholder")}
                 {...register("description")}
               />
-            </Field>
-            <Field
-              label={t("formDeptLabel")}
-              hint={t("formDeptHint")}
-            >
-              <Select {...register("categoryHint")} defaultValue="">
-                <option value="">{t("formAutoClassify")}</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {t(departmentKey(c))}
-                  </option>
-                ))}
-              </Select>
             </Field>
             <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
               <ImageUpload onChange={setImage} />

@@ -184,6 +184,8 @@ def submit_grievance(
     if payload.latitude is not None and payload.longitude is not None:
         record["latitude"] = float(payload.latitude)
         record["longitude"] = float(payload.longitude)
+    if payload.address:
+        record["address"] = payload.address.strip()
 
     try:
         doc_id = repository.create(record)
