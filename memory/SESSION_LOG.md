@@ -2455,3 +2455,23 @@ Make all the department names consistent in the system with the IDs as well, res
 - Full pytest: 363 passed / 23 failed — programmatically diffed against the
   TODO §11 baseline: identical set, zero regressions.
 - Memory updated: CHANGELOG, this log.
+
+---
+
+## 2026-10-13 — Deploy readiness fix (Vercel frontend + Render backend)
+
+### Readiness audit (read-only)
+- Render side structurally ready: pinned `backend/requirements.txt` build,
+  `$PORT` start, all secrets `sync: false`, safe prod defaults.
+- Gap found: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `FRONTEND_URL`
+  were read by `config.py` but absent from `render.yaml`.
+
+### What changed
+- `render.yaml`: the three missing `sync: false` entries (+ comments that
+  avoid localhost literals — the drift suite asserts on entry text).
+- `docs/DEVELOPMENT.md`: "Deploying" runbook (order: backend → frontend →
+  Google console → smoke test).
+
+### Verification
+- `tests/test_config_drift.py`: 15 passed (caught the comment issue first).
+- Memory updated: CHANGELOG, this log.
