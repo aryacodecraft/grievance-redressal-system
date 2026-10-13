@@ -27,17 +27,17 @@ export default function SubmitPage() {
         </div>
       </div>
 
-      {/* Two-column layout: form left, my grievances right */}
+      {/* Two-column layout: form left, my grievances right (stacked on mobile) */}
       <div className="mx-auto grid min-h-[calc(100vh-8rem)] w-full max-w-6xl gap-0 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Left: submit form */}
-        <div className="flex justify-center border-r border-ink-100 px-4 py-8 sm:px-6 lg:justify-end lg:px-8">
+        <div className="flex justify-center border-b border-ink-100 px-4 py-6 sm:px-6 sm:py-8 lg:border-b-0 lg:border-r lg:justify-end lg:px-8">
           <div className="w-full max-w-3xl">
             <SubmitForm />
           </div>
         </div>
 
         {/* Right: citizen's grievance history sidebar */}
-        <div className="bg-ink-50/30 px-4 py-8 sm:px-6">
+        <div className="bg-ink-50/30 px-4 py-6 sm:px-6 sm:py-8">
           <MyGrievances />
         </div>
       </div>

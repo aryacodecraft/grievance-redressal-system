@@ -289,8 +289,8 @@ function LoginForm() {
     }`;
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
-      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-3 py-6 sm:px-4 sm:py-12">
+      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-5 shadow-sm sm:p-8">
           <div className="mb-8">
             <span className="inline-flex items-center gap-1.5 rounded-sm bg-primary-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-700 ring-1 ring-primary-200">
               <ShieldCheck size={12} strokeWidth={2} />
@@ -502,7 +502,7 @@ function LoginForm() {
               </div>
             </Field>
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
               <label className="flex cursor-pointer select-none items-center gap-2 text-xs font-medium text-ink-600">
                 <input
                   type="checkbox"

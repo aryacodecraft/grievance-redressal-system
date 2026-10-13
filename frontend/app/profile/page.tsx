@@ -224,20 +224,20 @@ export default function ProfilePage() {
           <CardHeader title={t("phoneSectionTitle")} subtitle={t("phoneSectionDesc")} />
           <CardBody className="space-y-4">
             <p className="text-sm text-ink-600">{t("phoneCurrentLabel")}: {accountPhone ? `${accountPhone.slice(0, 2)}***${accountPhone.slice(-5)}` : t("phoneNotLinked")} {phoneVerified && <Badge tone="emerald">{t("phoneVerifiedBadge")}</Badge>}</p>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex overflow-hidden rounded-lg border border-ink-200">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+              <div className="flex flex-1 overflow-hidden rounded-lg border border-ink-200">
                 <span className="flex items-center border-r border-ink-200 bg-ink-50 px-3 text-sm text-ink-600" aria-hidden="true">+91</span>
-                <input aria-label={t("mobileLabel")} inputMode="numeric" value={phoneValue} onChange={(e) => setPhoneValue(e.target.value.replace(/\D/g, "").slice(-10))} placeholder="9876543210" className="min-w-48 px-3 py-2 text-sm outline-none" />
+                <input aria-label={t("mobileLabel")} inputMode="numeric" value={phoneValue} onChange={(e) => setPhoneValue(e.target.value.replace(/\D/g, "").slice(-10))} placeholder="9876543210" className="w-full min-w-0 px-3 py-2 text-sm outline-none" />
               </div>
-              <Button type="button" variant="outline" disabled={busy || !/^[6-9]\d{9}$/.test(phoneValue)} onClick={async () => {
+              <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={busy || !/^[6-9]\d{9}$/.test(phoneValue)} onClick={async () => {
                 resetFeedback(); setBusy(true);
                 try { const res = await requestPhoneOtp(phoneValue); setOtpPurpose(accountPhone === phoneValue ? "unbind" : "bind"); setOtpIssued(true); setOtp(""); setNotice(res.debug_code ? `Demo verification code: ${res.debug_code}` : res.message); }
                 catch (e) { setError(msg(e, "Could not request a verification code")); } finally { setBusy(false); }
               }}>{t("phoneSendCode")}</Button>
             </div>
-            {otpIssued && <div className="flex flex-wrap gap-2">
-              <input aria-label={t("phoneCodePlaceholder")} inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={t("phoneCodePlaceholder")} className="w-36 rounded-lg border border-ink-200 px-3 py-2 text-sm" />
-              <Button type="button" disabled={busy || otp.length !== 6} onClick={async () => {
+            {otpIssued && <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+              <input aria-label={t("phoneCodePlaceholder")} inputMode="numeric" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder={t("phoneCodePlaceholder")} className="w-full sm:w-36 rounded-lg border border-ink-200 px-3 py-2 text-sm" />
+              <Button type="button" className="w-full sm:w-auto" disabled={busy || otp.length !== 6} onClick={async () => {
                 resetFeedback(); setBusy(true);
                 try { await verifyPhoneOtp(phoneValue, otp); if (otpPurpose === "bind") { await bindPhone(phoneValue); setAccountPhone(phoneValue); setPhoneVerified(true); setNotice(t("phoneLinkedNotice")); } else { await unbindPhone(); setAccountPhone(""); setPhoneVerified(false); setSmsConsent(false); setNotice(t("phoneUnlinkedNotice")); } setOtpIssued(false); }
                 catch (e) { setError(msg(e, "Verification failed")); } finally { setBusy(false); }

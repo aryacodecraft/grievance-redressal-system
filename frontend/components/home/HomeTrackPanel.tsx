@@ -103,7 +103,7 @@ export function HomeTrackPanel() {
           <label htmlFor="home-reference-id" className="block text-xs font-semibold text-ink-700">
             {t("hpLabel")}
           </label>
-          <div className="mt-1.5 flex gap-2">
+          <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
             <Input
               id="home-reference-id"
               type="text"
@@ -120,7 +120,7 @@ export function HomeTrackPanel() {
             <Button
               type="submit"
               disabled={busy || !trimmedId}
-              className="shrink-0"
+              className="w-full sm:w-auto sm:shrink-0"
               size="md"
             >
               {busy ? t("hpBtnBusy") : t("hpBtn")}
