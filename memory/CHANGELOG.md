@@ -4,6 +4,16 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-13 — Deploy readiness: render vars + runbook
+
+- `render.yaml`: added missing `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+  (Google login was broken without them), and `FRONTEND_URL` (SMS links
+  defaulted to localhost) — all `sync: false`. Fixed own goal on the way:
+  a comment tripped the no-localhost drift assertion.
+- `docs/DEVELOPMENT.md`: new "Deploying" runbook (Render backend first,
+  Vercel `frontend/` root + build-time env, Google console URIs, prod smoke test).
+- Verified: drift suite 15 passed.
+
 ## 2026-10-13 — Merge prep: main into frontend-overhaul, two test-hardening fixes
 
 - Merged `main` (incl. render deploy fix `b060933`) into

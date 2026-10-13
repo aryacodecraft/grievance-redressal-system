@@ -20,6 +20,10 @@ services:
       # wide open; set it explicitly once the frontend has a public URL.
       - key: CORS_ORIGINS
         sync: false
+      # Public URL of the deployed frontend (your Vercel domain).
+      # Used for SMS track links; without it they point at the dev default.
+      - key: FRONTEND_URL
+        sync: false
       # Without this the service boots on the non-persistent in-memory store.
       - key: MONGODB_URI
         sync: false
@@ -34,6 +38,12 @@ services:
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD
+        sync: false
+      # Google OAuth (backend exchanges the code; without these the Google
+      # sign-in button fails on the deployed backend).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: HF_API_TOKEN
         sync: false
