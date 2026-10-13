@@ -4,6 +4,19 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-13 — Merge prep: main into frontend-overhaul, two test-hardening fixes
+
+- Merged `main` (incl. render deploy fix `b060933`) into
+  `feat/frontend-overhaul`; clean auto-merge, branch pushed merge-ready.
+- `tests/test_config_drift.py`: dropped `PORT` from the render-required set —
+  Render injects it and pinning a value was the deploy bug `b060933` fixed.
+- `tests/conftest.py`: pins `SMS_PROVIDER=dry-run` +
+  `OTP_DEBUG_RETURN_CODE=false` so a developer's live-testing `backend/.env`
+  can no longer break the OTP suite's hermeticity (or send real SMS from tests).
+- Gates on merge result: `tsc` clean, `npm run build` green (18 routes),
+  contract checks passed, full pytest 363 passed / 23 failed = documented
+  baseline exactly (TODO §11).
+
 ## 2026-10-13 — Consistent Department Names and Canonical IDs
 
 - Canonical Department Taxonomy:

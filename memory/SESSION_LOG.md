@@ -2430,3 +2430,28 @@ Make all the department names consistent in the system with the IDs as well, res
 ### Verification
 - Backend pytest suite passed (36/36 tests in classification and seed accounts).
 - `npm run build` in `frontend/` compiled cleanly with 0 errors across all 18 routes.
+
+---
+
+## 2026-10-13 — Merge prep: main into feat/frontend-overhaul (owner merges on repo)
+
+### State found
+- `main` had absorbed everything else via PR #6 (sms-notification-module).
+- `origin/main` was 1 commit ahead of local `main`: `b060933` (render deploy
+  fix, render.yaml only). No overlap with the 8 overhaul commits.
+
+### What changed
+- Fast-forwarded local `main` to `origin/main`; merged `main` into
+  `feat/frontend-overhaul` — clean auto-merge (render.yaml only).
+- Two test-hardening fixes on the branch:
+  1. `test_config_drift.py`: `PORT` dropped from the render-required set
+     (`b060933` removed the pin because Render injects it; pinning was the bug).
+  2. `conftest.py`: pins `SMS_PROVIDER=dry-run` + `OTP_DEBUG_RETURN_CODE=false`
+     — a live-testing `backend/.env` previously broke OTP tests (missing
+     `debug_code`) and could have sent real SMS from the suite.
+
+### Verification (on merge result)
+- `tsc --noEmit` clean, `npm run build` green (18 routes), contract checks passed.
+- Full pytest: 363 passed / 23 failed — programmatically diffed against the
+  TODO §11 baseline: identical set, zero regressions.
+- Memory updated: CHANGELOG, this log.
