@@ -4,6 +4,125 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-13 — Consistent Department Names and Canonical IDs
+
+- Canonical Department Taxonomy:
+  - Standardized the 7 official civic departments across all backend services, seed accounts, database models, admin review modals, superadmin views, analytics charts, and reports:
+    1. `water`: **Water Supply & Sewerage Board**
+    2. `roads`: **Roads & Transport Authority**
+    3. `electricity`: **Electricity & Power Distribution**
+    4. `sanitation`: **Municipal Sanitation & Waste**
+    5. `health`: **Public Health & Medical Services**
+    6. `governance`: **Civic Governance & Citizen Services**
+    7. `other`: **General Urban Administration**
+- `backend/app/services/departments.py`:
+  - Defined `CANONICAL_DEPARTMENTS` mapping with exact IDs and names.
+  - Maintained backward compatibility aliases so legacy inputs (e.g. `transport`, `road`, `waste`, `power`) cleanly canonicalize to their official IDs.
+- `frontend/lib/departments.ts` & `frontend/components/admin/departments.ts`:
+  - Exported canonical `DEPARTMENTS` definitions and `getDepartmentLabel` helper.
+  - Unified admin departments list to re-export the single source of truth from `lib/departments.ts`.
+- `frontend/components/admin/AdminBoard.tsx`:
+  - Replaced hardcoded `DEPARTMENT_TABS` with `DEPARTMENTS`.
+  - Updated department filter, department counters, queue table, and review dialog to use canonical IDs and standardized labels.
+- `frontend/components/superadmin/SuperadminWorkspace.tsx`:
+  - Standardized department listing to display canonical names alongside their lowercase keys.
+- `frontend/components/charts/AdminCharts.tsx` & `frontend/lib/report.ts`:
+  - Synchronized department dropdown options and CSV report headers to canonical labels.
+- `frontend/components/admin/DepartmentEmployeesWorkspace.tsx`:
+  - Standardized department heading using `getDepartmentLabel(departmentId)`.
+- Verified: Backend pytest suite passed (36/36 tests in classification and seed accounts); `npm run build` compiled with 0 errors across 18/18 routes.
+
+## 2026-10-13 — Mobile Navbar Hamburger Menu
+
+- `frontend/components/ui/SiteHeader.tsx`:
+  - Replaced the bottom horizontal scrolling bar on mobile with a clean, collapsible burger menu on the right side of the navbar.
+  - Burger toggle button (`Menu` / `X` icon from `lucide-react`) is displayed exclusively on mobile viewports (`md:hidden`).
+  - Desktop view remains entirely untouched (`hidden md:flex` for inline links, language picker, user identity, notifications, and sign in/out).
+  - Mobile dropdown drawer contains:
+    - All primary navigation links (Home, Register Grievance, Track Grievance, Profile) with active state highlights.
+    - Integrated language switcher dropdown with full accessibility.
+    - User account identification pill with citizen badge, and full-width sign-out button when logged in.
+    - Direct sign-in button when logged out.
+    - Automatically closes when any navigation link or action is clicked.
+  - Verified: `npm run build` compiled with 0 errors across all 18 routes.
+
+## 2026-10-13 — Citizen Views Mobile Responsiveness Pass
+
+- `frontend/components/grievance/GrievanceDetailModal.tsx`:
+  - Adjusted modal padding from `p-4 sm:p-6` to `p-2 sm:p-4 md:p-6` and margins to `my-2 sm:my-4` to fit mobile viewports cleanly.
+  - Responsive header padding (`px-4 py-4 sm:px-6 sm:py-5`) with wrapping badges and title size scaling (`text-base sm:text-lg break-words`).
+  - Mobile-optimized scrollable body (`max-h-[calc(85vh-7rem)] sm:max-h-[calc(85vh-9rem)] px-4 py-5 sm:px-6 sm:py-6`) and full-width close button on mobile (`w-full sm:w-auto`).
+- `frontend/app/submit/page.tsx`:
+  - Changed two-column layout divider on mobile from vertical border (`border-r`) to horizontal border (`border-b lg:border-b-0 lg:border-r`).
+  - Scaled container padding to `py-6 sm:py-8` for compact mobile screens.
+- `frontend/app/track/page.tsx`:
+  - Made search form stack vertically on mobile (`flex-col sm:flex-row`) with full-width search button (`w-full sm:w-auto`).
+- `frontend/app/profile/page.tsx`:
+  - Responsive phone verification input layout: stacked on mobile (`flex-col sm:flex-row flex-wrap gap-2`), full width input and buttons (`w-full sm:w-auto`).
+- `frontend/components/home/HomeTrackPanel.tsx`:
+  - Made tracking form input and action button stack vertically on mobile (`flex-col sm:flex-row`) with full-width button (`w-full sm:w-auto sm:shrink-0`).
+- `frontend/components/ui/SiteHeader.tsx`:
+  - Constrained language selector dropdown width on small mobile screens (`max-w-[110px] sm:max-w-none`) to prevent navigation clipping.
+- `frontend/app/login/page.tsx` & `frontend/app/register/page.tsx`:
+  - Optimized container padding on mobile screens (`px-3 py-6 sm:px-4 sm:py-12`, card padding `p-5 sm:p-8`).
+  - Allowed remember-me and forgot-password row to wrap cleanly on narrow screens (`flex-wrap`).
+- Verified: `npm run build` compiled cleanly (18/18 routes), zero TypeScript or lint errors.
+
+## 2026-10-13 — Citizen Grievance Detail & Progress Modal Popup
+
+- `frontend/components/grievance/GrievanceDetailModal.tsx`:
+  - Created a comprehensive modal popup dialog for citizens to inspect their grievances.
+  - Displays complete grievance title, ID, category, submission timestamp, live status badge, and priority badge.
+  - Includes full milestone `StatusTimeline`, detailed description, assigned department, assigned officer/team, SLA due date, and formatted address/landmark.
+  - Renders interactive OpenStreetMap with pinned coordinates (`SinglePinMap`) and an external OpenStreetMap link.
+  - Shows attached photo evidence preview and automated AI triage explanation (`AnalysisPanel`).
+  - Fetches and displays recent officer field notes and status updates from `getGrievanceHistory(id)`.
+  - Accessible dialog with backdrop click dismiss, Esc key shortcut, and close button.
+- `frontend/components/grievance/GrievanceCard.tsx`:
+  - Added optional `onClick` handler and interactive card styling (hover elevation, ring accent, button role with keyboard Enter/Space activation, and "View progress & details →" prompt).
+- `frontend/components/grievance/MyGrievances.tsx`:
+  - Connected click interaction on grievance items to open the `GrievanceDetailModal`.
+- `frontend/app/track/page.tsx`:
+  - Connected click interaction on citizen grievance cards in the "My grievances" tab to open the `GrievanceDetailModal`.
+- Verified: `npm run build` compiled cleanly (18/18 routes), `node scripts/check-contract.mjs` passed (all 21 checks), ESLint passed with 0 errors across all touched files.
+
+## 2026-10-13 — Global UI Scale Increased by 20%
+
+- `frontend/app/globals.css`:
+  - Configured `:root` typography baseline to `font-size: 120%` with `-webkit-text-size-adjust: 100%` and `text-size-adjust: 100%`.
+  - Because Tailwind CSS v4 scales all rem-based typography, spacing, paddings, margins, component containers, buttons, inputs, cards, and modal dialogs proportionally relative to root font size, every view and component scales up cleanly by exactly 20% without horizontal overflow or broken viewport layouts.
+- Verified: `npm run build` compiled cleanly (18/18 routes), `node scripts/check-contract.mjs` passed (all 21 checks).
+
+## 2026-10-13 — Manual Location Typing, Unrestricted Map Picker & Department Field Removal
+
+- `frontend/components/grievance/SubmitForm.tsx`:
+  - Removed "Suggested department (optional)" dropdown field (`categoryHint`). Grievance classification is completely automated via the backend AI classification cascade (`backend/app/services/classification.py`), removing unnecessary cognitive load from citizens.
+  - Cleaned up unneeded schema fields, `Select` import, and query param prefill hook.
+- `frontend/components/grievance/LocationCapture.tsx`:
+  - Added manual address/landmark search using OpenStreetMap Nominatim forward geocoding (`forwardGeocode` in `frontend/lib/location.ts`), supporting area names, landmarks, and explicit coordinate input.
+  - Removed the 25 km radius limitation (`MAX_DISTANCE_KM`), allowing citizens to pick or drag pins to any location across India.
+  - Removed the prerequisite of capturing GPS before opening the map; the map picker is now always accessible.
+  - Retained one-click GPS geolocation alongside manual typing and map pinning.
+  - Displays selected location place name and formatted coordinates with a quick clear/change action.
+- `frontend/components/grievance/SubmitForm.tsx`, `frontend/lib/types.ts`, `frontend/lib/api.ts`:
+  - Added support for optional `address` string in `Coords`, `SubmitPayload`, and `Grievance`.
+- `backend/app/models.py`, `backend/app/routers/grievances.py`:
+  - Added `address: str | None = None` to `SubmitGrievanceRequest` and persisted in the grievance document when provided.
+- Verified: `npm run build` passed cleanly (18/18 routes), `node scripts/check-contract.mjs` passed (all 21 checks), ESLint clean across all touched files.
+
+## 2026-10-13 — Separate tab for Location Analysis (Map) in Admin Analytics & India Bounds
+
+- `frontend/components/admin/AdminAnalytics.tsx`: Added segmented tab navigation separating "Overview & Trends" from "Location Analysis (Map)".
+  - "Overview & Trends" tab contains the macro KPI metric cards, distribution charts (`AdminCharts`), and similarity clusters (`AdminClusters`).
+  - "Location Analysis (Map)" tab contains the spatial grievance map (`AdminMap`) and geographical hotspots (`AdminAreaClusters`).
+  - Centered the map container (`w-full max-w-2xl mx-auto`) and adjusted dimensions to an almost square shape (`h-[28rem] sm:h-[32rem]` viewport).
+  - Both main admin (`ADMIN`) and super admin (`SUPERADMIN`) utilize this updated view on `/admin/analytics`.
+- `frontend/components/admin/AdminMap.tsx`:
+  - Enforced geographical boundaries restricted to India via `INDIA_BOUNDS` (`[6.0, 68.0]` to `[38.0, 98.0]`).
+  - Configured Leaflet with `maxBounds: INDIA_BOUNDS`, `maxBoundsViscosity: 1.0` (prevents dragging outside India), `minZoom: 4`, and full natural tile rendering within the bounds.
+  - Filtered markers and bounds fitting so invalid/out-of-bounds coordinates never break the map, and default view fits India when no points are present.
+- Verified: `npm run build` passed cleanly (18/18 routes), `check-contract.mjs` passed, ESLint clean on touched components.
+
 ## 2026-10-11 — Twilio SMS provider implementation (DEC-027, vars pending)
 
 - `SMS_PROVIDER=twilio` now delivers stage updates and OTP codes through a
