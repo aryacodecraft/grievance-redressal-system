@@ -2475,3 +2475,17 @@ Make all the department names consistent in the system with the IDs as well, res
 ### Verification
 - `tests/test_config_drift.py`: 15 passed (caught the comment issue first).
 - Memory updated: CHANGELOG, this log.
+
+---
+
+## 2026-10-13 — Merge train complete: PR #8 (deploy fix) into main
+
+- Owner merged PR #8 (`feat/frontend-overhaul` → `main`) on the repo after
+  PR #7 had landed without the deploy-fix commit.
+- Verified locally: `main` fast-forwarded to `8c35761`, deploy-fix content
+  present (`GOOGLE_CLIENT_ID` in `render.yaml`, Deploying runbook in
+  `docs/DEVELOPMENT.md`), branch shows 0 commits ahead, tree clean.
+- `main` now holds everything: migration phases, auth/RBAC, face-auth,
+  phone/SMS + Twilio provider (DEC-027), en/hi/mr scope (DEC-026), homepage
+  redesign, frontend overhaul, render deploy config. Next: deploy per the
+  `docs/DEVELOPMENT.md` runbook.
