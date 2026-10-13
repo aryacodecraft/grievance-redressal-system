@@ -210,6 +210,7 @@ const grievanceSchema = z.object({
   imageUrl: z.string().nullish(),
   latitude: z.number().nullish(),
   longitude: z.number().nullish(),
+  address: z.string().nullish(),
   hfEngine: hfEngineSchema.nullish(),
   assignee: z.string().nullish(),
   departmentId: z.string().nullish(),

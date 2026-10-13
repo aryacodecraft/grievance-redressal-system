@@ -34,6 +34,17 @@ _ALIASES = {
 }
 
 
+CANONICAL_DEPARTMENTS: tuple[tuple[str, str], ...] = (
+    ("water", "Water Supply & Sewerage Board"),
+    ("roads", "Roads & Transport Authority"),
+    ("electricity", "Electricity & Power Distribution"),
+    ("sanitation", "Municipal Sanitation & Waste"),
+    ("health", "Public Health & Medical Services"),
+    ("governance", "Civic Governance & Citizen Services"),
+    ("other", "General Urban Administration"),
+)
+
+
 def canonical_department(value: str | None) -> str:
     """Normalize canonical keys and known display/legacy labels to one key."""
     key = re.sub(r"[^a-z0-9]", "", (value or "other").strip().lower())

@@ -22,17 +22,11 @@ import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
 import { useAdminGrievanceFeed } from "./useAdminGrievanceFeed";
 import { useToast } from "@/components/ui/ToastProvider";
-import { canonicalDepartmentId } from "@/lib/departments";
+import { canonicalDepartmentId, DEPARTMENTS, getDepartmentLabel } from "@/lib/departments";
 
 const DEPARTMENT_TABS: { key: string; label: string }[] = [
   { key: "all", label: "All Departments" },
-  { key: "water", label: "Water Supply" },
-  { key: "roads", label: "Roads & Transport" },
-  { key: "electricity", label: "Electricity" },
-  { key: "sanitation", label: "Sanitation" },
-  { key: "health", label: "Health Services" },
-  { key: "governance", label: "Governance" },
-  { key: "other", label: "Other" },
+  ...DEPARTMENTS.map((d) => ({ key: d.key, label: d.label })),
 ];
 
 const PAGE_SIZES = [5, 10, 20, 50];
@@ -57,10 +51,7 @@ function timeAgo(iso: string): string {
 }
 
 function categoryLabel(category: string): string {
-  const key = (category || "other").toLowerCase();
-  const tab = DEPARTMENT_TABS.find((t) => t.key === key);
-  if (tab) return tab.label;
-  return key.charAt(0).toUpperCase() + key.slice(1);
+  return getDepartmentLabel(category);
 }
 
 function SlaCell({ grievance }: { grievance: Grievance }) {
@@ -126,7 +117,7 @@ export function AdminBoard() {
       if (tab.key !== "all") counts[tab.key] = 0;
     }
     items.forEach((g) => {
-      const cat = (g.category || "other").toLowerCase();
+      const cat = canonicalDepartmentId(g.departmentId ?? g.category);
       if (counts[cat] !== undefined) counts[cat]++;
       else counts.other = (counts.other || 0) + 1;
     });
@@ -137,7 +128,7 @@ export function AdminBoard() {
     const q = search.trim().toLowerCase();
     let list = items.filter((g) => {
       const p = (g.priority || "low").toLowerCase();
-      const c = (g.category || "other").toLowerCase();
+      const c = canonicalDepartmentId(g.departmentId ?? g.category);
       const s = (g.status || "open").toLowerCase();
 
       if (selectedDeptTab !== "all" && c !== selectedDeptTab) return false;

@@ -53,8 +53,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-4 py-12">
-      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-6 shadow-sm sm:p-8">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-3 py-6 sm:px-4 sm:py-12">
+      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-5 shadow-sm sm:p-8">
           <div className="mb-8">
             <h1 className="text-2xl font-bold tracking-tight text-ink-950">
               {t("createAccount")}

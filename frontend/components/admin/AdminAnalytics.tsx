@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock, Download, FileText, Layers } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, Clock, Download, FileText, Layers, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Feedback";
@@ -63,6 +63,7 @@ export function AdminAnalytics() {
       return department === scopedDepartmentId.toLowerCase();
     });
   }, [feedItems, isDepartmentManager, scopedDepartmentId]);
+  const [activeTab, setActiveTab] = useState<"overview" | "location">("overview");
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
@@ -144,75 +145,123 @@ export function AdminAnalytics() {
       {loading && <Spinner label="Gathering complaint numbers…" />}
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {/* Macro metrics */}
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard
-          label="Total complaints"
-          value={macro.total}
-          hint="All complaints received"
-          tone="border-ink-200/80"
-          Icon={Layers}
-        />
-        <MetricCard
-          label="Resolved"
-          value={macro.resolved}
-          hint="Verified and closed"
-          tone="border-emerald-200/80 bg-emerald-50/20"
-          Icon={CheckCircle2}
-        />
-        <MetricCard
-          label="Urgent"
-          value={macro.urgent}
-          hint="Active high-priority cases"
-          tone="border-rose-200/80 bg-rose-50/20"
-          Icon={AlertTriangle}
-        />
-        <MetricCard
-          label="Past deadline"
-          value={macro.overdue}
-          hint="Still open, but past the due date"
-          tone="border-amber-200/80 bg-amber-50/20"
-          Icon={Clock}
-        />
+      {/* Tabs */}
+      <div
+        className="flex gap-1 rounded-lg border border-ink-200 bg-ink-50 p-1 w-fit"
+        role="tablist"
+        aria-label="Analytics view"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "overview"}
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
+            activeTab === "overview"
+              ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
+              : "text-ink-600 hover:text-ink-950"
+          }`}
+        >
+          <BarChart3 size={16} />
+          Overview &amp; Trends
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "location"}
+          onClick={() => setActiveTab("location")}
+          className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
+            activeTab === "location"
+              ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
+              : "text-ink-600 hover:text-ink-950"
+          }`}
+        >
+          <MapPin size={16} />
+          Location Analysis (Map)
+        </button>
       </div>
 
-      {/* Distribution charts */}
-      <AdminCharts items={items} />
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          {/* Macro metrics */}
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label="Total complaints"
+              value={macro.total}
+              hint="All complaints received"
+              tone="border-ink-200/80"
+              Icon={Layers}
+            />
+            <MetricCard
+              label="Resolved"
+              value={macro.resolved}
+              hint="Verified and closed"
+              tone="border-emerald-200/80 bg-emerald-50/20"
+              Icon={CheckCircle2}
+            />
+            <MetricCard
+              label="Urgent"
+              value={macro.urgent}
+              hint="Active high-priority cases"
+              tone="border-rose-200/80 bg-rose-50/20"
+              Icon={AlertTriangle}
+            />
+            <MetricCard
+              label="Past deadline"
+              value={macro.overdue}
+              hint="Still open, but past the due date"
+              tone="border-amber-200/80 bg-amber-50/20"
+              Icon={Clock}
+            />
+          </div>
 
-      <div className="space-y-4 border-t border-ink-100 pt-6">
-        <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-ink-700">Where complaints are happening</h3>
-          <p className="text-xs text-ink-500">See where complaints are clustered and spot local hotspots.</p>
+          {/* Distribution charts */}
+          <AdminCharts items={items} />
+
+          {/* Similarity is a cross-queue analysis; department managers only need
+              their operational metrics, map, and hotspot view. */}
+          {!isDepartmentManager && (
+            <AdminClusters
+              clusters={clusters}
+              activeClusterId={activeClusterId}
+              onSelect={(id) => setActiveClusterId(id)}
+              onClear={() => setActiveClusterId(null)}
+              locations={clusterLocations}
+            />
+          )}
         </div>
+      )}
 
-      {/* Map of complaint locations */}
-      <Card className="border-ink-200/80 shadow-2xs">
-        <CardHeader
-          title="Complaint locations"
-          subtitle={`${items.filter((g) => g.latitude != null && g.longitude != null).length} complaints with a pinned spot on the map`}
-        />
-        <CardBody className="p-3">
-          <AdminMap
-            items={items}
-            focusId={null}
-            onFocusHandled={handleFocusHandled}
-            heightClassName="h-[24rem] sm:h-[30rem] lg:h-[34rem]"
-          />
-        </CardBody>
-      </Card>
+      {activeTab === "location" && (
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-ink-700">
+              Where complaints are happening
+            </h3>
+            <p className="text-xs text-ink-500">
+              See where complaints are clustered and spot local hotspots.
+            </p>
+          </div>
 
-      <AdminAreaClusters clusters={areaClusters} />
-      </div>
+          {/* Map of complaint locations (centered, square-like container) */}
+          <Card className="w-full max-w-2xl mx-auto border-ink-200/80 shadow-2xs">
+            <CardHeader
+              title="Complaint locations"
+              subtitle={`${items.filter((g) => g.latitude != null && g.longitude != null).length} complaints with a pinned spot on the map`}
+            />
+            <CardBody className="p-3">
+              <AdminMap
+                items={items}
+                focusId={null}
+                onFocusHandled={handleFocusHandled}
+                heightClassName="h-[28rem] sm:h-[32rem]"
+              />
+            </CardBody>
+          </Card>
 
-      {/* Similarity is a cross-queue analysis; department managers only need
-          their operational metrics, map, and hotspot view. */}
-      {!isDepartmentManager && <AdminClusters
-        clusters={clusters}
-        activeClusterId={activeClusterId}
-        onSelect={(id) => setActiveClusterId(id)}
-        onClear={() => setActiveClusterId(null)}
-        locations={clusterLocations}
-      />}
+          <AdminAreaClusters clusters={areaClusters} />
+        </div>
+      )}
     </div>
   );
 }

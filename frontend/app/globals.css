@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #18181b;
+  /* Scale overall UI by 20% across the entire application */
+  font-size: 120%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 @theme inline {

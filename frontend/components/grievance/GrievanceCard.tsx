@@ -17,33 +17,67 @@ function formatDate(iso: string): string {
   }
 }
 
-export function GrievanceCard({ grievance }: { grievance: Grievance }) {
+export function GrievanceCard({
+  grievance,
+  onClick,
+}: {
+  grievance: Grievance;
+  onClick?: () => void;
+}) {
   const { t } = useI18n();
   return (
-    <Card className="hover:border-ink-300 transition-all">
-      <CardBody className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold tracking-tight text-ink-950">
-            {grievance.title}
+    <Card
+      className={`transition-all ${
+        onClick
+          ? "cursor-pointer hover:border-primary-300 hover:shadow-md hover:ring-1 hover:ring-primary-200 active:scale-[0.99]"
+          : "hover:border-ink-300"
+      }`}
+    >
+      <div
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        onClick={onClick}
+        onKeyDown={
+          onClick
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onClick();
+                }
+              }
+            : undefined
+        }
+        className="w-full text-left focus:outline-none"
+      >
+        <CardBody className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold tracking-tight text-ink-950">
+              {grievance.title}
+            </p>
+            <span className="font-mono text-[11px] font-medium text-ink-400 bg-ink-50 px-2 py-0.5 rounded-sm border border-ink-100">
+              {grievance.id}
+            </span>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-ink-600 line-clamp-3">
+            {grievance.description}
           </p>
-          <span className="font-mono text-[11px] font-medium text-ink-400 bg-ink-50 px-2 py-0.5 rounded-sm border border-ink-100">
-            {grievance.id}
-          </span>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-ink-600">
-          {grievance.description}
-        </p>
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
-          <StatusBadge status={grievance.status} />
-          <PriorityBadge priority={grievance.priority} />
-          <span className="rounded-sm bg-ink-100/70 border border-ink-200/60 px-2.5 py-0.5 text-xs font-medium text-ink-700">
-            {t(departmentKey(grievance.category))}
-          </span>
-          <span className="ml-auto text-[11px] font-medium text-ink-400">
-            {formatDate(grievance.createdAt)}
-          </span>
-        </div>
-      </CardBody>
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
+            <StatusBadge status={grievance.status} />
+            <PriorityBadge priority={grievance.priority} />
+            <span className="rounded-sm bg-ink-100/70 border border-ink-200/60 px-2.5 py-0.5 text-xs font-medium text-ink-700">
+              {t(departmentKey(grievance.category))}
+            </span>
+            <span className="ml-auto text-[11px] font-medium text-ink-400">
+              {formatDate(grievance.createdAt)}
+            </span>
+          </div>
+          {onClick && (
+            <p className="mt-3 text-right text-[11px] font-semibold text-primary-700">
+              View progress &amp; details →
+            </p>
+          )}
+        </CardBody>
+      </div>
     </Card>
   );
 }

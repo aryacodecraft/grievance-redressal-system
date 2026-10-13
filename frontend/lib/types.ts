@@ -21,6 +21,7 @@ export interface Grievance {
   imageUrl?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  address?: string | null;
   hfEngine?: HfEngine | null;
   assignee?: string | null;
   state?: string;
@@ -64,6 +65,7 @@ export interface SubmitPayload {
   latitude?: number;
   longitude?: number;
   imageUrl?: string;
+  address?: string;
 }
 
 export interface SubmitResult {
