@@ -1,5 +1,5 @@
 import { getSlaInfo } from "./sla";
-import { canonicalDepartmentId } from "./departments";
+import { canonicalDepartmentId, getDepartmentLabel } from "./departments";
 import type { Grievance } from "./types";
 
 /**
@@ -51,20 +51,11 @@ export function buildComplaintsCsv(items: Grievance[]): string {
   return [headers.join(","), ...rows].join("\n");
 }
 
-/** Readable name for a canonical department id. */
-const DEPARTMENT_LABELS: Record<string, string> = {
-  water: "Water supply",
-  roads: "Roads & transport",
-  electricity: "Electricity",
-  sanitation: "Sanitation",
-  health: "Health services",
-  governance: "Governance",
-  other: "Other",
-};
-
 function departmentLabel(key: string): string {
-  return DEPARTMENT_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
+  return getDepartmentLabel(key);
 }
+
+
 
 const CLOSED_STATES = new Set(["resolved", "closed"]);
 

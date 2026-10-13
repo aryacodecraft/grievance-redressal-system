@@ -14,6 +14,8 @@ import { Select } from "@/components/ui/Field";
 import { MOCK_GRIEVANCES } from "@/lib/mock";
 import type { Grievance } from "@/lib/types";
 
+import { canonicalDepartmentId, getDepartmentLabel } from "@/lib/departments";
+
 const GREYS = ["#ff6b00", "#18181b", "#3f3f46", "#71717a"];
 
 /**
@@ -22,10 +24,10 @@ const GREYS = ["#ff6b00", "#18181b", "#3f3f46", "#71717a"];
  */
 export function AdminCharts({ items = MOCK_GRIEVANCES }: { items?: Grievance[] }) {
   const [department, setDepartment] = useState("all");
-  const departments = Array.from(new Set(items.map((g) => (g.departmentId ?? g.category ?? "other").toLowerCase()))).sort();
+  const departments = Array.from(new Set(items.map((g) => canonicalDepartmentId(g.departmentId ?? g.category)))).sort();
   const filteredItems = department === "all"
     ? items
-    : items.filter((g) => (g.departmentId ?? g.category ?? "other").toLowerCase() === department);
+    : items.filter((g) => canonicalDepartmentId(g.departmentId ?? g.category) === department);
   const byStatus = Object.entries(
     filteredItems.reduce<Record<string, number>>((acc, g) => {
       acc[g.status] = (acc[g.status] ?? 0) + 1;
@@ -40,11 +42,11 @@ export function AdminCharts({ items = MOCK_GRIEVANCES }: { items?: Grievance[] }
           title="Complaints by Current Stage"
           subtitle="How many are active vs resolved right now"
           action={
-            <div className="w-44 shrink-0">
+            <div className="w-56 shrink-0">
               <label className="sr-only" htmlFor="stage-department-filter">Filter by department</label>
               <Select id="stage-department-filter" value={department} onChange={(event) => setDepartment(event.target.value)}>
                 <option value="all">All departments</option>
-                {departments.map((name) => <option key={name} value={name}>{name.replace(/_/g, " ")}</option>)}
+                {departments.map((key) => <option key={key} value={key}>{getDepartmentLabel(key)}</option>)}
               </Select>
             </div>
           }
