@@ -2009,3 +2009,17 @@ Stage 11 final checks: documentation links and corrected proposed launcher synta
 ### 2026-10-14 - Voice testing enablement documentation
 
 Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local backend env/key setup, retained attempt/concurrency/duration limits, authorized login and short en/hi/mr recording, actual Append/Replace/Cancel confirmation timing, and disable/restart after testing. Explicitly records credit consumption, server-only credentials, unverified live Hindi/Marathi, default-off diagnostic guard and unresolved login prerequisite. Documentation only; no configuration/credential changes, service restart or provider/database calls. SESSION_LOG.md preserved.
+
+## 2026-10-14 — Render deploy: Mongo index key specs conflict + root route
+
+- Handled MongoDB error code 86 (`IndexKeySpecsConflict`) in `users_db.py`
+  and `face_templates.py`: when MongoDB Atlas has an existing index with
+  differing options (e.g. non-sparse `uniq_user_email`), the repo drops the
+  conflicting index and recreates it with `sparse: true`, preventing a silent
+  fallback to `InMemoryUsersRepository`.
+- Added `GET /` service descriptor route in `backend/app/routers/health.py`
+  returning HTTP 200 with service info, `/docs`, and `/health` pointers to
+  satisfy Render root health checks and browser direct visits instead of 404.
+- Added regression test `test_root_descriptor_answers_200` in
+  `tests/test_endpoints.py`.
+

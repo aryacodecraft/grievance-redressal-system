@@ -11,6 +11,21 @@ from ..db import storage_mode
 router = APIRouter()
 
 
+@router.get("/")
+def root():
+    """Render health checks and generic clients hit `/` first.
+
+    Answer with a 200 service descriptor (and point browsers at Swagger)
+    instead of the default 404.
+    """
+    return {
+        "service": "grievance-ai-backend",
+        "docs": "/docs",
+        "health": "/health",
+        "status": "ok",
+    }
+
+
 @router.get("/health")
 def health():
     return {"status": "ok", "storage": storage_mode()}

@@ -147,7 +147,8 @@ class MongoFaceRepository:
             try:
                 coll.create_index(key_spec, name=idx_name, expireAfterSeconds=0)
             except OperationFailure as exc:
-                if exc.code == 85:  # IndexOptionsConflict
+                # 85 = IndexOptionsConflict, 86 = IndexKeySpecsConflict.
+                if exc.code in (85, 86):
                     coll.drop_index(idx_name)
                     coll.create_index(key_spec, name=idx_name, expireAfterSeconds=0)
                 else:

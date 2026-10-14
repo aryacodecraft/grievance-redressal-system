@@ -283,7 +283,10 @@ class MongoUsersRepository:
             try:
                 self._col.create_index(spec, unique=True, sparse=True, name=name)
             except OperationFailure as exc:
-                if exc.code == 85:  # IndexOptionsConflict
+                # 85 = IndexOptionsConflict, 86 = IndexKeySpecsConflict (same
+                # name, different key/options — e.g. an existing non-sparse
+                # index). Drop and recreate with the requested spec.
+                if exc.code in (85, 86):
                     self._col.drop_index(name)
                     self._col.create_index(spec, unique=True, sparse=True, name=name)
                 else:

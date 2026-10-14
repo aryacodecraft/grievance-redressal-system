@@ -2817,3 +2817,25 @@ Owner: login form should be as wide as the signup form.
   wrapper only) — owner-side.
 - NOT live-tested against Sarvam: no `SARVAM_API_KEY` in `backend/.env`.
   Memory updated: CHANGELOG, TODO §§3/14, PROJECT_STATE, this log.
+
+---
+
+## 2026-10-14 — Render deploy index conflict fix + root descriptor route
+
+### Request
+Diagnose why `https://grievance-ai-backend.onrender.com/` failed on Render after deployment.
+
+### Findings
+1. Atlas had an existing non-sparse index named `uniq_user_email`. During startup `ensure_indexes()`, Atlas returned MongoDB error code 86 (`IndexKeySpecsConflict`), which was uncaught (code only handled 85). As a result, `_build_users_repo()` caught the exception and fell back to `InMemoryUsersRepository`, so user registrations did not persist.
+2. Render probes and browser navigation hit `GET /` directly, which returned 404 Not Found since no handler was registered for root `/`.
+3. Background face model preloader logged `ModuleNotFoundError: No module named 'insightface'` because `FACE_AUTH_ENABLED=true` was enabled on Render while face dependencies belong to `requirements-face.txt`.
+
+### Changes Applied
+- `backend/app/users_db.py`: caught MongoDB error codes 85 and 86 in `ensure_indexes()`, dropping and recreating conflicting indexes with `sparse: true`.
+- `backend/app/repositories/face_templates.py`: caught codes 85 and 86 for TTL indexes.
+- `backend/app/routers/health.py`: added `GET /` root service-descriptor endpoint returning `{ "service": "grievance-ai-backend", "status": "ok", "docs": "/docs", "health": "/health" }`.
+- `tests/test_endpoints.py`: added `test_root_descriptor_answers_200`.
+
+### Verification
+- Targeted pytest (`tests/test_endpoints.py -k "root or health"`) passed 3/3.
+

@@ -145,6 +145,17 @@ def test_health_is_reachable_at_the_root_probe_path(client):
     assert set(res.json()) == {"status", "storage"}
 
 
+def test_root_descriptor_answers_200(client):
+    """Render root probes and browsers hit `/`; answer with service info."""
+    res = client.get("/")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "ok"
+    assert body["service"] == "grievance-ai-backend"
+    assert body["docs"] == "/docs"
+    assert body["health"] == "/health"
+
+
 # ── Create ──────────────────────────────────────────────────────────────────
 
 
