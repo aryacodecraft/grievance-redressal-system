@@ -4,6 +4,23 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-14 — Merged main into feature/aarohi (voice branch merge-ready)
+
+- Merged `origin/main` (PRs #7–#9: overhaul UI, signup hardening, Twilio,
+  i18n scope, deploy config) into the voice branch. Conflicts resolved in
+  `render.yaml` (Sarvam vars kept, reintroduced `PORT` pin dropped),
+  `SubmitForm.tsx` (voice recorder kept, removed dept-select dropped),
+  `types.ts`, `docs/DEVELOPMENT.md` (both sections kept).
+- Voice DECs renumbered 028–031 → **032–035** (collided with main's DECs);
+  updated in DECISIONS, TODO §14, voice guide, config/audio comments,
+  PROJECT_STATE, CHANGELOG. TODO §3 marked implemented-behind-flag.
+- Verified: `tsc` clean, `eslint` clean, `npm run build` green, contract
+  checks passed, full pytest 480 passed with failures byte-identical to the
+  TODO §11 baseline; voice node suites pass except the two CDP browser
+  tests (no usable Chrome on this box — broken wrapper binary).
+- Open: `SARVAM_API_KEY` for a live transcription check; browser voice tests
+  need a real Chrome.
+
 ## 2026-10-14 — Signup hardening: profile fields, captcha, proven phone (DEC-031, uncommitted)
 
 - Both signup paths collect address/DOB/occupation/gender (shared backend
