@@ -1458,7 +1458,12 @@ their own queue search).
 
 **ID:** DEC-029
 **Date:** 2026-10-14
-**Status:** ACCEPTED (owner-directed follow-up to DEC-028)
+**Status:** SUPERSEDED BY DEC-030 (2026-10-14) — the owner rejected the UI
+rework ("keep it as it was"). The master-detail layout and
+`GrievanceDetailPanel` extraction were reverted the same day; only the
+intent (user-scoped numbers, no global registry view) survived, and it was
+already satisfied by the restored code. Retained as the record of the
+reverted direction.
 
 **Context:**
 After DEC-028 removed reference-ID search, `/track` showed personal
@@ -1484,5 +1489,91 @@ user's grievance details visible directly on the dashboard.
 `frontend/components/grievance/GrievanceDetailPanel.tsx` (new),
 `frontend/components/grievance/GrievanceDetailModal.tsx` (wrapper),
 `frontend/lib/i18n/en.ts` (TODO note)
+
+---
+
+## DEC-030 — Citizens Do Not See Department or Priority (Display-Layer Hide)
+
+**ID:** DEC-030
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed; supersedes the reverted DEC-029)
+
+**Context:**
+Citizen grievance views (tracking list/popup, submit-page history) showed
+internal routing: department chips, priority badges, and an "Assigned
+Department" row. The owner wants those hidden from normal users. The shared
+`GrievanceCard` is also rendered by the staff review modal, so the hide
+cannot be unconditional.
+
+**Decision:**
+1. Opt-in `citizenView` prop on `GrievanceCard`, `GrievanceDetailModal`, and
+   `AnalysisPanel` (default off = current behavior). Citizen call sites
+   (`/track`, `MyGrievances`) pass it; the staff review modal and the
+   submit-form AI preview do not.
+2. Citizen mode hides: priority badges, department chips, and the full
+   "Assigned Department" metadata row. Status, title, ID, dates, timeline,
+   history, and AI explanation/keywords stay. Assignee display unchanged
+   (out of the stated scope).
+3. Display-layer only: the API still ships the fields (citizen projection
+   unchanged). Restricting the projection is a separate, larger change.
+4. Verified finding, no code needed: `/track` counts already derive from the
+   signed-in user's own grievances in live mode (`listGrievances({userId})`,
+   server-scoped); only mock/demo mode shows sample data, by design.
+
+**Affected Components:** `frontend/components/grievance/GrievanceCard.tsx`,
+`frontend/components/grievance/GrievanceDetailModal.tsx`,
+`frontend/components/grievance/MyGrievances.tsx`,
+`frontend/app/track/page.tsx`
+
+---
+
+## DEC-031 — First-Time Signup Hardening: Profile Fields, Self-Hosted Captcha, Proven Phone for Face-Only
+
+**ID:** DEC-031
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed; uncommitted workdir state)
+
+**Context:**
+Password signup collected only name/email/password, face-only signup
+claimed a phone without proving it (the DEC-025 gap), and no signup path
+had bot friction — while each face-signup OTP costs real SMS money once
+live. Google OAuth signup is out of scope (Google already CAPTCHAs; profile
+backfill is a follow-up).
+
+**Decision:**
+1. Both signup paths collect address (10–500 chars), DOB (ISO date, age
+   13–120), occupation (2–100 chars), gender (female/male/other/
+   prefer_not_to_say), validated identically in
+   `backend/app/profile_fields.py` and stored on the user doc + profile.
+2. Self-hosted text captcha (5-char SVG, hashed server-side in the OTP
+   store, 5-min TTL, single-use, 3-strike burn, never logged): required on
+   `POST /auth/register` and face `signup/start`, minted via public
+   `GET /auth/captcha` (per-IP capped). Prototype-grade friction, documented
+   as weaker than reCAPTCHA; chosen to avoid a new vendor.
+3. Face-only signup proves the phone inline: public
+   `signup/request-otp` + `signup/verify-otp` bound to the signup token
+   (the authed `/phone/*` routes are unusable pre-account); `signup/complete`
+   requires the OTP proof marker (burned on success) and stamps
+   `phoneVerifiedAt`/`otp_sms` at creation — so these accounts pass the
+   DEC-025 face-login gate immediately.
+4. Tests stay hermetic via deterministic secrets in a shared
+   `tests/_signup_helpers.py` (tightly scoped save/restore — a broad
+   `secrets` patch corrupts face-challenge selection on the same module
+   object). `conftest.py` pins dry-run SMS without debug codes.
+5. i18n: 20 new keys, real copy in en/hi/mr, English placeholders in the
+   other 8 (native review already open under TODO §5).
+
+**Consequences:**
+- Full suite: 376 passed / 23 failed — the 23 are byte-identical to the
+  TODO §11 baseline (verified programmatically); +13 new tests green.
+- Citizen `hi`/`mr` for the new keys landed unreviewed, like the rest.
+
+**Affected Components:** `backend/app/profile_fields.py` (new),
+`backend/app/services/captcha.py` (new), `backend/app/auth.py`
+(signup-token profile claim), `backend/app/routers/{auth,face_auth}.py`,
+`tests/_signup_helpers.py` (new), `tests/test_{signup_fields_captcha,auth,
+face_signup,face_login_recovery,rbac_workflow,security_baseline,
+seed_accounts,face_auth}.py`, `frontend/{app/register,app/signup/face,
+components/ui/Captcha.tsx,lib/{api,session,types},lib/i18n/*.ts}`
 
 

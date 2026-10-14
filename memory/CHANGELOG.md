@@ -4,6 +4,21 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-14 — Signup hardening: profile fields, captcha, proven phone (DEC-031, uncommitted)
+
+- Both signup paths collect address/DOB/occupation/gender (shared backend
+  validator, age 13–120, fixed gender set); stored on the user + profile.
+- Self-hosted SVG captcha required on `/auth/register` and face
+  `signup/start` (hashed, 5-min, single-use, 3-strike, never logged).
+- Face-only signup proves its phone inline (token-bound OTP request/verify);
+  `signup/complete` requires the proof and stamps `phoneVerifiedAt`, so new
+  accounts pass the DEC-025 login gate immediately.
+- 20 new i18n keys (en/hi/mr real, 8 placeholders); `tests/_signup_helpers.py`
+  shared module; full suite 376 passed with failures byte-identical to the
+  TODO §11 baseline.
+- Verified: targeted + full pytest, `tsc`/`eslint`/`build`/contract green.
+- Open follow-up: Google-OAuth signup collects no profile/captcha.
+
 ## 2026-10-14 — Tracking dashboard: master-detail, no department totals (DEC-029)
 
 - `/track`: department-totals grid deleted; page is now a master-detail

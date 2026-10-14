@@ -2535,3 +2535,259 @@ the dashboard should carry the user's grievance details.
 - `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
   `npm run build` green (18 routes).
 - Memory updated: DEC-029, CHANGELOG, this log.
+
+---
+
+## 2026-10-14 — Course correction: UI kept as-was, citizen visibility hide (DEC-030, uncommitted)
+
+### Request
+Owner: the master-detail rework went too far — keep the UI as it was, make
+dashboard numbers user-scoped, and do the planned popup hiding. No commit
+until told.
+
+### What changed (workdir only)
+- Reverted `/track` and `GrievanceDetailModal` to the DEC-028 versions;
+  deleted the `GrievanceDetailPanel` extraction. DEC-029 marked SUPERSEDED.
+- Numbers finding (no code needed): live-mode counts already derive from the
+  signed-in user's own grievances; only mock/demo mode shows sample data.
+- Hiding via opt-in `citizenView` prop on `GrievanceCard`,
+  `GrievanceDetailModal`, `AnalysisPanel` (staff review modal untouched):
+  priority badges, department chips, and the Assigned-Department row hidden
+  on `/track` + `MyGrievances`. Status/timeline/history/AI text unchanged.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- NOT committed per owner instruction; memory updated in workdir (DEC-029
+  superseded, DEC-030, this log).
+
+---
+
+## 2026-10-14 — Track grid follow-up: by-department section deleted (uncommitted)
+
+### Request
+Owner: the "Grievances by department" section should go — page is just "my
+grievances".
+
+### What changed (workdir only)
+- Deleted the personal department-totals grid from `/track` (counting logic
+  + `CATEGORIES`/`departmentKey` imports). Page is now header + sign-in gate
+  + grievance cards + detail popup, nothing else.
+- `myByDeptTitle/Text` were already on the DEC-028 orphan-keys note; no i18n
+  edits needed.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Personal dashboard strip on /track (uncommitted)
+
+### Request
+Owner: the My-grievances section feels empty — add a small numbers-only
+dashboard of the user's history.
+
+### What changed (workdir only)
+- 4-chip strip (Total · Open · In Progress · Resolved) above the list,
+  replacing the old total pill; counts derive from the user's own
+  grievances with a documented status-bucket grouping (rejected/withdrawn
+  count toward Total only). Labels reuse existing i18n keys — zero new
+  translation keys, all 11 locales covered.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Signup hardening: profile, captcha, proven phone (DEC-031, uncommitted)
+
+### Request
+Owner: proper first-time signup form (name, address, DOB, occupation,
+gender, captcha, optional face binding); face-scan-only signup must at
+least bind a phone number. Chose self-hosted captcha + fixed gender set.
+
+### What changed (workdir only)
+- Backend: `profile_fields.py` (shared validator) + `services/captcha.py`
+  (SVG mint/verify, OTP-store backed) new; `RegisterRequest` /
+  `FaceSignupStartRequest` extended; public `GET /auth/captcha`; face
+  `signup/request-otp` + `signup/verify-otp` bound to the signup token;
+  `signup/complete` requires the OTP proof and stamps `phoneVerifiedAt`.
+- Frontend: register + face-signup forms (profile fields, gender select,
+  shared `CaptchaField`), face signup gains a mandatory OTP step before
+  camera capture; 20 i18n keys (en/hi/mr real, 8 placeholders); session +
+  API clients extended.
+- Tests: `tests/_signup_helpers.py` shared module; updated auth/face-signup/
+  recovery/rbac/security/seed/face suites; new
+  `test_signup_fields_captcha.py` (13 tests).
+
+### Verification
+- Full pytest: 376 passed / 23 failed — failure set programmatically
+  verified byte-identical to TODO §11 baseline (incl. the env-specific
+  tunable test); +13 new tests green.
+- `npx tsc --noEmit` clean, `npx eslint` clean, `npm run build` green
+  (18 routes), contract checks passed.
+- NOT committed per owner instruction. Open follow-up: Google-OAuth signup
+  collects no profile/captcha.
+
+---
+
+## 2026-10-14 — Post-register phone step (uncommitted)
+
+### Request
+Owner: ask for phone at signup; bind it so face login accepts it.
+
+### What changed (workdir only)
+- `/register`: after account creation (live mode), a phone step — +91 input
+  → send code → 6-digit verify → bind via the existing authed `/phone/*`
+  endpoints (no new backend). Success card links onward to `/submit` and
+  face enrollment on `/profile`; skip link throughout so an SMS failure can
+  never brick signup. A verified number passes the DEC-025 face-login gate,
+  which is the "bind with face login" wiring.
+- 8 new i18n keys (en/hi/mr real, 8 placeholders).
+- Aligned backend signup age to 18+ (`profile_fields.py`) to match the
+  date-picker cap already in the form; hoisted the picker's `MAX_DOB` to
+  module scope for the purity lint rule.
+
+### Verification
+- `tsc`/`eslint`/`build`/contract green; signup captcha suite 13 passed.
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Phone-OTP login + in-form phone (uncommitted)
+
+### Request
+Owner: phone sign-in on the login form; phone number belongs in the signup
+form itself (not only the post step).
+
+### What changed (workdir only)
+- Backend: `POST /auth/login/phone/request-otp` (generic response, no
+  oracle; issues only for USER + verified phone) and `/verify` (tokens on
+  success; role/verified re-checked). `/auth/register` accepts `phone`
+  (400 invalid, 409 duplicate instead of a 500).
+- Frontend: login form gains a Phone tab (password/phone/face); register
+  form has the +91 field, pre-filled into the post-register verify step.
+- Tests: `TestPhoneLogin` (5 tests incl. white-box role-gate); shared
+  helper issues deterministic unique phones; full suite 383 passed with
+  failures byte-identical to TODO §11.
+- 4 new i18n keys (`errPhoneInvalid`, phone-tab/login strings).
+
+### Verification
+- Full pytest + `tsc`/`eslint`/`build`/contract green (only baseline fails).
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Phone-OTP sign-in on login (uncommitted)
+
+### Request
+Owner: add phone-number sign-in to the login form.
+
+### What changed (workdir only)
+- Backend: `POST /auth/login/phone/request-otp` (generic response, issues
+  only for USER + verified phone; per-phone/IP caps) and `/verify` (tokens
+  on success; role + verified re-checked; challenge consumed).
+- Frontend: Phone tab on login (password/phone always in live mode, face
+  tab stays flag-gated); send-code → verify → role-routed landing.
+- Tests: `TestPhoneLogin` (5 tests: generic unknown, unverified blocked,
+  happy path, 3-strike burn, white-box non-USER rejection).
+- 4 new i18n keys (en/hi/mr + placeholders).
+
+### Verification
+- `TestPhoneLogin` green; `tsc`/`eslint`/`build`/contract green.
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Admin popup: AI confidence % hidden (uncommitted)
+
+### Request
+Owner: in the admin-dashboard grievance popup, remove the AI-given score
+in % for all admins and managers.
+
+### What changed (workdir only)
+- `AnalysisPanel` gains opt-in `hideConfidence`; the review modal
+(`GrievanceReviewModal`, shared by global admins + department managers)
+passes it. Staff keep priority/category badges, explanation, keywords —
+only the "NN% sure" chip is gone. Citizen surfaces unchanged.
+- Verified `tsc`/`eslint`/`build` green. NOT committed per instruction.
+
+---
+
+## 2026-10-14 — Phone inside the register form (uncommitted)
+
+### Request
+Owner: the phone field must be in the signup form itself, not only in the
+post-register step.
+
+### What changed (workdir only)
+- Backend `/auth/register` accepts an optional `phone`: normalized, 409 on
+  invalid or already-registered, stored unverified (`phoneVerifiedAt: None`
+  — the post-register OTP+bind step proves it).
+- `/register` form has a +91 phone field (live-mode required); the value
+  carries into the post-register verify step pre-filled.
+- `registerUser`/session `register()` take the phone through; one new i18n
+  key (`errPhoneInvalid`, en/hi/mr + placeholders).
+- Backend tests: unverified-store, invalid→400, duplicate→409.
+
+### Verification
+- Targeted pytest green (only the known baseline failure); `tsc`/`eslint`/
+  `build`/contract green.
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Login form stretched to signup width (uncommitted)
+
+### Request
+Owner: login form should be as wide as the signup form.
+
+### What changed (workdir only)
+- `frontend/app/login/page.tsx`: card widened `max-w-md` → `max-w-4xl`,
+  outer padding aligned to the register page. Content untouched.
+- Verified `tsc`/`eslint`/`build` green. NOT committed per instruction.
+
+---
+
+## Session — 2026-10-14
+
+**Goal:** UX/UI improvements to login and register pages (no new design elements).
+
+**Changes made:**
+
+### `frontend/app/login/page.tsx`
+- Show/hide password toggle: added `focus-visible:ring-2` for keyboard accessibility
+- Error alert: scoped top-level alert to face/pending modes only; password-mode form now shows error inline above the submit button (always visible without scrolling)
+- "Forgot password?" label changed to "Reset via email ✉" with a `title` tooltip to set expectations (opens mail client)
+- "New here?" link wrapped in a chip-style `bg-ink-50` container with `font-semibold` and `→` arrow to be visually distinct
+
+### `frontend/app/register/page.tsx`
+- Added `Eye`/`EyeOff` show/hide toggle to the password field (was missing; login had it)
+- Added 3-segment password strength bar (Weak/Fair/Strong) that appears while typing
+- Added `min="1900-01-01"` to DOB; `max` now enforces 18+ (was just "today")
+- Added age requirement hint below DOB field
+- Form visually grouped into two sections with a section label + divider: "Personal info" (Name, DOB, Gender, Occupation) and "Account & contact" (Email, Password, Address)
+- Error alert moved from top of form to just above the submit button
+- Added captcha context hint text in live mode
+- Added `successNotice` state: shows "Account created!" alert for ~1.2s before redirecting
+- "Already registered?" link wrapped in same chip-style container as login for symmetry
+
+### `frontend/lib/i18n/en.ts` + all 10 locale files
+- Added keys: `errInvalidEmail`, `ageRequirementHint`, `captchaHint`, `accountCreatedNotice`, `passwordStrengthWeak`, `passwordStrengthFair`, `passwordStrengthStrong`
+- Changed `forgotPassword` value from "Forgot password?" → "Reset via email"
+
+**Status:** TypeScript clean (0 errors).
+
+### Layout Update — Horizontal Form Stretch (2026-10-14)
+- Updated `frontend/app/register/page.tsx`:
+  - Expanded container from `max-w-md` to `max-w-4xl` when in registration form mode.
+  - Converted the form into a responsive 2-column grid (`grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8`):
+    - Left column: "Personal info" (Name, DOB & Gender, Occupation dropdown with Other input).
+    - Right column: "Account & contact" (Email, Password with strength bar, Residential address, Captcha).
+  - Merged action buttons into a side-by-side row (Submit and Google Sign Up) directly below the columns.
+  - Placed "Already registered? Sign in →" in the card header for desktop, reducing overall vertical height so the entire page fits within standard viewport heights without scrolling.
+- Adjusted `frontend/app/login/page.tsx` wrapper padding and header margins to maintain compact vertical fit across laptop displays.
