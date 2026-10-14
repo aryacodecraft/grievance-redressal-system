@@ -55,7 +55,7 @@ memory/        — AI agent persistent memory                                  I
 
 ## Implemented
 
-### Voice-assisted complaint backend — Stage 4B (DEC-028)
+### Voice-assisted complaint backend — Stage 4B (DEC-032)
 
 - Authenticated multipart POST /transcribe, direct httpx Sarvam saaras:v4
   transcribe integration for en-IN/hi-IN/mr-IN; no grievance/database mutations.
@@ -81,7 +81,7 @@ memory/        — AI agent persistent memory                                  I
   Backend: 88 passed; frontend: 58 passed; TypeScript/targeted lint passed.
   Actual screen readers, dynamic browser focus, Firefox/Safari
   and deployed HTTPS remain unverified. Not ready for final live sign-off.
-- Stage 8 IMPLEMENTED and mock TESTED (DEC-030): local extractive en/hi/mr title
+- Stage 8 IMPLEMENTED and mock TESTED (DEC-034): local extractive en/hi/mr title
   helper; empty-title auto-fill only after transcript acceptance; existing and
   pending-edited titles preserved, explicit confirmed replacement, full description
   retained and editable fields. Frontend: 82 passed; TypeScript/targeted lint passed.
@@ -98,7 +98,7 @@ memory/        — AI agent persistent memory                                  I
   TRANSCRIPTION_ENABLED=false afterward; not independently rechecked in this
   documentation-only session. Prior en/hi/mr mock tests remain distinct; live
   Hindi/Marathi and general recognition/latency/billing evaluation unvalidated.
-- Stage 9 IMPLEMENTED and mock TESTED (DEC-031): localized native modal
+- Stage 9 IMPLEMENTED and mock TESTED (DEC-035): localized native modal
   Append/Replace/Cancel before uploading nonempty descriptions and after pending
   edits. Append retains latest text/full transcript, titles protected, async choice
   abort/epoch guards. 97 frontend tests; TypeScript/targeted lint/diff checks passed.
@@ -151,7 +151,7 @@ memory/        — AI agent persistent memory                                  I
 - `lib/tfidf.ts` + `components/admin/AdminMap.tsx` / `AdminClusters.tsx` — legacy parity, now surfaced on `/admin/analytics` (DEC-018)
 - `lib/sla.ts` — prototype deterministic SLA indicator (`Overdue`/`On Track`/`Closed`); DEC-018
 - `components/admin/AdminBoard.tsx` — lean full-width triage **table** (KPI cards, department tabs, filters, SLA column, pagination); row opens `GrievanceReviewModal` for live assign/resolve
-- `components/admin/AdminAnalytics.tsx` + `app/admin/analytics/page.tsx` — executive dashboard (macro metrics, charts, map, clusters); CSV exports built in `lib/report.ts` (`buildComplaintsCsv` flat list + `buildSummaryCsv` department-wise summary)
+- `components/admin/AdminAnalytics.tsx` + `app/admin/analytics/page.tsx` — executive dashboard with tabbed views ("Overview & Trends" for macro metrics, distribution charts, and text clusters; "Location Analysis (Map)" for spatial map and area hotspots); CSV exports built in `lib/report.ts` (`buildComplaintsCsv` flat list + `buildSummaryCsv` department-wise summary)
 - `components/admin/{AdminGate,AdminNav,useAdminGrievanceFeed,departments}.tsx|ts` — shared admin chrome/data (DEC-018)
 - `components/grievance/MyGrievances.tsx` — citizen's own submissions on `/submit`
 - **`lib/firebase.ts` deleted** — frontend has no Firebase dependency

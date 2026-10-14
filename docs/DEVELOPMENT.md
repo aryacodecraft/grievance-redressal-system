@@ -403,3 +403,52 @@ failed on incompatible TLS URI options; the guide now contains a corrected,
 unexecuted proposal. See ../HANDOFF_SUMMARY.md and the voice guide before any
 separately approved restart. Keep both diagnostic initialization and transcription
 flags false in normal operation.
+
+---
+
+## Deploying (backend on Render, frontend on Vercel)
+
+Deploy the **backend first** — the frontend build needs its public URL.
+
+### 1. Backend → Render
+
+1. New Web Service from the repo; Render reads `render.yaml` (build:
+   `pip install -r backend/requirements.txt`, start:
+   `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`).
+2. Fill the `sync: false` vars in the dashboard: `MONGODB_URI` (Atlas —
+   allow Render to reach the cluster), `CORS_ORIGINS` (leave unset until the
+   Vercel URL exists; the `*` fallback works but is wide open, so tighten it
+   right after), `FRONTEND_URL` (Vercel URL, once known — SMS track links
+   otherwise point at the dev default), `HF_API_TOKEN`, `GROQ_API_KEY`,
+   Cloudinary keys, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`.
+3. `JWT_SECRET_KEY` generates itself. Set `SEED_ADMIN_EMAIL` +
+   `SEED_ADMIN_PASSWORD`, then **restart** the service (seeding runs at
+   startup; it is a no-op if the admin already exists).
+4. Leave Twilio/DLT vars empty unless going live (safe `dry-run` default).
+   Keep `SEED_TEST_ACCOUNTS`, `OTP_DEBUG_RETURN_CODE`, and face-auth off.
+5. Verify `GET /health` → `{"status":"ok","storage":"mongodb"}`.
+
+### 2. Frontend → Vercel
+
+1. Import the repo, set **Root Directory to `frontend/`** (no `vercel.json`
+   needed; defaults build + serve correctly).
+2. Set these **before the first build** (`NEXT_PUBLIC_*` is inlined at build
+   time — changing them later requires a rebuild):
+   `NEXT_PUBLIC_API_URL` (Render backend URL), `NEXT_PUBLIC_USE_MOCKS=false`,
+   `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`,
+   `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`. Keep
+   `NEXT_PUBLIC_SHOW_DEV_CREDS=false`.
+3. Deploy, then go back and tighten Render's `CORS_ORIGINS`/`FRONTEND_URL`
+   to the Vercel domain.
+
+### 3. Google OAuth console
+
+- Authorized JavaScript origins: the Vercel domain.
+- Authorized redirect URIs:
+  `https://<render-backend>/auth/google/callback` (the backend derives the
+  redirect from the request URL, so no code change is needed).
+
+### 4. Smoke test in production
+
+Citizen register → submit → track; admin login → assign → resolve; Google
+sign-in once. Then Twilio/DLT whenever live SMS is wanted.

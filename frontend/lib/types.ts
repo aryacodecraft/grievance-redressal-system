@@ -21,6 +21,7 @@ export interface Grievance {
   imageUrl?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  address?: string | null;
   hfEngine?: HfEngine | null;
   assignee?: string | null;
   state?: string;
@@ -64,6 +65,7 @@ export interface SubmitPayload {
   latitude?: number;
   longitude?: number;
   imageUrl?: string;
+  address?: string;
 }
 
 export interface SubmitResult {
@@ -79,6 +81,18 @@ export interface TranscriptionResult {
   request_id?: string;
 }
 
+export interface SignupProfile {
+  address: string;
+  dob: string;
+  occupation: string;
+  gender: string;
+}
+
+export interface CaptchaSolution {
+  captcha_id: string;
+  captcha_solution: string;
+}
+
 export interface AuthUser {
   id: string;
   email?: string | null;
@@ -89,6 +103,10 @@ export interface AuthUser {
   smsOptOutAt?: string | null;
   citizen_id?: string | null;
   name: string;
+  address?: string | null;
+  dob?: string | null;
+  occupation?: string | null;
+  gender?: string | null;
   role: "USER" | "ADMIN" | "RESOLVER" | "SUPERADMIN" | "citizen" | "admin" | string;
   avatarUrl?: string;
   departmentId?: string | null;
@@ -109,6 +127,10 @@ export interface AuthResponse {
     smsOptOutAt?: string | null;
     citizen_id?: string | null;
     full_name: string;
+    address?: string | null;
+    dob?: string | null;
+    occupation?: string | null;
+    gender?: string | null;
     role: string;
     avatar_url?: string;
     departmentId?: string | null;

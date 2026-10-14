@@ -54,19 +54,18 @@
 
 ## 3. Voice-Based Grievance Registration
 
-- [ ] **In-Browser Audio Recording**
-  - Micro-service / client audio capture with recording controls (Start, Pause, Stop, Waveform visualization).
-  - Mobile-responsive one-tap voice input on complaint submission form.
-- [ ] **Speech-to-Text (STT) Processing**
-  - Integration with STT engine (OpenAI Whisper / Groq Whisper API `whisper-large-v3` / Bhashini for Indian languages).
-  - Multilingual support: Hindi, English, regional languages, and Hinglish transliteration.
-- [ ] **AI-Powered Structured Field Extraction**
-  - Feed raw transcript to LLM to automatically infer:
-    - Subject / Title
-    - Detailed Description
-    - Location landmarks mentioned in audio
-    - Intended department / category
-  - Pre-fill submission form so citizen can review and confirm before final submission.
+> **Update 2026-10-14 (merge `feature/aarohi`, DEC-032–035, details §14):**
+> recording + Sarvam STT + title suggestion + form pre-fill are IMPLEMENTED
+> behind `TRANSCRIPTION_ENABLED=false` (default off; needs `SARVAM_API_KEY`).
+> Remaining: live-key verification, Bhashini/Whisper alternatives (deferred),
+> department/category inference from transcripts (title only for now).
+- [x] **In-Browser Audio Recording** — `VoiceRecorder` (AudioWorklet PCM WAV,
+  30s cap, playback/re-record, Transcribe action) on the submission form.
+- [x] **Speech-to-Text (STT) Processing** — `POST /transcribe` → Sarvam
+  `saaras:v4` (`en-IN`/`hi-IN`/`mr-IN`); strict limits, quotas, disabled default.
+- [x] **AI-Powered Structured Field Extraction (partial)** — local extractive
+  title suggestion with overwrite protection, transcript append/replace
+  choice, pre-fill for citizen review. Department/category inference OPEN.
 
 ---
 
@@ -140,7 +139,7 @@
 - [x] Improve navbar active states and role-specific labels.
 - [x] Clarify and display required incident location capture in the complaint form.
 - [x] Require authentication before lodging a complaint in both frontend and API.
-- [x] Split tracking into personal grievances and reference-ID search tabs with department totals.
+- [x] Split tracking into personal grievances and reference-ID search tabs with department totals. *(2026-10-14, DEC-028: reference-ID search removed from citizen surfaces — `/track` is personal-grievances only, sign-in required.)*
 
 ---
 
@@ -494,7 +493,7 @@ binding as a credential change, PII), `docs/DEVELOPMENT.md` (Twilio setup, DLT,
 `dry-run`, trial limits), `backend/.env.example`, and new DEC entries in
 `memory/DECISIONS.md` once §13.9 is answered.
 
-## 14. Voice-assisted complaint lodging (DEC-028, Stage 4B)
+## 14. Voice-assisted complaint lodging (DEC-032, Stage 4B)
 
 - [x] Backend multipart endpoint, strict WAV/audio/body limits, Sarvam HTTP seam,
       atomic process-local quotas/idempotency and disabled-by-default configuration.
@@ -521,7 +520,7 @@ binding as a credential change, PII), `docs/DEVELOPMENT.md` (Twilio setup, DLT,
       each, en/hi/mr fill, manual/pending title preservation, explicit replacement,
       cancellation/error/discard, editing and re-transcription; zero writes.
 - [ ] Stage 8 keyboard/screen-reader pass on actual page, other browsers and
-      native-speaker quality review of heuristic suggestions (DEC-030).
+      native-speaker quality review of heuristic suggestions (DEC-034).
 - [x] Stage 8 controlled live English smoke test (user-verified 2026-10-14): one
       successful request, 7-second real recording, full description/title auto-fill,
       editable fields, no grievance submitted; user confirmed restart disabled.

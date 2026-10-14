@@ -3,10 +3,13 @@ services:
   - type: web
     name: grievance-ai-backend
     runtime: python
-    env: python
     region: oregon
     plan: free
-    buildCommand: "pip install -r requirements.txt"
+    # Install from the pinned backend file, not the sparse root file.
+    # The root requirements.txt is missing PyJWT, passlib/bcrypt, python-multipart,
+    # email-validator, httpx, authlib and twilio — the app crashes on startup
+    # without them (auth.py: import jwt; main.py: import bcrypt).
+    buildCommand: "pip install -r backend/requirements.txt"
     startCommand: "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       # Voice transcription stays OFF. Operator key is a secret, never a value here.
@@ -36,8 +39,6 @@ services:
         value: "15"
       - key: SARVAM_TIMEOUT_SECONDS
         value: "45"
-      - key: PORT
-        value: "10000"
       # Must be the ORIGIN of the deployed frontend (e.g.
       # https://grievance-frontend.onrender.com), comma-separated if several.
       # A localhost value here silently blocks every cross-origin call from the
@@ -46,11 +47,31 @@ services:
       # wide open; set it explicitly once the frontend has a public URL.
       - key: CORS_ORIGINS
         sync: false
+      # Public URL of the deployed frontend (your Vercel domain).
+      # Used for SMS track links; without it they point at the dev default.
+      - key: FRONTEND_URL
+        sync: false
       # Without this the service boots on the non-persistent in-memory store.
       - key: MONGODB_URI
         sync: false
       - key: MONGODB_DB
         value: "grievance"
+      # JWT signing secret. Render generates a random value on first deploy.
+      # Changing it invalidates all outstanding access/refresh tokens.
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      # Seed one admin account on startup (no-op if the email already exists).
+      # Set both in the Render dashboard after the first deploy.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      # Google OAuth (backend exchanges the code; without these the Google
+      # sign-in button fails on the deployed backend).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       - key: HF_API_TOKEN
         sync: false
       - key: GROQ_API_KEY

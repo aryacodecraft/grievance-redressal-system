@@ -1414,9 +1414,171 @@ later.
 `backend/.env.example`, `render.yaml`, `tests/test_phone_sms.py`,
 `docs/DEVELOPMENT.md`
 
+---
+
+## DEC-028 — Reference-ID Search Removed from Citizen Surfaces
+
+**ID:** DEC-028
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed)
+
+**Context:**
+`/track` offered "My grievances" and "Search by ID" tabs, and the homepage
+hero carried a reference-ID tracking panel (`HomeTrackPanel`). The owner
+wants ID-based lookup gone for normal users (citizens and signed-out
+visitors); staff never used these surfaces (admin/resolver workspaces have
+their own queue search).
+
+**Decision:**
+1. `/track` is personal-grievances only. The tab switcher, search form,
+   results, `?id=` deep-link handling, and the search-tab department totals
+   are deleted. Signed-out visitors keep the existing sign-in prompt card —
+   tracking is now sign-in-or-nothing.
+2. The homepage hero panel is deleted (`HomeTrackPanel.tsx` removed) and the
+   hero reflows to a single centered column reusing existing copy/CTAs.
+3. Backend untouched: public lookup endpoints and the admin queue search
+   remain. Shared lib helpers (`fetchGrievanceById`, `findMockGrievance`,
+   `getDepartmentCounts`) stay exported — dead for now, zero runtime cost.
+4. Orphaned i18n keys (`searchById`, `trackFind*`, `hp*`, …) stay in all 11
+   packs so strict typing stays green; marked with a TODO in `en.ts`. The
+   English `trackSubtitle` drops the reference-ID mention; other locales
+   keep stale wording pending the native-reader pass (TODO §5).
+
+**Consequences:**
+- SMS "Track:" links land on a sign-in-gated personal list. Accepted by the
+  owner; SMS link handling unchanged.
+
+**Affected Components:** `frontend/app/track/page.tsx`,
+`frontend/app/page.tsx`, `frontend/components/home/HomeTrackPanel.tsx`
+(deleted), `frontend/lib/i18n/en.ts` (subtitle + TODO note)
+
+---
+
+## DEC-029 — Citizen Tracking Is a Master-Detail Dashboard, No Department Totals
+
+**ID:** DEC-029
+**Date:** 2026-10-14
+**Status:** SUPERSEDED BY DEC-030 (2026-10-14) — the owner rejected the UI
+rework ("keep it as it was"). The master-detail layout and
+`GrievanceDetailPanel` extraction were reverted the same day; only the
+intent (user-scoped numbers, no global registry view) survived, and it was
+already satisfied by the restored code. Retained as the record of the
+reverted direction.
+
+**Context:**
+After DEC-028 removed reference-ID search, `/track` showed personal
+grievance cards (details hidden behind a modal) plus a per-department totals
+grid. The owner wants no department breakdown on the tracking page and the
+user's grievance details visible directly on the dashboard.
+
+**Decision:**
+1. Delete the personal department-totals grid from `/track` (counting logic
+   and its now-unused imports go with it).
+2. `/track` becomes master-detail: selectable grievance list (left) with an
+   inline full-detail panel (right, sticky on desktop, auto-selects the
+   first grievance). The detail body is extracted from
+   `GrievanceDetailModal` into `GrievanceDetailPanel` (timeline, description,
+   metadata, map, photo, history, AI triage); the modal becomes a thin
+   overlay wrapper so `/submit`'s `MyGrievances` behavior is unchanged.
+   Panel remounts per grievance via `key` (same pattern as
+   `GrievanceReviewModal`), which also satisfies the
+   `react-hooks/set-state-in-effect` lint rule.
+3. `myByDeptTitle/Text` join the DEC-028 orphan-keys note; backend untouched.
+
+**Affected Components:** `frontend/app/track/page.tsx`,
+`frontend/components/grievance/GrievanceDetailPanel.tsx` (new),
+`frontend/components/grievance/GrievanceDetailModal.tsx` (wrapper),
+`frontend/lib/i18n/en.ts` (TODO note)
+
+---
+
+## DEC-030 — Citizens Do Not See Department or Priority (Display-Layer Hide)
+
+**ID:** DEC-030
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed; supersedes the reverted DEC-029)
+
+**Context:**
+Citizen grievance views (tracking list/popup, submit-page history) showed
+internal routing: department chips, priority badges, and an "Assigned
+Department" row. The owner wants those hidden from normal users. The shared
+`GrievanceCard` is also rendered by the staff review modal, so the hide
+cannot be unconditional.
+
+**Decision:**
+1. Opt-in `citizenView` prop on `GrievanceCard`, `GrievanceDetailModal`, and
+   `AnalysisPanel` (default off = current behavior). Citizen call sites
+   (`/track`, `MyGrievances`) pass it; the staff review modal and the
+   submit-form AI preview do not.
+2. Citizen mode hides: priority badges, department chips, and the full
+   "Assigned Department" metadata row. Status, title, ID, dates, timeline,
+   history, and AI explanation/keywords stay. Assignee display unchanged
+   (out of the stated scope).
+3. Display-layer only: the API still ships the fields (citizen projection
+   unchanged). Restricting the projection is a separate, larger change.
+4. Verified finding, no code needed: `/track` counts already derive from the
+   signed-in user's own grievances in live mode (`listGrievances({userId})`,
+   server-scoped); only mock/demo mode shows sample data, by design.
+
+**Affected Components:** `frontend/components/grievance/GrievanceCard.tsx`,
+`frontend/components/grievance/GrievanceDetailModal.tsx`,
+`frontend/components/grievance/MyGrievances.tsx`,
+`frontend/app/track/page.tsx`
+
+---
+
+## DEC-031 — First-Time Signup Hardening: Profile Fields, Self-Hosted Captcha, Proven Phone for Face-Only
+
+**ID:** DEC-031
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed; uncommitted workdir state)
+
+**Context:**
+Password signup collected only name/email/password, face-only signup
+claimed a phone without proving it (the DEC-025 gap), and no signup path
+had bot friction — while each face-signup OTP costs real SMS money once
+live. Google OAuth signup is out of scope (Google already CAPTCHAs; profile
+backfill is a follow-up).
+
+**Decision:**
+1. Both signup paths collect address (10–500 chars), DOB (ISO date, age
+   13–120), occupation (2–100 chars), gender (female/male/other/
+   prefer_not_to_say), validated identically in
+   `backend/app/profile_fields.py` and stored on the user doc + profile.
+2. Self-hosted text captcha (5-char SVG, hashed server-side in the OTP
+   store, 5-min TTL, single-use, 3-strike burn, never logged): required on
+   `POST /auth/register` and face `signup/start`, minted via public
+   `GET /auth/captcha` (per-IP capped). Prototype-grade friction, documented
+   as weaker than reCAPTCHA; chosen to avoid a new vendor.
+3. Face-only signup proves the phone inline: public
+   `signup/request-otp` + `signup/verify-otp` bound to the signup token
+   (the authed `/phone/*` routes are unusable pre-account); `signup/complete`
+   requires the OTP proof marker (burned on success) and stamps
+   `phoneVerifiedAt`/`otp_sms` at creation — so these accounts pass the
+   DEC-025 face-login gate immediately.
+4. Tests stay hermetic via deterministic secrets in a shared
+   `tests/_signup_helpers.py` (tightly scoped save/restore — a broad
+   `secrets` patch corrupts face-challenge selection on the same module
+   object). `conftest.py` pins dry-run SMS without debug codes.
+5. i18n: 20 new keys, real copy in en/hi/mr, English placeholders in the
+   other 8 (native review already open under TODO §5).
+
+**Consequences:**
+- Full suite: 376 passed / 23 failed — the 23 are byte-identical to the
+  TODO §11 baseline (verified programmatically); +13 new tests green.
+- Citizen `hi`/`mr` for the new keys landed unreviewed, like the rest.
+
+**Affected Components:** `backend/app/profile_fields.py` (new),
+`backend/app/services/captcha.py` (new), `backend/app/auth.py`
+(signup-token profile claim), `backend/app/routers/{auth,face_auth}.py`,
+`tests/_signup_helpers.py` (new), `tests/test_{signup_fields_captcha,auth,
+face_signup,face_login_recovery,rbac_workflow,security_baseline,
+seed_accounts,face_auth}.py`, `frontend/{app/register,app/signup/face,
+components/ui/Captcha.tsx,lib/{api,session,types},lib/i18n/*.ts}`
 
 
-## DEC-028 — Voice-assisted complaints: WAV-only Sarvam backend (2026-10-13)
+
+## DEC-032 — Voice-assisted complaints: WAV-only Sarvam backend (2026-10-13)
 
 **Status:** ACCEPTED — owner authorized Stage 4B backend/mock implementation.
 **Decision:** Authenticated POST /transcribe, direct httpx to Sarvam saaras:v4
@@ -1442,7 +1604,7 @@ owner's explicit preservation instruction (SHA256 recorded during verification).
 Implementation/verification handoff lives in PROJECT_STATE, CHANGELOG and TODO.
 See docs/VOICE_ASSISTED_COMPLAINT.md. No changes to real backend/.env.
 
-## DEC-029 — AudioWorklet voice drafting frontend (2026-10-13)
+## DEC-033 — AudioWorklet voice drafting frontend (2026-10-13)
 
 **Status:** ACCEPTED — owner authorized Stage 5 frontend implementation/mocks.
 **Decision:** AudioWorklet captures PCM after an explicit click/permission. Average
@@ -1475,7 +1637,7 @@ it is suspended, while worklet-retained audio remains capped. Backend stays OFF.
 No real Sarvam calls, real recordings, schema/auth backend changes or commits.
 SESSION_LOG.md remains untouched per the owner's explicit preservation instruction.
 
-## DEC-030 — Local extractive voice title suggestions (2026-10-13)
+## DEC-034 — Local extractive voice title suggestions (2026-10-13)
 
 **Status:** ACCEPTED — owner authorized Stage 8 frontend-only implementation.
 **Decision:** Pure TypeScript helper selects an original-language phrase after
@@ -1496,7 +1658,7 @@ unchanged. No draft persistence; reset suggestion on successful submission.
 complete context; multilingual greeting/negation lists are finite. Native-reader
 review and mocked browser accessibility checks remain pending. No live calls.
 
-## DEC-031 — Stage 9 explicit description append/replace choices (2026-10-14)
+## DEC-035 — Stage 9 explicit description append/replace choices (2026-10-14)
 
 **Status:** ACCEPTED — newly authorized Stage 9 enhancement, not a recovered
 original 11-stage roadmap definition.

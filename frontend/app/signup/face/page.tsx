@@ -5,12 +5,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, Copy, ScanFace, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Field";
+import { Field, Input, Select, Textarea } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
+import { CaptchaField } from "@/components/ui/Captcha";
 import { FaceCapture } from "@/components/FaceCapture";
 import { useDemoUser } from "@/lib/session";
-import { getPublicConfig, startFaceSignup, completeFaceSignup } from "@/lib/api";
-import { useI18n } from "@/lib/i18n";
+import {
+  getPublicConfig,
+  requestFaceSignupOtp,
+  startFaceSignup,
+  completeFaceSignup,
+  verifyFaceSignupOtp,
+} from "@/lib/api";
+import { useI18n, type MessageKey } from "@/lib/i18n";
+
+const GENDERS: { value: string; labelKey: MessageKey }[] = [
+  { value: "female", labelKey: "genderFemale" },
+  { value: "male", labelKey: "genderMale" },
+  { value: "other", labelKey: "genderOther" },
+  { value: "prefer_not_to_say", labelKey: "genderPreferNot" },
+];
 
 export default function FaceSignupPage() {
   const router = useRouter();
@@ -18,9 +32,18 @@ export default function FaceSignupPage() {
   const { t } = useI18n();
 
   const [faceEnabled, setFaceEnabled] = useState<boolean | null>(null);
-  const [step, setStep] = useState<"form" | "capture" | "success">("form");
+  const [step, setStep] = useState<"form" | "otp" | "capture" | "success">("form");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [dob, setDob] = useState("");
+  const [occupation, setOccupation] = useState("");
+  const [gender, setGender] = useState("");
+  const [captcha, setCaptcha] = useState<{
+    captcha_id: string;
+    captcha_solution: string;
+  } | null>(null);
+  const [otpCode, setOtpCode] = useState("");
   const [consent, setConsent] = useState(false);
   const [smsConsent, setSmsConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +86,14 @@ export default function FaceSignupPage() {
       setError(t("faceConsentRequired"));
       return;
     }
+    if (!address.trim() || !dob || !occupation.trim() || !gender) {
+      setError(t("errFillAll"));
+      return;
+    }
+    if (!captcha?.captcha_id || !captcha.captcha_solution) {
+      setError(t("errCaptchaRequired"));
+      return;
+    }
     setIsSubmitting(true);
     try {
       const res = await startFaceSignup({
@@ -70,14 +101,47 @@ export default function FaceSignupPage() {
         phone: phone,
         consent: true,
         sms_consent: smsConsent,
+        address: address.trim(),
+        dob,
+        occupation: occupation.trim(),
+        gender,
+        captcha_id: captcha.captcha_id,
+        captcha_solution: captcha.captcha_solution,
       });
       setSignupToken(res.signup_token);
+      // Prove the claimed number before any face capture: the OTP step is
+      // mandatory — face-only login is gated on a verified phone (DEC-025).
+      try {
+        await requestFaceSignupOtp(res.signup_token);
+      } catch (otpErr: unknown) {
+        setError(otpErr instanceof Error ? otpErr.message : t("faceUnavailable"));
+        setSignupToken(null);
+        return;
+      }
       setChallengeId(res.challenge_id);
       setChallengeAction(res.action);
-      setStep("capture");
+      setStep("otp");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("faceUnavailable");
       setError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!signupToken || otpCode.trim().length !== 6) {
+      setError(t("errOtpInvalid"));
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await verifyFaceSignupOtp(signupToken, otpCode.trim());
+      setStep("capture");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : t("faceUnavailable"));
     } finally {
       setIsSubmitting(false);
     }
@@ -187,6 +251,59 @@ export default function FaceSignupPage() {
               </div>
             </Field>
 
+            <Field label={t("addressLabel")} required>
+              <Textarea
+                rows={2}
+                placeholder={t("addressPlaceholder")}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label={t("dobLabel")} required>
+                <Input
+                  type="date"
+                  value={dob}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setDob(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                />
+              </Field>
+              <Field label={t("genderLabel")} required>
+                <Select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  disabled={isSubmitting}
+                  required
+                >
+                  <option value="">{t("selectGender")}</option>
+                  {GENDERS.map((g) => (
+                    <option key={g.value} value={g.value}>
+                      {t(g.labelKey)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <Field label={t("occupationLabel")} required>
+              <Input
+                type="text"
+                placeholder={t("occupationPlaceholder")}
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                disabled={isSubmitting}
+                required
+                maxLength={100}
+              />
+            </Field>
+
+            <CaptchaField onChange={setCaptcha} disabled={isSubmitting} />
+
             <div className="pt-1">
               <label className="flex items-start gap-2.5 text-xs text-ink-600 cursor-pointer">
                 <input
@@ -209,7 +326,7 @@ export default function FaceSignupPage() {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={isSubmitting || !fullName.trim() || !/^[6-9]\d{9}$/.test(phone) || !consent}
+              disabled={isSubmitting || !fullName.trim() || !/^[6-9]\d{9}$/.test(phone) || !address.trim() || !dob || !occupation.trim() || !gender || !captcha?.captcha_solution || !consent}
             >
               <ScanFace size={16} strokeWidth={2} />
               {isSubmitting ? t("loading") : t("faceStart")}
@@ -222,6 +339,46 @@ export default function FaceSignupPage() {
               >
                 {t("backToSignIn")}
               </Link>
+            </div>
+          </form>
+        )}
+
+        {step === "otp" && (
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <div className="rounded-lg border border-primary-200 bg-primary-50/50 p-4">
+              <h2 className="text-sm font-bold text-ink-950">{t("faceOtpTitle")}</h2>
+              <p className="mt-1 text-xs leading-5 text-ink-600">{t("faceOtpText")}</p>
+            </div>
+            <div>
+              <Input
+                type="text"
+                inputMode="numeric"
+                aria-label={t("phoneCodePlaceholder")}
+                placeholder={t("phoneCodePlaceholder")}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                disabled={isSubmitting}
+                required
+                maxLength={6}
+              />
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={isSubmitting || otpCode.trim().length !== 6}
+            >
+              {isSubmitting ? t("loading") : t("faceOtpVerify")}
+            </Button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={isSubmitting}
+                className="text-xs font-medium text-ink-500 hover:text-ink-800"
+              >
+                {t("backToSignIn")}
+              </button>
             </div>
           </form>
         )}

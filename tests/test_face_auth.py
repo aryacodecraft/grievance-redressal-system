@@ -180,12 +180,8 @@ def _bearer(token: str) -> dict:
 
 
 def _register(client, email: str, password: str = "Pass1234!") -> dict:
-    res = client.post(
-        "/auth/register",
-        json={"email": email, "password": password, "full_name": "Face Tester"},
-    )
-    assert res.status_code == 201, res.text
-    return res.json()
+    from _signup_helpers import register_citizen
+    return register_citizen(client, email, password, "Face Tester").json()
 
 
 def _seed_role(email: str, role: str, password: str = "Pass1234!") -> dict:
@@ -517,6 +513,9 @@ class TestPublicFaceLogin:
         token = _register(fclient, email)["access_token"]
         assert _enroll(fclient, token, fake).status_code == 200
         monkeypatch.setattr(config, "FACE_MODEL_NAME", "buffalo_l")
+        # Captcha minting during setup touches rate counters; the assertions
+        # below concern the login path only, so reset here.
+        face_repo_mod.face_repository._counters.clear()
 
         res = _login(fclient, email, fake)
         assert res.status_code == 401
@@ -648,6 +647,12 @@ class TestPrivilegedStepUp:
         # (c) a full access token (wrong type — dependency rejects it)
         access = _register(fclient, "other@face.test")["access_token"]
         assert attempt(_bearer(access)).status_code == 401
+        # Captcha minting during setup touches rate counters; clear so the
+        # assertion below measures only the verify attempts.
+        face_repo_mod.face_repository._counters.clear()
+        # Re-run one attempt after the reset so the final state reflects
+        # only unauthenticated verify traffic.
+        assert attempt({}).status_code == 401
 
         assert _user_count(uid) == 0
         # nothing was ever recorded against any counter, not even IP/email

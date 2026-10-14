@@ -15,16 +15,22 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
+const INDIA_BOUNDS: [[number, number], [number, number]] = [
+  [6.0, 68.0],
+  [38.0, 98.0],
+];
+
 /**
  * Admin map (Leaflet + OpenStreetMap), client-only.
  * Markers follow the currently filtered list; `focusId` recentres and opens
  * the popup for a single grievance ("Open on Map").
+ * Bound to the geographic boundaries of India.
  */
 export function AdminMap({
   items,
   focusId,
   onFocusHandled,
-  heightClassName = "h-80",
+  heightClassName = "h-[28rem] sm:h-[32rem]",
 }: {
   items: Grievance[];
   focusId: string | null;
@@ -38,15 +44,22 @@ export function AdminMap({
   const markersRef = useRef<Record<string, Marker>>({});
   const [ready, setReady] = useState(false);
 
-  // Initialise the map once, on the client.
+  // Initialise the map once, on the client, constrained to India.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const L = (await import("leaflet")).default;
       if (cancelled || mapRef.current || !containerRef.current) return;
-      const map = L.map(containerRef.current).setView([20.5937, 78.9629], 5);
+      const map = L.map(containerRef.current, {
+        maxBounds: INDIA_BOUNDS,
+        maxBoundsViscosity: 1.0,
+        minZoom: 4,
+        maxZoom: 19,
+      }).setView([22.0, 79.0], 5);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
+        minZoom: 4,
+        attribution: "© OpenStreetMap",
       }).addTo(map);
       mapRef.current = map;
       layerRef.current = L.featureGroup().addTo(map);
@@ -90,6 +103,8 @@ export function AdminMap({
         const lat = Number(g.latitude);
         const lon = Number(g.longitude);
         if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+        // Restrict markers to the bounds of India.
+        if (lat < 6.0 || lat > 38.0 || lon < 68.0 || lon > 98.0) return;
 
         const marker = L.marker([lat, lon], { icon }).addTo(layer);
         marker.bindPopup(
@@ -117,9 +132,15 @@ export function AdminMap({
 
       if (pts.length) {
         try {
-          map.fitBounds(pts, { padding: [40, 40] });
+          map.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
         } catch {
           /* ignore invalid bounds */
+        }
+      } else {
+        try {
+          map.fitBounds(INDIA_BOUNDS, { padding: [20, 20] });
+        } catch {
+          /* ignore */
         }
       }
       setTimeout(() => {
@@ -138,7 +159,7 @@ export function AdminMap({
 
   // Recentre when asked from the detail panel.
   useEffect(() => {
-    if (!focusId || !ready || !focusId) return;
+    if (!focusId || !ready) return;
     const marker = markersRef.current[focusId];
     const map = mapRef.current;
     if (marker && map) {

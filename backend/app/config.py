@@ -143,7 +143,7 @@ DLT_ENTITY_ID = os.getenv("DLT_ENTITY_ID", "")
 DLT_TEMPLATE_ID_STAGE = os.getenv("DLT_TEMPLATE_ID_STAGE", "")
 DLT_TEMPLATE_ID_OTP = os.getenv("DLT_TEMPLATE_ID_OTP", "")
 
-# --- Voice-assisted complaints (DEC-028) -------------------------------------
+# --- Voice-assisted complaints (DEC-032) -------------------------------------
 # Off until explicitly enabled by operator.
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 SARVAM_STT_MODEL = os.getenv("SARVAM_STT_MODEL", "saaras:v4")

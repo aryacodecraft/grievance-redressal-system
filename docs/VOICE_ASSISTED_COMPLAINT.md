@@ -1,6 +1,6 @@
 # VOICE_ASSISTED_COMPLAINT.md — Voice-Assisted Complaint Lodging
 
-> Stages 4-11, updated 2026-10-14, DEC-028/DEC-029/DEC-030/DEC-031. Backend and frontend IMPLEMENTED
+> Stages 4-11, updated 2026-10-14, DEC-032/DEC-033/DEC-034/DEC-035. Backend and frontend IMPLEMENTED
 > and TESTED with mocks; one user-verified live English smoke test passed.
 > Live Hindi/Marathi remain unvalidated; execution results are in memory/CHANGELOG.md. Speech accuracy
 > EXPERIMENTAL, not VALIDATED. Disabled by default, including Render.

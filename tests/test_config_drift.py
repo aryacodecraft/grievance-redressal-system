@@ -98,7 +98,10 @@ def test_every_critical_backend_key_is_documented():
 
 def test_render_declares_everything_the_backend_needs():
     """`sync: false` keys are fine (set in the dashboard); absent ones are not."""
-    required = {"MONGODB_URI", "MONGODB_DB", "CORS_ORIGINS", "PORT"}
+    # PORT deliberately excluded: Render injects it and pinning a value was a
+    # deploy bug (b060933 removed the hardcoded "10000"); the startCommand
+    # consumes $PORT from the platform, not from this file.
+    required = {"MONGODB_URI", "MONGODB_DB", "CORS_ORIGINS"}
     missing = required - _render_keys()
     assert not missing, f"missing from render.yaml envVars: {sorted(missing)}"
 

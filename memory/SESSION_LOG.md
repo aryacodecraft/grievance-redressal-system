@@ -2228,5 +2228,566 @@ Owner: set up all the Twilio code now; credentials/DLT vars come later.
   registration (160-char skip is now load-bearing).
 - Memory updated: DEC-027, TODO §§11/13, CHANGELOG, PROJECT_STATE.
 
+---
 
+## 2026-10-13 — Separate tab for Location Analysis in Admin/Superadmin Analytics & Map Bounded to India
 
+### Request
+1. In the main admin and super admin view, in the analytics panel make a separate tab for the location analysis (map), without introducing new implementations.
+2. Make the map container small and make the map itself limited to India.
+3. Make the length smaller and make width bigger, almost a square shape, and make the container centered.
+
+### What changed
+- `frontend/components/admin/AdminAnalytics.tsx`:
+  - Added an accessible segmented tab switcher (`role="tablist"`) with `activeTab` state between `"overview"` and `"location"`.
+  - "Overview & Trends" tab preserves the macro KPI cards, distribution charts (`AdminCharts`), and similarity clusters (`AdminClusters`).
+  - "Location Analysis (Map)" tab isolates the spatial map (`AdminMap`) and geographic hotspots (`AdminAreaClusters`).
+  - Centered the map container on the page (`w-full max-w-2xl mx-auto`) and balanced dimensions to an almost square shape (`h-[28rem] sm:h-[32rem]` viewport).
+  - Shared across both Admin and Superadmin roles via `/admin/analytics`.
+- `frontend/components/admin/AdminMap.tsx`:
+  - Enforced geographical boundaries restricted to India using `INDIA_BOUNDS` (`[6.0, 68.0]` to `[38.0, 98.0]`).
+  - Initialized Leaflet with `maxBounds: INDIA_BOUNDS`, `maxBoundsViscosity: 1.0` (prevents dragging outside India), and `minZoom: 4`.
+  - Allowed natural surrounding water/coastline tile rendering inside the viewport, while restricting markers and fitBounds to India.
+- Memory updated: `memory/CHANGELOG.md`, `memory/PROJECT_STATE.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` in `frontend/` succeeded with 0 errors across all 18 routes.
+- `node scripts/check-contract.mjs` passed cleanly.
+- `npx eslint components/admin/AdminAnalytics.tsx components/admin/AdminMap.tsx` passed with 0 errors/warnings.
+
+---
+
+## 2026-10-13 — Manual Location Typing & Unrestricted Map Picking in Grievance Submission
+
+### Request
+In the grievance registration form, allow users to type locations manually alongside GPS, and remove the radius limiter on the map picker.
+
+### What changed
+- `frontend/components/grievance/LocationCapture.tsx`:
+  - Added manual location search input powered by forward geocoding (`forwardGeocode` in `frontend/lib/location.ts`), supporting address/area/landmark queries and raw coordinate pairs.
+  - Removed `MAX_DISTANCE_KM = 25` limitation; citizens can now pin or drag locations anywhere across India.
+  - Enabled the map picker button unconditionally (no longer requires clicking GPS first).
+  - Maintained instant 1-tap GPS location capture.
+- `frontend/components/grievance/SubmitForm.tsx`, `frontend/lib/types.ts`, `frontend/lib/api.ts`:
+  - Wired `address` string from `Coords` through `SubmitPayload` and `Grievance`.
+- `backend/app/models.py`, `backend/app/routers/grievances.py`:
+  - Added optional `address` field in `SubmitGrievanceRequest` and persistence in grievance documents.
+- Memory updated: `memory/CHANGELOG.md`, `memory/PROJECT_STATE.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` in `frontend/` compiled with 0 errors across all 18 routes.
+- `node scripts/check-contract.mjs` passed cleanly.
+- `npx eslint` passed with 0 errors/warnings on all touched frontend files.
+
+---
+
+## 2026-10-13 — Removal of "Suggested department (optional)" from Grievance Submission Form
+
+### Request
+Remove the "Suggested department (optional)" field from the citizen grievance registration form.
+
+### What changed
+- `frontend/components/grievance/SubmitForm.tsx`:
+  - Removed `<Field label={t("formDeptLabel")} hint={t("formDeptHint")}>` and `<Select {...register("categoryHint")}>`.
+  - Removed `categoryHint` from validation schema `makeSchema` and form types.
+  - Removed unused imports: `Select`, `CATEGORIES`, `departmentKey`.
+  - Removed URL query parameter hook for category pre-selection.
+  - Submissions continue to flow directly into the automated AI classification cascade on the backend (`backend/app/services/classification.py`), reducing citizen cognitive load.
+- Memory updated: `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` in `frontend/` compiled cleanly with 0 errors across all 18 routes.
+- `node scripts/check-contract.mjs` passed all 21 contract checks.
+
+---
+
+## 2026-10-13 — Global UI Scale Increased by 20%
+
+### Request
+Increase the overall UI of the entire website by 20% and handle it properly.
+
+### What changed
+- `frontend/app/globals.css`:
+  - Set `:root` `font-size: 120%` along with `-webkit-text-size-adjust: 100%` and `text-size-adjust: 100%`.
+  - In modern web design and Tailwind CSS v4, all rem-based typography, spacing scales, containers, controls, buttons, cards, headers, footers, sidebars, and dialog modals calculate their computed dimensions off root rem.
+  - Scaling `:root` to 120% cleanly increases all UI elements by exactly 20% across all pages and viewports while maintaining responsiveness and preventing horizontal overflow.
+- Memory updated: `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` in `frontend/` compiled cleanly with 0 errors across all 18 routes.
+- `node scripts/check-contract.mjs` passed all 21 contract checks.
+
+---
+
+## 2026-10-13 — Citizen Grievance Detail & Progress Modal Popup
+
+### Request
+In the citizen view, in "my grievances" a user should be able to click on their own grievances, and a popup will open where they can see the progress and info on that grievance.
+
+### What changed
+- `frontend/components/grievance/GrievanceDetailModal.tsx`:
+  - Created a responsive, accessible modal popup dialog displaying the full progress and information for any grievance.
+  - Features milestone progression (`StatusTimeline`), full description, department, assigned personnel, SLA deadline, pinned incident coordinates (`SinglePinMap`), OSM external link, photo evidence, recent field updates via `getGrievanceHistory`, and AI triage assessment.
+  - Supports backdrop dismiss, close button, and Esc keyboard shortcut.
+- `frontend/components/grievance/GrievanceCard.tsx`:
+  - Added optional `onClick` handler, keyboard accessibility (`onKeyDown` for Enter and Space), hover styling, and a "View progress & details →" cue.
+- `frontend/components/grievance/MyGrievances.tsx`:
+  - Wired grievance card clicks to open `GrievanceDetailModal`.
+- `frontend/app/track/page.tsx`:
+  - Wired grievance card clicks in the "My grievances" tab to open `GrievanceDetailModal`.
+- Memory updated: `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` in `frontend/` compiled cleanly with 0 errors across all 18 routes.
+- `node scripts/check-contract.mjs` passed all 21 contract checks.
+- ESLint passed with 0 errors/warnings on all touched frontend components.
+
+---
+
+## 2026-10-13 — Citizen Views Mobile Responsiveness Pass
+
+### Request
+Ensure the frontend for all citizen-related views is properly responsive for mobile viewports.
+
+### What changed
+- `frontend/components/grievance/GrievanceDetailModal.tsx`:
+  - Adjusted modal wrapper padding (`p-2 sm:p-4 md:p-6`) and margins (`my-2 sm:my-4`).
+  - Adjusted modal header padding (`px-4 py-4 sm:px-6 sm:py-5`) with flex-wrapping for ID and status badges and responsive title font sizes (`text-base sm:text-lg break-words`).
+  - Adjusted scrollable body max-height and padding (`max-h-[calc(85vh-7rem)] sm:max-h-[calc(85vh-9rem)] px-4 py-5 sm:px-6 sm:py-6`) and footer action button width (`w-full sm:w-auto`).
+- `frontend/app/submit/page.tsx`:
+  - Changed two-column container divider on mobile from vertical border (`border-r`) to horizontal border (`border-b lg:border-b-0 lg:border-r`).
+  - Adjusted container padding to `py-6 sm:py-8` for mobile screens.
+- `frontend/app/track/page.tsx`:
+  - Search form input and submit button now stack cleanly on mobile (`flex-col sm:flex-row`) with full-width button on small viewports (`w-full sm:w-auto`).
+- `frontend/app/profile/page.tsx`:
+  - Stacked phone verification input and buttons on mobile (`flex-col sm:flex-row flex-wrap gap-2`, `w-full sm:w-auto`).
+- `frontend/components/home/HomeTrackPanel.tsx`:
+  - Form input and search button stack vertically on mobile (`flex-col sm:flex-row`) with full-width button (`w-full sm:w-auto sm:shrink-0`).
+- `frontend/components/ui/SiteHeader.tsx`:
+  - Language selector dropdown width constrained on small mobile screens (`max-w-[110px] sm:max-w-none`) to prevent header overflow.
+- `frontend/app/login/page.tsx` & `frontend/app/register/page.tsx`:
+  - Optimized container and card padding on mobile screens (`px-3 py-6 sm:px-4 sm:py-12`, `p-5 sm:p-8`).
+  - Allowed remember-me and forgot-password row to wrap cleanly on narrow screens (`flex-wrap`).
+- Memory updated: `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` in `frontend/` compiled cleanly with 0 errors across all 18 routes.
+- TypeScript compiler passed with zero type errors.
+---
+
+## 2026-10-13 — Mobile Navbar Hamburger Menu
+
+### Request
+Make the navbar on mobile into a burger menu on the right side containing everything from the navbar, only for mobile view without changing desktop view.
+
+### What changed
+- `frontend/components/ui/SiteHeader.tsx`:
+  - Replaced the bottom horizontal scrolling subnav with a burger menu toggle on the right side (`md:hidden`), displaying `Menu` or `X` icon.
+  - Kept desktop view completely unchanged (`hidden md:flex` for inline links, language picker, user identity, notifications, and sign-in/sign-out).
+  - Built a mobile dropdown drawer that contains:
+    - Primary route links (`Home`, `Register Grievance`, `Track Grievance`, `Profile` when logged in) with active state highlights.
+    - Full language selection dropdown.
+    - Notification indicator accessible on mobile header.
+    - Citizen user credentials display with Citizen role badge and sign-out button (or full-width sign-in button when logged out).
+    - Auto-closes upon link navigation or action execution.
+- Memory updated: `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- `npm run build` compiled cleanly with 0 errors across all 18 routes.
+
+---
+
+## 2026-10-13 — Consistent Department Names and Canonical IDs
+
+### Request
+Make all the department names consistent in the system with the IDs as well, resolving discrepancies between super admin view and department queue views.
+
+### What changed
+- Standardized the 7 civic departments across the entire system:
+  1. `water`: **Water Supply & Sewerage Board**
+  2. `roads`: **Roads & Transport Authority**
+  3. `electricity`: **Electricity & Power Distribution**
+  4. `sanitation`: **Municipal Sanitation & Waste**
+  5. `health`: **Public Health & Medical Services**
+  6. `governance`: **Civic Governance & Citizen Services**
+  7. `other`: **General Urban Administration**
+- `backend/app/services/departments.py`:
+  - Defined `CANONICAL_DEPARTMENTS` mapping with exact IDs and names.
+  - Retained alias resolution so legacy IDs (`transport`, `road`, `waste`, `power`) cleanly map to canonical IDs.
+- `frontend/lib/departments.ts`:
+  - Exported canonical `DEPARTMENTS` array and `getDepartmentLabel(key, short)` helper.
+- `frontend/components/admin/departments.ts`:
+  - Re-exported the single source of truth from `lib/departments.ts`.
+- `frontend/components/admin/AdminBoard.tsx`:
+  - Aligned queue tabs and department filter dropdown with canonical IDs and names.
+  - Used `canonicalDepartmentId` for ticket counts and filtering.
+- `frontend/components/superadmin/SuperadminWorkspace.tsx`:
+  - Formatted department displays with canonical display labels and standardized lowercase keys.
+- `frontend/components/charts/AdminCharts.tsx`, `frontend/components/admin/DepartmentEmployeesWorkspace.tsx`, and `frontend/lib/report.ts`:
+  - Synchronized department dropdown options, workspaces, and CSV report outputs to use canonical department names.
+- Memory updated: `memory/CHANGELOG.md`, `memory/SESSION_LOG.md`.
+
+### Verification
+- Backend pytest suite passed (36/36 tests in classification and seed accounts).
+- `npm run build` in `frontend/` compiled cleanly with 0 errors across all 18 routes.
+
+---
+
+## 2026-10-13 — Merge prep: main into feat/frontend-overhaul (owner merges on repo)
+
+### State found
+- `main` had absorbed everything else via PR #6 (sms-notification-module).
+- `origin/main` was 1 commit ahead of local `main`: `b060933` (render deploy
+  fix, render.yaml only). No overlap with the 8 overhaul commits.
+
+### What changed
+- Fast-forwarded local `main` to `origin/main`; merged `main` into
+  `feat/frontend-overhaul` — clean auto-merge (render.yaml only).
+- Two test-hardening fixes on the branch:
+  1. `test_config_drift.py`: `PORT` dropped from the render-required set
+     (`b060933` removed the pin because Render injects it; pinning was the bug).
+  2. `conftest.py`: pins `SMS_PROVIDER=dry-run` + `OTP_DEBUG_RETURN_CODE=false`
+     — a live-testing `backend/.env` previously broke OTP tests (missing
+     `debug_code`) and could have sent real SMS from the suite.
+
+### Verification (on merge result)
+- `tsc --noEmit` clean, `npm run build` green (18 routes), contract checks passed.
+- Full pytest: 363 passed / 23 failed — programmatically diffed against the
+  TODO §11 baseline: identical set, zero regressions.
+- Memory updated: CHANGELOG, this log.
+
+---
+
+## 2026-10-13 — Deploy readiness fix (Vercel frontend + Render backend)
+
+### Readiness audit (read-only)
+- Render side structurally ready: pinned `backend/requirements.txt` build,
+  `$PORT` start, all secrets `sync: false`, safe prod defaults.
+- Gap found: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `FRONTEND_URL`
+  were read by `config.py` but absent from `render.yaml`.
+
+### What changed
+- `render.yaml`: the three missing `sync: false` entries (+ comments that
+  avoid localhost literals — the drift suite asserts on entry text).
+- `docs/DEVELOPMENT.md`: "Deploying" runbook (order: backend → frontend →
+  Google console → smoke test).
+
+### Verification
+- `tests/test_config_drift.py`: 15 passed (caught the comment issue first).
+- Memory updated: CHANGELOG, this log.
+
+---
+
+## 2026-10-13 — Merge train complete: PR #8 (deploy fix) into main
+
+- Owner merged PR #8 (`feat/frontend-overhaul` → `main`) on the repo after
+  PR #7 had landed without the deploy-fix commit.
+- Verified locally: `main` fast-forwarded to `8c35761`, deploy-fix content
+  present (`GOOGLE_CLIENT_ID` in `render.yaml`, Deploying runbook in
+  `docs/DEVELOPMENT.md`), branch shows 0 commits ahead, tree clean.
+- `main` now holds everything: migration phases, auth/RBAC, face-auth,
+  phone/SMS + Twilio provider (DEC-027), en/hi/mr scope (DEC-026), homepage
+  redesign, frontend overhaul, render deploy config. Next: deploy per the
+  `docs/DEVELOPMENT.md` runbook.
+
+---
+
+## 2026-10-14 — Removed reference-ID search from citizen surfaces (DEC-028)
+
+### Request
+Owner: remove the search-by-ID option entirely for normal users; handle the
+frontend accordingly. Confirmed: guests lose all tracking, SMS links landing
+on My-grievances is acceptable.
+
+### What changed
+- `frontend/app/track/page.tsx`: rewritten to personal-grievances only
+  (header + sign-in gate + grid/detail modal + personal dept totals).
+- `frontend/app/page.tsx`: hero to single centered column (CTAs centered);
+  `HomeTrackPanel` import/usage removed.
+- `frontend/components/home/HomeTrackPanel.tsx`: deleted.
+- `frontend/lib/i18n/en.ts`: subtitle drops the reference-ID mention; TODO
+  note on orphaned keys. Backend, shared helpers, and other locales untouched.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean on touched files,
+  `node scripts/check-contract.mjs` passed, `npm run build` green (18 routes).
+- Memory updated: DEC-028, TODO §4E annotation, CHANGELOG, this log.
+
+---
+
+## 2026-10-14 — Tracking master-detail dashboard, no department totals (DEC-029)
+
+### Request
+Owner (same branch): on track-grievances, drop the by-department view;
+the dashboard should carry the user's grievance details.
+
+### What changed
+- `/track`: department grid + counting deleted; master-detail layout (list
+  left, sticky inline detail panel right, first grievance auto-selected,
+  selected card ring highlight, stacked on mobile).
+- New `GrievanceDetailPanel.tsx` (detail body extracted from the modal);
+  `GrievanceDetailModal` is now an overlay wrapper — `/submit`
+  `MyGrievances` behavior unchanged. Per-grievance `key` remount also fixes
+  a `set-state-in-effect` lint error.
+- `myByDeptTitle/Text` added to the DEC-028 orphan-keys note. Backend untouched.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- Memory updated: DEC-029, CHANGELOG, this log.
+
+---
+
+## 2026-10-14 — Course correction: UI kept as-was, citizen visibility hide (DEC-030, uncommitted)
+
+### Request
+Owner: the master-detail rework went too far — keep the UI as it was, make
+dashboard numbers user-scoped, and do the planned popup hiding. No commit
+until told.
+
+### What changed (workdir only)
+- Reverted `/track` and `GrievanceDetailModal` to the DEC-028 versions;
+  deleted the `GrievanceDetailPanel` extraction. DEC-029 marked SUPERSEDED.
+- Numbers finding (no code needed): live-mode counts already derive from the
+  signed-in user's own grievances; only mock/demo mode shows sample data.
+- Hiding via opt-in `citizenView` prop on `GrievanceCard`,
+  `GrievanceDetailModal`, `AnalysisPanel` (staff review modal untouched):
+  priority badges, department chips, and the Assigned-Department row hidden
+  on `/track` + `MyGrievances`. Status/timeline/history/AI text unchanged.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- NOT committed per owner instruction; memory updated in workdir (DEC-029
+  superseded, DEC-030, this log).
+
+---
+
+## 2026-10-14 — Track grid follow-up: by-department section deleted (uncommitted)
+
+### Request
+Owner: the "Grievances by department" section should go — page is just "my
+grievances".
+
+### What changed (workdir only)
+- Deleted the personal department-totals grid from `/track` (counting logic
+  + `CATEGORIES`/`departmentKey` imports). Page is now header + sign-in gate
+  + grievance cards + detail popup, nothing else.
+- `myByDeptTitle/Text` were already on the DEC-028 orphan-keys note; no i18n
+  edits needed.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Personal dashboard strip on /track (uncommitted)
+
+### Request
+Owner: the My-grievances section feels empty — add a small numbers-only
+dashboard of the user's history.
+
+### What changed (workdir only)
+- 4-chip strip (Total · Open · In Progress · Resolved) above the list,
+  replacing the old total pill; counts derive from the user's own
+  grievances with a documented status-bucket grouping (rejected/withdrawn
+  count toward Total only). Labels reuse existing i18n keys — zero new
+  translation keys, all 11 locales covered.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Signup hardening: profile, captcha, proven phone (DEC-031, uncommitted)
+
+### Request
+Owner: proper first-time signup form (name, address, DOB, occupation,
+gender, captcha, optional face binding); face-scan-only signup must at
+least bind a phone number. Chose self-hosted captcha + fixed gender set.
+
+### What changed (workdir only)
+- Backend: `profile_fields.py` (shared validator) + `services/captcha.py`
+  (SVG mint/verify, OTP-store backed) new; `RegisterRequest` /
+  `FaceSignupStartRequest` extended; public `GET /auth/captcha`; face
+  `signup/request-otp` + `signup/verify-otp` bound to the signup token;
+  `signup/complete` requires the OTP proof and stamps `phoneVerifiedAt`.
+- Frontend: register + face-signup forms (profile fields, gender select,
+  shared `CaptchaField`), face signup gains a mandatory OTP step before
+  camera capture; 20 i18n keys (en/hi/mr real, 8 placeholders); session +
+  API clients extended.
+- Tests: `tests/_signup_helpers.py` shared module; updated auth/face-signup/
+  recovery/rbac/security/seed/face suites; new
+  `test_signup_fields_captcha.py` (13 tests).
+
+### Verification
+- Full pytest: 376 passed / 23 failed — failure set programmatically
+  verified byte-identical to TODO §11 baseline (incl. the env-specific
+  tunable test); +13 new tests green.
+- `npx tsc --noEmit` clean, `npx eslint` clean, `npm run build` green
+  (18 routes), contract checks passed.
+- NOT committed per owner instruction. Open follow-up: Google-OAuth signup
+  collects no profile/captcha.
+
+---
+
+## 2026-10-14 — Post-register phone step (uncommitted)
+
+### Request
+Owner: ask for phone at signup; bind it so face login accepts it.
+
+### What changed (workdir only)
+- `/register`: after account creation (live mode), a phone step — +91 input
+  → send code → 6-digit verify → bind via the existing authed `/phone/*`
+  endpoints (no new backend). Success card links onward to `/submit` and
+  face enrollment on `/profile`; skip link throughout so an SMS failure can
+  never brick signup. A verified number passes the DEC-025 face-login gate,
+  which is the "bind with face login" wiring.
+- 8 new i18n keys (en/hi/mr real, 8 placeholders).
+- Aligned backend signup age to 18+ (`profile_fields.py`) to match the
+  date-picker cap already in the form; hoisted the picker's `MAX_DOB` to
+  module scope for the purity lint rule.
+
+### Verification
+- `tsc`/`eslint`/`build`/contract green; signup captcha suite 13 passed.
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Phone-OTP login + in-form phone (uncommitted)
+
+### Request
+Owner: phone sign-in on the login form; phone number belongs in the signup
+form itself (not only the post step).
+
+### What changed (workdir only)
+- Backend: `POST /auth/login/phone/request-otp` (generic response, no
+  oracle; issues only for USER + verified phone) and `/verify` (tokens on
+  success; role/verified re-checked). `/auth/register` accepts `phone`
+  (400 invalid, 409 duplicate instead of a 500).
+- Frontend: login form gains a Phone tab (password/phone/face); register
+  form has the +91 field, pre-filled into the post-register verify step.
+- Tests: `TestPhoneLogin` (5 tests incl. white-box role-gate); shared
+  helper issues deterministic unique phones; full suite 383 passed with
+  failures byte-identical to TODO §11.
+- 4 new i18n keys (`errPhoneInvalid`, phone-tab/login strings).
+
+### Verification
+- Full pytest + `tsc`/`eslint`/`build`/contract green (only baseline fails).
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Phone-OTP sign-in on login (uncommitted)
+
+### Request
+Owner: add phone-number sign-in to the login form.
+
+### What changed (workdir only)
+- Backend: `POST /auth/login/phone/request-otp` (generic response, issues
+  only for USER + verified phone; per-phone/IP caps) and `/verify` (tokens
+  on success; role + verified re-checked; challenge consumed).
+- Frontend: Phone tab on login (password/phone always in live mode, face
+  tab stays flag-gated); send-code → verify → role-routed landing.
+- Tests: `TestPhoneLogin` (5 tests: generic unknown, unverified blocked,
+  happy path, 3-strike burn, white-box non-USER rejection).
+- 4 new i18n keys (en/hi/mr + placeholders).
+
+### Verification
+- `TestPhoneLogin` green; `tsc`/`eslint`/`build`/contract green.
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Admin popup: AI confidence % hidden (uncommitted)
+
+### Request
+Owner: in the admin-dashboard grievance popup, remove the AI-given score
+in % for all admins and managers.
+
+### What changed (workdir only)
+- `AnalysisPanel` gains opt-in `hideConfidence`; the review modal
+(`GrievanceReviewModal`, shared by global admins + department managers)
+passes it. Staff keep priority/category badges, explanation, keywords —
+only the "NN% sure" chip is gone. Citizen surfaces unchanged.
+- Verified `tsc`/`eslint`/`build` green. NOT committed per instruction.
+
+---
+
+## 2026-10-14 — Phone inside the register form (uncommitted)
+
+### Request
+Owner: the phone field must be in the signup form itself, not only in the
+post-register step.
+
+### What changed (workdir only)
+- Backend `/auth/register` accepts an optional `phone`: normalized, 409 on
+  invalid or already-registered, stored unverified (`phoneVerifiedAt: None`
+  — the post-register OTP+bind step proves it).
+- `/register` form has a +91 phone field (live-mode required); the value
+  carries into the post-register verify step pre-filled.
+- `registerUser`/session `register()` take the phone through; one new i18n
+  key (`errPhoneInvalid`, en/hi/mr + placeholders).
+- Backend tests: unverified-store, invalid→400, duplicate→409.
+
+### Verification
+- Targeted pytest green (only the known baseline failure); `tsc`/`eslint`/
+  `build`/contract green.
+- NOT committed per owner instruction.
+
+---
+
+## 2026-10-14 — Login form stretched to signup width (uncommitted)
+
+### Request
+Owner: login form should be as wide as the signup form.
+
+### What changed (workdir only)
+- `frontend/app/login/page.tsx`: card widened `max-w-md` → `max-w-4xl`,
+  outer padding aligned to the register page. Content untouched.
+- Verified `tsc`/`eslint`/`build` green. NOT committed per instruction.
+
+---
+
+## Session — 2026-10-14
+
+**Goal:** UX/UI improvements to login and register pages (no new design elements).
+
+**Changes made:**
+
+### `frontend/app/login/page.tsx`
+- Show/hide password toggle: added `focus-visible:ring-2` for keyboard accessibility
+- Error alert: scoped top-level alert to face/pending modes only; password-mode form now shows error inline above the submit button (always visible without scrolling)
+- "Forgot password?" label changed to "Reset via email ✉" with a `title` tooltip to set expectations (opens mail client)
+- "New here?" link wrapped in a chip-style `bg-ink-50` container with `font-semibold` and `→` arrow to be visually distinct
+
+### `frontend/app/register/page.tsx`
+- Added `Eye`/`EyeOff` show/hide toggle to the password field (was missing; login had it)
+- Added 3-segment password strength bar (Weak/Fair/Strong) that appears while typing
+- Added `min="1900-01-01"` to DOB; `max` now enforces 18+ (was just "today")
+- Added age requirement hint below DOB field
+- Form visually grouped into two sections with a section label + divider: "Personal info" (Name, DOB, Gender, Occupation) and "Account & contact" (Email, Password, Address)
+- Error alert moved from top of form to just above the submit button
+- Added captcha context hint text in live mode
+- Added `successNotice` state: shows "Account created!" alert for ~1.2s before redirecting
+- "Already registered?" link wrapped in same chip-style container as login for symmetry
+
+### `frontend/lib/i18n/en.ts` + all 10 locale files
+- Added keys: `errInvalidEmail`, `ageRequirementHint`, `captchaHint`, `accountCreatedNotice`, `passwordStrengthWeak`, `passwordStrengthFair`, `passwordStrengthStrong`
+- Changed `forgotPassword` value from "Forgot password?" → "Reset via email"
+
+**Status:** TypeScript clean (0 errors).
+
+### Layout Update — Horizontal Form Stretch (2026-10-14)
+- Updated `frontend/app/register/page.tsx`:
+  - Expanded container from `max-w-md` to `max-w-4xl` when in registration form mode.
+  - Converted the form into a responsive 2-column grid (`grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8`):
+    - Left column: "Personal info" (Name, DOB & Gender, Occupation dropdown with Other input).
+    - Right column: "Account & contact" (Email, Password with strength bar, Residential address, Captcha).
+  - Merged action buttons into a side-by-side row (Submit and Google Sign Up) directly below the columns.
+  - Placed "Already registered? Sign in →" in the card header for desktop, reducing overall vertical height so the entire page fits within standard viewport heights without scrolling.
+- Adjusted `frontend/app/login/page.tsx` wrapper padding and header margins to maintain compact vertical fit across laptop displays.

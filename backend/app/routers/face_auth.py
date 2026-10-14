@@ -36,6 +36,8 @@ Security rules (DEC-024):
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import logging
 import math
 import secrets
@@ -157,10 +159,96 @@ class FaceSignupStartRequest(BaseModel):
     phone: str
     consent: bool = True
     sms_consent: bool = False
+    address: str = ""
+    dob: str = ""
+    occupation: str = ""
+    gender: str = ""
+    captcha_id: str = ""
+    captcha_solution: str = ""
 
 
 class FaceSignupCompleteRequest(FaceFramesRequest):
     signup_token: str
+
+
+class FaceSignupOtpRequest(BaseModel):
+    signup_token: str
+
+
+class FaceSignupOtpVerifyRequest(BaseModel):
+    signup_token: str
+    code: str
+
+
+def _signup_otp_key(jti: str) -> str:
+    return f"face_signup_otp:{jti}"
+
+
+def _otp_hash(key: str, code: str) -> str:
+    return hmac.new(
+        config.OTP_HASH_SECRET.encode(), f"{key}:{code}".encode(), hashlib.sha256
+    ).hexdigest()
+
+
+def _valid_signup_token(signup_token: str) -> tuple[dict, str]:
+    """Decode a signup token, enforcing type + single use. Returns (data, jti).
+
+    Consumed only by signup/complete — the OTP steps must not burn the token.
+    """
+    try:
+        data = _decode(signup_token)
+    except HTTPException:
+        raise HTTPException(status_code=400, detail="Invalid or expired signup token")
+    if data.get("type") != "signup":
+        raise HTTPException(status_code=400, detail="Invalid token type")
+    return data, data.get("jti") or ""
+
+
+@router.post("/signup/request-otp")
+def signup_request_otp(payload: FaceSignupOtpRequest, request: Request):
+    """Prove the claimed signup phone: issue an OTP challenge bound to the
+    signup token (no account exists yet, so the authed /phone/* routes cannot
+    be used). Public, rate-limited, generic response."""
+    from ..repositories.otp_codes import otp_repository
+    from ..services.sms import send_otp_code
+    data, jti = _valid_signup_token(payload.signup_token)
+    phone = data.get("phone") or data.get("sub") or ""
+    if not phone or not jti:
+        raise HTTPException(status_code=400, detail="Invalid signup token")
+    ip = _client_ip(request)
+    ip_key = hashlib.sha256(ip.encode()).hexdigest() if ip else "unknown"
+    for key, limit in ((f"face_signup_otp:user:{jti}", 5),
+                       (f"face_signup_otp:phone:{phone}", 5),
+                       (f"face_signup_otp:ip:{ip_key}", 10)):
+        allowed, _remaining = face_repository.rate_hit(key, limit, 3600)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Too many verification requests. Try again later.")
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    otp_repository.put(_signup_otp_key(jti), _otp_hash(_signup_otp_key(jti), code), "face_signup", 300)
+    send_otp_code(phone, code)
+    result: dict = {"message": "If this number can be verified, a code has been issued.", "expires_in": 300}
+    if config.OTP_DEBUG_RETURN_CODE and config.SMS_PROVIDER == "dry-run":
+        result["debug_code"] = code
+    return result
+
+
+@router.post("/signup/verify-otp")
+def signup_verify_otp(payload: FaceSignupOtpVerifyRequest, request: Request):
+    """Check the signup OTP. Three strikes burn the challenge; success leaves
+    a proof marker that signup/complete consumes."""
+    from ..repositories.otp_codes import otp_repository
+    data, jti = _valid_signup_token(payload.signup_token)
+    if not jti:
+        raise HTTPException(status_code=400, detail="Invalid signup token")
+    key = _signup_otp_key(jti)
+    challenge = otp_repository.get(key)
+    if not challenge or challenge.get("purpose") != "face_signup":
+        raise HTTPException(status_code=400, detail="Verification failed or expired")
+    if not hmac.compare_digest(challenge["hash"], _otp_hash(key, (payload.code or "").strip())):
+        otp_repository.fail(key)
+        raise HTTPException(status_code=400, detail="Verification failed or expired")
+    otp_repository.mark_verified(key)
+    return {"verified": True}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -375,7 +463,11 @@ def issue_challenge(request: Request):
 
 @router.post("/signup/start")
 def signup_start(payload: FaceSignupStartRequest, request: Request):
-    """Start face-only signup for citizens: validate phone, mint 5-min signup token + challenge."""
+    """Start face-only signup for citizens: validate profile + captcha + phone,
+    mint 5-min signup token + challenge. The phone stays claimed-not-proven
+    until the /signup/request-otp + /signup/verify-otp step completes it."""
+    from ..profile_fields import validate_profile
+    from ..services.captcha import verify_captcha
     ip = _client_ip(request)
     if _ip_locked(ip):
         raise _locked_429()
@@ -387,6 +479,13 @@ def signup_start(payload: FaceSignupStartRequest, request: Request):
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
     try:
+        profile = validate_profile(
+            payload.address, payload.dob, payload.occupation, payload.gender)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not verify_captcha(payload.captcha_id, payload.captcha_solution):
+        raise HTTPException(status_code=400, detail="Captcha verification failed")
+    try:
         phone_clean = normalize_phone(payload.phone)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid phone number")
@@ -396,7 +495,7 @@ def signup_start(payload: FaceSignupStartRequest, request: Request):
 
     action = secrets.choice(config.FACE_CHALLENGES)
     challenge = face_repository.create_challenge(action, 300)
-    token = create_signup_token(phone_clean, name, payload.sms_consent)
+    token = create_signup_token(phone_clean, name, payload.sms_consent, profile)
     return {
         "signup_token": token,
         "challenge_id": challenge["id"],
@@ -440,6 +539,19 @@ def signup_complete(payload: FaceSignupCompleteRequest, request: Request):
         if face_repository.rate_count(f"face:signup_used:{jti}", 300) > 0:
             raise HTTPException(status_code=400, detail="Signup token already used")
         face_repository.rate_hit(f"face:signup_used:{jti}", limit=1, window_seconds=300)
+
+    from ..repositories.otp_codes import otp_repository
+    proof = otp_repository.get(_signup_otp_key(jti or ""))
+    if not proof or not proof.get("verified") or proof.get("purpose") != "face_signup":
+        _audit_entry(
+            "face.signup_failed",
+            actor_id="",
+            actor_role="",
+            entity_id="",
+            reason="phone_unverified",
+            ip=ip,
+        )
+        raise HTTPException(status_code=400, detail="Phone verification required before completing signup")
 
     t_ch0 = time.perf_counter()
     action, reason = face_repository.consume_challenge(payload.challenge_id)
@@ -496,16 +608,23 @@ def signup_complete(payload: FaceSignupCompleteRequest, request: Request):
 
     citizen_id = users_repository.generate_unique_citizen_id()
     try:
+        profile = data.get("profile") or {}
         user_id = users_repository.create({
             "full_name": full_name,
             "phone": phone,
             "citizen_id": citizen_id,
             "role": "USER",
             "auth_method": "face_only",
-            "phoneVerifiedAt": None,
+            "phoneVerifiedAt": datetime.now(timezone.utc).isoformat(),
+            "phoneVerifiedMethod": "otp_sms",
+            "address": profile.get("address"),
+            "dob": profile.get("dob"),
+            "occupation": profile.get("occupation"),
+            "gender": profile.get("gender"),
             "smsConsent": bool(data.get("sms_consent")),
             "smsConsentAt": datetime.now(timezone.utc).isoformat() if data.get("sms_consent") else None,
         })
+        otp_repository.consume(_signup_otp_key(jti or ""))
     except Exception as exc:
         logger.warning("Failed creating user for face signup: %s", exc)
         _audit_entry(

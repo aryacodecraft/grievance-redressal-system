@@ -40,6 +40,11 @@ os.environ["SEED_SUPERADMIN_PASSWORD"] = ""
 # tests/test_seed_accounts.py invokes seed_test_accounts() directly.
 os.environ["SEED_TEST_ACCOUNTS"] = ""
 os.environ["SEED_TEST_PASSWORD"] = ""
+# Pin SMS to dry-run without debug codes: a developer's local backend/.env may
+# set SMS_PROVIDER=twilio (live testing) which would send real messages and
+# suppress debug_code, breaking the OTP tests' hermeticity.
+os.environ["SMS_PROVIDER"] = "dry-run"
+os.environ["OTP_DEBUG_RETURN_CODE"] = "false"
 # Face auth (DEC-024): flag off so /auth/face routes 404 unless a test opts in
 # at runtime (face_on monkeypatches config.FACE_AUTH_ENABLED). A valid Fernet
 # key is generated per run so startup validation and encrypt/decrypt round

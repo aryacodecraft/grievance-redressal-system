@@ -1,4 +1,4 @@
-/** Genuine mono PCM WAV; bounded to the backend v1 contract (DEC-029). */
+/** Genuine mono PCM WAV; bounded to the backend v1 contract (DEC-033). */
 export const VOICE_SAMPLE_RATE = 16000;
 export const VOICE_MAX_SECONDS = 30;
 export const VOICE_MAX_FRAMES = VOICE_SAMPLE_RATE * VOICE_MAX_SECONDS;
