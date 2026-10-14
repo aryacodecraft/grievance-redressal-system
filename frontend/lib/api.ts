@@ -1,9 +1,11 @@
 import { z } from "zod";
 import type {
   AuthResponse,
+  CaptchaSolution,
   FaceChallenge,
   FacePendingResponse,
   ImageValidation,
+  SignupProfile,
   SubmitPayload,
   SubmitResult,
 } from "./types";
@@ -474,15 +476,30 @@ export async function loginUser(
   return data;
 }
 
+/** Mint a self-hosted text captcha (SVG markup, 5-min single use). */
+export async function getCaptcha(): Promise<{
+  captcha_id: string;
+  svg: string;
+  expires_in: number;
+}> {
+  return requestJson("/auth/captcha", { method: "GET" });
+}
+
 export async function registerUser(
   email: string,
   password: string,
-  fullName: string
+  fullName: string,
+  profile: SignupProfile,
+  captcha: CaptchaSolution,
+  phone: string
 ): Promise<AuthResponse> {
   const data = await postJson<AuthResponse>("/auth/register", {
     email,
     password,
     full_name: fullName,
+    phone,
+    ...profile,
+    ...captcha,
   });
   setStoredTokens(data.access_token, data.refresh_token);
   return data;
@@ -502,6 +519,18 @@ export function verifyPhoneOtp(phone: string, code: string): Promise<{ verified:
 
 export function bindPhone(phone: string): Promise<{ phone: string; phoneVerifiedAt: string }> {
   return requestJson("/phone/bind", { method: "POST", body: JSON.stringify({ phone }) });
+}
+
+/** Passwordless citizen sign-in: issue a login OTP (generic response). */
+export function requestPhoneLoginOtp(
+  phone: string
+): Promise<{ message: string; expires_in: number; debug_code?: string }> {
+  return postJson("/auth/login/phone/request-otp", { phone });
+}
+
+/** Exchange a login OTP for tokens (citizens with a verified number only). */
+export function verifyPhoneLogin(phone: string, code: string): Promise<AuthResponse> {
+  return postJson<AuthResponse>("/auth/login/phone/verify", { phone, code });
 }
 
 export function unbindPhone(): Promise<{ unbound: boolean }> {
@@ -580,6 +609,12 @@ export function startFaceSignup(body: {
   phone: string;
   consent: boolean;
   sms_consent?: boolean;
+  address: string;
+  dob: string;
+  occupation: string;
+  gender: string;
+  captcha_id: string;
+  captcha_solution: string;
 }): Promise<{
   signup_token: string;
   challenge_id: string;
@@ -592,6 +627,21 @@ export function startFaceSignup(body: {
     action: "turn_left" | "turn_right" | "blink" | "smile";
     expires_in: number;
   }>("/auth/face/signup/start", body);
+}
+
+/** Prove the claimed signup phone: issue an OTP bound to the signup token. */
+export function requestFaceSignupOtp(
+  signup_token: string
+): Promise<{ message: string; expires_in: number; debug_code?: string }> {
+  return faceJson("/auth/face/signup/request-otp", { signup_token });
+}
+
+/** Verify the signup OTP. Success leaves the proof marker complete() needs. */
+export function verifyFaceSignupOtp(
+  signup_token: string,
+  code: string
+): Promise<{ verified: boolean }> {
+  return faceJson("/auth/face/signup/verify-otp", { signup_token, code });
 }
 
 /** Complete face-only citizen signup: creates account and returns AuthResponse with citizen_id. */

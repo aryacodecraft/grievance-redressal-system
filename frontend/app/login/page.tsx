@@ -26,7 +26,9 @@ import {
   getPublicConfig,
   getStoredPendingToken,
   issueFaceChallenge,
+  requestPhoneLoginOtp,
   verifyFaceSecondFactor,
+  verifyPhoneLogin,
 } from "@/lib/api";
 import type { FaceChallenge } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
@@ -45,7 +47,10 @@ function LoginForm() {
   // Face auth UI is gated on GET /config — hidden entirely when the backend
   // runs with FACE_AUTH_ENABLED=false (the default).
   const [faceEnabled, setFaceEnabled] = useState(false);
-  const [mode, setMode] = useState<"password" | "face">("password");
+  const [mode, setMode] = useState<"password" | "phone" | "face">("password");
+  const [phone, setPhone] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false);
   const [faceIdentifier, setFaceIdentifier] = useState("");
   const [faceFailCount, setFaceFailCount] = useState(0);
   const [faceBusy, setFaceBusy] = useState(false);
@@ -154,6 +159,45 @@ function LoginForm() {
 
   function handleGoogleLogin() {
     window.location.href = getGoogleAuthUrl();
+  }
+
+  /* ── Phone OTP sign-in (live mode; citizens with a verified number) ───── */
+
+  async function sendPhoneCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await requestPhoneLoginOtp(phone);
+      setPhoneCodeSent(true);
+    } catch (err) {
+      setError(errText(err, t("errInvalidCreds")));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function verifyPhoneCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (phoneCode.trim().length !== 6) {
+      setError(t("errOtpInvalid"));
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      if (!liveMode) {
+        setError(t("errInvalidCreds"));
+        return;
+      }
+      const res = await verifyPhoneLogin(phone, phoneCode.trim());
+      const user = applyAuthResponse(res);
+      router.push(targetAfterLogin(user.role));
+    } catch (err) {
+      setError(errText(err, t("errInvalidCreds")));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   /* ── Face flows (live mode only, flag-gated) ─────────────────────────── */
@@ -289,9 +333,9 @@ function LoginForm() {
     }`;
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-3 py-6 sm:px-4 sm:py-12">
-      <div className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-5 shadow-sm sm:p-8">
-          <div className="mb-8">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-3 py-4 sm:px-6 sm:py-8">
+      <div className="w-full max-w-4xl rounded-lg border border-ink-200 bg-white p-5 shadow-sm sm:p-8">
+          <div className="mb-6">
             <span className="inline-flex items-center gap-1.5 rounded-sm bg-primary-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-700 ring-1 ring-primary-200">
               <ShieldCheck size={12} strokeWidth={2} />
               {t("securePortal")}
@@ -345,11 +389,11 @@ function LoginForm() {
             </div>
           )}
 
-          {!pending && faceEnabled && liveMode && (
+          {!pending && liveMode && (
             <div
               role="tablist"
               aria-label={t("signIn")}
-              className="mb-5 grid grid-cols-2 gap-1 rounded-md border border-ink-200 bg-ink-50 p-1"
+              className={`mb-5 grid gap-1 rounded-md border border-ink-200 bg-ink-50 p-1 ${faceEnabled ? "grid-cols-3" : "grid-cols-2"}`}
             >
               <button
                 type="button"
@@ -367,6 +411,20 @@ function LoginForm() {
               <button
                 type="button"
                 role="tab"
+                aria-selected={mode === "phone"}
+                onClick={() => {
+                  setMode("phone");
+                  setChallenge(null);
+                  setError(null);
+                }}
+                className={tabClass(mode === "phone")}
+              >
+                {t("phoneSignInTab")}
+              </button>
+              {faceEnabled && (
+              <button
+                type="button"
+                role="tab"
                 aria-selected={mode === "face"}
                 onClick={() => {
                   setMode("face");
@@ -377,10 +435,11 @@ function LoginForm() {
               >
                 {t("faceSignInTab")}
               </button>
+              )}
             </div>
           )}
 
-          {error && (
+          {error && mode !== "password" && (
             <div className="mb-5">
               <Alert tone="error">{error}</Alert>
             </div>
@@ -466,6 +525,79 @@ function LoginForm() {
             </div>
           )}
 
+          {!pending && mode === "phone" && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-primary-200 bg-primary-50/50 p-4">
+                <p className="mt-0 text-xs leading-5 text-ink-600">{t("phoneLoginText")}</p>
+              </div>
+              {!phoneCodeSent ? (
+                <form onSubmit={sendPhoneCode} className="space-y-4">
+                  <Field label={t("mobileLabel")} required hint="+91 · 10-digit Indian mobile number">
+                    <div className="flex overflow-hidden rounded-lg border border-ink-200 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100">
+                      <span className="flex items-center border-r border-ink-200 bg-ink-50 px-3 text-sm text-ink-600" aria-hidden="true">+91</span>
+                      <Input
+                        type="tel"
+                        inputMode="numeric"
+                        placeholder="9876543210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        disabled={isSubmitting}
+                        required
+                        className="rounded-none border-0 focus:ring-0"
+                      />
+                    </div>
+                  </Field>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={isSubmitting || !/^[6-9]\d{9}$/.test(phone)}
+                  >
+                    {isSubmitting ? t("btnSigningIn") : t("sendCodeBtn")}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={verifyPhoneCode} className="space-y-4">
+                  <div>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      aria-label={t("phoneCodePlaceholder")}
+                      placeholder={t("phoneCodePlaceholder")}
+                      value={phoneCode}
+                      onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      disabled={isSubmitting}
+                      required
+                      maxLength={6}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full"
+                    disabled={isSubmitting || phoneCode.trim().length !== 6}
+                  >
+                    {isSubmitting ? t("btnSigningIn") : t("phoneSignInBtn")}
+                  </Button>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhoneCodeSent(false);
+                        setPhoneCode("");
+                        setError(null);
+                      }}
+                      disabled={isSubmitting}
+                      className="text-xs font-medium text-ink-500 hover:text-ink-800"
+                    >
+                      {t("useDifferentNumber")}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
           {!pending && mode === "password" && (
           <form onSubmit={submit} className="space-y-4">
             <Field label={t("emailLabel")} required>
@@ -495,7 +627,7 @@ function LoginForm() {
                   type="button"
                   aria-label={showPassword ? t("hidePassword") : t("showPassword")}
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-ink-400 transition-colors hover:text-ink-700"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-sm p-1.5 text-ink-400 transition-colors hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700/50"
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -515,10 +647,16 @@ function LoginForm() {
               <Link
                 href="mailto:support@grievai.gov.in?subject=Password%20reset%20request"
                 className="text-xs font-medium text-primary-700 hover:underline"
+                title="Opens your email client"
               >
-                {t("forgotPassword")}
+                {t("forgotPassword")} ✉
               </Link>
             </div>
+
+            {/* Error shown close to submit so it's always visible without scrolling */}
+            {error && (
+              <Alert tone="error">{error}</Alert>
+            )}
 
             <Button
               type="submit"
@@ -582,15 +720,15 @@ function LoginForm() {
           )}
 
           {!pending && (
-            <p className="mt-6 text-center text-sm text-ink-500">
+            <div className="mt-6 rounded-md border border-ink-100 bg-ink-50 px-4 py-3 text-center text-sm text-ink-500">
               {t("newHere")}{" "}
               <Link
                 href="/register"
-                className="font-medium text-primary-700 hover:underline"
+                className="font-semibold text-primary-700 hover:underline"
               >
-                {t("createAccount")}
+                {t("createAccount")} →
               </Link>
-            </p>
+            </div>
           )}
         </div>
     </div>

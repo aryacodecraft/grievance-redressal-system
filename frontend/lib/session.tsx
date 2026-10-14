@@ -20,7 +20,12 @@ import {
   setStoredTokens,
   useMocks,
 } from "./api";
-import type { AuthResponse, AuthUser } from "./types";
+import type {
+  AuthResponse,
+  AuthUser,
+  CaptchaSolution,
+  SignupProfile,
+} from "./types";
 
 export type DemoUser = AuthUser;
 
@@ -34,7 +39,14 @@ interface Session {
   signInDemo: (email: string, role?: AuthUser["role"], name?: string) => void;
   /** Throws FaceTwoFactorRequiredError when the backend pauses for the face step. */
   login: (email: string, password: string) => Promise<AuthUser>;
-  register: (email: string, password: string, name: string) => Promise<AuthUser>;
+  register: (
+    email: string,
+    password: string,
+    name: string,
+    profile: SignupProfile,
+    captcha: CaptchaSolution,
+    phone: string
+  ) => Promise<AuthUser>;
   setAuthSession: (user: AuthUser, accessToken: string, refreshToken?: string) => void;
   /** Store a full token pair + profile in one step (face login / 2FA completion). */
   applyAuthResponse: (res: AuthResponse) => AuthUser;
@@ -139,6 +151,10 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
           res.user.full_name ||
           res.user.citizen_id ||
           (res.user.email ? res.user.email.split("@")[0] : "Citizen"),
+        address: res.user.address || null,
+        dob: res.user.dob || null,
+        occupation: res.user.occupation || null,
+        gender: res.user.gender || null,
         role: res.user.role,
         avatarUrl: res.user.avatar_url,
         departmentId: res.user.departmentId,
@@ -164,12 +180,23 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
   );
 
   const register = useCallback(
-    async (email: string, password: string, name: string): Promise<AuthUser> => {
-      const res = await registerUser(email, password, name);
+    async (
+      email: string,
+      password: string,
+      name: string,
+      profile: SignupProfile,
+      captcha: CaptchaSolution,
+      phone: string
+    ): Promise<AuthUser> => {
+      const res = await registerUser(email, password, name, profile, captcha, phone);
       const authUser: AuthUser = {
         id: res.user.id,
         email: res.user.email,
         name: res.user.full_name || name || "User",
+        address: res.user.address,
+        dob: res.user.dob,
+        occupation: res.user.occupation,
+        gender: res.user.gender,
         role: res.user.role,
         avatarUrl: res.user.avatar_url,
         departmentId: res.user.departmentId,
