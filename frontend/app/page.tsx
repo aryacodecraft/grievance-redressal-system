@@ -20,7 +20,6 @@ import {
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { HomeTrackPanel } from "@/components/home/HomeTrackPanel";
 import { useAdminGrievanceFeed } from "@/components/admin/useAdminGrievanceFeed";
 import { useDemoUser } from "@/lib/session";
 import type { AuthUser } from "@/lib/types";
@@ -270,7 +269,7 @@ export default function Home() {
 
   return (
     <div className="overflow-hidden bg-white text-ink-950">
-      {/* ── 1. Hero: Action-Oriented (Report + Immediate Track Panel) ── */}
+      {/* ── 1. Hero: Action-Oriented (Report + Track) ── */}
       <section className="relative border-b border-ink-200/90 bg-gradient-to-b from-primary-50/60 to-white">
         <div
           className="absolute inset-0 opacity-40 pointer-events-none"
@@ -282,9 +281,9 @@ export default function Home() {
           }}
         />
 
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-12 lg:px-8 lg:py-20">
-          {/* Hero Left: Direct Public-Service Messaging & Actions */}
-          <div className="max-w-2xl">
+        <div className="relative mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+          {/* Hero: Direct Public-Service Messaging & Actions */}
+          <div className="mx-auto max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-1 shadow-2xs">
               <span className="flex h-2 w-2 rounded-full bg-primary-600 animate-pulse" />
               <span className="text-xs font-bold uppercase tracking-wider text-primary-800">
@@ -301,7 +300,7 @@ export default function Home() {
             </p>
 
             {/* Primary & Secondary Actions */}
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/submit"
                 className="inline-flex items-center gap-2.5 rounded-md bg-ink-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-ink-800 active:bg-ink-950"
@@ -320,7 +319,7 @@ export default function Home() {
             </div>
 
             {/* Trust & Transparency statement */}
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-ink-100 pt-6 text-xs text-ink-500">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-ink-100 pt-6 text-xs text-ink-500">
               <span className="flex items-center gap-1.5 font-medium text-ink-700">
                 <ShieldCheck size={15} className="text-emerald-600" />
                 {t("heroTrustHuman")}
@@ -334,11 +333,6 @@ export default function Home() {
                 {t("heroTrustAudit")}
               </span>
             </div>
-          </div>
-
-          {/* Hero Right: Functional Reference ID Tracking Panel */}
-          <div>
-            <HomeTrackPanel />
           </div>
         </div>
       </section>

@@ -32,9 +32,12 @@ function formatDate(iso?: string | null): string {
 export function GrievanceDetailModal({
   grievance,
   onClose,
+  citizenView = false,
 }: {
   grievance: Grievance | null;
   onClose: () => void;
+  /** Citizen surfaces hide internal routing: priority + department. */
+  citizenView?: boolean;
 }) {
   const { t } = useI18n();
   const [history, setHistory] = useState<Record<string, unknown>[]>([]);
@@ -91,10 +94,14 @@ export function GrievanceDetailModal({
                 {grievance.id}
               </span>
               <StatusBadge status={grievance.state ?? grievance.status} />
-              <PriorityBadge priority={grievance.priority} />
-              <span className="rounded-sm bg-white border border-ink-200/80 px-2 py-0.5 text-xs font-medium text-ink-700 shadow-2xs">
-                {t(departmentKey(grievance.category))}
-              </span>
+              {!citizenView && (
+                <>
+                  <PriorityBadge priority={grievance.priority} />
+                  <span className="rounded-sm bg-white border border-ink-200/80 px-2 py-0.5 text-xs font-medium text-ink-700 shadow-2xs">
+                    {t(departmentKey(grievance.category))}
+                  </span>
+                </>
+              )}
             </div>
             <h2 className="mt-2 text-base sm:text-lg font-bold tracking-tight text-ink-950 leading-snug break-words">
               {grievance.title}
@@ -138,6 +145,7 @@ export function GrievanceDetailModal({
 
             {/* Metadata Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-ink-600">
+              {!citizenView && (
               <div className="flex items-center gap-2 rounded-md border border-ink-100 bg-ink-50/50 p-3">
                 <Building2 size={16} className="text-ink-400 shrink-0" />
                 <div>
@@ -149,6 +157,7 @@ export function GrievanceDetailModal({
                   </span>
                 </div>
               </div>
+              )}
 
               {grievance.assignee && (
                 <div className="flex items-center gap-2 rounded-md border border-ink-100 bg-ink-50/50 p-3">
@@ -283,7 +292,7 @@ export function GrievanceDetailModal({
               <h3 className="text-xs font-bold uppercase tracking-wider text-ink-600 mb-2">
                 Automated Triage Diagnostic
               </h3>
-              <AnalysisPanel hfEngine={grievance.hfEngine} />
+              <AnalysisPanel hfEngine={grievance.hfEngine} citizenView={citizenView} />
             </div>
           )}
         </div>

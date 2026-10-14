@@ -4,6 +4,46 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-14 — Signup hardening: profile fields, captcha, proven phone (DEC-031, uncommitted)
+
+- Both signup paths collect address/DOB/occupation/gender (shared backend
+  validator, age 13–120, fixed gender set); stored on the user + profile.
+- Self-hosted SVG captcha required on `/auth/register` and face
+  `signup/start` (hashed, 5-min, single-use, 3-strike, never logged).
+- Face-only signup proves its phone inline (token-bound OTP request/verify);
+  `signup/complete` requires the proof and stamps `phoneVerifiedAt`, so new
+  accounts pass the DEC-025 login gate immediately.
+- 20 new i18n keys (en/hi/mr real, 8 placeholders); `tests/_signup_helpers.py`
+  shared module; full suite 376 passed with failures byte-identical to the
+  TODO §11 baseline.
+- Verified: targeted + full pytest, `tsc`/`eslint`/`build`/contract green.
+- Open follow-up: Google-OAuth signup collects no profile/captcha.
+
+## 2026-10-14 — Tracking dashboard: master-detail, no department totals (DEC-029)
+
+- `/track`: department-totals grid deleted; page is now a master-detail
+  dashboard — selectable grievance list + inline full-detail panel
+  (timeline, description, metadata, map, photo, history, AI triage),
+  auto-selecting the first grievance.
+- New `GrievanceDetailPanel.tsx` extracted from `GrievanceDetailModal`
+  (now a thin wrapper — `/submit` behavior unchanged); per-grievance remount
+  via `key`.
+- Verified: `tsc` clean, `eslint` clean, `npm run build` green (18 routes),
+  contract checks passed.
+
+## 2026-10-14 — Removed reference-ID search from citizen surfaces (DEC-028)
+
+- `/track` is now personal-grievances only: tab switcher, search form/results,
+  `?id=` deep-link handling, and the search-tab department grid deleted.
+  Signed-out visitors keep the sign-in prompt — tracking is sign-in-or-nothing.
+- Homepage hero tracker deleted (`HomeTrackPanel.tsx` removed); hero reflowed
+  to a single centered column reusing existing copy/CTAs.
+- Backend untouched; shared lookup helpers stay exported (dead, zero cost).
+  Orphaned i18n keys kept in all 11 packs (strict typing); English subtitle
+  updated, other locales pending native review.
+- Verified: `tsc` clean, `eslint` clean, `npm run build` green (18 routes),
+  contract checks passed.
+
 ## 2026-10-13 — Deploy readiness: render vars + runbook
 
 - `render.yaml`: added missing `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`

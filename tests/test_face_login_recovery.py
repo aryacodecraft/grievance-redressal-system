@@ -125,14 +125,15 @@ def _challenge(client) -> tuple[str, str]:
     return d["challenge_id"], d["action"]
 
 
+from _signup_helpers import face_prove_phone as _prove_phone, face_signup_start
+
+
 def _signup_citizen(client, face_env, phone: str = "9876543210", name: str = "Asha Sharma") -> dict:
-    res_start = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": name, "phone": phone, "consent": True},
-    )
+    res_start = face_signup_start(client, phone, name)
     assert res_start.status_code == 200, res_start.text
     st_data = res_start.json()
     satisfy(st_data["action"], face_env)
+    _prove_phone(client, st_data["signup_token"])
 
     res_comp = client.post(
         "/auth/face/signup/complete",
@@ -143,8 +144,9 @@ def _signup_citizen(client, face_env, phone: str = "9876543210", name: str = "As
         },
     )
     assert res_comp.status_code == 200, res_comp.text
-    # Most face-login tests model an account that has completed phone binding.
-    # Dedicated coverage below removes this marker to verify the unproven-phone gate.
+    # Phone is OTP-proven at creation now (DEC-031 flow); most face-login
+    # tests model a bound account. Dedicated coverage below removes this
+    # marker to verify the unproven-phone gate.
     from backend.app.users_db import users_repository
     users_repository.update(res_comp.json()["user"]["id"], {"phoneVerifiedAt": "test-otp-verified"})
     return res_comp.json()

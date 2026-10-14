@@ -7,6 +7,8 @@ Verifies the matrix the /login dev box advertises:
 
 from __future__ import annotations
 
+from _signup_helpers import register_citizen
+
 
 def _login(client, email, password):
     res = client.post("/auth/login", json={"email": email, "password": password})
@@ -84,9 +86,7 @@ class TestSeedMatrix:
         mgr = _login(client, "water.manager@grievance.local", MANAGER_DEFAULT_PASSWORD)
         emp = _login(client, "water.employee@grievance.local", EMPLOYEE_DEFAULT_PASSWORD)
         other = _login(client, "roads.employee@grievance.local", EMPLOYEE_DEFAULT_PASSWORD)
-        citizen = client.post("/auth/register", json={
-            "email": "seedflow@x.com", "password": "Pass1234!", "full_name": "Seed Flow",
-        }).json()
+        citizen = register_citizen(client, "seedflow@x.com", "Pass1234!", "Seed Flow").json()
 
         def _bearer(tok):
             return {"Authorization": f"Bearer {tok}"}

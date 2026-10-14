@@ -10,6 +10,8 @@ All run in-process with fresh in-memory stores per test (see conftest).
 
 from __future__ import annotations
 
+from _signup_helpers import register_citizen
+
 
 def _login(client, email, password="Pass1234!"):
     res = client.post("/auth/login", json={"email": email, "password": password})
@@ -49,7 +51,7 @@ def _submit_as(client, token) -> str:
 
 class TestAssignRBAC:
     def test_public_reference_lookup_finds_worker_started_grievance(self, client):
-        citizen = client.post("/auth/register", json={"email": "public-track@x.com", "password": "Pass1234!", "full_name": "Citizen"}).json()
+        citizen = register_citizen(client, "public-track@x.com", "Pass1234!", "Citizen").json()
         grievance_id = _submit_as(client, citizen["access_token"])
         admin = _make_user(client, "public-track-admin@x.com", "ADMIN")
         employee = _make_user(client, "public-track-worker@x.com", "RESOLVER", "roads")
@@ -89,13 +91,13 @@ class TestAssignRBAC:
         assert all("bodyInternal" not in row for row in public_history.json())
         assert all("Private depot access instructions" not in str(row) for row in public_history.json())
 
-        another_citizen = client.post("/auth/register", json={"email": "other-track@x.com", "password": "Pass1234!", "full_name": "Other"}).json()
+        another_citizen = register_citizen(client, "other-track@x.com", "Pass1234!", "Other").json()
         other_view = client.get(f"/grievances/{grievance_id}", headers=_bearer(another_citizen["access_token"]))
         assert other_view.status_code == 200
         assert other_view.json()["state"] == "IN_PROGRESS"
 
     def test_roads_manager_assignment_is_visible_to_legacy_transport_employee(self, client):
-        citizen = client.post("/auth/register", json={"email": "rt-citizen@x.com", "password": "Pass1234!", "full_name": "Citizen"}).json()
+        citizen = register_citizen(client, "rt-citizen@x.com", "Pass1234!", "Citizen").json()
         grievance_id = _submit_as(client, citizen["access_token"])
         from backend.app.users_db import users_repository
         import bcrypt as _bcrypt
@@ -142,7 +144,7 @@ class TestAssignRBAC:
         assert hidden.json() == []
 
     def test_resolver_list_shows_owned_grievances_without_department_filter(self, client):
-        citizen = client.post("/auth/register", json={"email": "queue-citizen@x.com", "password": "Pass1234!", "full_name": "Citizen"}).json()
+        citizen = register_citizen(client, "queue-citizen@x.com", "Pass1234!", "Citizen").json()
         grievance_id = _submit_as(client, citizen["access_token"])
         from backend.app.users_db import users_repository
         import bcrypt as _bcrypt
@@ -168,20 +170,20 @@ class TestAssignRBAC:
         assert [row["id"] for row in response.json()] == [grievance_id]
 
     def test_user_cannot_assign(self, client):
-        u = client.post("/auth/register", json={"email": "a@x.com", "password": "Pass1234!", "full_name": "A"}).json()
+        u = register_citizen(client, "a@x.com", "Pass1234!", "A").json()
         gid = _submit_as(client, u["access_token"])
         res = client.post(f"/grievances/{gid}/assign", json={"departmentId": "roads", "ownerId": "x", "reason": "t"}, headers=_bearer(u["access_token"]))
         assert res.status_code in (401, 403)
 
     def test_resolver_cannot_assign(self, client):
-        u = client.post("/auth/register", json={"email": "b@x.com", "password": "Pass1234!", "full_name": "B"}).json()
+        u = register_citizen(client, "b@x.com", "Pass1234!", "B").json()
         gid = _submit_as(client, u["access_token"])
         r = _make_user(client, "r1@x.com", "RESOLVER")
         res = client.post(f"/grievances/{gid}/assign", json={"departmentId": "roads", "ownerId": "x", "reason": "t"}, headers=_bearer(r["access_token"]))
         assert res.status_code == 403
 
     def test_admin_can_assign_and_sets_due_date(self, client):
-        u = client.post("/auth/register", json={"email": "c@x.com", "password": "Pass1234!", "full_name": "C"}).json()
+        u = register_citizen(client, "c@x.com", "Pass1234!", "C").json()
         gid = _submit_as(client, u["access_token"])
         a = _make_user(client, "adm1@x.com", "ADMIN")
         resolver = _make_user(client, "assignable@x.com", "RESOLVER", "roads")
@@ -190,7 +192,7 @@ class TestAssignRBAC:
         assert "dueDate" in res.json()
 
     def test_assign_invalid_state_422(self, client):
-        u = client.post("/auth/register", json={"email": "d@x.com", "password": "Pass1234!", "full_name": "D"}).json()
+        u = register_citizen(client, "d@x.com", "Pass1234!", "D").json()
         gid = _submit_as(client, u["access_token"])
         a = _make_user(client, "adm2@x.com", "ADMIN")
         worker1 = _make_user(client, "first-worker@x.com", "RESOLVER", "roads")
@@ -204,7 +206,7 @@ class TestAssignRBAC:
 
 class TestLifecycle:
     def test_full_resolve_close_flow(self, client):
-        cit = client.post("/auth/register", json={"email": "lc@x.com", "password": "Pass1234!", "full_name": "Cit"}).json()
+        cit = register_citizen(client, "lc@x.com", "Pass1234!", "Cit").json()
         gid = _submit_as(client, cit["access_token"])
         adm = _make_user(client, "ladm@x.com", "ADMIN")
         reso = _make_user(client, "lres@x.com", "RESOLVER", "roads")
@@ -234,7 +236,7 @@ class TestLifecycle:
             assert "bodyInternal" not in r  # citizen projection strips it
 
     def test_resolver_cannot_read_unassigned_history(self, client):
-        cit = client.post("/auth/register", json={"email": "h1@x.com", "password": "Pass1234!", "full_name": "H"}).json()
+        cit = register_citizen(client, "h1@x.com", "Pass1234!", "H").json()
         gid = _submit_as(client, cit["access_token"])
         adm = _make_user(client, "hadm@x.com", "ADMIN")
         reso = _make_user(client, "hres@x.com", "RESOLVER", "roads")
@@ -244,8 +246,8 @@ class TestLifecycle:
         assert res.status_code == 403
 
     def test_citizen_cannot_escalate_others(self, client):
-        a = client.post("/auth/register", json={"email": "e1@x.com", "password": "Pass1234!", "full_name": "E1"}).json()
-        b = client.post("/auth/register", json={"email": "e2@x.com", "password": "Pass1234!", "full_name": "E2"}).json()
+        a = register_citizen(client, "e1@x.com", "Pass1234!", "E1").json()
+        b = register_citizen(client, "e2@x.com", "Pass1234!", "E2").json()
         gid = _submit_as(client, a["access_token"])
         res = client.post(f"/grievances/{gid}/escalate", json={"reason": "urgent"}, headers=_bearer(b["access_token"]))
         assert res.status_code == 403
@@ -253,7 +255,7 @@ class TestLifecycle:
 
 class TestSystemRBAC:
     def test_users_list_requires_permission(self, client):
-        u = client.post("/auth/register", json={"email": "u1@x.com", "password": "Pass1234!", "full_name": "U"}).json()
+        u = register_citizen(client, "u1@x.com", "Pass1234!", "U").json()
         assert client.get("/users", headers=_bearer(u["access_token"])).status_code == 403
         sup = _make_user(client, "sup1@x.com", "SUPERADMIN")
         res = client.get("/users", headers=_bearer(sup["access_token"]))
@@ -280,7 +282,7 @@ class TestSystemRBAC:
         assert res.status_code == 201
 
     def test_audit_and_notifications_flow(self, client):
-        cit = client.post("/auth/register", json={"email": "an@x.com", "password": "Pass1234!", "full_name": "An"}).json()
+        cit = register_citizen(client, "an@x.com", "Pass1234!", "An").json()
         gid = _submit_as(client, cit["access_token"])
         adm = _make_user(client, "aan@x.com", "ADMIN")
         sup = _make_user(client, "asn@x.com", "SUPERADMIN")

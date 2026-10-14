@@ -70,6 +70,7 @@ export function MyGrievances() {
             <GrievanceCard
               key={g.id}
               grievance={g}
+              citizenView
               onClick={() => setSelectedGrievance(g)}
             />
           ))}
@@ -79,6 +80,7 @@ export function MyGrievances() {
       {selectedGrievance && (
         <GrievanceDetailModal
           grievance={selectedGrievance}
+          citizenView
           onClose={() => setSelectedGrievance(null)}
         />
       )}
