@@ -28,7 +28,7 @@ logger = logging.getLogger("grievance-api")
 # --- Server ---------------------------------------------------------------
 PORT = int(os.getenv("PORT", "10000"))
 CORS_ORIGINS = [
-    origin.strip()
+    origin.strip().rstrip("/")
     for origin in os.getenv("CORS_ORIGINS", "*").split(",")
     if origin.strip()
 ] or ["*"]
@@ -85,7 +85,7 @@ SEED_TEST_PASSWORD = os.getenv("SEED_TEST_PASSWORD", "")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # URL where the Next.js frontend is hosted (used for OAuth redirects)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 
 # --- Face authentication (opt-in; DEC-024) ----------------------------------
 # Master switch. When false every /auth/face route answers 404 and the UI

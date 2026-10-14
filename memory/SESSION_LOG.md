@@ -2835,7 +2835,9 @@ Diagnose why `https://grievance-ai-backend.onrender.com/` failed on Render after
 - `backend/app/repositories/face_templates.py`: caught codes 85 and 86 for TTL indexes.
 - `backend/app/routers/health.py`: added `GET /` root service-descriptor endpoint returning `{ "service": "grievance-ai-backend", "status": "ok", "docs": "/docs", "health": "/health" }`.
 - `tests/test_endpoints.py`: added `test_root_descriptor_answers_200`.
+- `backend/app/config.py` & `backend/app/routers/auth.py`: stripped trailing slashes from `CORS_ORIGINS` and `FRONTEND_URL` to prevent CORS rejection when URLs are entered with a trailing slash.
 
 ### Verification
-- Targeted pytest (`tests/test_endpoints.py -k "root or health"`) passed 3/3.
+- Targeted pytest (`tests/test_endpoints.py -k "root or health"`) passed 3/3; `tests/test_config_drift.py` passed 16/16.
+
 

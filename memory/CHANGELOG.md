@@ -2022,4 +2022,8 @@ Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local back
   satisfy Render root health checks and browser direct visits instead of 404.
 - Added regression test `test_root_descriptor_answers_200` in
   `tests/test_endpoints.py`.
+- Normalized `CORS_ORIGINS` and `FRONTEND_URL` in `backend/app/config.py` and
+  `routers/auth.py` with `.rstrip('/')` so origins with accidental trailing
+  slashes still match browser `Origin` headers.
+
 
