@@ -268,6 +268,11 @@ class MongoUsersRepository:
         self.ensure_indexes()
 
     def ensure_indexes(self) -> None:
+        from . import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo.errors import OperationFailure
 
         for spec, name in [

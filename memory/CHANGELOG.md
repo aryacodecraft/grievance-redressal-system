@@ -1324,3 +1324,489 @@ one lean triage board, one centered review dialog, one executive analytics page.
 - `npm run lint` and `npx tsc --noEmit` pass (one existing `<img>` warning).
   `next build` was blocked by the sandbox (`Operation not permitted` while
   Turbopack tried to spawn/bind a worker process).
+
+## 2026-10-13 — Stage 4B voice-assisted complaint backend (DEC-028)
+
+- Created transcription router, audio/body guards, strict PCM WAV validator,
+  direct httpx Sarvam service and lock-protected process-local quota/idempotency
+  module. No retries, database writes, frontend or grievance/auth behavior changes.
+- Added off-by-default settings and examples/Render secret declaration; reconciled
+  root runtime dependencies with existing backend auth/SMS requirements.
+- Created docs/VOICE_ASSISTED_COMPLAINT.md and targeted API/architecture/security/
+  workflow/AI/development notes. Updated project state, DEC-028 and TODO section 14.
+- Protected pre-existing SESSION_LOG.md exactly: SHA256
+  C2035F4888FBA86D3AE753E548E0C80E5320AC70AE03FE7F71D5AEA8F65D8EFB.
+  Owner explicitly prohibited editing/staging/committing it; this entry is the
+  session handoff instead. Stayed on feature/aarohi; no git mutations.
+- Created ignored workspace .venv using Python 3.13. Installed requirements-dev.txt
+  with pip; sandboxed installs stalled and were stopped, then the approved command
+  succeeded: .\.venv\Scripts\python.exe -m pip --isolated install --index-url
+  https://pypi.org/simple --timeout 15 --retries 0 -r requirements-dev.txt.
+- Initial feature run: 73 passed, 4 setup/teardown errors from enormous pytest
+  byte-fixture IDs exceeding Windows environment limits. Corrected compact IDs;
+  rerun of feature/audio/limits/config-drift: 75 passed. Added concurrency,
+  cancellation, OpenAPI, no-grievance-write and deep-JSON regression checks.
+- Final command: .\.venv\Scripts\python.exe -m pytest tests/test_transcription.py
+  tests/test_audio_validation.py tests/test_transcription_limits.py
+  tests/test_config_drift.py tests/test_classification_cascade.py -q --tb=short
+  => 98 passed, 1 Starlette TestClient httpx deprecation warning (27.56 s).
+- Regression command: .\.venv\Scripts\python.exe -m pytest tests/test_endpoints.py
+  tests/test_security_baseline.py -q --tb=short => 44 passed, 9 failed (35.26 s).
+  All nine failed endpoint names match the existing TODO section 11 baseline
+  (stale SUBMITTED/status adapter expectations versus PENDING_ASSIGNMENT);
+  no affected submission/auth/classifier/test source was changed.
+  An earlier regression command named nonexistent tests/test_cascade.py and
+  collected no tests; corrected to tests/test_classification_cascade.py above.
+- pip check: no broken requirements. git diff --check: passed.
+- No real backend/.env display/edit; no live Sarvam calls/credits, provider account
+  changes, production enablement, install of Sarvam SDK or compressed audio decoder.
+- Backend TESTED with mocks; speech recognition remains EXPERIMENTAL/unvalidated.
+  Next: frontend genuine WAV recording/resampling and review/replacement flow,
+  followed only by separately authorized live provider/retention/billing checks.
+
+## 2026-10-13 — Stage 5 voice-assisted complaint frontend (DEC-029)
+
+- Created VoiceRecorder.tsx, lib/voice/{audio,capture}.ts, public/voice-processor.js
+  and lib/i18n/voice.ts. Explicit permission/start, manual/30-second stop, playback,
+  re-record/discard, explicit Transcribe, accessible status/error controls and
+  original-language text insertion. Genuine bounded mono PCM WAV via 32-tap
+  low-pass resampling; no recording/upload starts automatically.
+- SubmitForm integrates immediately below description; confirms before paid upload
+  and again after in-flight edits. Failure/cancel preserve text. Existing validation,
+  submission payload and endpoint unchanged; submit/reset cancels pending voice.
+- Extended typed multipart API with Zod, existing access-token/refresh path and
+  same-key retry only after 401. 70-second deadline, cancel support, HTTP status
+  for localized feedback. JSON Content-Type and existing grievance contracts remain.
+- Updated en/hi/mr copy and eight hidden locale English fallbacks without removing
+  packs or changing picker scope. Added dev-only jsdom and npm test:voice script,
+  reusing Node/TypeScript (no new app/test framework). No existing locked package
+  versions changed; lockfile adds jsdom/transitive dependencies and metadata.
+- Dedicated feature doc plus targeted DEVELOPMENT/WORKFLOWS/AI_SYSTEM updates;
+  PROJECT_STATE, DEC-029 and TODO handoff. Stage 4B backend files preserved.
+- Frontend npm installs initially failed (UNABLE_TO_VERIFY_LEAF_SIGNATURE surfaced
+  as Exit handler never called). Approved retry using Node --use-system-ca,
+  registry.npmjs.org and ignored workspace .npm cache succeeded with TLS validation
+  enabled. Read installed Next.js Client Components/public-folder guides.
+- Mock tests: npm.cmd run test:voice initially 43 passed; final expanded command
+  node --test --test-reporter=spec scripts/voice-audio.test.mjs
+  scripts/voice-api.test.mjs scripts/voice-ui.test.mjs => 48 passed, 0 failed (3.05 s).
+  Includes actual Python Stage 4B validation of generated 30-second WAV, concurrent
+  description edits, resource cleanup, refresh cancellation and form reset behavior.
+  Node emits an experimental MockTimers warning; no live network transcription.
+- node scripts/check-contract.mjs => all 21 existing checks passed.
+- node node_modules/typescript/bin/tsc --noEmit => passed.
+- npm.cmd run build => passed; Next.js 16.3.0, 18 static outputs.
+- Targeted eslint over changed components, API/types, voice/i18n, new test files and
+  public worklet => passed. Full npm.cmd run lint => 4 errors in unchanged
+  FaceCapture.tsx (3 synchronous-effect state errors, 1 conditional hook), 4 warnings
+  (2 FaceCapture unused constants, 2 ResolverWorkspace img warnings).
+  One initial new test-loader module-variable lint error was fixed before final run.
+- git diff --check passed. Still feature/aarohi; nothing staged/committed/pushed.
+  SESSION_LOG.md SHA256 preserved exactly:
+  C2035F4888FBA86D3AE753E548E0C80E5320AC70AE03FE7F71D5AEA8F65D8EFB.
+- No actual backend/.env or secret values displayed/edited, no Sarvam calls/credits,
+  backend flag/configuration changes, frontend credential exposure or schema changes.
+- Remaining: real browser/microphone/playback/accessibility checks, native hi/mr copy
+  review and separately authorized live provider/retention/billing verification.
+
+## 2026-10-13 — Source ZIP and local readiness handoff
+
+- Confirmed origin is https://github.com/aryacodecraft/grievance-redressal-system.
+  Read-only git ls-remote --heads origin refs/heads/feature/aarohi completed with
+  no matching remote branch. Local feature/aarohi has no upstream; no push done.
+- Created artifacts/grievai-feature-aarohi-source-2026-10-13.zip from tracked and
+  non-ignored untracked source, retaining current unfinished Stage 4B/5 changes.
+  Includes frontend/backend/tests/docs/memory and setup manifests/demo assets.
+  Excludes .git, node_modules, venvs, build/cache folders, actual .env files,
+  credential/private-key files, logs, recordings and archives. Blank .env.example
+  templates retained. Checked ZIP integrity/member exclusions and scanned selected
+  files for common private-key/API-token patterns without displaying matches.
+- Verified real frontend production server /submit and backend /health both return
+  HTTP 200. Backend ran with dotenv loading disabled, in-memory Mongo fallback,
+  fresh ephemeral JWT secret, external providers/transcription/face auth disabled
+  and no administrator/test seeding. Did not open/display real backend/.env.
+  Both temporary local servers were terminated after checks; actual configured
+  MongoDB connectivity and live-provider readiness were not tested.
+- Used ignored .venv/source_handoff.py helper; no application source changes.
+  Rebuilt final ZIP after this note. SESSION_LOG.md SHA256 remains unchanged:
+  C2035F4888FBA86D3AE753E548E0C80E5320AC70AE03FE7F71D5AEA8F65D8EFB.
+- Branch remains feature/aarohi. No staging/commit/push/stash/branch changes;
+  current working-tree changes preserved. Source archive is a local download,
+  not a GitHub upload or publication.
+
+## 2026-10-13 — Submit-page loading recovery
+
+- localhost:3000/submit initially refused the connection; frontend was stopped.
+- Started npm.cmd run dev -- --hostname 127.0.0.1 in frontend/ and verified
+  http://127.0.0.1:3000/submit returns HTTP 200. Development server left running
+  for the owner. Backend was not started or reconfigured; no live STT calls.
+- No application code changes. SESSION_LOG.md remains byte-for-byte preserved;
+  branch remains feature/aarohi. If the reported failure instead refers to
+  Transcribe, backend readiness/configuration still needs separate diagnosis.
+
+## 2026-10-13 — Voice playback StrictMode ref cleanup fix
+
+- Traced worklet sample/complete ordering, stop promise, sample retention until
+  WAV creation, Blob URL ownership and audio ref/effect cleanup. Capture and WAV
+  encoding were valid: regression verifies 4800 source frames -> 1600 nonzero
+  16 kHz PCM frames, before failing specifically because player src became null.
+- Root cause: React StrictMode replays audio ref detach/attach on mount. The ref
+  cleanup removed src and called load(), resetting metadata; reattachment did not
+  restore the unchanged React-owned src prop. No premature URL revocation was needed
+  to reproduce the bug. Previous tests omitted StrictMode and missed this behavior.
+- Minimal fix in VoiceRecorder.tsx: keep pause on ref detach, remove destructive
+  removeAttribute(src)/load calls. Actual discard/unmount still revoke the URL.
+  No capture/audio/worklet/backend/API/credential changes.
+- Added regression to voice-ui.test.mjs: StrictMode, actual captured WAV bytes,
+  no transcription, preserved src across unrelated renders, proper discard cleanup.
+  Before fix: failed (src null). After: passed.
+- node --test --test-reporter=spec scripts/voice-audio.test.mjs
+  scripts/voice-api.test.mjs scripts/voice-ui.test.mjs => 49 passed, 0 failed.
+- node node_modules/typescript/bin/tsc --noEmit => passed.
+- node node_modules/eslint/bin/eslint.js components/grievance/VoiceRecorder.tsx
+  scripts/voice-ui.test.mjs => passed. Existing MockTimers warnings only.
+- Isolated headless Chrome check with generated synthetic WAV: 64044 bytes,
+  decoded 32000 frames, mono 16000 Hz, nonzero samples, audio.duration=2 seconds,
+  readyState=4, playbackStarted=true. Browser network/background activity disabled,
+  sound muted; no actual microphone, backend, Sarvam or account credentials used.
+  First virtual-time-only harness ended pending; real-time CDP polling completed.
+  Verification helpers live only in ignored .venv, not project source/export.
+- Updated feature doc/state/TODO; manual real Chrome microphone pass remains:
+  refresh /submit, record 3–5 seconds, finite duration, Play, re-record/discard,
+  automatic 30-second stop, no Transcribe request, microphone indicator stops.
+- Branch feature/aarohi; preserved existing work and SESSION_LOG.md SHA256
+  C2035F4888FBA86D3AE753E548E0C80E5320AC70AE03FE7F71D5AEA8F65D8EFB.
+  No commits/push/branch switch/backend enablement/live API calls.
+
+## 2026-10-13 — Stage 5 mocked description replacement validation
+
+- Owner reports real Chrome recording/playback/re-record/discard/automatic 30-second
+  stop tests passed. Recorded that as owner-reported browser validation, without
+  claiming a new agent-run microphone test or evaluated recognition accuracy.
+- Inspected SubmitForm/VoiceRecorder/API, backend router/guard/service and existing
+  transcription tests. Nonempty text confirms before API call. Cancel retains text
+  with zero calls. Backend disabled flag returns 503; frontend localized unavailable
+  message is expected. It does not block pre-upload confirmation/cancellation, but
+  successful insertion/post-response confirmation must use mocks while disabled.
+- Existing tests already covered cancellation/confirmed replacement, English
+  empty insertion, hi/mr Unicode and later edits. Focused additions to
+  frontend/scripts/voice-ui.test.mjs fill gaps: hi/mr empty insertion with no prompt,
+  network/504 preservation and initially empty -> typed during pending request,
+  both accept/cancel outcomes. Strengthened English no-prompt and 503 prompt-order
+  assertions. No application/backend/configuration/credential code changes.
+- In frontend/: node --test --test-reporter=spec scripts/voice-audio.test.mjs
+  scripts/voice-api.test.mjs scripts/voice-ui.test.mjs => 55 passed, 0 failed (2.93 s).
+- node node_modules/typescript/bin/tsc --noEmit => passed.
+- node node_modules/eslint/bin/eslint.js scripts/voice-ui.test.mjs
+  components/grievance/SubmitForm.tsx components/grievance/VoiceRecorder.tsx
+  lib/api.ts => passed. Only Node experimental MockTimers warnings in tests.
+- Targeted feature docs/state/TODO updated. Branch feature/aarohi, no staging,
+  commits, pushes, branch switch, provider calls or live Sarvam enablement.
+  SESSION_LOG.md remains untouched with SHA256
+  C2035F4888FBA86D3AE753E548E0C80E5320AC70AE03FE7F71D5AEA8F65D8EFB.
+
+## 2026-10-13 — Stage 6 mocked cross-stack voice integration
+
+- Added tests/test_voice_e2e.py and opt-in cases in frontend/scripts/voice-ui.test.mjs.
+  Temporary loopback Uvicorn connects actual worklet/capture/WAV, frontend API and
+  React form, JWT authentication, backend validation and mock-only Sarvam transport.
+  Ten scenarios pass: en/hi/mr insertion, cancellation zero HTTP/provider calls,
+  confirmed replacement, disabled/provider failure/timeout/malformed response,
+  and authentication/multipart/audio rejection. No application defect found.
+- Provider assertions inspect outgoing multipart/model/language and nonempty
+  mono 16-bit/16 kHz WAV (1600 frames). Repository create is a failure tripwire;
+  repository stays empty. Upload close/temp-spool cleanup assertions pass.
+  External HTTP/socket connections are forbidden. Configuration and synthetic
+  credential overrides are confined to tests, never deployment or actual secrets.
+- Relevant pytest command: .venv\Scripts\python.exe -m pytest
+  tests/test_voice_e2e.py tests/test_transcription.py tests/test_audio_validation.py
+  tests/test_transcription_limits.py tests/test_config_drift.py -q --tb=short
+  => 80 passed, 1 existing Starlette/httpx warning (25.56 s).
+- Frontend node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs
+  scripts/voice-ui.test.mjs => 55 passed, 0 failed/skipped (4.09 s); existing
+  experimental MockTimers warnings. TypeScript --noEmit => passed.
+- Targeted ESLint of SubmitForm/VoiceRecorder/api, voice capture/audio/worklet and
+  four voice test scripts => passed. Initial harness needed to await real HTTP
+  rather than synchronous mocks, ASCII-safe Windows output and removal of a this
+  alias. After that final test-only lint edit, cross-stack pytest rerun => 1 passed
+  (all ten Node scenarios), 1 existing warning (5.86 s); targeted lint => passed.
+- Updated VOICE_ASSISTED_COMPLAINT, PROJECT_STATE and TODO. Browser CORS/HTTPS,
+  other devices/accessibility and live recognition remain unvalidated. Existing
+  owner-reported Chrome control tests are distinct from this synthetic/jsdom test.
+- Stayed on feature/aarohi; no commits, pushes, branch switches, credential edits,
+  live feature enablement or external calls. SESSION_LOG.md remains untouched;
+  handoff recorded here in accordance with the owner's preservation constraint.
+
+## 2026-10-13 — Stage 7 partial browser/accessibility validation
+
+- No production code defect found; no application/configuration/credential changes.
+  Added eight CORS regressions in tests/test_transcription.py and three React UI
+  regressions in frontend/scripts/voice-ui.test.mjs (secure-context early rejection,
+  names/native controls/live status, navigation playback pause/URL revocation).
+- Added frontend/scripts/voice-browser-check.mjs, opt-in via test_voice_e2e.py.
+  Isolated loopback origins, temporary Chrome/Edge profiles, fake microphone and
+  mock-only Sarvam transport. Existing real CORS middleware is reconfigured only
+  in the test process and restored. Count OPTIONS separately from actual POST.
+  Generated WAV uses the actual frontend resampler/encoder.
+- Real headless Chrome 155.0.8059.39 and Edge 155.0.4283.45 passed: browser-generated
+  OPTIONS/authenticated multipart POST, readable 200/401/415/503, blocked-origin
+  preflight with zero POST/provider calls; secure localhost/insecure test hostname;
+  fake microphone grant/denial/track stop; Tab/Enter/Space native activation and
+  computed visible focus ring; AX control names; native confirm accept/cancel;
+  nonempty 1600-frame mono 16 kHz WAV decoding, duration 0.1 and playback.
+- These browser probes use server-rendered recorder markup plus a test click
+  listener, not hydrated React or the whole Next.js page. React statuses/errors,
+  actual lifecycle/cleanup are covered in jsdom. Physical hardware, screen-reader
+  speech, dynamic browser focus/dialog keys, Firefox/Safari and TLS/mixed-content
+  remain manual gaps. Firefox installed but no automation driver; Safari absent.
+- Browser renderer CDP timed out inside the sandbox; authorized outside-sandbox
+  reruns worked. Initial probe failures came from test CDP key/permission settings
+  and treating OPTIONS as POST, corrected in the harness. No browser security
+  flags were disabled. Temporary profile deletion is checked against temp root.
+- Final backend command: VOICE_BROWSER_CHECKS=1; .venv\Scripts\python.exe -m pytest
+  tests/test_voice_e2e.py tests/test_transcription.py tests/test_audio_validation.py
+  tests/test_transcription_limits.py tests/test_config_drift.py -q -s --tb=short
+  -p no:cacheprovider => 88 passed, 1 existing Starlette/httpx warning (44.72 s).
+  Includes ten Stage 6 Node scenarios and both browser probes. Cache plugin was
+  disabled for outside-sandbox run to avoid existing Windows cache permissions.
+- Frontend node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs
+  scripts/voice-ui.test.mjs => 58 passed, 0 failed/skipped (3.39 s); existing Node
+  MockTimers warnings. TypeScript --noEmit and targeted ESLint of VoiceRecorder,
+  SubmitForm, voice capture/audio, api and UI/browser scripts => passed.
+- Updated voice docs, PROJECT_STATE and TODO. Stage 7 automated subset passes;
+  not fully VALIDATED or ready for final live sign-off until manual gaps are closed.
+  Live paid tests require separate authorization; feature remains disabled.
+- Branch feature/aarohi, all prior uncommitted work preserved. No commits, pushes,
+  switching branches, secrets/credentials edits or live provider/API-credit use.
+  SESSION_LOG.md deliberately not edited per owner; handoff is recorded here.
+
+## 2026-10-13 — Stage 8 local voice title suggestions
+
+- Added frontend/lib/voice/title.ts: independent pure extractive helper, original
+  en/hi/mr script, whitespace/punctuation/decimal handling, finite greeting/filler
+  skip, complete-word/80-grapheme/12-word bounds, conservative long-negation
+  abstention and null for unusable input/missing Intl.Segmenter.
+- SubmitForm generates only after description acceptance, preserves complete text,
+  checks current title before empty-only auto-fill, protects pending edits and
+  re-transcription, and offers localized explicit confirmed replacement. Candidate
+  hidden/rechecked after description edits. Both fields editable with RHF flags;
+  no extra requests or backend changes. Successful submission resets candidate.
+- Added en/hi/mr title copy in lib/i18n/voice.ts, 13 utility cases in voice-audio
+  tests and 11 UI cases in voice-ui tests. Existing submission/voice tests retained.
+- Final frontend command: node --test scripts/voice-audio.test.mjs
+  scripts/voice-api.test.mjs scripts/voice-ui.test.mjs => 82 passed, 0 failed/skipped
+  (4.55 s). Existing Node MockTimers warnings. Initial decimal terminal punctuation
+  regression corrected; useWatch replaced watch to avoid React Compiler warning.
+- node node_modules/typescript/bin/tsc --noEmit => passed.
+  node node_modules/eslint/bin/eslint.js components/grievance/SubmitForm.tsx
+  lib/voice/title.ts lib/i18n/voice.ts scripts/voice-ui.test.mjs
+  scripts/voice-audio.test.mjs => passed, no warnings/errors.
+- Voice docs, PROJECT_STATE/TODO and DEC-030 updated. Stage 8 ready for mocked
+  browser validation, not live sign-off; finite heuristics and lost shortening
+  context require citizen review. No new browser/live-provider tests executed.
+- feature/aarohi retained. No backend, credentials, commits, pushes, branch changes,
+  external providers or API-credit consumption. Prior work preserved; SESSION_LOG
+  deliberately untouched per owner; session handoff recorded here instead.
+
+## 2026-10-13 — Stage 8 hydrated browser functional validation
+
+- Added frontend/scripts/voice-title-browser.test.mjs. Reuses actual current-source
+  Next.js /submit dev server (127.0.0.1:3000); real hydrated React/RHF handlers,
+  worklet/capture/WAV and frontend API. Headless browser fake microphone and CDP
+  request fulfillment for synthetic session, API reads and transcription responses.
+  All API writes except mocked transcription forbidden before network transport.
+- Chrome 155.0.8059.39 and Edge 155.0.4283.45: 12 scenarios passed each (24 total),
+  nine mocked multipart uploads each, zero grievance submissions/other writes.
+  Tests en/hi/mr original script and full descriptions, manual/pending-entered
+  titles, explicit replacement cancellation/confirmation, editable fields,
+  re-transcription, provider-style 503, pre-upload cancel and discard/late response.
+- No confirmed Stage 8 defect; no application fixes or backend/config changes.
+  Initial harness-only wait expected every form button enabled; unrelated controls
+  can stay disabled, so removed that broad assertion. Re-ran both browsers passed.
+- Attempt to start isolated Next dev on 3218 detected owner's existing server;
+  did not stop or alter it, reused port 3000. Headless commands run outside sandbox
+  with authorization (renderer restriction established during Stage 7).
+- node scripts/voice-title-browser.test.mjs => Chrome 12 passed, Edge 12 passed.
+  node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs
+  scripts/voice-ui.test.mjs => 82 passed, 0 failed/skipped (4.76 s); existing
+  experimental MockTimers warnings. TypeScript --noEmit passed. Targeted ESLint
+  scripts/voice-title-browser.test.mjs components/grievance/SubmitForm.tsx
+  lib/voice/title.ts lib/i18n/voice.ts => passed without warnings/errors.
+- Updated VOICE_ASSISTED_COMPLAINT, PROJECT_STATE and TODO. Browser tests mock the
+  HTTP transcription boundary, not provider transport; no backend/DB contacted.
+  Fake hardware, headless Chromium, DOM clicks and trusted CDP typing; other
+  browsers, keyboard-only/screen-reader/manual device checks and recognition or
+  native-speaker title quality remain unverified. No live authorization implied.
+- feature/aarohi retained; no commits/push/switch, live calls or credit use, actual
+  credential edits, backend enablement or SESSION_LOG edits. Profiles cleaned;
+  all existing uncommitted work preserved. Handoff here per preservation constraint.
+
+## 2026-10-14 — Stage 8 successful controlled live English test (user-verified)
+
+- Recorded the user's verified outcome: one live English Sarvam STT request
+  succeeded on a 7-second real microphone recording. Full transcript populated
+  Description; frontend deterministic extractor automatically populated Issue Title.
+  Both fields remained editable. No grievance was submitted.
+- Title was accurate but conversational and lengthy. Recorded title-concision
+  limitation/future review task; no algorithm or application changes made.
+- User confirmed restarting backend with TRANSCRIPTION_ENABLED=false afterward.
+  Recorded as user confirmation, not a fresh agent runtime verification.
+- Distinguished this single live English smoke test from existing mocked en/hi/mr
+  unit/form/cross-stack/hydrated-browser results. Live Hindi/Marathi remain
+  unvalidated; no general accuracy, latency, billing or production-readiness claim.
+- Updated docs/VOICE_ASSISTED_COMPLAINT.md, memory/PROJECT_STATE.md,
+  memory/TODO.md and this CHANGELOG only. No transcript/audio/title text or secrets
+  recorded. Documentation review/diff check only; no new automated or live tests.
+- feature/aarohi retained. No source/configuration/credential changes, transcription
+  enablement, provider calls, commits, pushes or branch switching. Existing work
+  preserved; SESSION_LOG.md not modified (handoff recorded here instead).
+
+## 2026-10-14 — Voice field-behavior and README documentation alignment
+
+- Added the requested Manual Input and Voice Transcription — Field Behavior table
+  to docs/VOICE_ASSISTED_COMPLAINT.md, with empty/manual fields, cancellation,
+  failures/discard and in-flight edits. Clarified unchanged fields while recording,
+  editable/generated titles, explicit confirmed title replacement, confirmed
+  description replacement (no append/merge), and weak-input abstention. Corrected
+  workflow ordering to place existing-description confirmation before upload.
+- Updated root README voice overview/local setup only: supported en/hi/mr, local
+  title extraction, authenticated backend, secure context/CORS, backend-only key,
+  disabled default/restart behavior and process-local live-test limitations.
+  Explicitly noted data mock-mode switch does not mock transcription.
+- Inspected README locations: frontend/README.md and backend/README.md do not
+  exist; no new READMEs created. Preserved root structure and unrelated features.
+- Reflected the user-verified single seven-second live English success and disabled
+  restart; title accurate but conversational/lengthy. Live Hindi/Marathi remain
+  unvalidated; no general accuracy or full accessibility/compatibility claims.
+- Documentation-only changes: root README, voice guide and this CHANGELOG.
+  git diff --check passed. No application/tests/configuration/credential changes,
+  provider calls, enablement, commits, pushes or branch switch. feature/aarohi
+  retained; all existing work and SESSION_LOG.md preserved unchanged.
+
+## 2026-10-14 — Stage 9 Append Transcription
+
+- Added TranscriptionChoice.tsx: localized native modal Append/Replace/Cancel,
+  accessible labels, initial Cancel focus, Escape and AbortSignal cancellation.
+  SubmitForm preserves full/latest description on append, explicitly replaces,
+  cancels without changing fields, and rechecks after asynchronous choices/edits.
+  Empty-description flow and Stage 8 title protections unchanged; suggestion bound
+  to combined text. VoiceRecorder supports async callbacks with abort/epoch guards
+  before upload and before/after accepted insertion. No backend or API changes.
+- Added en/hi/mr chooser copy. Adapted existing UI regressions to drive actual
+  dialog buttons, added 12 append/latest-text/spacing/Unicode/Escape/abort cases.
+  Updated existing hydrated Stage 8 browser harness for new HTML chooser; not run
+  this stage. Backend mock cross-stack test rerun to check callback integration.
+- node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs
+  scripts/voice-ui.test.mjs => 94 passed, 0 failed/skipped (4.40 s); existing
+  experimental MockTimers warnings. TypeScript --noEmit passed. Targeted ESLint
+  SubmitForm, VoiceRecorder, TranscriptionChoice, i18n/voice, voice-ui and
+  voice-title-browser scripts passed without warnings/errors. git diff --check passed.
+- .venv\Scripts\python.exe -m pytest tests/test_voice_e2e.py -q --tb=short
+  -p no:cacheprovider => 1 passed (ten Node mock cross-stack scenarios), one
+  existing Starlette/httpx deprecation warning (4.75 s). No provider calls.
+- Updated voice guide/current field behavior, README relevant append wording,
+  PROJECT_STATE, TODO, DEC-031 and this CHANGELOG. Native dialog focus/keyboard,
+  screen-reader/localized UI and hydrated latest-edit/navigation checks remain
+  manual with mocks; modern native dialog support needed. Prior single live
+  English success is not new Stage 9 live or multilingual validation.
+- Stayed feature/aarohi. No credentials, provider configuration, backend, commits,
+  pushes, merges or branches changed. Sarvam not called/enabled; previous work and
+  SESSION_LOG.md preserved unchanged. Handoff recorded here instead.
+
+## 2026-10-14 — Stage 9 hydrated dialog/keyboard/cleanup validation
+
+- Executed/expanded actual hydrated Next.js /submit harness, Chrome 155.0.8059.39
+  and Edge 155.0.4283.45, fake microphone and CDP API interception only. Each passed
+  25 scenarios: 12 Stage 8 regressions + 13 Stage 9 empty/three choices, keyboard,
+  localized AX/Escape, latest-edit choices and recording/playback/pending navigation.
+  Each made 16 mocked multipart requests, zero grievance submissions/application
+  writes. Next diagnostic POSTs (Chrome five/Edge four) separately intercepted and
+  blocked, not backend/database calls. Browser console-error summaries empty.
+- Found actual Stage 9 StrictMode replay cleanup resolved Cancel prematurely.
+  Focused regression failed 0 uploads versus expected 1 before fix, passed after.
+  Generation-guarded deferred cleanup distinguishes replay from genuine unmount.
+- Keyboard probe found Tab escaping native chooser and focus lost when removed.
+  Added explicit boundary Tab/Shift+Tab wrap, opener focus return and editable
+  Description fallback when Transcribe disabled. Three focused unit tests added.
+  Fixed only TranscriptionChoice.tsx; adapted UI/browser regression scripts.
+- Final browser command node scripts/voice-title-browser.test.mjs => Chrome 25
+  passed, Edge 25 passed (50 total), 0 final failures. Outside-sandbox execution
+  authorized due known renderer restrictions. Owner's dev server untouched.
+- node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs
+  scripts/voice-ui.test.mjs => 97 passed, 0 failed/skipped (9.90 s), existing
+  MockTimers warnings. TypeScript --noEmit and targeted ESLint TranscriptionChoice,
+  SubmitForm, VoiceRecorder, voice-ui and voice-title-browser scripts => passed.
+  git diff --check passed. No backend suite rerun required for this frontend fix.
+- Read configured TRANSCRIPTION_ENABLED=False without exposing key/credentials;
+  no flag changes. Backend/API/provider never contacted by browser harness.
+- Automated dialog/AX/status checks are not manual screen-reader speech. Firefox
+  NOT TESTED (installed but no driver); Safari NOT TESTED (unavailable Windows).
+  Physical/mobile device, whole-page keyboard-only, native-reader quality and
+  HTTPS/live multilingual remain unverified. Existing live English record unchanged.
+- Updated voice guide, PROJECT_STATE, TODO, DEC-031 follow-up and this CHANGELOG.
+  feature/aarohi retained; existing work preserved, SESSION_LOG unchanged. No live
+  Sarvam, credentials, backend/config, unrelated features, commits/push/merge/switch.
+
+## 2026-10-14 — Stage 9 deterministic title concision refinement
+
+- Updated only frontend/lib/voice/title.ts application logic: finite anchored
+  en/hi/mr reporting/existence-intro removal, safe retention of quantity expressions
+  (a few/a little/a lot/a number), Unicode decimal punctuation. All remaining
+  words retained. Oversized complete clauses now abstain instead of clipping
+  important details. No AI/backend requests, rewriting, inferred facts or urgency.
+- Representative street-light fixture: There is a broken street light near my
+  house -> broken street light near my house. Exact successful live-test wording
+  was not recorded; no invented live transcript. Marathi reporting intro removed
+  while location/count/negation retained; Hindi and decimal quantities covered.
+- Added 14 utility cases and two form regressions; retained existing description,
+  manual-title, in-flight, append/replace/cancel, validation/submission protections.
+  Updated hydrated harness with one street-light case and hi/mr reporting fixtures.
+- Final frontend node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs
+  scripts/voice-ui.test.mjs => 113 passed, 0 failed/skipped (4.85 s), existing
+  MockTimers warnings. TypeScript --noEmit and targeted ESLint title.ts plus
+  voice-audio, voice-ui and voice-title-browser scripts passed without warnings.
+- Final node scripts/voice-title-browser.test.mjs => Chrome 155.0.8059.39 and
+  Edge 155.0.4283.45 each 26 hydrated scenarios passed (52 total), 17 mock multipart
+  uploads each, zero submissions/application writes. API intercepted before
+  transport; no backend/provider contacted. Five Chrome/four Edge diagnostic
+  requests separately blocked; console-error summaries empty. Outside-sandbox
+  execution authorized for known renderer restrictions. git diff --check passed.
+- Updated voice guide, PROJECT_STATE, TODO, DEC-031 follow-up and this CHANGELOG.
+  Finite phrases and first-sentence selection do not guarantee semantic/main-issue
+  coverage; longer clauses may require typed title. Native-speaker quality,
+  screen-reader speech, physical/mobile and Firefox/Safari still unvalidated.
+  Historical single live English result unchanged; no new live/multilingual test.
+- feature/aarohi unchanged; no credentials, backend/API/configuration, live Sarvam,
+  commits/push/merge/branch changes. Existing work and SESSION_LOG preserved exactly.
+
+### 2026-10-14 ? Stage 10 write-free diagnostic initialization guard
+
+- Added default-false DIAGNOSTIC_SKIP_INITIALIZATION_WRITES configuration and
+  example documentation. Guard covers initialization index creation/drop/rebuild
+  in nine MongoDB repositories (users, grievances, audit, departments, face,
+  notifications, progress, SLA, OTP), SLA default seeding, and main startup
+  backfill/account seeding. Endpoint behavior/auth rules remain unchanged.
+- Final relevant suite: 105 passed, one existing Starlette/httpx deprecation
+  warning (41.86s): diagnostic initialization, seed accounts, transcription,
+  transcription limits, configuration drift. Includes 25 focused diagnostic tests.
+- Broader exploratory run: 182 passed, 10 failed (77.91s). All ten legacy
+  grievance-status failures reproduced with new initialization guards removed
+  in memory (10 failed, 7.66s); no source rewrites or unrelated fixes performed.
+- Python compile checks passed for 13 files, documented launcher syntax passed,
+  git diff --check passed. Ruff/mypy unavailable in current venv; no lint/type
+  checker installed or downloaded. No frontend changes, so no frontend checks.
+- Exact process-local, verified-CA launcher and MongoDB auth singleton/read-only
+  lookup verification documented in docs/VOICE_ASSISTED_COMPLAINT.md. Launcher
+  not executed. Running backend untouched; no live database/provider calls made.
+- Existing uncommitted work preserved. SESSION_LOG.md not modified; SHA256
+  C2035F4888FBA86D3AE753E548E0C80E5320AC70AE03FE7F71D5AEA8F65D8EFB unchanged.
+
+### 2026-10-14 ? Stage 11 final voice handoff
+
+Documentation-only final voice handoff: audited frontend/backend/STT/initialization paths and full working tree; created HANDOFF_SUMMARY.md, expanded voice architecture/configuration/file inventory/operational evidence, corrected incompatible TLS combination in documented proposal only, and linked root README. Frontend rerun: 113 passed/0 failed/skipped (5.139s), TypeScript and targeted ESLint passed. Backend historical: 105 targeted passed; broader 182 passed/10 legacy failures reproduced without guards. Historical Chrome/Edge 26 hydrated scenarios each; one owner-confirmed live seven-second English request only. Login remains unresolved; last backend listener absent after failed controlled launches. Added tracked diff/untracked text credential scans found no matches; no tracked private env/key files; stale 242-entry ZIP path audit found no sensitive paths, not full archive/history audit. No servers restarted, database/provider calls, credential edits, commits/pushes/merges or branch changes. SESSION_LOG.md untouched.
+
+Stage 11 final checks: documentation links and corrected proposed launcher syntax/options passed; git diff --check passed; protected SESSION_LOG SHA-256 unchanged. No runtime launcher validation performed.
+
+### 2026-10-14 - Voice testing enablement documentation
+
+Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local backend env/key setup, retained attempt/concurrency/duration limits, authorized login and short en/hi/mr recording, actual Append/Replace/Cancel confirmation timing, and disable/restart after testing. Explicitly records credit consumption, server-only credentials, unverified live Hindi/Marathi, default-off diagnostic guard and unresolved login prerequisite. Documentation only; no configuration/credential changes, service restart or provider/database calls. SESSION_LOG.md preserved.

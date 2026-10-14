@@ -9,6 +9,33 @@ services:
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      # Voice transcription stays OFF. Operator key is a secret, never a value here.
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: SARVAM_STT_MODEL
+        value: "saaras:v4"
+      - key: TRANSCRIPTION_ENABLED
+        value: "false"
+      - key: TRANSCRIPTION_MAX_FILE_BYTES
+        value: "1048576"
+      - key: TRANSCRIPTION_MAX_REQUEST_BYTES
+        value: "2097152"
+      - key: TRANSCRIPTION_MAX_SECONDS
+        value: "30"
+      - key: TRANSCRIPTION_USER_MINUTE_LIMIT
+        value: "3"
+      - key: TRANSCRIPTION_USER_HOUR_LIMIT
+        value: "10"
+      - key: TRANSCRIPTION_GLOBAL_ATTEMPT_LIMIT
+        value: "20"
+      - key: TRANSCRIPTION_MAX_CONCURRENT
+        value: "2"
+      - key: TRANSCRIPTION_IDEMPOTENCY_TTL_SECONDS
+        value: "300"
+      - key: TRANSCRIPTION_UPLOAD_TIMEOUT_SECONDS
+        value: "15"
+      - key: SARVAM_TIMEOUT_SECONDS
+        value: "45"
       - key: PORT
         value: "10000"
       # Must be the ORIGIN of the deployed frontend (e.g.

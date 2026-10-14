@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const kn: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "ಮುಖಪುಟ",
   register: "ದೂರು ನಮೂದಿಸಿ",

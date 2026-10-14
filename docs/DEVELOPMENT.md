@@ -6,6 +6,15 @@
 
 ## Prerequisites
 
+Stage 4B backend setup: [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPLAINT.md).
+Root runtime requirements explicitly declare httpx/python-multipart and align
+auth/SMS dependencies with backend/requirements.txt. STT tests use mocks only.
+
+Stage 5 frontend mock checks: in frontend/, run `npm run test:voice` (Node test
+runner + dev-only jsdom). Recording uses AudioWorklet and genuine PCM WAV; no
+backend enablement or live provider call is needed. See the feature document for
+browser requirements, lifecycle, test coverage and current lint limitations.
+
 | Tool | Version | Purpose |
 |---|---|---|
 | Python | 3.11+ | Backend |
@@ -384,3 +393,13 @@ must be running on :10000. Check the error banner in the UI.
 ```
 Run uvicorn from the repository root, not from inside backend/.
 ```
+
+### 2026-10-14 ? Write-free diagnostic initialization
+
+DIAGNOSTIC_SKIP_INITIALIZATION_WRITES=true is a process-local, default-off diagnostic option suppressing MongoDB initialization indexes/default seeds and startup backfill/seeding. It does not disable endpoint writes. Keep false in normal deployments. Use one worker without reload, transcription disabled, and lifespan off; see docs/VOICE_ASSISTED_COMPLAINT.md for the verified-CA launcher and fail-closed authentication verification. Backend restart remains pending separate authorization.
+
+Stage 11 status: guarded local login restoration did not succeed. The last retry
+failed on incompatible TLS URI options; the guide now contains a corrected,
+unexecuted proposal. See ../HANDOFF_SUMMARY.md and the voice guide before any
+separately approved restart. Keep both diagnostic initialization and transcription
+flags false in normal operation.

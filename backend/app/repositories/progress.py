@@ -40,6 +40,11 @@ class MongoProgressRepository:
         self._col = MongoClient(uri)[db_name]["progress_updates"]
 
     def ensure_indexes(self) -> None:
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo import ASCENDING, DESCENDING
         self._col.create_index(
             [("grievanceId", ASCENDING), ("createdAt", ASCENDING)],

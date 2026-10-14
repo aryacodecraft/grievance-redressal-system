@@ -162,6 +162,11 @@ class MongoRepository:
 
     def ensure_indexes(self) -> None:
         """Unique grievance id + the userId/createdAt lookup compound."""
+        from . import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo import ASCENDING, DESCENDING
 
         self._col.create_index("id", unique=True, name="uniq_grievance_id")

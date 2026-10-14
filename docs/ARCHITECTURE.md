@@ -4,6 +4,10 @@
 
 ## Overview
 
+Stage 4B adds a co-located authenticated Sarvam transcription router/service,
+strict WAV validation and process-local usage limits. No persistent audio or
+grievance/database workflow changes. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPLAINT.md).
+
 The system follows a three-tier architecture:
 
 - **Frontend** — Next.js (TypeScript) single-page application served via Node.js
@@ -283,3 +287,12 @@ Results in AI-08/AI-09 recommendations stored in the database and surfaced to ad
 This architecture is designed for **prototype scale**.
 Single-process FastAPI with background tasks is sufficient.
 Celery, Redis, and horizontal scaling are not required for this phase.
+
+### Voice diagnostic initialization and final handoff
+
+Stage 10 adds a default-off initialization-only guard across nine MongoDB
+repositories and startup seed/backfill. Repository construction and endpoint
+authorization/writes remain unchanged; this is not a read-only API mode. Stage 11
+architecture/configuration/validation inventory: [voice guide](VOICE_ASSISTED_COMPLAINT.md)
+and [final handoff](../HANDOFF_SUMMARY.md). MongoDB-backed login restoration remains
+unverified after failed controlled starts.

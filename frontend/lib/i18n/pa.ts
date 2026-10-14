@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const pa: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "ਹੋਮ",
   register: "ਸ਼ਿਕਾਤ ਦਰਜ ਕਰੋ",

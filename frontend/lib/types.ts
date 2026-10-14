@@ -72,6 +72,13 @@ export interface SubmitResult {
   hfEngine: HfEngine;
 }
 
+export type VoiceLanguage = "en-IN" | "hi-IN" | "mr-IN";
+export interface TranscriptionResult {
+  transcript: string;
+  language_code: VoiceLanguage | null;
+  request_id?: string;
+}
+
 export interface AuthUser {
   id: string;
   email?: string | null;

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:voice": "node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs scripts/voice-ui.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -33,6 +34,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "jsdom": "^26.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

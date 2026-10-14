@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const ml: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "ഹോം",
   register: "പരാതി രജിസ്റ്റർ ചെയ്യുക",

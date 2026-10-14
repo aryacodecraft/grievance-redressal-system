@@ -69,6 +69,11 @@ without phone numbers, message bodies, or OTP values; no external SMS is sent.
 
 ## Workflow 1 — Grievance Submission
 
+Optional voice drafting backend (Stage 4B) returns a transcript without creating
+a grievance. Stage 5 implements the frontend recording/review flow with mocked
+verification; citizens confirm description replacement before upload, review/edit
+text and submit normally. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPLAINT.md).
+
 **Actor:** User (Grievance Raiser)
 
 | Step | Actor | Action |

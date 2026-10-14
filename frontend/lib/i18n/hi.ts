@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceHi } from "./voice";
+
 const hi: Messages = {
+  ...voiceHi,
   // ── Header ──
   home: "होम",
   register: "शिकायत दर्ज करें",

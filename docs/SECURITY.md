@@ -4,6 +4,11 @@
 
 ## Authentication
 
+Stage 4B transcription reuses the access JWT dependency unchanged and adds
+bounded uploads, strict PCM validation and atomic process-local attempt limits.
+Keys/audio/transcripts are not logged by the integration; provider retention
+needs separate operator configuration. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPLAINT.md).
+
 > **Status: PARTIALLY IMPLEMENTED.** The running prototype uses JWT
 > authentication for protected grievance submission and workflow routes. The
 > frontend demo/localStorage mode remains available for offline previews. The

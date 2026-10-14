@@ -39,6 +39,11 @@ class MongoAuditRepository:
         self._col = MongoClient(uri)[db_name]["audit_logs"]
 
     def ensure_indexes(self) -> None:
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo import ASCENDING, DESCENDING
         self._col.create_index([("entityId", ASCENDING), ("at", DESCENDING)], name="audit_entity_at")
         self._col.create_index([("actorId", ASCENDING), ("at", DESCENDING)], name="audit_actor_at")

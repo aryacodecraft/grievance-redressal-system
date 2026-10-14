@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const ta: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "முகப்பு",
   register: "புகார் பதிவு",

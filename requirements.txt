@@ -13,3 +13,11 @@ scikit-learn
 pandas
 scipy
 cryptography
+httpx>=0.28.1
+python-multipart>=0.0.12
+# Authentication/SMS runtime dependencies already declared by backend/requirements.txt.
+PyJWT>=2.8.0
+passlib[bcrypt]>=1.7.4
+authlib>=1.3.0
+email-validator>=2.0
+twilio>=9.0.0

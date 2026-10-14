@@ -127,6 +127,11 @@ class MongoFaceRepository:
         self._counters = db[counters_collection]
 
     def ensure_indexes(self) -> None:
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo import ASCENDING
         from pymongo.errors import OperationFailure
 
