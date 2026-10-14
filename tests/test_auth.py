@@ -26,8 +26,9 @@ REFRESH_URL = "/auth/refresh"
 ME_URL = "/auth/me"
 
 
-def _reg(client, email="u@example.com", password="Pass1234!", name="Test User"):
-    return client.post(REGISTER_URL, json={"email": email, "password": password, "full_name": name})
+def _reg(client, monkeypatch, email="u@example.com", password="Pass1234!", name="Test User"):
+    from _signup_helpers import register_citizen
+    return register_citizen(client, email, password, name)
 
 
 def _login(client, email="u@example.com", password="Pass1234!"):
@@ -41,8 +42,8 @@ def _bearer(token: str) -> dict:
 # ── Register ──────────────────────────────────────────────────────────────────
 
 class TestRegister:
-    def test_register_ok_returns_201_and_tokens(self, client):
-        res = _reg(client)
+    def test_register_ok_returns_201_and_tokens(self, client, monkeypatch):
+        res = _reg(client, monkeypatch)
         assert res.status_code == 201
         data = res.json()
         assert "access_token" in data
@@ -50,9 +51,13 @@ class TestRegister:
         assert data["user"]["email"] == "u@example.com"
         assert data["user"]["role"] == "USER"
 
-    def test_register_duplicate_email_returns_409(self, client):
-        _reg(client)
-        res = _reg(client)
+    def test_register_duplicate_email_returns_409(self, client, monkeypatch):
+        from _signup_helpers import deterministic_captcha_id, PROFILE_PAYLOAD
+        _reg(client, monkeypatch)
+        payload = {"email": "u@example.com", "password": "Pass1234!", "full_name": "Test User",
+                   "phone": "9222222222", **PROFILE_PAYLOAD,
+                   "captcha_id": deterministic_captcha_id(client), "captcha_solution": "AAAAA"}
+        res = client.post(REGISTER_URL, json=payload)
         assert res.status_code == 409
 
     def test_register_short_password_returns_400(self, client):
@@ -75,8 +80,8 @@ class TestRegister:
 # ── Login ────────────────────────────────────────────────────────────────────
 
 class TestLogin:
-    def test_login_correct_credentials_returns_tokens(self, client):
-        _reg(client, "login@x.com", "Pass1234!")
+    def test_login_correct_credentials_returns_tokens(self, client, monkeypatch):
+        _reg(client, monkeypatch, "login@x.com", "Pass1234!")
         res = _login(client, "login@x.com", "Pass1234!")
         assert res.status_code == 200
         data = res.json()
@@ -84,8 +89,8 @@ class TestLogin:
         assert "refresh_token" in data
         assert data["user"]["email"] == "login@x.com"
 
-    def test_login_wrong_password_returns_401(self, client):
-        _reg(client, "wrong@x.com", "Pass1234!")
+    def test_login_wrong_password_returns_401(self, client, monkeypatch):
+        _reg(client, monkeypatch, "wrong@x.com", "Pass1234!")
         res = _login(client, "wrong@x.com", "WRONGPASS!")
         assert res.status_code == 401
 
@@ -93,13 +98,13 @@ class TestLogin:
         res = _login(client, "nobody@x.com", "Pass1234!")
         assert res.status_code == 401
 
-    def test_login_email_is_case_insensitive(self, client):
-        _reg(client, "case@x.com", "Pass1234!")
+    def test_login_email_is_case_insensitive(self, client, monkeypatch):
+        _reg(client, monkeypatch, "case@x.com", "Pass1234!")
         res = _login(client, "CASE@X.COM", "Pass1234!")
         assert res.status_code == 200
 
-    def test_login_local_domain_email_succeeds(self, client):
-        _reg(client, "admin@grievance.local", "Pass1234!")
+    def test_login_local_domain_email_succeeds(self, client, monkeypatch):
+        _reg(client, monkeypatch, "admin@grievance.local", "Pass1234!")
         res = _login(client, "admin@grievance.local", "Pass1234!")
         assert res.status_code == 200
         assert res.json()["user"]["email"] == "admin@grievance.local"
@@ -108,8 +113,8 @@ class TestLogin:
 # ── /auth/me ─────────────────────────────────────────────────────────────────
 
 class TestMe:
-    def test_me_returns_profile_for_valid_token(self, client):
-        data = _reg(client, "me@x.com").json()
+    def test_me_returns_profile_for_valid_token(self, client, monkeypatch):
+        data = _reg(client, monkeypatch, "me@x.com").json()
         res = client.get(ME_URL, headers=_bearer(data["access_token"]))
         assert res.status_code == 200
         profile = res.json()
@@ -124,8 +129,8 @@ class TestMe:
         res = client.get(ME_URL, headers=_bearer("not.a.valid.token"))
         assert res.status_code == 401
 
-    def test_me_with_refresh_token_returns_401(self, client):
-        data = _reg(client, "me2@x.com").json()
+    def test_me_with_refresh_token_returns_401(self, client, monkeypatch):
+        data = _reg(client, monkeypatch, "me2@x.com").json()
         # Passing the refresh token to a non-refresh endpoint must fail
         res = client.get(ME_URL, headers=_bearer(data["refresh_token"]))
         assert res.status_code == 401
@@ -134,8 +139,8 @@ class TestMe:
 # ── Refresh ───────────────────────────────────────────────────────────────────
 
 class TestRefresh:
-    def test_refresh_valid_token_returns_new_access_token(self, client):
-        data = _reg(client, "ref@x.com").json()
+    def test_refresh_valid_token_returns_new_access_token(self, client, monkeypatch):
+        data = _reg(client, monkeypatch, "ref@x.com").json()
         res = client.post(REFRESH_URL, json={"refresh_token": data["refresh_token"]})
         assert res.status_code == 200
         new_data = res.json()
@@ -144,12 +149,12 @@ class TestRefresh:
         # we just verify the response contains a valid access token string.
         assert isinstance(new_data["access_token"], str) and len(new_data["access_token"]) > 10
 
-    def test_refresh_with_access_token_returns_401(self, client):
-        data = _reg(client, "ref2@x.com").json()
+    def test_refresh_with_access_token_returns_401(self, client, monkeypatch):
+        data = _reg(client, monkeypatch, "ref2@x.com").json()
         res = client.post(REFRESH_URL, json={"refresh_token": data["access_token"]})
         assert res.status_code == 401
 
-    def test_refresh_garbage_token_returns_401(self, client):
+    def test_refresh_garbage_token_returns_401(self, client, monkeypatch):
         res = client.post(REFRESH_URL, json={"refresh_token": "garbage.token.here"})
         assert res.status_code == 401
 
@@ -172,8 +177,8 @@ class TestGrievanceRBAC:
         assert res.status_code == 200
         return res.json()
 
-    def test_citizen_cannot_patch_status(self, client, sample_payload):
-        user_data = _reg(client, "c_rbac@x.com").json()
+    def test_citizen_cannot_patch_status(self, client, sample_payload, monkeypatch):
+        user_data = _reg(client, monkeypatch, "c_rbac@x.com").json()
         token = user_data["access_token"]
 
         # Submit a grievance as this citizen
@@ -190,9 +195,9 @@ class TestGrievanceRBAC:
         )
         assert res.status_code == 403
 
-    def test_admin_can_patch_status(self, client, sample_payload):
+    def test_admin_can_patch_status(self, client, sample_payload, monkeypatch):
         # Create a citizen to submit
-        user_data = _reg(client, "citizen_admin@x.com").json()
+        user_data = _reg(client, monkeypatch, "citizen_admin@x.com").json()
         payload = {k: v for k, v in sample_payload.items() if k != "userId"}
         res = client.post(
             "/submit-grievance", json=payload,
@@ -212,8 +217,8 @@ class TestGrievanceRBAC:
         assert res.status_code == 200
         assert res.json()["status"] == "RESOLVED"
 
-    def test_resolver_can_patch_status(self, client, sample_payload):
-        user_data = _reg(client, "cit_res@x.com").json()
+    def test_resolver_can_patch_status(self, client, sample_payload, monkeypatch):
+        user_data = _reg(client, monkeypatch, "cit_res@x.com").json()
         payload = {k: v for k, v in sample_payload.items() if k != "userId"}
         res = client.post(
             "/submit-grievance", json=payload,
@@ -229,9 +234,9 @@ class TestGrievanceRBAC:
         )
         assert res.status_code == 200
 
-    def test_citizen_list_scoped_to_own_grievances(self, client, sample_payload):
-        a = _reg(client, "scoped_a@x.com").json()
-        b = _reg(client, "scoped_b@x.com").json()
+    def test_citizen_list_scoped_to_own_grievances(self, client, sample_payload, monkeypatch):
+        a = _reg(client, monkeypatch, "scoped_a@x.com").json()
+        b = _reg(client, monkeypatch, "scoped_b@x.com").json()
 
         payload = {k: v for k, v in sample_payload.items() if k != "userId"}
         client.post("/submit-grievance", json=payload, headers=_bearer(a["access_token"]))
@@ -245,3 +250,85 @@ class TestGrievanceRBAC:
         uid_b = b["user"]["id"]
         assert all(r["userId"] == uid_a for r in rows), rows
         assert not any(r["userId"] == uid_b for r in rows)
+
+
+# ── Phone OTP login ─────────────────────────────────────────────────────────
+
+PHONE_LOGIN_REQ = "/auth/login/phone/request-otp"
+PHONE_LOGIN_VERIFY = "/auth/login/phone/verify"
+
+
+def _phone_login_code(client, phone: str, monkeypatch) -> str:
+    """Request a login OTP with debug codes enabled; returns the code."""
+    from backend.app import config as app_config
+    monkeypatch.setattr(app_config, "OTP_DEBUG_RETURN_CODE", True)
+    res = client.post(PHONE_LOGIN_REQ, json={"phone": phone})
+    assert res.status_code == 200, res.text
+    assert "debug_code" in res.json()
+    return res.json()["debug_code"]
+
+
+class TestPhoneLogin:
+    def test_unknown_phone_gets_generic_response(self, client):
+        res = client.post(PHONE_LOGIN_REQ, json={"phone": "9000000001"})
+        assert res.status_code == 200
+        body = res.json()
+        assert "message" in body and "debug_code" not in body
+        res = client.post(PHONE_LOGIN_VERIFY, json={"phone": "9000000001", "code": "000000"})
+        assert res.status_code == 400
+
+    def test_unverified_phone_cannot_log_in(self, client, monkeypatch):
+        _reg(client, monkeypatch, "unv@x.com")
+        from backend.app import users_db
+        user = users_db.users_repository.find_by_email("unv@x.com")
+        phone = user["phone"]
+        assert user["phoneVerifiedAt"] is None
+        res = client.post(PHONE_LOGIN_REQ, json={"phone": phone})
+        assert res.status_code == 200  # generic — no code issued
+        res = client.post(PHONE_LOGIN_VERIFY, json={"phone": phone, "code": "000000"})
+        assert res.status_code == 400
+
+    def test_verified_phone_login_issues_tokens(self, client, monkeypatch):
+        from backend.app import users_db
+        _reg(client, monkeypatch, "phlogin@x.com")
+        user = users_db.users_repository.find_by_email("phlogin@x.com")
+        phone = user["phone"]
+        users_db.users_repository.update(user["id"], {"phoneVerifiedAt": "2026-10-14T00:00:00Z"})
+        code = _phone_login_code(client, phone, monkeypatch)
+        res = client.post(PHONE_LOGIN_VERIFY, json={"phone": phone, "code": code})
+        assert res.status_code == 200, res.text
+        data = res.json()
+        assert data["user"]["email"] == "phlogin@x.com"
+        me = client.get("/auth/me", headers=_bearer(data["access_token"]))
+        assert me.status_code == 200
+
+    def test_wrong_codes_burn_login_challenge(self, client, monkeypatch):
+        from backend.app import users_db
+        _reg(client, monkeypatch, "burn@x.com")
+        user = users_db.users_repository.find_by_email("burn@x.com")
+        phone = user["phone"]
+        users_db.users_repository.update(user["id"], {"phoneVerifiedAt": "2026-10-14T00:00:00Z"})
+        _phone_login_code(client, phone, monkeypatch)
+        for _ in range(3):
+            res = client.post(PHONE_LOGIN_VERIFY, json={"phone": phone, "code": "999999"})
+            assert res.status_code == 400
+        res = client.post(PHONE_LOGIN_VERIFY, json={"phone": phone, "code": "999999"})
+        assert res.status_code == 400
+
+    def test_non_user_role_rejected(self, client, monkeypatch):
+        from backend.app import users_db
+        from backend.app.repositories.otp_codes import otp_repository
+        from backend.app.routers.auth import _phone_login_key, _otp_hash_for_login
+        uid = users_db.users_repository.create({
+            "email": "staff-ph@x.com", "full_name": "Staff",
+            "hashed_password": "x", "role": "ADMIN",
+            "phone": "9134567890", "phoneVerifiedAt": "2026-10-14T00:00:00Z",
+        })
+        assert uid
+        # White-box a valid challenge (the request endpoint never issues
+        # one for non-citizens) — verify must still refuse the login.
+        key = _phone_login_key("9134567890")
+        otp_repository.put(key, _otp_hash_for_login(key, "123456"), "phone_login", 300)
+        res = client.post(PHONE_LOGIN_VERIFY, json={"phone": "9134567890", "code": "123456"})
+        assert res.status_code == 400
+        assert "access_token" not in res.json()

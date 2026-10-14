@@ -125,12 +125,25 @@ def client(face_env):
         yield tc
 
 
-def test_face_signup_success_and_jwt_grievances(client, face_env):
+FACE_PROFILE = {
+    "address": "14 MG Road, Pune 411001",
+    "dob": "1988-11-02",
+    "occupation": "Nurse",
+    "gender": "female",
+}
+
+
+from _signup_helpers import (
+    FACE_PROFILE_PAYLOAD as FACE_PROFILE,
+    deterministic_captcha_id as _captcha_id,
+    face_prove_phone as _prove_phone,
+    face_signup_start as _start,
+)
+
+
+def test_face_signup_success_and_jwt_grievances(client, face_env, monkeypatch):
     phone = "9876543210"
-    res_start = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": "Sita Devi", "phone": phone, "consent": True},
-    )
+    res_start = _start(client, phone, name="Sita Devi")
     assert res_start.status_code == 200, res_start.text
     data = res_start.json()
     assert "signup_token" in data
@@ -139,6 +152,7 @@ def test_face_signup_success_and_jwt_grievances(client, face_env):
     assert data.get("expires_in") == 300
 
     satisfy(data["action"], face_env)
+    _prove_phone(client, data["signup_token"])
 
     res_comp = client.post(
         "/auth/face/signup/complete",
@@ -159,6 +173,11 @@ def test_face_signup_success_and_jwt_grievances(client, face_env):
     assert user["phone"] == phone
     assert user["auth_method"] == "face_only"
     assert user["role"] == "USER"
+    assert user["phoneVerifiedAt"] is not None
+    assert user["address"] == FACE_PROFILE["address"]
+    assert user["dob"] == FACE_PROFILE["dob"]
+    assert user["occupation"] == FACE_PROFILE["occupation"]
+    assert user["gender"] == FACE_PROFILE["gender"]
 
     # Template stored
     uid = user["id"]
@@ -170,16 +189,16 @@ def test_face_signup_success_and_jwt_grievances(client, face_env):
     assert res_grv.status_code == 200
 
 
-def test_failed_enrollment_leaves_no_user_and_allows_retry(client, face_env):
+def test_failed_enrollment_leaves_no_user_and_allows_retry(client, face_env, monkeypatch):
     phone = "9876543222"
-    res_start = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": "Ravi Kumar", "phone": phone, "consent": True},
-    )
+    res_start = _start(client, phone, name="Ravi Kumar")
     assert res_start.status_code == 200
     st_data = res_start.json()
 
-    # Provide blurry frames so quality check fails (FACE_BLURRY)
+    # Provide blurry frames so quality check fails (FACE_BLURRY).
+    # Phone must already be proven, otherwise the request fails at the
+    # verification gate instead of at enrollment.
+    _prove_phone(client, st_data["signup_token"])
     blurry_frames = [base64.b64encode(_solid_jpeg(50)).decode() for _ in range(5)]
     res_fail = client.post(
         "/auth/face/signup/complete",
@@ -195,13 +214,11 @@ def test_failed_enrollment_leaves_no_user_and_allows_retry(client, face_env):
     assert users_db.users_repository.find_by_phone(phone) is None
 
     # Same phone can start and succeed afterwards
-    res_retry_start = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": "Ravi Kumar", "phone": phone, "consent": True},
-    )
+    res_retry_start = _start(client, phone, name="Ravi Kumar")
     assert res_retry_start.status_code == 200
     retry_data = res_retry_start.json()
     satisfy(retry_data["action"], face_env)
+    _prove_phone(client, retry_data["signup_token"])
 
     res_retry_comp = client.post(
         "/auth/face/signup/complete",
@@ -215,16 +232,14 @@ def test_failed_enrollment_leaves_no_user_and_allows_retry(client, face_env):
     assert users_db.users_repository.find_by_phone(phone) is not None
 
 
-def test_duplicate_phone_generic_error(client, face_env):
+def test_duplicate_phone_generic_error(client, face_env, monkeypatch):
     phone = "9876543233"
     # Create first citizen
-    res_start = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": "Original User", "phone": phone, "consent": True},
-    )
+    res_start = _start(client, phone, name="Original User")
     assert res_start.status_code == 200
     d = res_start.json()
     satisfy(d["action"], face_env)
+    _prove_phone(client, d["signup_token"])
     res_comp = client.post(
         "/auth/face/signup/complete",
         json={
@@ -236,24 +251,19 @@ def test_duplicate_phone_generic_error(client, face_env):
     assert res_comp.status_code == 200
 
     # Second signup with same phone must fail generically
-    res_dup = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": "Duplicate Person", "phone": phone, "consent": True},
-    )
+    res_dup = _start(client, phone, name="Duplicate Person")
     assert res_dup.status_code == 400
     err = res_dup.json().get("error") or res_dup.json().get("detail")
     assert err == "Could not complete signup"
 
 
-def test_created_face_only_user_cannot_use_password_login(client, face_env):
+def test_created_face_only_user_cannot_use_password_login(client, face_env, monkeypatch):
     phone = "9876543244"
-    res_start = client.post(
-        "/auth/face/signup/start",
-        json={"full_name": "Face User", "phone": phone, "consent": True},
-    )
+    res_start = _start(client, phone, name="Face User")
     assert res_start.status_code == 200
     d = res_start.json()
     satisfy(d["action"], face_env)
+    _prove_phone(client, d["signup_token"])
     res_comp = client.post(
         "/auth/face/signup/complete",
         json={

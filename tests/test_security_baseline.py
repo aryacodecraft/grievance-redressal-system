@@ -21,9 +21,8 @@ import pytest
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _register(client, email="test@example.com", password="Secret123", name="Test User"):
-    res = client.post("/auth/register", json={"email": email, "password": password, "full_name": name})
-    assert res.status_code == 201, res.text
-    return res.json()
+    from _signup_helpers import register_citizen
+    return register_citizen(client, email, password, name).json()
 
 
 def _login(client, email="test@example.com", password="Secret123"):
