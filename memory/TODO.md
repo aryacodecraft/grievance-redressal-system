@@ -140,7 +140,7 @@
 - [x] Improve navbar active states and role-specific labels.
 - [x] Clarify and display required incident location capture in the complaint form.
 - [x] Require authentication before lodging a complaint in both frontend and API.
-- [x] Split tracking into personal grievances and reference-ID search tabs with department totals.
+- [x] Split tracking into personal grievances and reference-ID search tabs with department totals. *(2026-10-14, DEC-028: reference-ID search removed from citizen surfaces — `/track` is personal-grievances only, sign-in required.)*
 
 ---
 

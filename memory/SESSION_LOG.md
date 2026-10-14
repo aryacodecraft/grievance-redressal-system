@@ -2489,3 +2489,26 @@ Make all the department names consistent in the system with the IDs as well, res
   phone/SMS + Twilio provider (DEC-027), en/hi/mr scope (DEC-026), homepage
   redesign, frontend overhaul, render deploy config. Next: deploy per the
   `docs/DEVELOPMENT.md` runbook.
+
+---
+
+## 2026-10-14 — Removed reference-ID search from citizen surfaces (DEC-028)
+
+### Request
+Owner: remove the search-by-ID option entirely for normal users; handle the
+frontend accordingly. Confirmed: guests lose all tracking, SMS links landing
+on My-grievances is acceptable.
+
+### What changed
+- `frontend/app/track/page.tsx`: rewritten to personal-grievances only
+  (header + sign-in gate + grid/detail modal + personal dept totals).
+- `frontend/app/page.tsx`: hero to single centered column (CTAs centered);
+  `HomeTrackPanel` import/usage removed.
+- `frontend/components/home/HomeTrackPanel.tsx`: deleted.
+- `frontend/lib/i18n/en.ts`: subtitle drops the reference-ID mention; TODO
+  note on orphaned keys. Backend, shared helpers, and other locales untouched.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean on touched files,
+  `node scripts/check-contract.mjs` passed, `npm run build` green (18 routes).
+- Memory updated: DEC-028, TODO §4E annotation, CHANGELOG, this log.

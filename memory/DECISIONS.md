@@ -1414,4 +1414,42 @@ later.
 `backend/.env.example`, `render.yaml`, `tests/test_phone_sms.py`,
 `docs/DEVELOPMENT.md`
 
+---
+
+## DEC-028 — Reference-ID Search Removed from Citizen Surfaces
+
+**ID:** DEC-028
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed)
+
+**Context:**
+`/track` offered "My grievances" and "Search by ID" tabs, and the homepage
+hero carried a reference-ID tracking panel (`HomeTrackPanel`). The owner
+wants ID-based lookup gone for normal users (citizens and signed-out
+visitors); staff never used these surfaces (admin/resolver workspaces have
+their own queue search).
+
+**Decision:**
+1. `/track` is personal-grievances only. The tab switcher, search form,
+   results, `?id=` deep-link handling, and the search-tab department totals
+   are deleted. Signed-out visitors keep the existing sign-in prompt card —
+   tracking is now sign-in-or-nothing.
+2. The homepage hero panel is deleted (`HomeTrackPanel.tsx` removed) and the
+   hero reflows to a single centered column reusing existing copy/CTAs.
+3. Backend untouched: public lookup endpoints and the admin queue search
+   remain. Shared lib helpers (`fetchGrievanceById`, `findMockGrievance`,
+   `getDepartmentCounts`) stay exported — dead for now, zero runtime cost.
+4. Orphaned i18n keys (`searchById`, `trackFind*`, `hp*`, …) stay in all 11
+   packs so strict typing stays green; marked with a TODO in `en.ts`. The
+   English `trackSubtitle` drops the reference-ID mention; other locales
+   keep stale wording pending the native-reader pass (TODO §5).
+
+**Consequences:**
+- SMS "Track:" links land on a sign-in-gated personal list. Accepted by the
+  owner; SMS link handling unchanged.
+
+**Affected Components:** `frontend/app/track/page.tsx`,
+`frontend/app/page.tsx`, `frontend/components/home/HomeTrackPanel.tsx`
+(deleted), `frontend/lib/i18n/en.ts` (subtitle + TODO note)
+
 

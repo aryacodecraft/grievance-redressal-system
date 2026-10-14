@@ -354,9 +354,11 @@ const en = {
 
   // ── Track page ──
   trackTitle: "Track Grievance Status",
-  trackSubtitle:
-    "See your submitted grievances in one place, or use a reference ID to look up a request you are authorized to view.",
+  trackSubtitle: "See your submitted grievances in one place.",
   myGrievances: "My grievances",
+  // TODO i18n (DEC-028): reference-ID search was removed from citizen
+  // surfaces. searchById/trackFind*/trackQuerying/trackNotFound*/byDept*
+  // and hp* are now unreferenced; kept so all 11 packs stay in sync.
   searchById: "Search by ID",
   search: "Search",
   trackFindTitle: "Find a grievance by reference ID",
