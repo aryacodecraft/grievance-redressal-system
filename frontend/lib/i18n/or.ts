@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const or: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "ମୁଖ୍ୟ ପୃଷ୍ଠା",
   register: "ଅଭିଯୋଗ ପଞ୍ଜୀକରଣ",

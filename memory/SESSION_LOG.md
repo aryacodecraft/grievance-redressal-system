@@ -2791,3 +2791,29 @@ Owner: login form should be as wide as the signup form.
   - Merged action buttons into a side-by-side row (Submit and Google Sign Up) directly below the columns.
   - Placed "Already registered? Sign in →" in the card header for desktop, reducing overall vertical height so the entire page fits within standard viewport heights without scrolling.
 - Adjusted `frontend/app/login/page.tsx` wrapper padding and header margins to maintain compact vertical fit across laptop displays.
+
+---
+
+## 2026-10-14 — Merged main into feature/aarohi (voice branch merge-ready)
+
+### State found
+- `feature/aarohi` = base `e93cdd2` (PR #6) + 1 voice commit (~6k lines:
+  Sarvam STT backend, recorder UI, i18n voice pack, pytest + node suites,
+  961-line voice guide). 22 commits behind `main` the other way.
+
+### What changed
+- `git merge origin/main` into the branch; 4 conflicts resolved
+  (render/Sarvam vars kept + PORT pin re-dropped, voice recorder kept +
+  removed dept-select dropped, types combined, both DEVELOPMENT sections).
+- Voice DECs 028–031 → 032–035 across DECISIONS/TODO/guide/config/audio/
+  PROJECT_STATE/CHANGELOG (collided with main's DECs); TODO §3 updated to
+  implemented-behind-flag (`TRANSCRIPTION_ENABLED=false` default).
+- Committed as `dfc15cb`.
+
+### Verification
+- `tsc`/`eslint`/`build`/contract green. Full pytest: 480 passed, 23 failed
+  = TODO §11 baseline byte-identical. Voice node: api/audio/UI(59/59) pass;
+  title-browser + UI-CDP scripts need real Chrome (this box has a broken
+  wrapper only) — owner-side.
+- NOT live-tested against Sarvam: no `SARVAM_API_KEY` in `backend/.env`.
+  Memory updated: CHANGELOG, TODO §§3/14, PROJECT_STATE, this log.

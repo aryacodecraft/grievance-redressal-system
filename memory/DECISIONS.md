@@ -1577,3 +1577,124 @@ seed_accounts,face_auth}.py`, `frontend/{app/register,app/signup/face,
 components/ui/Captcha.tsx,lib/{api,session,types},lib/i18n/*.ts}`
 
 
+
+## DEC-032 — Voice-assisted complaints: WAV-only Sarvam backend (2026-10-13)
+
+**Status:** ACCEPTED — owner authorized Stage 4B backend/mock implementation.
+**Decision:** Authenticated POST /transcribe, direct httpx to Sarvam saaras:v4
+with mode=transcribe and en-IN/hi-IN/mr-IN. Classic mono 16-bit 16 kHz PCM WAV,
+30 seconds, 1 MiB file/2 MiB body caps. Disabled by default. No database writes,
+classification changes or frontend implementation.
+
+**Reason:** WAV frame validation is deterministic and avoids a new compressed
+audio decoder. Separate router/services fit the existing FastAPI architecture.
+Thread-lock reservations enforce process-local quotas and concurrency before
+paid attempts. Same-key results replay briefly; failed/expired attempt tombstones
+prevent silent retry after uncertain billing. No automatic provider retries.
+
+**Consequences:** Browser must produce genuine WAV; compressed formats require
+separate decoder/deployment work. Limits reset on restart and multiply across
+workers; use one worker/instance, not a claimed durable monetary ceiling.
+Root runtime manifest now declares httpx/multipart plus auth/SMS dependencies
+already present in backend/requirements.txt. Provider retention must be configured
+separately before live citizen audio. Recognition is unvalidated; no live calls.
+
+**Session handoff:** memory/SESSION_LOG.md is intentionally untouched under the
+owner's explicit preservation instruction (SHA256 recorded during verification).
+Implementation/verification handoff lives in PROJECT_STATE, CHANGELOG and TODO.
+See docs/VOICE_ASSISTED_COMPLAINT.md. No changes to real backend/.env.
+
+## DEC-033 — AudioWorklet voice drafting frontend (2026-10-13)
+
+**Status:** ACCEPTED — owner authorized Stage 5 frontend implementation/mocks.
+**Decision:** AudioWorklet captures PCM after an explicit click/permission. Average
+input channels to mono, cap source frames to 30 seconds, resample via a bounded
+32-tap Hann-windowed sinc low-pass filter to 16 kHz, encode classic little-endian
+16-bit PCM WAV (maximum 480000 frames/960044 bytes). No MediaRecorder container
+renaming, recording library or deprecated ScriptProcessor fallback.
+
+**Reason:** Fits the Stage 4B strict WAV contract without changing backend behavior.
+Audio-thread frame caps complement delayed main-thread timers. Pure conversion
+is testable with synthetic audio and actual Python validation, without credits.
+
+**Integration:** VoiceRecorder below the description; native accessible confirmation
+before upload for existing text, again if the description differs after response.
+React Hook Form setValue updates validation/dirty/touched flags. Normal submission
+remounts/cancels voice to protect resets. Multipart request uses the existing JWT
+and 401 refresh conventions, same idempotency key/body on that retry, 70-second
+client deadline and no other automatic retries. Cancelled refresh does not log out.
+
+**Testing:** Reuse Node's test runner and installed TypeScript compiler. Add jsdom
+26.1.0 as dev-only DOM environment for actual React/Form tests; no new application
+framework. en/hi/mr voice translations are centralized; eight retained hidden packs
+spread the English fallback to preserve exhaustive MessageKey typing (DEC-026).
+
+**Limitations:** Modern HTTPS/localhost browser APIs required; 8–96 kHz source
+rates supported. Real browser/device support, quality, pronunciation/recognition
+and native Hindi/Marathi copy review remain pending. Main-thread resampling can
+briefly block slower devices. Hardware teardown awaits main-thread callbacks if
+it is suspended, while worklet-retained audio remains capped. Backend stays OFF.
+No real Sarvam calls, real recordings, schema/auth backend changes or commits.
+SESSION_LOG.md remains untouched per the owner's explicit preservation instruction.
+
+## DEC-034 — Local extractive voice title suggestions (2026-10-13)
+
+**Status:** ACCEPTED — owner authorized Stage 8 frontend-only implementation.
+**Decision:** Pure TypeScript helper selects an original-language phrase after
+transcript acceptance. Normalize whitespace; skip finite en/hi/mr greetings and
+filler; recognize sentence punctuation/decimals; cap 12 words/80 graphemes without
+splitting words. Abstain on unusable input, missing Intl.Segmenter or long clauses
+with recognized negation. No backend endpoint, model, translation or paid request.
+
+**Integration:** Preserve complete description. Read current title at response
+completion; fill only if empty, including protection for in-flight title edits.
+Existing/earlier generated titles require explicit suggested-title action and
+confirmation. Hide/recheck suggestion against accepted description after edits.
+Use React Hook Form setValue validation/dirty/touched flags and useWatch for
+candidate visibility. Submission payload and department/priority pipeline remain
+unchanged. No draft persistence; reset suggestion on successful submission.
+
+**Limitations:** Extractive heuristics cannot guarantee semantic importance or
+complete context; multilingual greeting/negation lists are finite. Native-reader
+review and mocked browser accessibility checks remain pending. No live calls.
+
+## DEC-035 — Stage 9 explicit description append/replace choices (2026-10-14)
+
+**Status:** ACCEPTED — newly authorized Stage 9 enhancement, not a recovered
+original 11-stage roadmap definition.
+**Decision:** Native HTML dialog offers Append/Replace/Cancel before uploading
+nonempty descriptions and after in-flight edits. Async prepare/accept callbacks
+carry the recorder AbortSignal and epoch checks. Cancel/Escape before upload costs
+zero requests; after response preserves fields without another upload. Recheck
+latest text after every asynchronous choice. Discard/unmount resolves choices as
+cancel. Native modal provides focus containment; Cancel initially focused.
+**Append:** Preserve existing text verbatim; insert two newlines only if no trailing
+whitespace, then full transcript. No translation/deduplication/semantic merging.
+**Compatibility:** Empty-description behavior unchanged. Stage 8 manual/current
+and pending-edited title protection retained; candidate tied to resulting combined
+text. React Hook Form validation/dirty/touched flags remain. No backend/API/STT
+configuration/submission changes. Native dialog browser accessibility verification
+pending; mock-tested only. Existing single live English test remains historical.
+
+**Stage 9 validation follow-up (2026-10-14):** Hydrated Chrome/Edge found StrictMode
+cleanup cancelled choices during effect replay; use generation-guarded deferred
+cleanup for real unmount only. Explicit Tab/Shift+Tab boundary wrapping and focus
+return required. Return to opener when enabled; otherwise editable Description
+while upload disables Transcribe. Navigation must not focus detached old controls.
+Three focused regressions and hydrated browser checks pass; no API/backend change.
+
+**Stage 9 title-quality follow-up (2026-10-14):** Remove only finite anchored
+reporting/existence introductions in en/hi/mr. Preserve remaining issue wording,
+location/ownership, negation/quantities and Unicode decimals. Supersedes the initial
+prefix-clipping behavior for long nonnegated clauses: return null if a complete
+phrase exceeds 12 words/80 graphemes rather than risk losing important details.
+Descriptions and existing/manual-title safeguards unchanged. Representative
+street-light fixture is not the unsaved live transcript; no live evaluation added.
+
+### 2026-10-14 ? Stage 10 diagnostic initialization guard
+
+Use a default-false initialization-only guard across MongoDB repositories, including SLA default seeding and OTP constructor indexes. Preserve endpoint behavior and authorization. Keep lifespan off and verified TLS for controlled diagnostic starts; launcher asserts MongoUsersRepository identity and read-only connectivity before serving. This is not a read-only API mode.
+
+### 2026-10-14 ? Stage 11 final voice handoff
+
+Stage 11 handoff separates implementation completeness from operational/production readiness. Historical mock/browser/live evidence remains distinct; no live Hindi/Marathi or resolved-login claim. Document corrected proposed TLS options by omitting tlsInsecure while retaining verified TLS and hostname checks; no launcher execution/code change is authorized by documentation work. Diagnostic guard defaults false and preserves normal initialization; it is not an endpoint read-only control.

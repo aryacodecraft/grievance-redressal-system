@@ -54,19 +54,18 @@
 
 ## 3. Voice-Based Grievance Registration
 
-- [ ] **In-Browser Audio Recording**
-  - Micro-service / client audio capture with recording controls (Start, Pause, Stop, Waveform visualization).
-  - Mobile-responsive one-tap voice input on complaint submission form.
-- [ ] **Speech-to-Text (STT) Processing**
-  - Integration with STT engine (OpenAI Whisper / Groq Whisper API `whisper-large-v3` / Bhashini for Indian languages).
-  - Multilingual support: Hindi, English, regional languages, and Hinglish transliteration.
-- [ ] **AI-Powered Structured Field Extraction**
-  - Feed raw transcript to LLM to automatically infer:
-    - Subject / Title
-    - Detailed Description
-    - Location landmarks mentioned in audio
-    - Intended department / category
-  - Pre-fill submission form so citizen can review and confirm before final submission.
+> **Update 2026-10-14 (merge `feature/aarohi`, DEC-032–035, details §14):**
+> recording + Sarvam STT + title suggestion + form pre-fill are IMPLEMENTED
+> behind `TRANSCRIPTION_ENABLED=false` (default off; needs `SARVAM_API_KEY`).
+> Remaining: live-key verification, Bhashini/Whisper alternatives (deferred),
+> department/category inference from transcripts (title only for now).
+- [x] **In-Browser Audio Recording** — `VoiceRecorder` (AudioWorklet PCM WAV,
+  30s cap, playback/re-record, Transcribe action) on the submission form.
+- [x] **Speech-to-Text (STT) Processing** — `POST /transcribe` → Sarvam
+  `saaras:v4` (`en-IN`/`hi-IN`/`mr-IN`); strict limits, quotas, disabled default.
+- [x] **AI-Powered Structured Field Extraction (partial)** — local extractive
+  title suggestion with overwrite protection, transcript append/replace
+  choice, pre-fill for citizen review. Department/category inference OPEN.
 
 ---
 
@@ -493,3 +492,72 @@ Only Phase 6 needs real DLT.
 binding as a credential change, PII), `docs/DEVELOPMENT.md` (Twilio setup, DLT,
 `dry-run`, trial limits), `backend/.env.example`, and new DEC entries in
 `memory/DECISIONS.md` once §13.9 is answered.
+
+## 14. Voice-assisted complaint lodging (DEC-032, Stage 4B)
+
+- [x] Backend multipart endpoint, strict WAV/audio/body limits, Sarvam HTTP seam,
+      atomic process-local quotas/idempotency and disabled-by-default configuration.
+- [x] Dedicated docs/VOICE_ASSISTED_COMPLAINT.md; configuration/deploy examples.
+- [x] Frontend: genuine PCM WAV generation, 30-second recorder, playback/re-record,
+      explicit Transcribe action, review/edit and replacement confirmation (en/hi/mr).
+- [x] Chrome recording/playback/re-record/discard/automatic 30-second stop:
+      owner reports real-browser tests passed; no new live tests by the agent.
+- [x] Mock description workflow: pre-request confirmation/cancel zero calls,
+      en/hi/mr empty-field insertion, consent-only replacement, error preservation,
+      second confirmation after in-flight edits (including initially empty text).
+- [x] Stage 6 mocked cross-stack HTTP integration: generated WAV, JWT/backend
+      validation, mocked provider and form insertion in en/hi/mr; authentication,
+      invalid files, cancellation/errors/disabled flag and upload cleanup verified.
+- [x] Stage 7 automated subset: eight CORS regressions, three UI accessibility/
+      insecure-context/navigation regressions; real headless Chrome/Edge loopback
+      CORS, permissions, keyboard/focus/AX/native-confirm and generated WAV probes.
+- [ ] Stage 7 manual sign-off: actual Next.js dynamic keyboard focus and native
+      dialog keys, NVDA/Narrator/VoiceOver speech, physical-device navigation
+      cleanup, Firefox/Safari and HTTPS/mixed-content with mocks (see voice docs).
+- [x] Stage 8 local extractive title suggestions and overwrite protection: 82
+      frontend tests, TypeScript and targeted lint passed; no backend/paid requests.
+- [x] Stage 8 hydrated /submit Chrome/Edge functional mock validation: 12 scenarios
+      each, en/hi/mr fill, manual/pending title preservation, explicit replacement,
+      cancellation/error/discard, editing and re-transcription; zero writes.
+- [ ] Stage 8 keyboard/screen-reader pass on actual page, other browsers and
+      native-speaker quality review of heuristic suggestions (DEC-034).
+- [x] Stage 8 controlled live English smoke test (user-verified 2026-10-14): one
+      successful request, 7-second real recording, full description/title auto-fill,
+      editable fields, no grievance submitted; user confirmed restart disabled.
+- [x] Stage 9 title-concision refinement: safe anchored en/hi/mr introductions,
+      complete-clause bounds/null fallback, quantity/negation/decimal preservation;
+      113 frontend tests and 26 hydrated scenarios per Chrome/Edge passed.
+- [ ] Evaluate title quality on broader/native-speaker examples; finite reporting
+      phrases and first-sentence selection are not semantic summarization.
+- [x] Stage 9 Append/Replace/Cancel and latest-description choice/abort protection:
+      94 frontend tests, TypeScript, targeted lint and existing mock cross-stack pass.
+- [x] Stage 9 hydrated Chrome/Edge automated dialog validation: 25 scenarios each,
+      empty/Append/Replace/Cancel, latest edits, native keyboard/focus/Escape,
+      localized AX labels/status and recording/playback/pending navigation cleanup.
+      StrictMode cancellation/focus regressions fixed; 97 frontend tests passed.
+- [ ] Stage 9 manual screen-reader speech, physical/mobile devices, whole-page
+      keyboard-only flow, native-speaker copy review and Firefox/Safari checks;
+      do not treat automated AX assertions as assistive-technology validation.
+- [ ] Separately authorized live Hindi/Marathi validation; current multilingual
+      results are mocks, not live recognition tests.
+- [ ] Other browsers/device compatibility, accessibility checks and native
+      Hindi/Marathi review of voice UI copy; broader live recognition remains
+      unvalidated beyond the single user-verified English smoke test.
+  - StrictMode playback-source regression fixed/tested; headless Chrome synthetic
+    decoding/playback passed. Owner's subsequent Chrome microphone tests passed.
+- [ ] Existing FaceCapture lint baseline: four errors (conditional hook and
+      synchronous state changes in effects), four full-project warnings. Stage 5
+      touched-file lint passes; no unrelated face-auth code changed.
+- [ ] Separately authorized live checks: workspace retention, auto-recharge disabled,
+      account balance/plan, provider compatibility and recognition/latency evaluation.
+- [ ] Shared/durable quota accounting before multiple workers/instances or public scaling.
+- Mock verification results and session handoff: CHANGELOG.md. SESSION_LOG.md must
+  retain its pre-existing change exactly per owner instruction.
+
+### 2026-10-14 ? Stage 10 diagnostic initialization guard
+
+Guard implemented. Next: separately authorize disabled-backend restart using the documented guarded launcher, verify actual MongoDB auth singleton and citizen browser login. No live multilingual call is authorized by this initialization change.
+
+### 2026-10-14 ? Stage 11 final voice handoff
+
+Stage 11 handoff documentation complete. Next owner-authorized work: corrected diagnostic launcher verification and MongoDB-backed login restoration; separately authorized Hindi/Marathi live tests; manual screen-reader/native-language/mobile/Firefox/Safari and production HTTPS/CORS/load checks. Review 10 legacy status-test failures, adjacent root auth/SMS dependencies, required untracked files, and exclude stale ZIP. No new functionality proposed or implemented.

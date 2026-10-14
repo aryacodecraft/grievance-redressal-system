@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const te: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "హోమ్",
   register: "ఫిర్యాదు నమోదు",

@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceEn } from "./voice";
+
 const gu: Messages = {
+  ...voiceEn,
   // ── Header ──
   home: "મુખપૃષ્ઠ",
   register: "ફરિયાદ નોંધાવો",

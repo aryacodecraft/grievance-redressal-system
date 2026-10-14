@@ -24,6 +24,28 @@ humans retain final control over assignment, escalation, resolution, and closure
 
 ---
 
+## Voice-assisted complaint lodging (Stages 4-11)
+
+On `/submit`, citizens can record up to 30 seconds, listen, then explicitly
+transcribe in **English, Hindi or Marathi**. An accepted transcript fills the
+complete Description; a frontend-only deterministic extractor suggests an
+original-language Issue Title and fills it only when empty. Both fields remain
+editable. Existing titles require explicit confirmed replacement; existing
+descriptions offer explicit Append, Replace or Cancel before upload, with a new
+choice if edited while waiting. Append retains existing text and adds the full
+transcript; Replace substitutes it. No automatic semantic merging is performed.
+Recording alone changes neither field, and no grievance is submitted by voice
+controls. Weak transcripts may produce no title suggestion.
+
+Transcription is **disabled by default**. The user verified one successful live
+English request from a seven-second real recording, including automatic title
+fill and editable fields, with no grievance submitted; the user confirmed a
+backend restart with `TRANSCRIPTION_ENABLED=false` afterward. English/Hindi/Marathi
+mock tests and hydrated Chrome/Edge checks passed; **live Hindi/Marathi are not
+validated**. The observed title was accurate but conversational and lengthy.
+Broader recognition quality, other browsers and accessibility checks remain
+limited. See [voice setup, field behavior and verification](docs/VOICE_ASSISTED_COMPLAINT.md).
+
 ## Universal Local Setup Guide
 
 Follow these steps to run both the backend and frontend on your machine. This guide covers **Windows (PowerShell / Command Prompt)**, **macOS**, and **Linux (Bash / Zsh / Fish)**.
@@ -118,6 +140,11 @@ Create your local `.env` file from the provided example template:
   - **Email:** `admin@grievance.local`
   - **Password:** `Admin@2026!`
 - `FACE_AUTH_ENABLED`: Optional face-recognition login (DEC-024). **Off by default** — leave it `false` unless you installed `backend/requirements-face.txt` and set a `FACE_EMBED_KEY` (see `backend/.env.example`).
+- `TRANSCRIPTION_ENABLED`: Voice STT master switch; leave `false` for ordinary
+  setup. Disabled requests return 503 and citizens can continue typing.
+- `SARVAM_API_KEY`: Backend-only secret required for separately authorized live
+  STT. Never place it in frontend `NEXT_PUBLIC_*` settings. Model default is
+  `SARVAM_STT_MODEL=saaras:v4`. No extra title-generation API/key is required.
 
 #### 4. Start the backend server
 
@@ -130,6 +157,12 @@ python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 10000 --reload
 - **API Base:** `http://127.0.0.1:10000`
 - **Interactive API Docs (Swagger UI):** `http://127.0.0.1:10000/docs`
 - **Health Check:** `http://127.0.0.1:10000/health` (indicates whether storage is `mongodb` or `in-memory`)
+
+For a separately authorized controlled live STT test, use one worker without
+`--reload`; process-local quotas reset on restart. Restart the backend after
+changing the transcription flag, and stop/restart disabled immediately after
+testing. The normal setup above leaves transcription disabled; no Render or
+production change is required. See the voice guide before any provider call.
 
 ---
 
@@ -162,6 +195,13 @@ cd frontend
 > - **Standalone mock mode:** Set `NEXT_PUBLIC_USE_MOCKS=true`. The frontend will operate in offline demo mode using sample data without contacting the backend.
 >
 > *Note:* Next.js reads `NEXT_PUBLIC_*` variables at server startup. Always restart `npm run dev` after changing `.env.local`.
+
+For voice integration, set `NEXT_PUBLIC_API_URL=http://localhost:10000`, use a
+valid signed-in backend session and allow the actual frontend origin in backend
+`CORS_ORIGINS`. Microphone capture requires HTTPS or trustworthy localhost and
+modern AudioWorklet support. `NEXT_PUBLIC_USE_MOCKS` controls existing data/session
+mode; it does **not** mock the transcription endpoint. Automated voice tests
+explicitly intercept/mock transcription instead. The Sarvam flag stays backend-only.
 
 #### 2. Install dependencies & launch dev server
 
@@ -267,3 +307,8 @@ npm --prefix frontend run build
 - **DEC-017**: Cryptographic JWT authentication, role-based access control (RBAC), and Google OAuth support.
 - **DEC-024**: Optional, feature-flagged face-recognition login (1:1 verification, server-side liveness, encrypted embeddings) — convenience layer on top of JWT, never mandatory.
 - **Human-in-the-loop** (non-negotiable): AI provides advisory triage, human officers make all administrative decisions.
+
+Voice final handoff: [HANDOFF_SUMMARY.md](HANDOFF_SUMMARY.md). Core drafting is
+implemented and mock-tested; live English only was confirmed. Stage 10 login
+restoration remains blocked. The diagnostic initialization flag defaults off and
+must stay off in normal deployments; transcription remains disabled by default.

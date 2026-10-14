@@ -42,6 +42,11 @@ class MongoSlaConfigRepository:
         self._col = MongoClient(uri)[db_name]["sla_config"]
 
     def ensure_indexes_and_seed(self) -> None:
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo import ASCENDING
         self._col.create_index(
             [("category", ASCENDING), ("priority", ASCENDING)],

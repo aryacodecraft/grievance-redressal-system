@@ -53,6 +53,12 @@ MONGODB_DB = os.getenv("MONGODB_DB", "grievance")
 # Optional custom DNS nameservers for MongoDB SRV resolution (default empty uses system DNS).
 MONGO_DNS_SERVERS = os.getenv("MONGO_DNS_SERVERS", "").strip()
 
+# Diagnostic only: skips initialization writes, not writes from API endpoints.
+# Use process-local overrides; leave disabled in normal deployments.
+DIAGNOSTIC_SKIP_INITIALIZATION_WRITES = (
+    os.getenv("DIAGNOSTIC_SKIP_INITIALIZATION_WRITES", "false").lower() == "true"
+)
+
 # --- Cloudinary -----------------------------------------------------------
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
@@ -136,6 +142,22 @@ TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "")
 DLT_ENTITY_ID = os.getenv("DLT_ENTITY_ID", "")
 DLT_TEMPLATE_ID_STAGE = os.getenv("DLT_TEMPLATE_ID_STAGE", "")
 DLT_TEMPLATE_ID_OTP = os.getenv("DLT_TEMPLATE_ID_OTP", "")
+
+# --- Voice-assisted complaints (DEC-032) -------------------------------------
+# Off until explicitly enabled by operator.
+SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
+SARVAM_STT_MODEL = os.getenv("SARVAM_STT_MODEL", "saaras:v4")
+TRANSCRIPTION_ENABLED = os.getenv("TRANSCRIPTION_ENABLED", "false").lower() == "true"
+TRANSCRIPTION_MAX_FILE_BYTES = int(os.getenv("TRANSCRIPTION_MAX_FILE_BYTES", "1048576"))
+TRANSCRIPTION_MAX_REQUEST_BYTES = int(os.getenv("TRANSCRIPTION_MAX_REQUEST_BYTES", "2097152"))
+TRANSCRIPTION_MAX_SECONDS = float(os.getenv("TRANSCRIPTION_MAX_SECONDS", "30"))
+TRANSCRIPTION_USER_MINUTE_LIMIT = int(os.getenv("TRANSCRIPTION_USER_MINUTE_LIMIT", "3"))
+TRANSCRIPTION_USER_HOUR_LIMIT = int(os.getenv("TRANSCRIPTION_USER_HOUR_LIMIT", "10"))
+TRANSCRIPTION_GLOBAL_ATTEMPT_LIMIT = int(os.getenv("TRANSCRIPTION_GLOBAL_ATTEMPT_LIMIT", "20"))
+TRANSCRIPTION_MAX_CONCURRENT = int(os.getenv("TRANSCRIPTION_MAX_CONCURRENT", "2"))
+TRANSCRIPTION_IDEMPOTENCY_TTL_SECONDS = int(os.getenv("TRANSCRIPTION_IDEMPOTENCY_TTL_SECONDS", "300"))
+TRANSCRIPTION_UPLOAD_TIMEOUT_SECONDS = float(os.getenv("TRANSCRIPTION_UPLOAD_TIMEOUT_SECONDS", "15"))
+SARVAM_TIMEOUT_SECONDS = float(os.getenv("SARVAM_TIMEOUT_SECONDS", "45"))
 
 # --- Proxy -------------------------------------------------------------------
 # When true, honour X-Forwarded-Proto when deciding whether a request is HTTPS.

@@ -8,7 +8,10 @@
  * Placeholders use `{name}` and are filled by `t(key, { name })`.
  */
 
+import { voiceEn } from "./voice";
+
 const en = {
+  ...voiceEn,
   // ── Header ──
   home: "Home",
   register: "Register Grievance",

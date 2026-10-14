@@ -49,6 +49,10 @@ class MongoOtpRepository(InMemoryOtpRepository):
     def __init__(self, uri: str, db_name: str):
         from pymongo import MongoClient
         self._col = MongoClient(uri)[db_name]["phone_otp_challenges"]
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
         self._col.create_index("expires", expireAfterSeconds=0, name="otp_ttl")
         self._col.create_index("key", unique=True, name="otp_key")
 

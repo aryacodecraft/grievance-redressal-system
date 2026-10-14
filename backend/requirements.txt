@@ -12,7 +12,7 @@ h11==0.16.0
 h2==4.4.1
 hpack==4.2.0
 httpcore==1.0.9
-httpx==0.28.1
+httpx==0.28.1  # Direct Sarvam HTTP integration; root manifest also declares this dependency.
 hyperframe==6.1.0
 idna==3.19
 joblib==1.6.0

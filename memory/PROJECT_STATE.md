@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-11 (Twilio provider code complete per DEC-027, vars pending; picker scoped en/hi/mr per DEC-026)
+> Last updated: 2026-10-14 (Stage 9 Append/Replace/Cancel; live transcription remains disabled)
 
 ---
 
@@ -54,6 +54,82 @@ memory/        — AI agent persistent memory                                  I
 ---
 
 ## Implemented
+
+### Voice-assisted complaint backend — Stage 4B (DEC-032)
+
+- Authenticated multipart POST /transcribe, direct httpx Sarvam saaras:v4
+  transcribe integration for en-IN/hi-IN/mr-IN; no grievance/database mutations.
+- Strict mono 16-bit 16 kHz PCM WAV, actual-frame 30-second boundary,
+  1 MiB file/2 MiB complete body limits and bounded upload/provider timeouts.
+- Atomic process-local quotas: 3/user/minute, 10/user/hour, 20 attempts/process,
+  one active/user, two active globally; idempotent replay/failure tombstones.
+- IMPLEMENTED and TESTED with mocks (98 feature/config/classifier checks passed;
+  nine existing endpoint baseline failures). Verification in CHANGELOG.md. Disabled by
+  default locally/Render; one subsequent user-verified live English smoke test
+  passed (see Stage 8 below), not general recognition validation.
+- Stage 5 frontend recording/playback/re-record/discard and description replacement
+  confirmation are IMPLEMENTED and mock TESTED (55 tests + 21 existing contracts).
+- Stage 6 mock TESTED: ten loopback HTTP scenarios connect actual worklet/WAV,
+  frontend API/form and authenticated backend to a mocked provider (en/hi/mr).
+  Relevant backend suite: 80 passed. No grievance creation or permanent raw-audio
+  storage; authentication, validation, cancellation and error paths verified.
+  TypeScript/targeted lint passed; no application changes or live provider calls.
+- Stage 7 partially TESTED: real isolated headless Chrome/Edge CORS/preflight,
+  secure-context, fake microphone grant/denial, generated WAV decode/playback,
+  native keyboard/focus and accessibility-tree/confirm probes passed. Probe uses
+  server-rendered markup, not hydrated Next.js; React lifecycle tested in jsdom.
+  Backend: 88 passed; frontend: 58 passed; TypeScript/targeted lint passed.
+  Actual screen readers, dynamic browser focus, Firefox/Safari
+  and deployed HTTPS remain unverified. Not ready for final live sign-off.
+- Stage 8 IMPLEMENTED and mock TESTED (DEC-034): local extractive en/hi/mr title
+  helper; empty-title auto-fill only after transcript acceptance; existing and
+  pending-edited titles preserved, explicit confirmed replacement, full description
+  retained and editable fields. Frontend: 82 passed; TypeScript/targeted lint passed.
+  No backend/provider changes. Hydrated Next.js /submit mock validation passed in
+  Chrome/Edge: 12 scenarios each, nine mocked uploads each, zero submissions/writes.
+  Actual React/RHF/capture runs; API/session mocked before transport. No application
+  defect found. Finite heuristics, native-language quality, other browsers and
+  keyboard/screen-reader manual checks remain limitations.
+- Stage 8 live English smoke TESTED, user-verified 2026-10-14: one successful
+  Sarvam STT request from a 7-second real microphone recording; complete transcript
+  inserted in Description, deterministic Issue Title auto-filled, both editable.
+  No grievance submitted. Title accurate but conversational and lengthy: concise
+  headline quality remains a limitation. User confirmed restart with
+  TRANSCRIPTION_ENABLED=false afterward; not independently rechecked in this
+  documentation-only session. Prior en/hi/mr mock tests remain distinct; live
+  Hindi/Marathi and general recognition/latency/billing evaluation unvalidated.
+- Stage 9 IMPLEMENTED and mock TESTED (DEC-035): localized native modal
+  Append/Replace/Cancel before uploading nonempty descriptions and after pending
+  edits. Append retains latest text/full transcript, titles protected, async choice
+  abort/epoch guards. 97 frontend tests; TypeScript/targeted lint/diff checks passed.
+  Existing mock cross-stack test passed. Hydrated Chrome/Edge follow-up: 25 scenarios
+  each (13 Stage 9 + 12 Stage 8), 16 mock uploads each, zero application writes.
+  StrictMode chooser cancellation and keyboard focus wrap/return fixed/tested.
+  AX/localized labels and navigation cleanup passed; actual screen-reader speech,
+  physical devices, whole-page keyboard-only flow and Firefox/Safari remain untested.
+  No backend/API/provider changes or new live requests; configured flag remains false.
+- Stage 9 title concision follow-up: anchored en/hi/mr reporting-intro trimming,
+  original issue/location/quantity/negation retained; no clipping of oversized
+  clauses (null fallback). Unicode decimal handling and full description/manual
+  title safeguards tested. 113 frontend tests; TypeScript/targeted lint/diff passed.
+  Hydrated Chrome/Edge: 26 scenarios each, 17 mock uploads each, zero writes.
+  Representative street-light fixture, not a recorded live transcript; finite
+  rules and native-speaker/semantic-quality evaluation remain limitations.
+- Playback bug fixed: StrictMode ref replay no longer removes React's audio src.
+  Regression failed before fix and passes after; isolated headless Chrome decoded
+  and played synthetic two-second mono 16 kHz WAV. Owner reports real Chrome
+  recording/playback/re-record/discard/automatic-stop tests passed.
+- AudioWorklet mono capture, bounded 32-tap sinc resampling and genuine 16 kHz
+  PCM WAV; generated 30-second WAV passes actual backend validation. Typed form
+  payload remains unchanged. Backend remains disabled. Other browser/accessibility
+  manual validation and native-reader review of Hindi/Marathi copy remain PLANNED.
+- TypeScript/build and targeted frontend lint pass; full lint retains four
+  pre-existing FaceCapture errors and four warnings (see CHANGELOG).
+- Root deployment requirements aligned for httpx/multipart and existing auth/SMS
+  runtime dependencies; docs/VOICE_ASSISTED_COMPLAINT.md is the feature handoff.
+- SESSION_LOG.md remains untouched under the owner's preservation instruction.
+- Restarts/multiple workers bypass process-local budgets. Before live citizen
+  audio, verify provider retention, balance/plan and auto-recharge settings.
 
 ### Documentation
 - `README.md`, `PRD.md`, `AGENTS.md`
@@ -376,3 +452,11 @@ memory/        — AI agent persistent memory                                  I
 6. Fill `MONGODB_URI`/`MONGODB_DB` into the Render environment for deployment.
 
 See `memory/TODO.md` for the full prioritized task backlog.
+
+### 2026-10-14 ? Stage 10 diagnostic initialization guard
+
+Default-off DIAGNOSTIC_SKIP_INITIALIZATION_WRITES implemented across all nine MongoDB repositories and startup seed/backfill. Endpoint permissions/writes unchanged. Backend not restarted; MongoDB-backed browser login restoration and live Hindi/Marathi remain pending.
+
+### 2026-10-14 ? Stage 11 final voice handoff
+
+Voice Stages 4?9 plus Stage 10 diagnostic guard implementation complete; Stage 11 documentation handoff prepared in HANDOFF_SUMMARY.md. Live English only confirmed. Live Hindi/Marathi and production/accessibility/device validation pending. MongoDB login NOT restored: approved guarded launch attempts failed (import path, then incompatible TLS URI options); last observed backend port 10000 had no listener. Corrected launcher is documentation-only, not runtime validated. Do not continue debugging or restart during this handoff.

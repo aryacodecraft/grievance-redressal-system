@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/Button";
@@ -10,9 +10,12 @@ import { Alert } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { AnalysisPanel } from "./GrievanceCard";
 import { ImageUpload } from "./ImageUpload";
+import { VoiceRecorder } from "./VoiceRecorder";
+import { TranscriptionChoice, type DescriptionAction } from "./TranscriptionChoice";
 import { LocationCapture, type Coords } from "./LocationCapture";
 import type { UploadedImage } from "./ImageUpload";
 import { submitGrievance } from "@/lib/api";
+import { suggestVoiceTitle } from "@/lib/voice/title";
 import { useDemoUser } from "@/lib/session";
 import type { SubmitResult } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
@@ -37,6 +40,17 @@ export function SubmitForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const [voiceEpoch, setVoiceEpoch] = useState(0);
+  const [titleSuggestion, setTitleSuggestion] = useState<{ title: string; description: string } | null>(null);
+  const [choice, setChoice] = useState<{ signal: AbortSignal; changed: boolean; resolve: (action: DescriptionAction) => void } | null>(null);
+  const descriptionAction = useRef<DescriptionAction>("replace");
+  function chooseDescription(signal: AbortSignal, changed: boolean): Promise<DescriptionAction> {
+    if (signal.aborted) return Promise.resolve("cancel");
+    return new Promise((resolve) => setChoice({ signal, changed, resolve }));
+  }
+  const finishChoice = useCallback((action: DescriptionAction) => {
+    choice?.resolve(action); setChoice(null);
+  }, [choice]);
 
   // Bring the confirmation into view — users missed it below the fold.
   useEffect(() => {
@@ -49,8 +63,12 @@ export function SubmitForm() {
     register,
     handleSubmit,
     reset,
+    setValue,
+    getValues,
+    control,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const currentDescription = useWatch({ control, name: "description" });
 
   async function onSubmit(values: FormValues) {
     setError(null);
@@ -60,6 +78,8 @@ export function SubmitForm() {
       return;
     }
     setSubmitting(true);
+    // Cancel voice resources/in-flight results before submission or form reset.
+    setVoiceEpoch((value) => value + 1);
     try {
       const res = await submitGrievance({
         title: values.title,
@@ -73,6 +93,7 @@ export function SubmitForm() {
       setResult(res);
       notify("Grievance registered", `Reference ID ${res.grievanceId}. Updates will appear in Notifications and Track Status.`);
       reset();
+      setTitleSuggestion(null);
       setImage(null);
       setCoords(null);
     } catch (e) {
@@ -105,6 +126,17 @@ export function SubmitForm() {
                 {...register("title")}
               />
             </Field>
+            {titleSuggestion && currentDescription === titleSuggestion.description && (
+              <div className="space-y-2 text-sm" role="status">
+                <p>{t("voiceSuggestedTitle")}: {titleSuggestion.title}</p>
+                <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => {
+                  if (getValues("description") !== titleSuggestion.description) return;
+                  if ((getValues("title") ?? "").trim() && !window.confirm(t("voiceReplaceTitle"))) return;
+                  setValue("title", titleSuggestion.title, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                  setTitleSuggestion(null);
+                }}>{t("voiceUseTitle")}</Button>
+              </div>
+            )}
             <Field
               label={t("formDescLabel")}
               required
@@ -116,6 +148,44 @@ export function SubmitForm() {
                 {...register("description")}
               />
             </Field>
+            <VoiceRecorder
+              key={voiceEpoch}
+              disabled={submitting}
+              prepareTranscription={async (signal) => {
+                const current = getValues("description") ?? "";
+                descriptionAction.current = current.trim() ? await chooseDescription(signal, false) : "replace";
+                if (signal.aborted || descriptionAction.current === "cancel") return null;
+                return current;
+              }}
+              onTranscript={async (text, original, signal) => {
+                let current = getValues("description") ?? "";
+                let action = descriptionAction.current;
+                if (current !== original) {
+                  // Recheck after every asynchronous choice, including programmatic edits.
+                  for (;;) {
+                    const snapshot = current;
+                    action = await chooseDescription(signal, true);
+                    if (signal.aborted || action === "cancel") return false;
+                    current = getValues("description") ?? "";
+                    if (current === snapshot) break;
+                  }
+                }
+                if (signal.aborted) return false;
+                const description = action === "append" && current
+                  ? current + (/\s$/u.test(current) ? "" : "\n\n") + text : text;
+                setValue("description", description, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                const title = suggestVoiceTitle(text);
+                setTitleSuggestion(null);
+                if (title) {
+                  if (!(getValues("title") ?? "").trim()) {
+                    setValue("title", title, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                  } else {
+                    setTitleSuggestion({ title, description });
+                  }
+                }
+                return true;
+              }}
+            />
             <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
               <ImageUpload onChange={setImage} />
               <LocationCapture onChange={setCoords} />
@@ -129,6 +199,7 @@ export function SubmitForm() {
           </form>
         </CardBody>
       </Card>
+      {choice && <TranscriptionChoice {...choice} onChoice={finishChoice} />}
 
       {result && (
         <div ref={resultRef} className="scroll-mt-20">

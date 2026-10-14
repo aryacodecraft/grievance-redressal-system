@@ -12,6 +12,10 @@
 
 ## Base URL
 
+Stage 4B adds authenticated multipart `POST /transcribe` (disabled by default),
+returning original-language text without creating a grievance. Audio contract,
+idempotency, quotas and errors: [Voice-assisted complaints](VOICE_ASSISTED_COMPLAINT.md).
+
 Development: `http://localhost:10000`
 
 ### Implemented endpoints

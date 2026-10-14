@@ -1,6 +1,9 @@
 import type { Messages } from "./en";
 
+import { voiceMr } from "./voice";
+
 const mr: Messages = {
+  ...voiceMr,
   // ── Header ──
   home: "मुख्यपृष्ठ",
   register: "तक्रार नोंदणी",

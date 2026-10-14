@@ -27,6 +27,8 @@ RENDER_YAML = ROOT / "render.yaml"
 # Keys the backend cannot do anything useful without, or whose absence
 # silently changes behaviour rather than erroring.
 CRITICAL_BACKEND_KEYS = {
+    "SARVAM_API_KEY",
+    "TRANSCRIPTION_ENABLED",
     "MONGODB_URI",
     "MONGODB_DB",
     "CORS_ORIGINS",
@@ -108,6 +110,17 @@ def test_render_database_variables_exist():
     """Without `MONGODB_URI` a deployment silently runs in-memory."""
     assert "MONGODB_URI" in _render_keys()
     assert "MONGODB_DB" in _render_keys()
+
+
+def test_transcription_configuration_and_deployment_contract():
+    voice_keys = {key for key in _config_keys() if key.startswith(("SARVAM_", "TRANSCRIPTION_"))}
+    assert voice_keys <= _render_keys()
+    render = RENDER_YAML.read_text(encoding="utf-8")
+    assert re.search(r'key: TRANSCRIPTION_ENABLED\s+value: "false"', render)
+    assert re.search(r'key: SARVAM_API_KEY\s+sync: false', render)
+    root_requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    for package in ("httpx", "python-multipart"):
+        assert re.search(rf"^{package}(?:[>=].*)?$", root_requirements, re.MULTILINE)
 
 
 def test_render_cors_origin_is_not_a_localhost_placeholder():

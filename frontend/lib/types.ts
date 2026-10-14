@@ -74,6 +74,13 @@ export interface SubmitResult {
   hfEngine: HfEngine;
 }
 
+export type VoiceLanguage = "en-IN" | "hi-IN" | "mr-IN";
+export interface TranscriptionResult {
+  transcript: string;
+  language_code: VoiceLanguage | null;
+  request_id?: string;
+}
+
 export interface SignupProfile {
   address: string;
   dob: string;
@@ -86,7 +93,8 @@ export interface CaptchaSolution {
   captcha_solution: string;
 }
 
-export interface AuthUser {  id: string;
+export interface AuthUser {
+  id: string;
   email?: string | null;
   phone?: string | null;
   phoneVerifiedAt?: string | null;

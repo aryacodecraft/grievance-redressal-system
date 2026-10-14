@@ -1,12 +1,19 @@
 # AI_SYSTEM.md — AI Module Specifications
 
 > Every AI capability is documented separately.
-> Status: PLANNED — no AI modules are implemented yet.
+> Status: The module specifications below include PLANNED designs. Stage 4B
+> adds an IMPLEMENTED speech-to-text backend; see the feature note below.
 > Do not claim an LLM call automatically constitutes a validated AI module.
 
 ---
 
 ## Design Principles
+
+Stage 4B speech-to-text is an IMPLEMENTED draft-assistance backend (mock testing
+recorded in memory/CHANGELOG.md), not a validated recognition model. It returns
+original-language text for citizen review, creates no grievance and stores no
+AI output in MongoDB. Stage 5 frontend is IMPLEMENTED and mock TESTED; real
+speech accuracy remains unvalidated. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPLAINT.md).
 
 1. AI is a **decision-support layer**, not a final authority.
 2. Every AI output includes: module ID, model/version, confidence score (where available), timestamp.

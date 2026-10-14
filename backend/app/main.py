@@ -30,6 +30,8 @@ from .routers import admin as admin_router
 from .routers import audit as audit_router
 from .routers import notifications as notif_router
 from .routers import phone as phone_router
+from .routers import transcription as transcription_router
+from .transcription_guard import TranscriptionGuard
 
 logging.basicConfig(level=logging.INFO)
 
@@ -130,6 +132,7 @@ class FaceRouteGuard:
 # recently added middleware first, so CORSMiddleware stays outermost and adds
 # its headers to the guard's 404/400/413 replies too.
 app.add_middleware(FaceRouteGuard)
+app.add_middleware(TranscriptionGuard)
 
 app.add_middleware(
     CORSMiddleware,
@@ -192,6 +195,7 @@ app.include_router(admin_router.router)
 app.include_router(audit_router.router)
 app.include_router(notif_router.router)
 app.include_router(phone_router.router)
+app.include_router(transcription_router.router)
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────
@@ -247,6 +251,9 @@ def _seed_on_startup() -> None:
     singleton factory calls ensure_indexes on the Mongo path). The startup
     hook only handles data seeding that needs the full app context.
     """
+    if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+        return
+
     import bcrypt as _bcrypt
     from .db import repository
     from .services.departments import canonical_department

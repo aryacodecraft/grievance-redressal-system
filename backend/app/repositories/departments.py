@@ -57,6 +57,11 @@ class MongoDepartmentRepository:
         self._col = MongoClient(uri)[db_name]["departments"]
 
     def ensure_indexes(self) -> None:
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         self._col.create_index("key", unique=True, name="uniq_dept_key")
 
     @staticmethod

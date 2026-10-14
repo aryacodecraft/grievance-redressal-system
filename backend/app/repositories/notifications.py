@@ -54,6 +54,11 @@ class MongoNotificationRepository:
         self._col = MongoClient(uri)[db_name]["notifications"]
 
     def ensure_indexes(self) -> None:
+        from .. import config
+
+        if config.DIAGNOSTIC_SKIP_INITIALIZATION_WRITES:
+            return
+
         from pymongo import ASCENDING, DESCENDING
         self._col.create_index(
             [("userId", ASCENDING), ("isRead", ASCENDING), ("at", DESCENDING)],

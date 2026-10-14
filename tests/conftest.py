@@ -24,6 +24,9 @@ os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
 # Force the deterministic keyword fallback — no HF/Groq network calls in tests.
 os.environ["GROQ_API_KEY"] = ""
 os.environ["HF_API_TOKEN"] = ""
+# Never load an operator's Sarvam key or enable paid STT in tests.
+os.environ["SARVAM_API_KEY"] = ""
+os.environ["TRANSCRIPTION_ENABLED"] = "false"
 # JWT secret for tests — any stable value works; must be non-empty so tokens
 # are actually validated (auth.py disables verification when secret is "").
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-pytest-only-not-production")

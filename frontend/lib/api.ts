@@ -8,6 +8,8 @@ import type {
   SignupProfile,
   SubmitPayload,
   SubmitResult,
+  TranscriptionResult,
+  VoiceLanguage,
 } from "./types";
 
 const API_URL =
@@ -86,7 +88,7 @@ async function requestJson<T>(
   const token = getStoredAccessToken();
   const headers: Record<string, string> = {
     Accept: "application/json",
-    ...(init.body ? { "Content-Type": "application/json" } : {}),
+    ...(init.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
     ...(init.headers as Record<string, string>),
   };
   if (token && !headers.Authorization) {
@@ -109,6 +111,7 @@ async function requestJson<T>(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refresh_token: refreshToken }),
           cache: "no-store",
+          ...(init.signal ? { signal: init.signal } : {}),
         });
         if (refreshRes.ok) {
           const data = await refreshRes.json();
@@ -118,7 +121,9 @@ async function requestJson<T>(
         } else {
           clearStoredTokens();
         }
-      } catch {
+      } catch (error) {
+        // Cancelling voice upload/refresh must not sign the user out.
+        if (init.signal?.aborted) throw error;
         clearStoredTokens();
       } finally {
         _isRefreshing = false;
@@ -131,6 +136,7 @@ async function requestJson<T>(
     const err = new Error(
       (json && (json.error as string)) || `Request failed (${res.status})`
     );
+    Object.assign(err, { status: res.status });
     const faceReason = res.headers?.get ? res.headers.get("x-face-reason") : null;
     if (faceReason) {
       (err as unknown as { faceReason?: string }).faceReason = faceReason;
@@ -146,6 +152,42 @@ function postJson<T>(path: string, body: unknown): Promise<T> {
 
 function patchJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+const transcriptionSchema = z.object({
+  transcript: z.string().min(1).max(16000).refine((value) => value.trim().length > 0),
+  language_code: z.enum(["en-IN", "hi-IN", "mr-IN"]).nullable(),
+  request_id: z.string().max(200).optional(),
+});
+
+export const TRANSCRIPTION_TIMEOUT_MS = 70000;
+
+/** Explicit user attempt only. 401 refresh reuses the same body/key; no other retries. */
+export async function transcribeAudio(
+  audio: Blob,
+  language: VoiceLanguage,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<TranscriptionResult> {
+  if (!getStoredAccessToken()) throw Object.assign(new Error("Not authenticated"), { status: 401 });
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(abort, TRANSCRIPTION_TIMEOUT_MS);
+  const form = new FormData();
+  form.append("file", audio, "recording.wav");
+  form.append("language_code", language);
+  try {
+    const raw = await requestJson<unknown>("/transcribe", {
+      method: "POST", body: form, signal: controller.signal,
+      headers: { "Idempotency-Key": idempotencyKey },
+    });
+    return transcriptionSchema.parse(raw);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
 }
 
 const hfEngineSchema = z.object({
