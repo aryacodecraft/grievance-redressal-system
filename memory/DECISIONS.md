@@ -1452,4 +1452,37 @@ their own queue search).
 `frontend/app/page.tsx`, `frontend/components/home/HomeTrackPanel.tsx`
 (deleted), `frontend/lib/i18n/en.ts` (subtitle + TODO note)
 
+---
+
+## DEC-029 — Citizen Tracking Is a Master-Detail Dashboard, No Department Totals
+
+**ID:** DEC-029
+**Date:** 2026-10-14
+**Status:** ACCEPTED (owner-directed follow-up to DEC-028)
+
+**Context:**
+After DEC-028 removed reference-ID search, `/track` showed personal
+grievance cards (details hidden behind a modal) plus a per-department totals
+grid. The owner wants no department breakdown on the tracking page and the
+user's grievance details visible directly on the dashboard.
+
+**Decision:**
+1. Delete the personal department-totals grid from `/track` (counting logic
+   and its now-unused imports go with it).
+2. `/track` becomes master-detail: selectable grievance list (left) with an
+   inline full-detail panel (right, sticky on desktop, auto-selects the
+   first grievance). The detail body is extracted from
+   `GrievanceDetailModal` into `GrievanceDetailPanel` (timeline, description,
+   metadata, map, photo, history, AI triage); the modal becomes a thin
+   overlay wrapper so `/submit`'s `MyGrievances` behavior is unchanged.
+   Panel remounts per grievance via `key` (same pattern as
+   `GrievanceReviewModal`), which also satisfies the
+   `react-hooks/set-state-in-effect` lint rule.
+3. `myByDeptTitle/Text` join the DEC-028 orphan-keys note; backend untouched.
+
+**Affected Components:** `frontend/app/track/page.tsx`,
+`frontend/components/grievance/GrievanceDetailPanel.tsx` (new),
+`frontend/components/grievance/GrievanceDetailModal.tsx` (wrapper),
+`frontend/lib/i18n/en.ts` (TODO note)
+
 

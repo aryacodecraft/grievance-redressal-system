@@ -4,6 +4,18 @@
 > Do not record formatting changes unless they affect project understanding.
 > Format: most recent date first within a date block.
 
+## 2026-10-14 — Tracking dashboard: master-detail, no department totals (DEC-029)
+
+- `/track`: department-totals grid deleted; page is now a master-detail
+  dashboard — selectable grievance list + inline full-detail panel
+  (timeline, description, metadata, map, photo, history, AI triage),
+  auto-selecting the first grievance.
+- New `GrievanceDetailPanel.tsx` extracted from `GrievanceDetailModal`
+  (now a thin wrapper — `/submit` behavior unchanged); per-grievance remount
+  via `key`.
+- Verified: `tsc` clean, `eslint` clean, `npm run build` green (18 routes),
+  contract checks passed.
+
 ## 2026-10-14 — Removed reference-ID search from citizen surfaces (DEC-028)
 
 - `/track` is now personal-grievances only: tab switcher, search form/results,

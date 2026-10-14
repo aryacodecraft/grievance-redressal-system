@@ -2512,3 +2512,26 @@ on My-grievances is acceptable.
 - `npx tsc --noEmit` clean, `npx eslint` clean on touched files,
   `node scripts/check-contract.mjs` passed, `npm run build` green (18 routes).
 - Memory updated: DEC-028, TODO §4E annotation, CHANGELOG, this log.
+
+---
+
+## 2026-10-14 — Tracking master-detail dashboard, no department totals (DEC-029)
+
+### Request
+Owner (same branch): on track-grievances, drop the by-department view;
+the dashboard should carry the user's grievance details.
+
+### What changed
+- `/track`: department grid + counting deleted; master-detail layout (list
+  left, sticky inline detail panel right, first grievance auto-selected,
+  selected card ring highlight, stacked on mobile).
+- New `GrievanceDetailPanel.tsx` (detail body extracted from the modal);
+  `GrievanceDetailModal` is now an overlay wrapper — `/submit`
+  `MyGrievances` behavior unchanged. Per-grievance `key` remount also fixes
+  a `set-state-in-effect` lint error.
+- `myByDeptTitle/Text` added to the DEC-028 orphan-keys note. Backend untouched.
+
+### Verification
+- `npx tsc --noEmit` clean, `npx eslint` clean, contract checks passed,
+  `npm run build` green (18 routes).
+- Memory updated: DEC-029, CHANGELOG, this log.
