@@ -97,8 +97,7 @@ export function LocationCapture({
   }
 
   // Manual address search handler
-  async function handleSearch(e?: React.FormEvent) {
-    if (e) e.preventDefault();
+  async function handleSearch() {
     const query = searchQuery.trim();
     if (!query) return;
 
@@ -271,26 +270,33 @@ export function LocationCapture({
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-ink-500">
             Type location or landmark manually
           </label>
-          <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="flex gap-2">
             <div className="relative flex-1">
               <Search size={14} className="absolute left-2.5 top-2.5 text-ink-400" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+                  // Never let Enter bubble into the enclosing grievance form.
+                  e.preventDefault();
+                  if (!searchBusy && searchQuery.trim()) void handleSearch();
+                }}
                 placeholder="Type area, city, or landmark (e.g. Connaught Place, Delhi)"
                 className="pl-8 text-xs h-9"
               />
             </div>
             <Button
-              type="submit"
+              type="button"
               variant="secondary"
               size="sm"
               disabled={searchBusy || !searchQuery.trim()}
+              onClick={() => void handleSearch()}
               className="h-9 px-3 text-xs shrink-0"
             >
               {searchBusy ? <Loader2 size={13} className="animate-spin" /> : "Search"}
             </Button>
-          </form>
+          </div>
           {searchError && (
             <p className="mt-1 text-[11px] font-medium text-rose-600">{searchError}</p>
           )}
