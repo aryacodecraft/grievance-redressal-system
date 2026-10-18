@@ -28,7 +28,7 @@ Each: `{actor, actorRole, action, entity, entityId, old, new, at, reason, source
 - Cross-dept: enforce `departmentId` match on assign/progress/resolve; test cross-dept 403.
 - Privilege escalation: role/permission/dept writes SUPERADMIN-only + reason + ≥1 SUPERADMIN guard; no client role trust (`roles.ts` deprecated).
 - Status/priority/deadline spoof: service validates transition + role; 422/403.
-- Evidence: auth image routes; SSRF allowlist + size/timeout; Cloudinary `publicId` persisted (today dropped — `imageValidation` not saved per PROJECT_STATE).
+- Evidence: auth image routes; SSRF allowlist + size/timeout; Cloudinary `publicId` persisted (today dropped — `imageValidation` not saved; see `memory/CURRENT_STATE.md` §4).
 - Internal leak: timeline projection by role; `bodyInternal` never serialized to `USER`.
 - Unauth demo: gate body-`userId` path behind flag; officer writes always 401 without token.
 - Secrets: no JWT/keys in logs; `JWT_SECRET_KEY`, `MONGODB_URI`, OAuth via env only.

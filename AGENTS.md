@@ -11,12 +11,11 @@
 
 1. Read this file (`AGENTS.md`)
 2. Read `memory/README.md`
-3. Read `memory/PROJECT_STATE.md`
-4. Read `memory/DECISIONS.md`
-5. Read `memory/TODO.md`
-6. Read the latest relevant entries in `memory/SESSION_LOG.md`
-7. Read relevant technical documentation in `docs/` for the task at hand
-8. Inspect the actual source files affected by the requested task
+3. Read `memory/CURRENT_STATE.md` (current state + remaining work — the single entry point)
+4. Read `memory/DECISIONS.md` (grep for the decisions relevant to the task; full read only when making decisions)
+5. Read the latest relevant entries in `memory/CHANGELOG.md` and `memory/SESSION_LOG.md` (rolling files; older history in `memory/archive/`)
+6. Read relevant technical documentation in `docs/` for the task at hand
+7. Inspect the actual source files affected by the requested task
 
 **Do not begin implementation based solely on the user's latest prompt.**
 Understand the existing project state first.
@@ -58,11 +57,20 @@ Update project memory. Evaluate whether updates are needed to:
 
 | File | Update When |
 |---|---|
-| `memory/PROJECT_STATE.md` | Implementation state changed |
+| `memory/CURRENT_STATE.md` | Implementation state or remaining-work list changed |
 | `memory/DECISIONS.md` | Architectural decision made |
-| `memory/CHANGELOG.md` | Any meaningful change — always |
-| `memory/TODO.md` | Tasks completed, new tasks discovered |
-| `memory/SESSION_LOG.md` | Every session — append new entry |
+| `memory/CHANGELOG.md` | Any meaningful change — always (rolling; keep entries lean) |
+| `memory/SESSION_LOG.md` | Every session — append entry (rolling; keep entries lean) |
+
+> **Rolling logs (2026-10-18, DEC-037):** `CHANGELOG.md` and `SESSION_LOG.md` keep
+> roughly the last two weeks (minimum ~10 entries). When appending, if the active
+> file exceeds ~400 lines, rotate only the entries older than that two-week window
+> — **unchanged** — into `memory/archive/<FILE>-<first>_to_<last>.md` (create or
+> extend the archive file for the period) and update the pointer line at the top.
+> Never rotate below the ~10-entry floor, and never edit or delete entries —
+> rotation only relocates them. Keep new entries to what changed / what was
+> verified / what was not / pointers to DEC or CURRENT_STATE items; process
+> ceremony belongs in neither file.
 
 If architecture changed → update `docs/ARCHITECTURE.md`
 If database changed → update `docs/DATABASE.md`
@@ -114,14 +122,17 @@ Use the approved stack. Do not introduce new frameworks or languages without doc
 | Frontend | Next.js (TypeScript) |
 | Backend | FastAPI (Python) — `backend/app/` is the serving path (DEC-010) |
 | Database | MongoDB (DEC-011; supersedes the original PostgreSQL plan in DEC-002) |
-| Auth | JWT + Google OAuth 2.0 + RBAC *(planned; current prototype uses a demo localStorage session + server-side-free role hints — see DEC-009)* |
+| Auth | JWT + Google OAuth 2.0 + RBAC *(implemented 2026-10-03 — DEC-017; the demo localStorage session remains only as the mock-mode fallback — see DEC-009)* |
 | AI/NLP | LLM API, Hugging Face Transformers, Sentence Transformers |
 | ML | PyTorch, Scikit-learn |
 | Visualization | Chart.js / Recharts |
 
 > **Stack note (2026-09-11):** rows above reflect the state after migration
 > Phases 1–3 (owner approved executing the migration plan, which supersedes
-> DEC-008). The Auth row is the *target*; real auth is not yet implemented.
+> DEC-008).
+> **Update (2026-10-18):** real auth (JWT + Google OAuth + RBAC) landed
+> 2026-10-03 (DEC-017); the demo localStorage session now exists only as the
+> mock-mode fallback.
 
 Prefer TypeScript over plain JavaScript for all substantial frontend code.
 
@@ -219,9 +230,8 @@ Every task must leave the repository in a state where another agent can continue
 without asking "What were you doing?"
 
 The next agent must be able to determine that from:
-- `memory/PROJECT_STATE.md`
-- `memory/TODO.md`
-- `memory/SESSION_LOG.md`
+- `memory/CURRENT_STATE.md`
+- `memory/SESSION_LOG.md` / `memory/CHANGELOG.md`
 - `memory/DECISIONS.md`
 
 ---
@@ -232,6 +242,10 @@ Never replace useful documentation with a shorter generic version.
 Prefer targeted edits over rewrites.
 Preserve: historical decisions, useful explanations, unresolved questions, previous session context.
 Do not delete memory history to make files "cleaner."
+
+Long memory logs are rotated into `memory/archive/` when they grow (see the
+rolling-logs rule above) — rotated entries are preserved verbatim, never
+deleted or edited.
 
 ---
 

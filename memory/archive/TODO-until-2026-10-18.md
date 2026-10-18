@@ -90,6 +90,10 @@
 - [x] **Micro-interactions & Polish**
   - Real-time status tracker with visual progress milestones (`StatusTimeline` in `GrievanceCard.tsx`).
   - Loading & warning alert feedback in `Feedback.tsx`.
+- [x] **Homepage entrance animation** (2026-10-18, DEC-036)
+  - Reveal-only: hero CSS `fade-up` stagger + `Reveal` (IntersectionObserver)
+    scroll-reveal on the five public homepage sections; reduced-motion and
+    no-JS safe. Staff overview unchanged.
 - [x] **Register Page — Split Layout**
   - Same dark-panel-left + form-right treatment as login page.
 

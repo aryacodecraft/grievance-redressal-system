@@ -257,7 +257,7 @@ AI-originated actions are clearly tagged as `action_source = AI_RECOMMENDATION` 
   throttling. The face endpoints (`/auth/face/*`) carry per-IP/per-email/
   per-user TTL lockout counters (DEC-024), but that does not protect the
   password routes; per-IP + per-account throttling there is an open gap
-  (tracked in `memory/TODO.md`).
+  (tracked in `memory/CURRENT_STATE.md` §4).
 - A Firebase Web API key was hardcoded in a now-deleted file and remains in
-  git history — rotation is still required (tracked in `memory/TODO.md`)
+  git history — rotation is still required (tracked in `memory/CURRENT_STATE.md` §4)
 - These are acceptable limitations for an academic prototype

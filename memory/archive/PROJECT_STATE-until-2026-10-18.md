@@ -2,7 +2,7 @@
 
 > This file describes the **current state** of the project only.
 > History belongs in `CHANGELOG.md` and `SESSION_LOG.md`.
-> Last updated: 2026-10-14 (Stage 9 Append/Replace/Cancel; live transcription remains disabled)
+> Last updated: 2026-10-18 (homepage entrance animation, DEC-036; live transcription remains disabled)
 
 ---
 
@@ -154,6 +154,9 @@ memory/        — AI agent persistent memory                                  I
 - `components/admin/AdminAnalytics.tsx` + `app/admin/analytics/page.tsx` — executive dashboard with tabbed views ("Overview & Trends" for macro metrics, distribution charts, and text clusters; "Location Analysis (Map)" for spatial map and area hotspots); CSV exports built in `lib/report.ts` (`buildComplaintsCsv` flat list + `buildSummaryCsv` department-wise summary)
 - `components/admin/{AdminGate,AdminNav,useAdminGrievanceFeed,departments}.tsx|ts` — shared admin chrome/data (DEC-018)
 - `components/grievance/MyGrievances.tsx` — citizen's own submissions on `/submit`
+- `components/ui/Reveal.tsx` + `globals.css` `fade-up`/`data-reveal` styles —
+  homepage entrance animation, **IMPLEMENTED** (2026-10-18, DEC-036;
+  reveal-only, public homepage sections only; reduced-motion and no-JS safe)
 - **`lib/firebase.ts` deleted** — frontend has no Firebase dependency
 - TypeScript check: **passes with no errors**; `npm run build` passes (9 routes)
 - **Live mode works** against `backend/app` (Phase 2) — `GET/PATCH /grievances*`

@@ -1698,3 +1698,79 @@ Use a default-false initialization-only guard across MongoDB repositories, inclu
 ### 2026-10-14 ? Stage 11 final voice handoff
 
 Stage 11 handoff separates implementation completeness from operational/production readiness. Historical mock/browser/live evidence remains distinct; no live Hindi/Marathi or resolved-login claim. Document corrected proposed TLS options by omitting tlsInsecure while retaining verified TLS and hostname checks; no launcher execution/code change is authorized by documentation work. Diagnostic guard defaults false and preserves normal initialization; it is not an endpoint read-only control.
+
+## DEC-036 — Homepage Entrance Animation: Reveal-Only, No Splash (2026-10-18)
+
+**Context:** the public homepage rendered instantly with no transition; the
+owner asked for a simple load animation where everything appears smoothly.
+
+**Decision (owner-confirmed via plan-mode questions):**
+- **Reveal-only, no splash screen.** No loader overlay and no artificial
+  delay — content animates as it paints and as sections enter the viewport.
+- **Scope: public homepage only** (`/` for anonymous/citizen visitors). The
+  staff overview returned to ADMIN/RESOLVER/SUPERADMIN at the same route is
+  intentionally unchanged.
+- **Hero:** deterministic CSS `fade-up` keyframe (`--animate-fade-up`, 0.6 s,
+  `fill-mode: both`) with fixed `[animation-delay:…]` steps of 80 ms
+  (badge → title → subtitle → CTAs → trust row).
+- **Sections:** one-shot scroll reveal via `components/ui/Reveal.tsx`
+  (IntersectionObserver, `threshold 0.15`, `rootMargin 0 0 -8% 0`) driven by
+  `data-reveal="pending|visible"` styles in `globals.css`. The observer
+  disconnects after the first reveal; sections skipped by an instant jump
+  reveal when they actually enter the viewport.
+- **Accessibility/safety:** `prefers-reduced-motion: reduce` disables only the
+  new animations/transitions (existing spinners/pulses untouched);
+  `@media (scripting: none)` forces the revealed state so content cannot be
+  stuck hidden without JS; browsers without IntersectionObserver reveal via a
+  requestAnimationFrame callback.
+- **Replay:** "every time" is satisfied by natural remount — navigating back
+  to `/` resets all five reveals to pending and replays the hero stagger.
+
+**Alternatives rejected:** branded splash/loading overlay (repetitive on
+every visit, artificial delay); `app/loading.tsx` (static page — rarely
+triggers and could double-flash); per-card stagger wrappers (layout risk for
+equal-height grid cards; section-level reveal chosen instead).
+
+**Verification (2026-10-18):** `tsc` clean, ESLint at the documented baseline,
+`next build` green (18 routes); headless Chrome 153 CDP checks — computed hero
+animation (`fade-up`, 0.08 s, 0.6 s, both), 5 reveals progress 1→5 on scroll
+and settle at opacity 1, client-side nav away/back resets to 5 pending
+(replays), reduced-motion emulation shows content immediately (animation
+`none`, transition `0s`), zero console errors, no horizontal overflow.
+Firefox/Safari and physical devices remain unverified.
+
+## DEC-037 — Memory System: Rolling Logs + Single CURRENT_STATE.md (2026-10-18)
+
+**Context:** the mandated per-session reads had grown heavy — `SESSION_LOG.md`
+~2,889 lines and `CHANGELOG.md` ~2,058 lines (~74k tokens combined) — and
+"what exists" vs "what remains" was split across two mandatory files
+(`PROJECT_STATE.md` + `TODO.md`). The owner asked to archive the old context
+and keep one current-state memory doc that also carries the remaining work.
+
+**Decision:**
+- `memory/CURRENT_STATE.md` is the single current-state entry point:
+  snapshot + all remaining implement/test work. It supersedes
+  `PROJECT_STATE.md` + `TODO.md`, which are archived unchanged at
+  `memory/archive/PROJECT_STATE-until-2026-10-18.md` and
+  `memory/archive/TODO-until-2026-10-18.md`.
+- `SESSION_LOG.md` and `CHANGELOG.md` are rolling files: keep roughly the last
+  two weeks (minimum ~10 entries). When appending and the active file exceeds
+  ~400 lines, move the oldest entries **unchanged** to
+  `memory/archive/<FILE>-<first>_to_<last>.md` with a pointer line at the top.
+  Entries are never edited or deleted — rotation only relocates them.
+  Initial rotation (2026-10-18) archived everything before 2026-10-14:
+  `SESSION_LOG-2026-08-06_to_2026-10-13.md` (94 entries) and
+  `CHANGELOG-2026-08-06_to_2026-10-13.md` (90 entries).
+- Log entries stay lean: what changed / verified / unverified / pointers to
+  DEC or CURRENT_STATE items. Process ceremony belongs in neither file.
+- `DECISIONS.md` remains append-only and complete; read it by grep/topic, not
+  as a full read every session.
+- `AGENTS.md` and `memory/README.md` memory protocol updated accordingly.
+
+**Rationale:** mandated per-session reading drops substantially, while full
+history stays in-repo (greppable, git-tracked); the handoff standard is
+preserved via CURRENT_STATE + logs + decisions.
+
+**Alternatives rejected:** deleting old logs (violates "do not destroy
+context"); compressing entries in place (rewrites history); keeping the
+PROJECT_STATE/TODO split (owner asked for a single current doc).
