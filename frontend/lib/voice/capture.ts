@@ -23,8 +23,16 @@ export class VoiceCapture {
   private complete: (() => void) | null = null;
   private reject: ((error: Error) => void) | null = null;
   private stopped: Promise<void> | null = null;
+  private analyser: AnalyserNode | null = null;
+  private levelFrame: number | null = null;
+  private levelBuffer: Uint8Array<ArrayBuffer> | null = null;
 
-  constructor(private onComplete: () => void, private onError: (error: Error) => void) {}
+  constructor(
+    private onComplete: () => void,
+    private onError: (error: Error) => void,
+    /** Optional audio-level tap (0..1, ~12 Hz) for a live meter. */
+    private onLevel?: (level: number) => void,
+  ) {}
 
   async start(): Promise<void> {
     if (!recordingSupported()) throw new Error("voiceUnsupported");
@@ -44,6 +52,13 @@ export class VoiceCapture {
       if (this.disposed) return;
       this.samples = new Float32Array(Math.floor(context.sampleRate * VOICE_MAX_SECONDS));
       this.source = context.createMediaStreamSource(stream);
+      if (this.onLevel && typeof context.createAnalyser === "function") {
+        this.analyser = context.createAnalyser();
+        this.analyser.fftSize = 512;
+        this.levelBuffer = new Uint8Array(this.analyser.fftSize);
+        this.source.connect(this.analyser);
+        this.startLevelLoop();
+      }
       this.worklet = new window.AudioWorkletNode(context, "grievai-voice");
       this.mute = context.createGain();
       this.mute.gain.value = 0;
@@ -88,6 +103,40 @@ export class VoiceCapture {
     this.worklet?.port.postMessage("stop");
   }
 
+  private startLevelLoop() {
+    if (typeof requestAnimationFrame !== "function") return;
+    let last = 0;
+    const tick = () => {
+      if (this.disposed || this.finished) return;
+      const now = performance.now();
+      if (now - last >= 80) {
+        last = now;
+        const analyser = this.analyser;
+        const buffer = this.levelBuffer;
+        if (analyser && buffer) {
+          analyser.getByteTimeDomainData(buffer);
+          let sum = 0;
+          for (let i = 0; i < buffer.length; i += 1) {
+            const value = (buffer[i] - 128) / 128;
+            sum += value * value;
+          }
+          // RMS of speech is ~0.02–0.2; scale ×3 and clamp for a usable meter.
+          this.onLevel?.(Math.min(1, Math.sqrt(sum / buffer.length) * 3));
+        }
+      }
+      this.levelFrame = requestAnimationFrame(tick);
+    };
+    this.levelFrame = requestAnimationFrame(tick);
+  }
+
+  private stopLevelLoop() {
+    if (this.levelFrame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(this.levelFrame);
+    this.levelFrame = null;
+    this.analyser?.disconnect();
+    this.analyser = null;
+    this.levelBuffer = null;
+  }
+
   async stop(): Promise<Blob> {
     if (!this.context || !this.samples || this.disposed) throw new Error("voiceEmpty");
     const rate = this.context.sampleRate;
@@ -108,6 +157,7 @@ export class VoiceCapture {
     if (this.hardwareStopped) return;
     this.hardwareStopped = true;
     clearTimeout(this.timer);
+    this.stopLevelLoop();
     if (this.worklet) {
       this.worklet.port.onmessage = null;
       this.worklet.onprocessorerror = null;

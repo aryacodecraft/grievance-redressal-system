@@ -21,8 +21,13 @@ const INDIA_BOUNDS: [[number, number], [number, number]] = [
 
 export function LocationCapture({
   onChange,
+  suggestedSearch,
 }: {
   onChange: (coords: Coords | null) => void;
+  /** Voice-derived search bias (DEC-038): populates the search box and shows
+   *  the matching list for an explicit pick — it never auto-pins a result and
+   *  never uses the device position as the incident location. */
+  suggestedSearch?: { text: string; token: number } | null;
 }) {
   const { t } = useI18n();
   const mapRef = useRef<HTMLDivElement>(null);
@@ -96,10 +101,12 @@ export function LocationCapture({
     }
   }
 
-  // Manual address search handler
-  async function handleSearch() {
-    const query = searchQuery.trim();
+  // Manual address search handler (confirmSingle=false keeps single-result
+  // matches visible as a suggestion list instead of pinning them silently).
+  async function runSearch(rawQuery: string, options?: { confirmSingle?: boolean }) {
+    const query = rawQuery.trim();
     if (!query) return;
+    const confirmSingle = options?.confirmSingle ?? true;
 
     setSearchBusy(true);
     setSearchError(null);
@@ -108,7 +115,7 @@ export function LocationCapture({
       const results = await forwardGeocode(query);
       if (results.length === 0) {
         setSearchError("No location found. Please refine your search or pick directly on the map.");
-      } else if (results.length === 1) {
+      } else if (results.length === 1 && confirmSingle) {
         const top = results[0];
         updateLocation(
           { latitude: top.latitude, longitude: top.longitude, address: top.displayName || top.name },
@@ -124,6 +131,22 @@ export function LocationCapture({
       setSearchBusy(false);
     }
   }
+
+  function handleSearch() {
+    void runSearch(searchQuery);
+  }
+
+  // Voice-assisted intake may hand us a place the citizen described verbally.
+  // Seed the search box and present matches; selecting one stays explicit.
+  useEffect(() => {
+    if (!suggestedSearch || !suggestedSearch.text.trim()) return undefined;
+    const text = suggestedSearch.text;
+    const handle = window.setTimeout(() => {
+      setSearchQuery(text);
+      void runSearch(text, { confirmSingle: false });
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [suggestedSearch?.token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize or update Leaflet map when mapOpen is toggled
   useEffect(() => {

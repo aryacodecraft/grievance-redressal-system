@@ -318,4 +318,36 @@ Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local back
   `routers/auth.py` with `.rstrip('/')` so origins with accidental trailing
   slashes still match browser `Origin` headers.
 
+## 2026-10-18 — Voice-assisted conversational intake, two modes (DEC-038)
+
+- New authenticated stateless `POST /grievance-intake/extract`
+  (`backend/app/routers/voice_intake.py`, `services/grievance_intake.py`):
+  utterances/language/draft/asked-questions → strict-JSON `title`,
+  `description`, `location_text`, `category`, `priority`, `question`; deep
+  400 validation; provider failures 503/504/502; no DB writes, no schema
+  change; submission stays on `POST /submit-grievance`.
+- Frontend: pure state machine `lib/voice/intake.ts`; `useVoiceIntake` +
+  panel + `IntakeModeToggle` in `components/grievance/VoiceIntake.tsx`
+  (hook owned by `SubmitForm`, so the conversation survives mode switches);
+  review block with "AI suggestion" badges; one shared RHF draft with
+  citizen-edit locks; submit lock; `LocationCapture.suggestedSearch` seeds
+  the search only (never auto-pins); 42 new i18n keys complete in en/hi/mr;
+  `extractVoiceIntake` client (45 s timeout); shared `lib/voice/errors.ts`;
+  level-meter tap in `capture.ts`. Manual remains the default branch.
+- Tests: `tests/test_voice_intake.py` 21 passed; new frontend
+  `scripts/voice-intake.test.mjs` + `scripts/voice-intake-ui.test.mjs` 19
+  passed (wired into `npm run test:voice`, whole suite 132). Full pytest:
+  503 passed / 31 skipped / 23 failed = documented pre-existing baseline.
+  `tsc` clean, ESLint baseline unchanged, `next build` green.
+- Live E2E (owner stack, headless Chromium): login → voice toggle → free
+  fake-mic start/listening/cancel smoke (zero `/transcribe` calls, no Sarvam
+  spend) → typed conversation with real Groq extraction (3 calls) → location
+  follow-up → review (AI title, 240-char description, search seeded
+  "Rajpur Road, Delhi, near SBI ATM", category/priority hints) → citizen edit
+  dropped one AI badge → coordinate pin → real submission `GRV-2026-0015`;
+  zero console/hydration errors. Live spoken Sarvam path NOT re-run
+  (retention/credit checks pending); live hi/mr still pending.
+- Enable doctrine unchanged: `TRANSCRIPTION_ENABLED=true` only in the
+  gitignored local `backend/.env`; repo/production default stays `false`.
+
 

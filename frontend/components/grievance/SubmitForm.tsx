@@ -13,6 +13,7 @@ import { ImageUpload } from "./ImageUpload";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { TranscriptionChoice, type DescriptionAction } from "./TranscriptionChoice";
 import { LocationCapture, type Coords } from "./LocationCapture";
+import { IntakeModeToggle, VoiceIntake, useVoiceIntake } from "./VoiceIntake";
 import type { UploadedImage } from "./ImageUpload";
 import { submitGrievance } from "@/lib/api";
 import { suggestVoiceTitle } from "@/lib/voice/title";
@@ -66,42 +67,66 @@ export function SubmitForm() {
     setValue,
     getValues,
     control,
-    formState: { errors },
+    formState: { errors, dirtyFields },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
   const currentDescription = useWatch({ control, name: "description" });
+  const [mode, setMode] = useState<"voice" | "manual">("manual");
+  const [locationSuggestion, setLocationSuggestion] = useState<{ text: string; token: number } | null>(null);
+  const [intakeReady, setIntakeReady] = useState(false);
+  const submitLock = useRef(false);
+  // The intake session lives here (not in the panel) so switching between
+  // voice and manual entry preserves both the draft and the conversation.
+  const intake = useVoiceIntake({
+    disabled: submitting,
+    getValues: () => ({ title: getValues("title") ?? "", description: getValues("description") ?? "" }),
+    getDirty: () => ({ title: Boolean(dirtyFields.title), description: Boolean(dirtyFields.description) }),
+    hasCoords: () => coords !== null,
+    applyField: (field, value) => setValue(field, value, { shouldValidate: true }),
+    onLocationSuggestion: (text) => setLocationSuggestion((previous) => ({ text, token: (previous?.token ?? 0) + 1 })),
+    onReadyChange: setIntakeReady,
+  });
 
   async function onSubmit(values: FormValues) {
-    setError(null);
-    setResult(null);
-    if (!coords) {
-      setError(t("errLocationRequired"));
-      return;
-    }
-    setSubmitting(true);
-    // Cancel voice resources/in-flight results before submission or form reset.
-    setVoiceEpoch((value) => value + 1);
+    // Repeated clicks/retries must never create two grievances (DEC-038).
+    if (submitLock.current) return;
+    submitLock.current = true;
     try {
-      const res = await submitGrievance({
-        title: values.title,
-        description: values.description,
-        userId: user?.id,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        ...(coords.address ? { address: coords.address } : {}),
-        ...(image?.url ? { imageUrl: image.url } : {}),
-      });
-      setResult(res);
-      notify("Grievance registered", `Reference ID ${res.grievanceId}. Updates will appear in Notifications and Track Status.`);
-      reset();
-      setTitleSuggestion(null);
-      setImage(null);
-      setCoords(null);
-    } catch (e) {
-      const text = e instanceof Error ? e.message : t("errSubmitFailed");
-      setError(text);
-      notify("Could not submit grievance", text, "error");
+      setError(null);
+      setResult(null);
+      if (!coords) {
+        setError(t("errLocationRequired"));
+        return;
+      }
+      setSubmitting(true);
+      // Cancel voice resources/in-flight results before submission or form reset.
+      setVoiceEpoch((value) => value + 1);
+      try {
+        const res = await submitGrievance({
+          title: values.title,
+          description: values.description,
+          userId: user?.id,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          ...(coords.address ? { address: coords.address } : {}),
+          ...(image?.url ? { imageUrl: image.url } : {}),
+        });
+        setResult(res);
+        notify("Grievance registered", `Reference ID ${res.grievanceId}. Updates will appear in Notifications and Track Status.`);
+        reset();
+        setTitleSuggestion(null);
+        setImage(null);
+        setCoords(null);
+        setLocationSuggestion(null);
+        intake.reset();
+      } catch (e) {
+        const text = e instanceof Error ? e.message : t("errSubmitFailed");
+        setError(text);
+        notify("Could not submit grievance", text, "error");
+      } finally {
+        setSubmitting(false);
+      }
     } finally {
-      setSubmitting(false);
+      submitLock.current = false;
     }
   }
 
@@ -120,12 +145,46 @@ export function SubmitForm() {
             }}
             className="space-y-5"
           >
-            <Field label={t("formTitleLabel")} required error={errors.title?.message}>
-              <Input
-                placeholder={t("formTitlePlaceholder")}
-                {...register("title")}
-              />
-            </Field>
+            <IntakeModeToggle value={mode} onChange={setMode} disabled={submitting} />
+            {mode === "voice" ? (
+              <>
+                <VoiceIntake intake={intake} disabled={submitting} onSwitchManual={() => setMode("manual")} />
+                {intakeReady && (
+                  <section className="space-y-5 border-t border-ink-100 pt-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-ink-900">{t("intakeReviewTitle")}</h3>
+                      <p className="text-xs leading-5 text-ink-500">{t("intakeReviewHint")}</p>
+                    </div>
+                    <Field label={t("formTitleLabel")} required error={errors.title?.message}>
+                      <Input placeholder={t("formTitlePlaceholder")} {...register("title")} />
+                      <AiSuggestionBadge visible={intake.ai.title && !dirtyFields.title} />
+                    </Field>
+                    <Field label={t("formDescLabel")} required error={errors.description?.message}>
+                      <Textarea rows={4} placeholder={t("formDescPlaceholder")} {...register("description")} />
+                      <AiSuggestionBadge visible={intake.ai.description && !dirtyFields.description} />
+                    </Field>
+                    <p className="text-xs leading-5 text-ink-500">{t("intakeClassificationNote")}</p>
+                    <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
+                      <ImageUpload onChange={setImage} />
+                      <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} />
+                    </div>
+                    {error && <Alert tone="error">{error}</Alert>}
+                    <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
+                      <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-40">
+                        {submitting ? t("btnSubmitting") : t("submit")}
+                      </Button>
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : (
+              <>
+                <Field label={t("formTitleLabel")} required error={errors.title?.message}>
+                  <Input
+                    placeholder={t("formTitlePlaceholder")}
+                    {...register("title")}
+                  />
+                </Field>
             {titleSuggestion && currentDescription === titleSuggestion.description && (
               <div className="space-y-2 text-sm" role="status">
                 <p>{t("voiceSuggestedTitle")}: {titleSuggestion.title}</p>
@@ -186,16 +245,18 @@ export function SubmitForm() {
                 return true;
               }}
             />
-            <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
-              <ImageUpload onChange={setImage} />
-              <LocationCapture onChange={setCoords} />
-            </div>
-            {error && <Alert tone="error">{error}</Alert>}
-            <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
-              <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-40">
-                {submitting ? t("btnSubmitting") : t("submit")}
-              </Button>
-            </div>
+              <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
+                <ImageUpload onChange={setImage} />
+                <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} />
+              </div>
+              {error && <Alert tone="error">{error}</Alert>}
+              <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
+                <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-40">
+                  {submitting ? t("btnSubmitting") : t("submit")}
+                </Button>
+              </div>
+              </>
+            )}
           </form>
         </CardBody>
       </Card>
@@ -224,5 +285,16 @@ export function SubmitForm() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Marks a draft field that the assistant filled and the citizen has not edited. */
+function AiSuggestionBadge({ visible }: { visible: boolean }) {
+  const { t } = useI18n();
+  if (!visible) return null;
+  return (
+    <span className="mt-1 inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-medium text-orange-700">
+      {t("intakeSuggestedBadge")}
+    </span>
   );
 }

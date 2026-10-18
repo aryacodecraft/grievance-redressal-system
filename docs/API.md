@@ -16,6 +16,13 @@ Stage 4B adds authenticated multipart `POST /transcribe` (disabled by default),
 returning original-language text without creating a grievance. Audio contract,
 idempotency, quotas and errors: [Voice-assisted complaints](VOICE_ASSISTED_COMPLAINT.md).
 
+DEC-038 (Stage 12) adds authenticated JSON `POST /grievance-intake/extract`:
+what the citizen said so far (transcripts and/or typed answers) becomes
+structured draft fields plus at most one follow-up question. Stateless — no
+grievance is created and no database is written; submission still goes through
+`POST /submit-grievance`. Contract, question policy and errors:
+[Voice-assisted complaints](VOICE_ASSISTED_COMPLAINT.md).
+
 Development: `http://localhost:10000`
 
 ### Implemented endpoints

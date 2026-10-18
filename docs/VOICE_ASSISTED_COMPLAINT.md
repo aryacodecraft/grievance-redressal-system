@@ -1,9 +1,12 @@
 # VOICE_ASSISTED_COMPLAINT.md — Voice-Assisted Complaint Lodging
 
-> Stages 4-11, updated 2026-10-14, DEC-032/DEC-033/DEC-034/DEC-035. Backend and frontend IMPLEMENTED
-> and TESTED with mocks; one user-verified live English smoke test passed.
-> Live Hindi/Marathi remain unvalidated; execution results are in memory/CHANGELOG.md. Speech accuracy
-> EXPERIMENTAL, not VALIDATED. Disabled by default, including Render.
+> Stages 4-12, updated 2026-10-18, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038.
+> Backend and frontend IMPLEMENTED and TESTED with mocks; one user-verified live
+> English smoke test passed, and the Stage 12 conversational flow passed a full
+> live typed-path browser E2E (real LLM extraction + real submission
+> `GRV-2026-0015`, 2026-10-18). Live spoken Hindi/Marathi remain unvalidated;
+> execution results are in memory/CHANGELOG.md. Speech accuracy EXPERIMENTAL,
+> not VALIDATED. Disabled by default, including Render.
 
 ---
 
@@ -959,3 +962,121 @@ quality; manual screen-reader and full keyboard flow; physical/mobile devices;
 Firefox/Safari; production HTTPS/CORS and load/shared-quota validation. Feature is
 safe to hand off **for review and continuation**, not ready for an unreviewed merge
 or production deployment. No commits, pushes, merges or branch changes occurred.
+
+---
+
+## Stage 12 — Conversational two-mode intake (DEC-038) — IMPLEMENTED, mock TESTED, live typed-path E2E passed (2026-10-18)
+
+### What this stage adds
+
+The submit page now offers two modes over one shared draft (`IntakeModeToggle`):
+
+1. **"Tell us your problem" (voice-assisted card, orange primary styling):** a
+   guided conversation. The citizen speaks (the existing Sarvam
+   `POST /transcribe` contract) or types; each turn is extracted into draft
+   fields; at most one focused follow-up question is asked at a time; when
+   enough is known, the ordinary form fields appear in a review block with
+   "AI suggestion" badges and the citizen confirms via the normal submit button.
+2. **"Fill the form manually":** the Stage 4–9 form unchanged (recorder, title
+   suggestion, append/replace/cancel) and still the default branch.
+
+The modes share one React Hook Form draft: switching mid-conversation never
+loses typed or extracted content, and a citizen edit is never overwritten by a
+later extraction. No grievance schema changes; submission still goes through
+`POST /submit-grievance`, whose classifier cascade remains authoritative.
+
+### Backend — `POST /grievance-intake/extract` (stateless, JWT required)
+
+Request JSON: `utterances` (1–8 items, ≤ 1000 chars each, ≤ 4000 total),
+`language` (`en-IN`|`hi-IN`|`mr-IN`), optional `draft` snapshot
+(`title` ≤ 120 / `description` ≤ 4000 chars, advisory context only) and
+`asked_questions` (last 3, ≤ 300 chars each, advisory). Response JSON:
+`{ title, description, location_text, category, priority, question }` —
+category ∈ the eight canonical keys (aliases normalized), priority ∈
+low|medium|high, all fields nullable and all ≤ their field caps.
+
+The service builds a strict-data prompt (framework-derived instructions, "never
+invent", one-question policy), calls Groq with the configured model then the
+verified fallback list, and deterministically post-validates (never trusts the
+model). Deep validation lives in the service so every rejection is a uniform
+`400`; failures are `503` (not configured), `504` (provider timeout, 25 s) and
+`502` (other provider failure). There are **no database writes and no
+idempotency cache** — the call is a pure transformation; the frontend's submit
+lock and state guards prevent duplicate conversation turns.
+
+### Frontend architecture
+
+- `lib/voice/intake.ts` — pure state machine
+  (`idle → listening → transcribing → processing → awaiting_answer →
+  ready_for_review`, plus `error` with `failedStep`), reducer guards for illegal
+  or concurrent transitions, `planNextStep` question policy, `computeLocks` /
+  `mergeExtraction` merge rules, `intakeStep` progress mapping.
+- `components/grievance/VoiceIntake.tsx` — `useVoiceIntake` (owned by
+  `SubmitForm` so the conversation survives mode switches; side effects:
+  recording, STT, extraction, abort/epoch guards, deferred cancel on submit)
+  and the presentational panel: progress pills, spoken-language selector,
+  level meter (AnalyserNode tap), transcript log, question card, retry /
+  cancel / skip controls, "Switch to manual form".
+- `SubmitForm.tsx` — mode toggle at the top, voice branch with the review block
+  (`AiSuggestionBadge`, classification note, image + location capture, submit
+  lock, `intake.reset()` on success). Both branches are inside the outer form;
+  every new button is `type="button"` and typed-answer Enter is handled
+  manually (no nested forms).
+- `LocationCapture.tsx` — `suggestedSearch` prop: a vocally described place
+  seeds the search box and shows matches; choosing one stays explicit. Voice
+  never auto-pins a location and GPS is never used by the conversation.
+- `lib/api.ts` `extractVoiceIntake` (JSON, 45 s client timeout, Zod-validated);
+  `lib/voice/errors.ts` shared error mapping; new i18n keys complete in
+  en/hi/mr.
+- Question policy: ask ≤ 1 question per missing kind — usable description
+  (≥ 20 chars), explicit location, and at most ONE optional AI clarification;
+  every question is skippable and one at a time.
+- Merge policy: AI fills only empty fields; content typed by the citizen is
+  locked (RHF `dirtyFields` + AI-fill tracking with
+  `setValue(..., { shouldDirty: false })`); AI-owned fields may be refreshed by
+  later turns. Editing an AI-filled field removes its badge and locks it.
+- Concurrency/duplicate protections: a single `busy` ref serializes
+  transcribe/extract, state guards reject invalid transitions, an epoch counter
+  aborts stale results, in-flight work is cancelled when navigation/submission
+  starts, and a submit lock rejects double submissions.
+
+### Test coverage (mock-based)
+
+- Backend: `tests/test_voice_intake.py` — 21 focused tests (validation caps,
+  language whitelist, unconfigured 503, timeout 504, provider failure 502,
+  strict-JSON compliance, alias normalization, prompt containment).
+- Frontend: `scripts/voice-intake.test.mjs` (13: planner, reducer guards,
+  merge/lock matrix, response mapping, API client contract incl. timeout) and
+  `scripts/voice-intake-ui.test.mjs` (6: typed conversation → review → edit →
+  submit payload; voice path with spoken-language propagation; optional
+  question skip; extraction failure → retry → manual submission still works;
+  mode-switch preservation; repeated submit clicks post once). Wired into
+  `npm run test:voice`; whole voice suite 132 passed. `tsc` clean; ESLint at
+  the documented baseline; `next build` green.
+
+### Live evidence (2026-10-18, owner's local stack, headless Chromium)
+
+Citizen login → `/submit` (default manual branch) → switch to voice → free
+fake-device microphone start/listening/Cancel smoke (zero `/transcribe` calls,
+so zero Sarvam spend) → typed conversation with REAL Groq extraction (three
+`/grievance-intake/extract` calls) → location follow-up answered → review with
+AI title ("Broken streetlight on Rajpur Road"), 240-char AI description, seeded
+location search ("Rajpur Road, Delhi, near SBI ATM"), category/priority hints →
+citizen edit dropped one AI badge → coordinate pin → real submission
+(`POST /submit-grievance 200`, ticket `GRV-2026-0015`, auto-analysis panel
+rendered). Zero console errors, zero form/hydration errors. The live spoken
+Sarvam path was **not** re-run (requires the separately-authorized retention/
+credit check); the historical single live English smoke remains the live STT
+evidence.
+
+### Known limitations
+
+- Incident date/duration have no schema field → folded into description text.
+- Conversation category/priority are display-only hints; the authoritative
+  classification runs at submit time and is marked AUTO-GENERATED.
+- One optional AI clarification per conversation; deeper interrogation waits
+  for a future stage.
+- Voice-derived location seeds the search only — explicit citizen pin required.
+- The conversation is intentionally ephemeral: no server-side session storage;
+  a page reload clears it (draft fields survive only for the page's lifetime).
+- Response language follows the selected spoken language (en/hi/mr only).

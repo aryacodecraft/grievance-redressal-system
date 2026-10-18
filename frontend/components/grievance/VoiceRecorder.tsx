@@ -8,29 +8,13 @@ import { useI18n, type MessageKey } from "@/lib/i18n";
 import { transcribeAudio } from "@/lib/api";
 import type { VoiceLanguage } from "@/lib/types";
 import { VoiceCapture } from "@/lib/voice/capture";
+import { newIdempotencyKey, voiceErrorMessage } from "@/lib/voice/errors";
 
 type Phase = "idle" | "starting" | "recording" | "encoding" | "ready" | "transcribing";
 const phaseMessage: Record<Phase, MessageKey> = {
   idle: "voiceIdle", starting: "voiceStarting", recording: "voiceRecording",
   encoding: "voiceEncoding", ready: "voiceReady", transcribing: "voiceProcessing",
 };
-
-function errorMessage(error: unknown): MessageKey {
-  if (error instanceof Error) {
-    if (error.name === "NotAllowedError" || error.name === "SecurityError") return "voicePermission";
-    if (error.name === "NotFoundError") return "voiceNoDevice";
-    if (error.name === "NotReadableError" || error.name === "OverconstrainedError") return "voiceDeviceError";
-    if (error.name === "AbortError") return "voiceTimeout";
-    if (["voiceUnsupported", "voiceEmpty", "voiceDeviceError"].includes(error.message)) return error.message as MessageKey;
-  }
-  const status = (error as { status?: number } | null)?.status;
-  if (status === 401 || status === 403) return "voiceAuth";
-  if (status === 503) return "voiceUnavailable";
-  if (status === 429) return "voiceRateLimit";
-  if (status === 409) return "voiceConflict";
-  if (status === 408 || status === 504) return "voiceTimeout";
-  return "voiceFailure";
-}
 
 export function VoiceRecorder({ prepareTranscription, onTranscript, disabled = false }: {
   prepareTranscription: (signal: AbortSignal) => string | null | Promise<string | null>;
@@ -99,7 +83,7 @@ export function VoiceRecorder({ prepareTranscription, onTranscript, disabled = f
       const nextUrl = URL.createObjectURL(wav);
       currentUrl.current = nextUrl; setUrl(nextUrl); setAudio(wav); setPhase("ready");
     } catch (cause) {
-      if (epoch.current === generation) { setError(errorMessage(cause)); setPhase("idle"); }
+      if (epoch.current === generation) { setError(voiceErrorMessage(cause)); setPhase("idle"); }
     } finally {
       if (epoch.current === generation) { capture.current = null; busy.current = false; stopping.current = false; }
     }
@@ -114,7 +98,7 @@ export function VoiceRecorder({ prepareTranscription, onTranscript, disabled = f
       () => { void stop(session, generation); },
       (cause) => {
         if (epoch.current !== generation) return;
-        cleanup(); setError(errorMessage(cause)); setPhase("idle");
+        cleanup(); setError(voiceErrorMessage(cause)); setPhase("idle");
       },
     );
     capture.current = session;
@@ -127,7 +111,7 @@ export function VoiceRecorder({ prepareTranscription, onTranscript, disabled = f
     } catch (cause) {
       if (epoch.current !== generation) return;
       capture.current = null; busy.current = false; setPhase("idle");
-      const message = errorMessage(cause);
+      const message = voiceErrorMessage(cause);
       setError(message === "voiceFailure" ? "voiceDeviceError" : message);
     }
   }
@@ -142,15 +126,14 @@ export function VoiceRecorder({ prepareTranscription, onTranscript, disabled = f
       if (epoch.current !== generation) return;
       if (original === null) { setNotice("voiceKept"); return; }
       setPhase("transcribing"); setError(null); setNotice(null);
-      const key = typeof crypto.randomUUID === "function" ? crypto.randomUUID()
-        : Array.from(crypto.getRandomValues(new Uint8Array(16)), (value) => value.toString(16).padStart(2, "0")).join("");
+      const key = newIdempotencyKey();
       const result = await transcribeAudio(audio, language, key, controller.signal);
       if (epoch.current !== generation) return;
       const inserted = await onTranscript(result.transcript, original, controller.signal);
       if (epoch.current !== generation) return;
       setNotice(inserted ? "voiceInserted" : "voiceKept");
     } catch (cause) {
-      if (epoch.current === generation) setError(errorMessage(cause));
+      if (epoch.current === generation) setError(voiceErrorMessage(cause));
     } finally {
       if (epoch.current === generation) { busy.current = false; request.current = null; setPhase("ready"); }
     }

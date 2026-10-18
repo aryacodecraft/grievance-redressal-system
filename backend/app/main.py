@@ -31,6 +31,7 @@ from .routers import audit as audit_router
 from .routers import notifications as notif_router
 from .routers import phone as phone_router
 from .routers import transcription as transcription_router
+from .routers import voice_intake as voice_intake_router
 from .transcription_guard import TranscriptionGuard
 
 logging.basicConfig(level=logging.INFO)
@@ -196,6 +197,7 @@ app.include_router(audit_router.router)
 app.include_router(notif_router.router)
 app.include_router(phone_router.router)
 app.include_router(transcription_router.router)
+app.include_router(voice_intake_router.router)
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────

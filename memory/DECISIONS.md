@@ -1774,3 +1774,68 @@ preserved via CURRENT_STATE + logs + decisions.
 **Alternatives rejected:** deleting old logs (violates "do not destroy
 context"); compressing entries in place (rewrites history); keeping the
 PROJECT_STATE/TODO split (owner asked for a single current doc).
+
+## DEC-038 — Conversational Voice Intake: Two Modes, Stateless LLM Extraction (2026-10-18)
+
+**Context:** the owner asked for a complete voice-assisted submission: the
+original "Voice transcription is unavailable or disabled" error traced to a
+configuration-only cause (local `TRANSCRIPTION_ENABLED` false), and beyond the
+fix the feature should guide the citizen conversationally — listen, transcribe,
+understand, ask focused follow-ups, merge into the draft, review, confirm —
+while keeping the classic form. No new grievance schema, no new STT provider,
+no autonomous AI actions (HITL: AI prepares, the human submits).
+
+**Decision:**
+- New stateless backend endpoint `POST /grievance-intake/extract` (JWT
+  required): utterances + language + optional draft snapshot + asked questions
+  → strict-JSON `{title, description, location_text, category, priority,
+  question}`. No DB writes, no grievance, no idempotency cache; submission
+  stays on `POST /submit-grievance` whose classifier cascade remains
+  authoritative. Deep validation in the service (uniform 400s); Groq with the
+  verified model fallback list; deterministic post-validation; `503`
+  unconfigured (`Complaint understanding is not configured`), `504` timeout,
+  `502` other provider failures; no automatic retry.
+- Frontend: pure state machine in `frontend/lib/voice/intake.ts`
+  (`idle|listening|transcribing|processing|awaiting_answer|ready_for_review|error`)
+  with transition guards; `useVoiceIntake` owned by `SubmitForm` so the
+  conversation survives mode switches; both modes share the one RHF draft.
+- Merge policy: AI fills only empty/unlocked fields; citizen-typed content is
+  locked (`dirtyFields` + AI-fill tracking via
+  `setValue(..., { shouldDirty: false })`); AI-owned fields may be refreshed.
+  AI-filled fields carry an "AI suggestion" badge that disappears when edited.
+- Question policy: ≤ 1 question per missing kind (usable description ≥ 20
+  chars; explicit location; at most ONE optional AI clarification), one at a
+  time, all skippable. Voice-derived place names only seed the existing
+  LocationCapture search — never auto-pin, GPS never used by the conversation.
+- Default mode stays "manual" with the voice card rendered first in orange:
+  keeps the existing classic flow and its ~40 voice-UI tests valid while voice
+  is one click away.
+- STT enablement doctrine unchanged and local-only: `TRANSCRIPTION_ENABLED=true`
+  in the gitignored `backend/.env` only; repo/production defaults stay false.
+  Intake extraction needs only the existing Groq configuration.
+- Incident date/duration have no schema field → folded into description text
+  (documented limitation).
+
+**Rationale:** stateless extraction keeps the AI advisory and reversible, adds
+no schema or privacy surface, and makes every voice failure local to the
+conversation — the manual branch and final submission are never blocked by a
+voice/STT/LLM outage.
+
+**Alternatives rejected:** server-side conversation sessions (schema +
+privacy cost); auto-pinning GPS from voice (wrong-place risk, no explicit
+consent); letting the conversation set the authoritative category/priority
+(classification stays in the submit pipeline); defaulting to voice mode
+(needless churn for existing flows/tests).
+
+**Verification (2026-10-18):** `tests/test_voice_intake.py` 21 passed; full
+pytest 503 passed / 31 skipped / 23 failed = the documented pre-existing
+baseline. Frontend: `tsc` clean; ESLint at the documented baseline; `next
+build` green; `npm run test:voice` 132 passed (19 new: 13 logic+API, 6 UI
+flow). Live E2E on the owner's stack (headless Chromium): login → toggle →
+free fake-mic start/cancel smoke (zero `/transcribe` calls) → typed
+conversation with real Groq extraction (3 extract calls) → review (AI title +
+240-char description, seeded location search, category/priority hints) →
+citizen edit removed one AI badge → coordinate pin → real submission, ticket
+`GRV-2026-0015`; zero console errors. Live spoken Sarvam path not re-run
+(credit/retention checks not performed); historical single live English smoke
+remains the live STT evidence.

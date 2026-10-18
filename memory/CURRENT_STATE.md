@@ -57,14 +57,21 @@ only — humans retain assignment, escalation, resolution and closure authority
   validation pending (§5).
 - **Voice-assisted lodging (flag-gated, default off)** — consent gate,
   AudioWorklet 16 kHz WAV capture, `/transcribe` → Sarvam, title suggestion,
-  append/replace/cancel flow (DEC-032–035). Stages 1–11 IMPLEMENTED + handoff
-  documented; one live English smoke passed; hi/mr live validation pending (§5).
+  append/replace/cancel flow (DEC-032–035). **Conversational two-mode intake
+  (DEC-038):** "Tell us your problem" guides listen → transcribe → extract →
+  focused follow-up → review → confirm over one shared draft; the classic form
+  ("Fill the form manually") is retained as the default branch; stateless
+  `POST /grievance-intake/extract` (no DB writes; submission unchanged).
+  Stages 1–12 IMPLEMENTED; one live English smoke + a full live typed-path
+  browser E2E (`GRV-2026-0015`, 2026-10-18) passed; hi/mr live validation
+  pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
   no metrics claimed (DEC-005). Similarity is client-side TF-IDF only.
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — last full pytest run (2026-10-14): ~480 passed with a known
-  failure baseline (§5); contract suite 18 checks; voice node suites 113 tests.
+- **Test suites** — full pytest (2026-10-18): 503 passed / 31 skipped / 23
+  failed = the documented pre-existing baseline (§5); contract suite 18
+  checks; voice node suites 132 tests (19 added for the conversational intake).
 
 ---
 
@@ -172,7 +179,9 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 **Live / external (credentials, hardware or authorization needed):**
 
-- Live Hindi/Marathi STT (Sarvam) — mock-covered only; one live English smoke passed.
+- Live Hindi/Marathi STT (Sarvam) — mock-covered only; one live English smoke
+  passed. The 2026-10-18 conversational E2E exercised the typed path live
+  (real LLM extraction + real submission `GRV-2026-0015`), not live speech.
 - Live SMS delivery — blocked on DLT + Twilio credentials.
 - Real-webcam face enroll/login; tune `FACE_TURN_MIN_DEGREES`,
   `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`,
@@ -193,8 +202,9 @@ only — humans retain assignment, escalation, resolution and closure authority
 **Suite health:**
 
 - Full pytest re-run + triage of the known baseline: 370 passed / 22 failed
-  (2026-10-10) and ~480 passed / 23 failed (2026-10-14) — mostly stale DEC-006
-  status-vocabulary and i18n expectations. Exact failure names are in
+  (2026-10-10), ~480 passed / 23 failed (2026-10-14), 503 passed / 31 skipped /
+  23 failed (2026-10-18) — same set: mostly stale DEC-006 status-vocabulary and
+  i18n expectations. Exact failure names are in
   `memory/archive/TODO-until-2026-10-18.md` §11. Decide fix vs retire per test.
 - Env-specific: `test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned`
   fails only with the developer's local `backend/.env` `FACE_CHALLENGES` override
@@ -230,6 +240,9 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 - Flags default **OFF**: `TRANSCRIPTION_ENABLED`, `FACE_AUTH_ENABLED`.
   `DIAGNOSTIC_SKIP_INITIALIZATION_WRITES` is a diagnostic-only guard — keep false.
+  The developer's local gitignored `backend/.env` currently sets
+  `TRANSCRIPTION_ENABLED=true` for voice testing — repo/production defaults
+  remain `false`.
 - SMS: `SMS_PROVIDER=dry-run` default; `OTP_DEBUG_RETURN_CODE` returns codes for
   local debugging only.
 - Ports: backend `10000`, frontend dev `3000`.

@@ -470,4 +470,62 @@ Production-mode hydration not exercised; the owner's dev server was left
 untouched (fresh headless profile, one login). Screenshot:
 /tmp/opencode/shots/submit-form-live.png.
 
+---
+
+## 2026-10-18 — Voice-assisted conversational intake, two modes (DEC-038)
+
+### Request
+Deliver the complete voice-assisted grievance submission: eliminate the
+"Voice transcription is unavailable or disabled" dead end and add a guided
+conversation ("Tell us your problem") alongside the retained manual form; one
+shared draft across modes; LLM extraction with focused follow-ups; review with
+clearly marked AI suggestions; explicit human confirmation; no grievance
+schema changes; real ticket via the existing submission pipeline.
+
+### What changed
+- Backend: stateless `POST /grievance-intake/extract` (JWT) — Groq strict-JSON
+  extraction with deterministic post-validation (`services/grievance_intake.py`),
+  router mounted in `main.py`, request models in `models.py`; deep validation
+  (1–8 utterances, ≤ 1000 chars each / 4000 total; language, category and
+  priority whitelists); 503 unconfigured / 504 timeout / 502 provider mapping;
+  provider timeout 25 s; model fallbacks mirror the classification cascade.
+  No DB writes, no grievance created.
+- Frontend: `lib/voice/intake.ts` state machine + question planner +
+  merge/lock rules; `VoiceIntake.tsx` hook + panel + `IntakeModeToggle`;
+  SubmitForm integration (mode toggle, voice branch, review section,
+  `AiSuggestionBadge`, submit lock, reset on success); `LocationCapture`
+  `suggestedSearch` prop; `lib/api.ts` `extractVoiceIntake`; `lib/voice/errors.ts`
+  shared error mapping (VoiceRecorder refactored onto it); level-meter tap in
+  `capture.ts`; 42 new i18n keys complete in en/hi/mr. Manual remains the
+  default branch (rationale + alternatives in DEC-038).
+- Original outage was configuration-only: local `backend/.env` line 58
+  `TRANSCRIPTION_ENABLED=true` (gitignored); repo/production defaults remain
+  false. No transcription-path code bug was found.
+
+### Verification
+- Backend: 21 focused tests; full pytest 503 passed / 31 skipped / 23 failed —
+  that failure set is the documented pre-existing baseline (CURRENT_STATE §5).
+- Frontend: 19 new tests (13 logic/API + 6 UI flow); `npm run test:voice` 132
+  passed; `tsc` clean; ESLint at the documented 4-error FaceCapture baseline;
+  `next build` green (18 routes).
+- Live (owner's local stack; grievance frontend served on :3010 because :3000
+  was occupied by an unrelated project; backend :10000): full typed-path E2E —
+  citizen login, default manual branch confirmed, voice toggle, free fake-mic
+  start/listening/cancel smoke (zero `/transcribe` calls), typed conversation
+  with real Groq extraction (3 extract calls), location follow-up, review (AI
+  title "Broken streetlight on Rajpur Road", 240-char description, search
+  seeded, category/priority hints), citizen edit removed one AI badge,
+  coordinate pin, real submission → `GRV-2026-0015`
+  (`POST /submit-grievance 200`), zero console/hydration errors. Screenshots:
+  /tmp/opencode/shots/voice-intake-*.png.
+
+### Note
+The live spoken Sarvam path was intentionally NOT re-run this session
+(retention/credit verification pending, per the doc's operational rules); the
+historical single live English smoke remains the live STT evidence, and live
+Hindi/Marathi remain pending. The task-created grievance `GRV-2026-0015` is
+marked "[E2E TEST]" in its description. Local-only enablement
+(`backend/.env` TRANSCRIPTION_ENABLED=true) must not be copied to tracked
+files. No commits were made by this session.
+
 

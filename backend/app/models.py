@@ -123,3 +123,21 @@ class RejectRequest(BaseModel):
 
 class ReturnResolutionRequest(BaseModel):
     reason: str
+
+class VoiceIntakeDraft(BaseModel):
+    """Advisory snapshot of the current draft (context for the extraction)."""
+
+    title: str | None = None
+    description: str | None = None
+
+class VoiceIntakeRequest(BaseModel):
+    """POST /grievance-intake/extract — conversational intake extraction.
+
+    Deep validation (utterance caps, language whitelist) lives in
+    services/grievance_intake.py so every rejection is a uniform 400.
+    """
+
+    utterances: list[str] = Field(default_factory=list)
+    language: str = "en-IN"
+    draft: VoiceIntakeDraft | None = None
+    asked_questions: list[str] = Field(default_factory=list)

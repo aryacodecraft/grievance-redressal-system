@@ -11,6 +11,7 @@ import type {
   TranscriptionResult,
   VoiceLanguage,
 } from "./types";
+import type { IntakeExtractionResponse } from "./voice/intake";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:10000";
@@ -184,6 +185,49 @@ export async function transcribeAudio(
       headers: { "Idempotency-Key": idempotencyKey },
     });
     return transcriptionSchema.parse(raw);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
+export const INTAKE_TIMEOUT_MS = 45000;
+
+const intakeExtractionSchema = z.object({
+  title: z.string().min(1).max(120).nullable(),
+  description: z.string().min(1).max(4000).nullable(),
+  location_text: z.string().min(1).max(200).nullable(),
+  category: z
+    .enum(["water", "roads", "electricity", "sanitation", "health", "transport", "governance", "other"])
+    .nullable(),
+  priority: z.enum(["low", "medium", "high"]).nullable(),
+  question: z.string().min(1).max(300).nullable(),
+});
+
+export interface VoiceIntakePayload {
+  utterances: string[];
+  language: VoiceLanguage;
+  draft?: { title?: string; description?: string };
+  asked_questions?: string[];
+}
+
+/** Conversational intake extraction (LLM). Explicit attempts only: the same
+ *  abort/timeout shape as transcribeAudio, no automatic retries. */
+export async function extractVoiceIntake(
+  payload: VoiceIntakePayload,
+  signal?: AbortSignal,
+): Promise<IntakeExtractionResponse> {
+  if (!getStoredAccessToken()) throw Object.assign(new Error("Not authenticated"), { status: 401 });
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(abort, INTAKE_TIMEOUT_MS);
+  try {
+    const raw = await requestJson<unknown>("/grievance-intake/extract", {
+      method: "POST", body: JSON.stringify(payload), signal: controller.signal,
+    });
+    return intakeExtractionSchema.parse(raw);
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
