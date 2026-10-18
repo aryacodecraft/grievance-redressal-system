@@ -24,6 +24,7 @@ import { useAdminGrievanceFeed } from "@/components/admin/useAdminGrievanceFeed"
 import { useDemoUser } from "@/lib/session";
 import type { AuthUser } from "@/lib/types";
 import { useResolverTasks } from "@/components/resolver/useResolverTasks";
+import { Reveal } from "@/components/ui/Reveal";
 import { canonicalDepartmentId } from "@/lib/departments";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 
@@ -284,23 +285,23 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 sm:py-16 lg:px-8 lg:py-20">
           {/* Hero: Direct Public-Service Messaging & Actions */}
           <div className="mx-auto max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-1 shadow-2xs">
+            <div className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-1 shadow-2xs">
               <span className="flex h-2 w-2 rounded-full bg-primary-600 animate-pulse" />
               <span className="text-xs font-bold uppercase tracking-wider text-primary-800">
                 {t("heroBadge")}
               </span>
             </div>
 
-            <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-ink-950 sm:text-5xl sm:leading-[1.12]">
+            <h1 className="animate-fade-up [animation-delay:80ms] mt-5 text-3xl font-extrabold tracking-tight text-ink-950 sm:text-5xl sm:leading-[1.12]">
               {t("heroTitle")}
             </h1>
 
-            <p className="mt-4 text-base leading-7 text-ink-600 sm:text-lg">
+            <p className="animate-fade-up [animation-delay:160ms] mt-4 text-base leading-7 text-ink-600 sm:text-lg">
               {t("heroSubtitle")}
             </p>
 
             {/* Primary & Secondary Actions */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <div className="animate-fade-up [animation-delay:240ms] mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/submit"
                 className="inline-flex items-center gap-2.5 rounded-md bg-ink-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-ink-800 active:bg-ink-950"
@@ -319,7 +320,7 @@ export default function Home() {
             </div>
 
             {/* Trust & Transparency statement */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-ink-100 pt-6 text-xs text-ink-500">
+            <div className="animate-fade-up [animation-delay:320ms] mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-ink-100 pt-6 text-xs text-ink-500">
               <span className="flex items-center gap-1.5 font-medium text-ink-700">
                 <ShieldCheck size={15} className="text-emerald-600" />
                 {t("heroTrustHuman")}
@@ -339,7 +340,7 @@ export default function Home() {
 
       {/* ── 2. Compact Grievance Overview: 3 Clear Steps ── */}
       <section className="border-b border-ink-100 bg-ink-50/40 py-12 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-wider text-primary-700">
               {t("ovBadge")}
@@ -393,12 +394,12 @@ export default function Home() {
               <p className="mt-1.5 text-xs leading-5 text-ink-600">{t("ov3Text")}</p>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── 3. Category Explorer: Interactive with Preselection ── */}
       <section className="border-b border-ink-100 py-12 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-primary-700">
@@ -455,12 +456,12 @@ export default function Home() {
               </Link>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── 4. What Happens After You Submit: Lifecycle & Plain Explanations ── */}
       <section className="border-b border-ink-100 bg-ink-50/40 py-12 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-wider text-primary-700">
               {t("lcBadge")}
@@ -515,12 +516,12 @@ export default function Home() {
               {t("lcDelayedText2")}
             </p>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── 5. Prepare Before Reporting: Practical Checklist ── */}
       <section className="border-b border-ink-100 py-12 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-primary-700">
@@ -588,12 +589,12 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* ── 6. Concrete Trust & AI Transparency ── */}
       <section className="bg-white py-12 sm:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-wider text-primary-700">
               {t("trustBadge")}
@@ -645,7 +646,7 @@ export default function Home() {
               <p className="mt-1.5 text-xs text-ink-600 leading-normal">{t("trust4Text")}</p>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
     </div>
   );
