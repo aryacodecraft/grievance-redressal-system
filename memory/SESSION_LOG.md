@@ -584,3 +584,53 @@ generated once per language (no recurring TTS cost).
 - 24 clips add ~2.7 MB to the repo; regeneration is manual and documented.
 - `GROQ compound*` retirement cleanup remains in the working tree and has now
   been folded into this task (see `llm_fallback.py` / `grievance_intake.py`).
+
+---
+
+## 2026-10-19 — Intake question latency bounded (DEC-040)
+
+### Request
+Owner: "the questions load very slow, almost 2 minuets slow, please check and
+fix."
+
+### Diagnosis
+- Both dev servers were down when the check started; restarted them cleanly.
+- Fresh-stack timings: typed Send → question text + audio start **1.26 s**;
+  spoken Stop → question **1.92 s** (Sarvam STT 0.5 s + extraction 1.2 s);
+  direct extraction **0.87 s**; a question WAV over the dev server **~2 ms**.
+  The reported 2-minute delay did **not** reproduce after the restart.
+- The one code path that can legitimately stall for minutes was the intake
+  provider cascade: Groq's SDK retries twice by default, the service allowed
+  25 s per attempt, and three models were tried → up to ~225 s. The browser
+  aborts at 45 s, so a slow/rate-limited provider produced a long spinner and
+  every retry left another stalled request running server-side.
+
+### What changed
+- `backend/app/services/grievance_intake.py`: `_call_llm` now uses
+  `client.with_options(max_retries=0)`; per-attempt timeout 10 s; a shared
+  25 s budget across all models; `504` when the budget is exhausted. Success
+  logs the winning model + elapsed time; each failed attempt logs a warning.
+- `tests/test_voice_intake.py`: provider stub supports `with_options`; new
+  tests for retries disabled and budget enforcement (28 passed).
+- `docs/VOICE_ASSISTED_COMPLAINT.md`: Stage 13 provider latency-bound note.
+- `memory/DECISIONS.md`: DEC-040. `CHANGELOG.md`, `CURRENT_STATE.md` updated.
+
+### Verification
+- `pytest tests/test_voice_intake.py` **28 passed**; `npm run test:voice`
+  **148 passed** (frontend unchanged, re-run to confirm).
+- Full pytest: **510 passed / 31 skipped / 23 failed** — the documented DEC-006
+  status-vocabulary baseline is unchanged, and the pass count is the prior 508
+  plus the two new latency tests.
+- Live backend after restart: extraction 200 in **1.12 s** and **1.45 s**
+  (real Groq), same structured reply as before.
+- No grievance was submitted; frontend code unchanged.
+
+### Not verified / notes
+- Root cause of the owner's specific 2-minute observation is not confirmed;
+  it may have been the stale/stopped dev servers (a production `next build`
+  had previously run while the dev server was live, which can stall Turbopack
+  compilation). If it recurs, the new backend warnings show which model
+  attempt stalls and for how long.
+- Do not run `next build` while `next dev` is serving the same `.next`
+  directory; restart the dev server after a build.
+

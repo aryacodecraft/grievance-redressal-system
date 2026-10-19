@@ -14,6 +14,7 @@ authoritative classification still happens in the submit pipeline).
 from __future__ import annotations
 
 import logging
+import time
 
 from fastapi import HTTPException
 
@@ -68,7 +69,12 @@ MAX_ASKED_QUESTIONS = 3
 MAX_TITLE_CHARS = 120
 MAX_DESCRIPTION_CHARS = 4000
 MAX_LOCATION_CHARS = 200
-PROVIDER_TIMEOUT_SECONDS = 25.0
+# Hard latency bound for the intake call. The browser aborts at 45 s
+# (INTAKE_TIMEOUT_MS in frontend/lib/api.ts); the whole provider cascade must
+# finish well inside that, otherwise a stalled provider leaves the citizen
+# staring at the spinner (and retries can pile up server-side).
+PROVIDER_TIMEOUT_SECONDS = 10.0
+PROVIDER_TOTAL_BUDGET_SECONDS = 25.0
 
 # Verified working Groq models, tried in order after config.GROQ_MODEL
 # (same list as services/llm_fallback.py, minus the model_name parameter).
@@ -158,27 +164,49 @@ Return ONLY a JSON object with exactly these keys:
 # --- LLM transport ---------------------------------------------------------
 
 def _call_llm(prompt: str) -> str:
-    """Send the prompt to Groq, trying the configured model then fallbacks."""
+    """Send the prompt to Groq, trying the configured model then fallbacks.
+
+    The SDK's automatic retries are disabled and the cascade shares one time
+    budget, so a slow or rate-limited provider fails fast (at most
+    ``PROVIDER_TOTAL_BUDGET_SECONDS``) instead of retrying the same stalled
+    request for minutes.
+    """
     client = config.get_groq_client()
     if client is None:
         raise HTTPException(503, "Complaint understanding is not configured")
+    client = client.with_options(max_retries=0)
     models = list(dict.fromkeys([config.GROQ_MODEL, *MODEL_FALLBACKS]))
+    deadline = time.monotonic() + PROVIDER_TOTAL_BUDGET_SECONDS
     last_error: Exception | None = None
     for model in models:
+        remaining = deadline - time.monotonic()
+        if remaining <= 1.0:
+            last_error = TimeoutError("provider time budget exceeded")
+            break
+        started = time.monotonic()
         try:
             completion = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0,
                 max_tokens=700,
-                timeout=PROVIDER_TIMEOUT_SECONDS,
+                timeout=min(PROVIDER_TIMEOUT_SECONDS, remaining),
             )
             content = completion.choices[0].message.content or ""
             if content.strip():
+                logger.info(
+                    "voice intake: extracted with %s in %.2fs",
+                    model, time.monotonic() - started,
+                )
                 return content
             last_error = RuntimeError("empty completion")
+            logger.warning("voice intake: model %s returned an empty completion", model)
         except Exception as exc:  # noqa: BLE001 — provider errors vary by model
             last_error = exc
+            logger.warning(
+                "voice intake: model %s failed after %.1fs (%s)",
+                model, time.monotonic() - started, type(exc).__name__,
+            )
     logger.warning("voice intake: all Groq models failed: %r", last_error)
     raise _provider_error(last_error)
 

@@ -37,6 +37,14 @@
   `location.hi-IN.wav`; photo step appeared in view and skipped; zero console
   errors. Docs: `VOICE_ASSISTED_COMPLAINT.md` Stage 13, `API.md`; corrected the
   Stage 12 "live spoken path not re-run" note.
+- Latency fix (same day, DEC-040): the intake cascade now disables the Groq
+  SDK's automatic retries, caps each model attempt at 10 s and shares a 25 s
+  total budget (`504` when exhausted), so a stalled/rate-limited provider can
+  no longer keep the spinner running for minutes past the browser's 45 s
+  timeout. Success logs the winning model and elapsed time; each failed attempt
+  logs a warning. Live extraction stayed at 1.1–1.5 s; new tests cover retries
+  disabled and the cascade stopping at the budget (`tests/test_voice_intake.py`
+  28 passed).
 
 ## 2026-10-18 — Fix: nested form in location search (hydration error on /submit)
 

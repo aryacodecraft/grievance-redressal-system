@@ -1143,6 +1143,19 @@ Wording lives in `frontend/lib/i18n/voice.ts` (`intakeQuestionDetails`,
 `intakeQuestionAffected`, `intakeQuestionDanger`, `intakeQuestionLandmark`,
 `intakeQuestionClarify`) in en/hi/mr.
 
+### Provider latency bound (2026-10-19 fix)
+
+The intake call is bounded end-to-end. `_call_llm` disables the Groq SDK's
+automatic retries (`client.with_options(max_retries=0)`), caps each model
+attempt at 10 s, and shares a 25 s total budget across the configured model and
+its fallbacks; if the budget runs out it returns `504`. This keeps the whole
+backend path well inside the frontend's 45 s timeout. Before the fix the SDK's
+two default retries could multiply a stalled or rate-limited provider into
+several minutes of spinner while the browser had already given up, and each
+retry left another request running server-side. The cascade now logs the
+winning model and elapsed time, plus a warning per failed attempt. Normal calls
+remain ~1 s; the budget only changes failure behavior.
+
 ### Pre-recorded audio assets
 
 - `frontend/scripts/generate-question-audio.mjs` synthesizes **8 kinds × 3

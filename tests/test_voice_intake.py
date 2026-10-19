@@ -49,8 +49,14 @@ def stub_client(monkeypatch, exc):
         def create(self, **kwargs):
             raise exc
 
-    fake = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    monkeypatch.setattr(grievance_intake.config, "get_groq_client", lambda: fake)
+    class FakeClient:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=Completions())
+
+        def with_options(self, **kwargs):
+            return self
+
+    monkeypatch.setattr(grievance_intake.config, "get_groq_client", lambda: FakeClient())
 
 
 # --- Auth -------------------------------------------------------------------
@@ -231,6 +237,60 @@ def test_provider_timeout_maps_to_504(client, monkeypatch):
 def test_provider_error_maps_to_502(client, monkeypatch):
     stub_client(monkeypatch, RuntimeError("boom"))
     assert post(client).status_code == 502
+
+
+def test_provider_disables_sdk_retries(client, monkeypatch):
+    seen = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            reply = json.dumps({"title": "Streetlight dark", "description": GOOD})
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=reply))]
+            )
+
+    class FakeClient:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=Completions())
+
+        def with_options(self, **kwargs):
+            seen.update(kwargs)
+            return self
+
+    monkeypatch.setattr(grievance_intake.config, "get_groq_client", lambda: FakeClient())
+    assert post(client).status_code == 200
+    assert seen == {"max_retries": 0}
+
+
+def test_provider_cascade_stops_at_total_budget(client, monkeypatch):
+    calls = []
+
+    class Completions:
+        def create(self, **kwargs):
+            calls.append(kwargs["model"])
+            raise TimeoutError("request timed out")
+
+    class FakeClient:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=Completions())
+
+        def with_options(self, **kwargs):
+            return self
+
+    monkeypatch.setattr(grievance_intake.config, "get_groq_client", lambda: FakeClient())
+    monkeypatch.setattr(grievance_intake, "PROVIDER_TOTAL_BUDGET_SECONDS", 15.0)
+    clock = {"now": 0.0}
+
+    def fake_monotonic():
+        clock["now"] += 10.0
+        return clock["now"]
+
+    # Only replace the clock the service reads, not the global time module.
+    monkeypatch.setattr(
+        grievance_intake, "time", SimpleNamespace(monotonic=fake_monotonic)
+    )
+    assert post(client).status_code == 504
+    assert len(calls) == 1  # second model never starts: the budget is exhausted
 
 
 # --- Prompt plumbing --------------------------------------------------------

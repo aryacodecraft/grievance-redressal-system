@@ -65,17 +65,21 @@ only — humans retain assignment, escalation, resolution and closure authority
   **Spoken questions + photo step (DEC-039):** the model picks a fixed
   `question_kind`; 24 pre-recorded en/hi/mr clips auto-play with persisted mute
   and replay; the review offers an optional photo before the single submit.
-  Stages 1–13 IMPLEMENTED; one live English smoke + a full live typed-path
-  browser E2E (`GRV-2026-0015`, 2026-10-18) passed; live en/hi question playback
-  verified 2026-10-19; live spoken hi/mr STT validation pending (§5).
+  Intake provider calls are latency-bounded (SDK retries disabled, 10 s per
+  model attempt, 25 s cascade budget) so a stalled provider fails fast instead
+  of spinning for minutes (DEC-040). Stages 1–13 IMPLEMENTED; one live English
+  smoke + a full live typed-path browser E2E (`GRV-2026-0015`, 2026-10-18)
+  passed; live en/hi question playback verified 2026-10-19; live spoken hi/mr
+  STT validation pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
   no metrics claimed (DEC-005). Similarity is client-side TF-IDF only.
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — full pytest (2026-10-19): 508 passed / 31 skipped / 23
+- **Test suites** — full pytest (2026-10-19): 510 passed / 31 skipped / 23
   failed = the documented pre-existing baseline (§5); contract suite 18
   checks; voice node suites 148 tests (Stage 13 adds 11 speech/asset tests and
-  updates the intake/UI suites).
+  updates the intake/UI suites); intake backend suite 28 tests (2 new
+  latency-bound tests, DEC-040).
 
 ---
 

@@ -1911,3 +1911,35 @@ advanced ~3 s) → language switched to Hindi (the open question re-rendered and
 auto-played) and "Play again" replayed `location.hi-IN.wav` → review → photo
 step in view → skipped → no submission; zero console errors. No new
 grievance/ticket was created.
+
+---
+
+## DEC-040 — Bound Intake Provider Latency (2026-10-19)
+
+**Context:** `POST /grievance-intake/extract` sits on the conversational
+critical path: the next question cannot be shown until it returns. It tries the
+configured Groq model plus two fallbacks, and the Groq SDK retries transient
+failures twice by default. With a 25 s per-attempt timeout, a stalled or
+rate-limited provider could occupy the request for several minutes while the
+browser aborted at 45 s; the abandoned requests kept retrying server-side.
+
+**Decision:** treat provider latency as a bounded resource. Disable the SDK's
+automatic retries for intake (`with_options(max_retries=0)`), cap each model
+attempt at 10 s, and share a 25 s total budget across the cascade; return `504`
+when the budget is exhausted. The frontend's 45 s timeout is unchanged. Log the
+winning model plus elapsed time, and a warning per failed attempt.
+
+**Alternatives rejected:** keeping the SDK retries (multiplies the worst case);
+raising the browser timeout (longer waits and more pile-up); racing all models
+in parallel (extra provider cost for a rare failure); dropping the LLM and
+asking a deterministic question immediately (loses the advisory extraction and
+changes the established intake contract).
+
+**Verification (2026-10-19):** `tests/test_voice_intake.py` 28 passed (new:
+SDK retries disabled; cascade stops at the total budget); live extraction
+1.1–1.5 s; typed Send→question 1.26 s; spoken Stop→question 1.92 s. Full pytest
+**510 passed / 31 skipped / 23 failed** (documented DEC-006 baseline unchanged,
++2 new tests); frontend voice suite **148 passed**.
+
+**Reversible:** the timeout constants and `max_retries` setting live only in
+`grievance_intake.py`; reverting the commit restores the previous behavior.
