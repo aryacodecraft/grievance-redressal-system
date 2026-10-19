@@ -31,7 +31,7 @@ const ml: Messages = {
   accountabilityLabel: "ഉത്തരവാദിത്തം:",
   accountabilityText:
     "വകുപ്പ് നടപടികളും സ്ഥിതി മാറ്റങ്ങളും ഉത്തരവാദിത്തമുള്ള മനുഷ്യ അവലോകനത്തിനായി രേഖപ്പെടുത്തുന്നു.",
-  copyright: "GrievAI — പൗര പരാതി പരിഹാര പ്രോട്ടോടൈപ്പ്.",
+  copyright: "SAMARTH — പൗര പരാതി പരിഹാര പ്രോട്ടോടൈപ്പ്.",
 
   // ── Home: hero ──
   homeBadge: "ദേശീയ പൊതു പരാതി പോർട്ടൽ",

@@ -31,7 +31,7 @@ const bn: Messages = {
   accountabilityLabel: "দায়বদ্ধতা:",
   accountabilityText:
     "বিভাগীয় পদক্ষেপ ও স্থিতি পরিবর্তন দায়বদ্ধ মানবিক পর্যালোচনার জন্য রেকর্ড করা হয়।",
-  copyright: "GrievAI — নাগরিক অভিযোগ নিষ্পত্তি প্রোটোটাইপ।",
+  copyright: "SAMARTH — নাগরিক অভিযোগ নিষ্পত্তি প্রোটোটাইপ।",
 
   // ── Home: hero ──
   homeBadge: "জাতীয় সর্বজনীন অভিযোগ পোর্টাল",

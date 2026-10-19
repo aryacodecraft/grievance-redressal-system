@@ -31,7 +31,7 @@ const kn: Messages = {
   accountabilityLabel: "ಜವಾಬ್ದಾರಿ:",
   accountabilityText:
     "ವಿಭಾಗೀಯ ಕ್ರಮಗಳು ಮತ್ತು ಸ್ಥಿತಿ ಬದಲಾವಣೆಗಳನ್ನು ಜವಾಬ್ದಾರ ಮಾನವೀಯ ಪರಿಶೀಲನೆಗಾಗಿ ದಾಖಲಿಸಲಾಗುತ್ತದೆ.",
-  copyright: "GrievAI — ನಾಗರಿಕ ದೂರು ಪರಿಹಾರ ಪ್ರೋಟೊಟೈಪ್.",
+  copyright: "SAMARTH — ನಾಗರಿಕ ದೂರು ಪರಿಹಾರ ಪ್ರೋಟೊಟೈಪ್.",
 
   // ── Home: hero ──
   homeBadge: "ರಾಷ್ಟ್ರೀಯ ಸಾರ್ವಜನಿಕ ದೂರುಗಳ ಪೋರ್ಟಲ್",

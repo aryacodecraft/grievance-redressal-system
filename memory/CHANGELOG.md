@@ -9,6 +9,16 @@
 
 ---
 
+## 2026-10-20 — Brand redesign to SAMARTH, de-AI copy, vibrant orange palette & navbar centering (DEC-045)
+
+- Rebranded application from "GrievAI" to **SAMARTH — System for Accessible Management, Action, Resolution and Tracking of Hearings**.
+- Updated `SiteHeader.tsx`, `SiteFooter.tsx`, `StaffSidebar.tsx`, `layout.tsx`, and all 11 i18n dictionaries (`en.ts`, `hi.ts`, `mr.ts`, and 8 hidden fallback packs).
+- Removed the orange `[S]` rectangle from the navbar title, setting clean brand text `SAMARTH — National Grievance Portal`. Centered the navbar links (`Home`, `Register Grievance`, `Track Grievance`, `Profile`) via balanced `flex-1` flanks.
+- Removed the redundant rectangle badge (`SAMARTH — National Grievance Portal`) from above the hero `h1` title in `app/page.tsx`.
+- De-AI copy: replaced generic "AI-assisted portal", "AI + Officer", "AI System", "AI inference" phrases with civic-focused terminology ("SAMARTH — National Grievance Portal", "System + Officer", "Triage System", "Automated Categorization"); replaced `BrainCircuit` with `Layers` in Section 6; softened admin queue copy. Preserved field-level "AI suggestion" badge on draft inputs.
+- Simplified `SiteFooter.tsx` into a singular, centered civic footer displaying the accountability note and SAMARTH copyright notice, removing separate multi-tiered sections.
+- Verification: `npx tsc --noEmit` clean; `npm run test:voice` 79 passed; `node scripts/check-contract.mjs` passed; ESLint clean across all modified files.
+
 ## 2026-10-20 — Citizen surfaces hide AI classification + confidence (DEC-044)
 
 - Submit success card no longer renders the AI triage panel; the citizen sees

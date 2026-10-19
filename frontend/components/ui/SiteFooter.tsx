@@ -20,7 +20,7 @@ const citizenServices: MessageKey[] = [
 
 const contact: { Icon: LucideIcon; key?: MessageKey; text?: string }[] = [
   { Icon: MapPin, key: "contactLocation" },
-  { Icon: Mail, text: "support@grievai.example" },
+  { Icon: Mail, text: "support@samarth.gov.in" },
 ];
 
 export function SiteFooter() {
@@ -32,14 +32,17 @@ export function SiteFooter() {
         {/* Brand */}
         <div className="lg:col-span-4">
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary-700 text-xs font-bold text-white">
-              G
+            <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary-600 text-xs font-bold text-white">
+              S
             </span>
             <p className="text-sm font-bold text-ink-900">
-              GrievAI
+              SAMARTH
             </p>
           </div>
-          <p className="mt-2.5 text-xs leading-relaxed text-ink-500">
+          <p className="mt-1 text-[11px] font-semibold text-ink-600">
+            System for Accessible Management, Action, Resolution and Tracking of Hearings
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-ink-500">
             {t("footerAbout")}
           </p>
         </div>
@@ -95,22 +98,19 @@ export function SiteFooter() {
         </div>
       </div>
 
-      {/* Governance note */}
-      <div className="border-t border-ink-100 bg-white px-4 py-3.5 sm:px-6 lg:px-8">
-        <p className="text-[11px] leading-relaxed text-ink-400">
-          <span className="font-semibold uppercase tracking-wider text-ink-600">
+      {/* Singular centered bottom footer — accountability note & copyright unified without separate sections */}
+      <div className="border-t border-ink-100 py-6 px-4 text-center space-y-2 sm:px-6 lg:px-8">
+        <p className="text-xs leading-relaxed text-ink-500">
+          <span className="font-semibold text-ink-700">
             {t("accountabilityLabel")}
           </span>{" "}
           {t("accountabilityText")}
         </p>
-      </div>
-
-      {/* Copyright */}
-      <div className="border-t border-ink-100 py-4 bg-white">
-        <p className="px-4 text-xs text-ink-400 sm:px-6 lg:px-8">
+        <p className="text-xs text-ink-400">
           © {new Date().getFullYear()} {t("copyright")}
         </p>
       </div>
     </footer>
   );
 }
+

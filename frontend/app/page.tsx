@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BrainCircuit,
   CheckCircle2,
   Clock,
   Construction,
@@ -13,6 +12,7 @@ import {
   FolderOpen,
   HeartPulse,
   Landmark,
+  Layers,
   MapPin,
   ShieldCheck,
   Sparkles,
@@ -285,23 +285,16 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 sm:py-16 lg:px-8 lg:py-20">
           {/* Hero: Direct Public-Service Messaging & Actions */}
           <div className="mx-auto max-w-2xl">
-            <div className="animate-fade-up inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white px-3 py-1 shadow-2xs">
-              <span className="flex h-2 w-2 rounded-full bg-primary-600 animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-wider text-primary-800">
-                {t("heroBadge")}
-              </span>
-            </div>
-
-            <h1 className="animate-fade-up [animation-delay:80ms] mt-5 text-3xl font-extrabold tracking-tight text-ink-950 sm:text-5xl sm:leading-[1.12]">
+            <h1 className="animate-fade-up text-3xl font-extrabold tracking-tight text-ink-950 sm:text-5xl sm:leading-[1.12]">
               {t("heroTitle")}
             </h1>
 
-            <p className="animate-fade-up [animation-delay:160ms] mt-4 text-base leading-7 text-ink-600 sm:text-lg">
+            <p className="animate-fade-up [animation-delay:80ms] mt-4 text-base leading-7 text-ink-600 sm:text-lg">
               {t("heroSubtitle")}
             </p>
 
             {/* Primary & Secondary Actions */}
-            <div className="animate-fade-up [animation-delay:240ms] mt-8 flex flex-wrap items-center justify-center gap-3">
+            <div className="animate-fade-up [animation-delay:160ms] mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/submit"
                 className="inline-flex items-center gap-2.5 rounded-md bg-ink-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-ink-800 active:bg-ink-950"
@@ -608,7 +601,7 @@ export default function Home() {
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-ink-200/80 bg-ink-50/30 p-4">
               <span className="flex h-8 w-8 items-center justify-center rounded bg-primary-50 text-primary-700">
-                <BrainCircuit size={17} />
+                <Layers size={17} />
               </span>
               <h3 className="mt-3 text-xs font-bold uppercase tracking-wide text-ink-900">
                 {t("trust1Title")}

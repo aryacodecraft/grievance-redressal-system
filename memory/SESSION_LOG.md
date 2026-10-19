@@ -774,4 +774,39 @@ users must not see the classification in any section.
   change); stripping it from citizen-facing payloads would be a separate
   contract decision (DEC-044 alternatives).
 
+---
+
+## 2026-10-20 — Brand redesign to SAMARTH, de-AI copy & vibrant orange palette (DEC-045)
+
+### Request
+Owner:
+1. Change frontend branding from "GrievAI" to "SAMARTH - System for Accessible Management, Action, Resolution and Tracking of Hearings".
+2. Remove generic AI copy and graphics across frontend.
+3. Switch orange accent to a brighter, vibrant orange palette.
+4. "SAMARTH — National Grievance Portal , remove this rectangle form title, center the navbar elements": remove the orange rectangle logo box from the navbar brand, set clean title "SAMARTH — National Grievance Portal", remove the redundant rectangle badge above the hero title, and center the navbar links.
+
+### What changed
+- Rebranding & Navbar Clean-up:
+  - Header (`SiteHeader.tsx`): removed the orange `[S]` rectangle box from the brand link; updated to clean text `SAMARTH` and `— National Grievance Portal`.
+  - Centered navigation: wrapped left and right header elements in balanced `flex-1` flanks, placing `<nav>` in the dead center of the navbar container.
+  - Homepage hero (`app/page.tsx`): removed the rectangle badge (`SAMARTH — National Grievance Portal`) from above the `h1` title so the hero opens directly with the prominent headline.
+  - Footer (`SiteFooter.tsx`), Sidebar (`StaffSidebar.tsx`), and App layout metadata (`layout.tsx`) updated to SAMARTH. Contact email set to `support@samarth.gov.in`.
+  - Updated copyright and footer copy across all 11 i18n dictionaries (`en.ts`, `hi.ts`, `mr.ts`, and 8 fallback packs).
+- De-AI copy & visual design:
+  - Rewrote hero badge, principles, overview actors (`System + Officer`), lifecycle actors (`Triage System`), trust section ("Accountability & Oversight", "Structured triage with accountable human decisions", "Automated Categorization") in `en.ts`, `hi.ts`, and `mr.ts`.
+  - Replaced `BrainCircuit` with `Layers` in Section 6 (`app/page.tsx`).
+  - Softened admin queue header and review modal text (`AdminHeader.tsx`, `GrievanceReviewModal.tsx`).
+- Vibrant orange palette:
+  - Refined `--color-primary-*` scale in `app/globals.css`: `--color-primary-600: #ff5500;`, `--color-primary-700: #e04800;`.
+  - Updated `Button.tsx` `orange` variant from `bg-primary-700` (`#c24a00`, muddy dark rust/brown) to `bg-primary-600 hover:bg-primary-500 active:bg-primary-700 focus-visible:ring-primary-500` (electric civic orange).
+  - Updated logo badges in sidebar to `bg-primary-600`.
+  - Refactored `SiteFooter.tsx` into a singular, centered footer containing the accountability note and SAMARTH copyright line without separate stacked sections.
+
+### Verification
+- `npx tsc --noEmit` in `frontend/`: 0 errors.
+- `npm run test:voice` in `frontend/`: 79 passed, 0 failures.
+- `node scripts/check-contract.mjs`: all contract checks passed.
+- `npx eslint` on all touched files: 0 errors, 0 warnings.
+
+
 

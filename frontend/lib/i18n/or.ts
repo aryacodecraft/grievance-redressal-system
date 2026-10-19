@@ -31,7 +31,7 @@ const or: Messages = {
   accountabilityLabel: "ଦାୟିତ୍ୱ:",
   accountabilityText:
     "ବିଭାଗୀୟ ପଦକ୍ଷେପ ଓ ସ୍ଥିତି ପରିବର୍ତ୍ତନ ଦାୟୀ ମାନବୀୟ ସମୀକ୍ଷା ପାଇଁ ରେକର୍ଡ ହୁଏ।",
-  copyright: "GrievAI — ନାଗରିକ ଅଭିଯୋଗ ସମାଧାନ ପ୍ରୋଟୋଟାଇପ୍।",
+  copyright: "SAMARTH — ନାଗରିକ ଅଭିଯୋଗ ସମାଧାନ ପ୍ରୋଟୋଟାଇପ୍।",
 
   // ── Home: hero ──
   homeBadge: "ଜାତୀୟ ସାର୍ବଜନୀନ ଅଭିଯୋଗ ପୋର୍ଟାଲ",

@@ -31,7 +31,7 @@ const te: Messages = {
   accountabilityLabel: "జవాబుదారీతనం:",
   accountabilityText:
     "శాఖా చర్యలు మరియు స్థితి మార్పులు జవాబుదారీ మానవ సమీక్ష కోసం నమోదు చేయబడతాయి.",
-  copyright: "GrievAI — పౌర ఫిర్యాదుల పరిష్కార నమూనా.",
+  copyright: "SAMARTH — పౌర ఫిర్యాదుల పరిష్కార నమూనా.",
 
   // ── Home: hero ──
   homeBadge: "జాతీయ ప్రజా ఫిర్యాదుల పోర్టల్",

@@ -9,15 +9,15 @@
 > Decisions: `DECISIONS.md` (grep by topic). Status vocabulary: AGENTS.md
 > (PLANNED / IN PROGRESS / IMPLEMENTED / TESTED / VALIDATED / DEFERRED / OPTIONAL).
 >
-> **Last updated: 2026-10-19.** Keep this file current after every task — edit
+> **Last updated: 2026-10-20.** Keep this file current after every task — edit
 > it in place when implementation state or the backlog changes.
 
 ---
 
 ## 1. Project at a glance
 
-B.Tech academic prototype: **AI-Enabled Grievance Redressal and Decision Support System**
-(source of truth: `PRD.md`, `docs/PROJECT_CONTEXT.md`). AI is decision support
+B.Tech academic prototype: **SAMARTH — System for Accessible Management, Action, Resolution and Tracking of Hearings**
+(formerly GrievAI; PRD.md, docs/PROJECT_CONTEXT.md). AI is decision support
 only — humans retain assignment, escalation, resolution and closure authority
 (AGENTS.md HITL principle). No hard deadline; prototype-grade quality, not production.
 
@@ -85,6 +85,13 @@ only — humans retain assignment, escalation, resolution and closure authority
   no metrics claimed (DEC-005). Similarity is client-side TF-IDF only. Citizen
   surfaces never display classification outputs or confidence (DEC-044); the
   triage panel is staff-only.
+- **Branding & UI refresh (DEC-045, 2026-10-20)** — project rebranded to
+  **SAMARTH** (System for Accessible Management, Action, Resolution and Tracking of Hearings);
+  header, footer, sidebar, layout, and all 11 i18n dictionaries updated; logo mark
+  updated to "S"; contact email set to `support@samarth.gov.in`; generic "AI" hype copy
+  de-emphasized across hero, how-it-works, trust section (replaced BrainCircuit with Layers)
+  and admin review; primary orange palette enhanced with brighter vibrant tones
+  (`--color-primary-600: #ff5500;` on buttons and accents).
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
 - **Test suites** — full pytest (2026-10-19, post-Stage-14): 511 passed / 32

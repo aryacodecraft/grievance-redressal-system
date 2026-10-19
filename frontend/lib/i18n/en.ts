@@ -25,7 +25,7 @@ const en = {
 
   // ── Footer ──
   footerAbout:
-    "AI-assisted grievance redressal and decision-support prototype for transparent civic workflows.",
+    "Accessible grievance redressal and decision-support system for transparent civic workflows.",
   footerSignIn: "Sign In",
   footerCreateAccount: "Create Account",
   footerQuickLinks: "Quick Links",
@@ -34,12 +34,12 @@ const en = {
   svcRegister: "Register a public grievance",
   svcTrack: "Track grievance status & timeline",
   svcAssign: "Officer assignment & resolution",
-  svcAi: "AI-assisted categorization",
+  svcAi: "Automated categorization & routing",
   contactLocation: "Location-aware civic issue reporting",
   accountabilityLabel: "Accountability:",
   accountabilityText:
     "Department actions and status transitions are recorded for accountable human review.",
-  copyright: "GrievAI — Civic grievance redressal prototype.",
+  copyright: "SAMARTH — System for Accessible Management, Action, Resolution and Tracking of Hearings.",
 
   // ── Home: hero ──
   homeBadge: "National public grievance portal",
@@ -56,7 +56,7 @@ const en = {
   homeStep1Title: "You share the facts",
   homeStep1Text: "Issue, evidence, and exact location.",
   homeStep2Title: "The request is organized",
-  homeStep2Text: "AI-assisted triage suggests routing and priority.",
+  homeStep2Text: "Structured triage suggests department routing and priority.",
   homeStep3Title: "An officer takes responsibility",
   homeStep3Text: "A human team reviews, acts, and updates you.",
 
@@ -66,7 +66,7 @@ const en = {
     "Pin the place where the issue happened so the right local team can act.",
   principle2Title: "Assisted triage",
   principle2Text:
-    "AI helps organize the report; authorized officers remain responsible for decisions.",
+    "Automated triage helps organize the report; authorized officers remain responsible for decisions.",
   principle3Title: "Human-reviewed",
   principle3Text:
     "Every assignment, update, and resolution stays under accountable human control.",
@@ -101,13 +101,13 @@ const en = {
   accStep2Text: "See meaningful status changes.",
 
   // ── Home (redesigned 2026-10): hero ──
-  heroBadge: "AI-Assisted Civic Grievance Portal",
+  heroBadge: "SAMARTH — National Grievance Portal",
   heroTitle: "Every grievance deserves a clear next step.",
   heroSubtitle:
     "Report public and civic infrastructure problems with exact location and evidence. Follow your issue through a transparent, verified lifecycle where authorized officers make the final decisions.",
   heroCtaReport: "Report a Grievance",
   heroCtaTrack: "Track Existing Grievance",
-  heroTrustHuman: "Human-in-the-loop decisions",
+  heroTrustHuman: "Accountable officer decisions",
   heroTrustGps: "GPS location verified",
   heroTrustAudit: "Recorded audit trail",
 
@@ -117,14 +117,14 @@ const en = {
   ovText: "Clear accountability at every step without confusing administrative layers.",
   ovStageN: "Stage {n}",
   ovActorCitizen: "Citizen",
-  ovActorAiOfficer: "AI + Officer",
+  ovActorAiOfficer: "System + Officer",
   ovActorResolverCitizen: "Resolver & Citizen",
   ov1Title: "Submit with Details",
   ov1Text:
     "Describe the problem, pin your current GPS location, and optionally attach a photo. You immediately receive an official reference ID.",
   ov2Title: "Review & Assign",
   ov2Text:
-    "AI categorizes and suggests urgency. An authorized department manager verifies the report and assigns a field employee to take charge.",
+    "The system categorizes and organizes urgency. An authorized department manager verifies the report and assigns a field employee to take charge.",
   ov3Title: "Track & Resolve",
   ov3Text:
     "The employee works on site, posts verified progress updates with optional completion photos, and submits for final manager closure.",
@@ -173,7 +173,7 @@ const en = {
   lcTitle: "What happens after you submit?",
   lcText: "Every status corresponds to a real stage in the departmental workflow.",
   lcTimeline: "Expected timeline",
-  lcActorAi: "AI System",
+  lcActorAi: "Triage System",
   lcActorManager: "Department Manager",
   lcActorResolver: "Field Resolver",
   lcActorManagerCitizen: "Manager & Citizen",
@@ -230,10 +230,10 @@ const en = {
   ctaSecondary: "Already registered? Track with ID",
 
   // ── Home: accountability & technology ──
-  trustBadge: "Accountability & Technology",
-  trustTitle: "AI-assisted triage with human decisions",
-  trustText: "Understanding where technology helps and where human officers remain fully in charge.",
-  trust1Title: "AI Category Inference",
+  trustBadge: "Accountability & Oversight",
+  trustTitle: "Structured triage with accountable human decisions",
+  trustText: "Understanding where automated systems assist and where human officers remain fully in charge.",
+  trust1Title: "Automated Categorization",
   trust1Text: "Analyzes issue text to suggest the right department and urgency score.",
   trust2Title: "Officer Review & Assignment",
   trust2Text: "Department managers confirm routing and assign specific personnel to investigate.",
@@ -268,7 +268,7 @@ const en = {
   lifeBadge: "A clear path from report to resolution",
   lifeTitle: "Know what happens next",
   lifeText:
-    "Your request moves through a visible lifecycle. AI helps officers organize the queue; people remain responsible for assignment, action, and closure.",
+    "Your request moves through a visible lifecycle. Structured triage helps officers organize the queue; people remain responsible for assignment, action, and closure.",
   lifeStageOf: "Stage {n} of {total}",
   lifeStageAria: "Show lifecycle stage: {label}",
   life1Label: "Submitted",
@@ -277,7 +277,7 @@ const en = {
   life2Label: "Reviewed",
   life2Short: "We understand it",
   life2Text:
-    "AI-assisted triage suggests the category and urgency for officer review.",
+    "Structured triage suggests the category and urgency for officer review.",
   life3Label: "Assigned",
   life3Short: "A team takes it",
   life3Text:

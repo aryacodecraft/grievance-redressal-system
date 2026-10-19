@@ -2095,3 +2095,46 @@ Live submit latency after the change not re-measured.
 - Not verified: live browser pass (still pending together with the Stage 14/15 pass).
 
 **Reversible:** Restore the panel render in `SubmitForm.tsx` / `GrievanceDetailModal.tsx` and the confidence block in `AnalysisPanel`; classification data is still stored on `hfEngine`.
+
+---
+
+## DEC-045 — Brand Redesign to SAMARTH, De-AI Copy, and Vibrant Primary Orange Palette (2026-10-20)
+
+**Context:** The portal brand name was updated from prototype working title "GrievAI" to the official civic project identity: **`SAMARTH` — System for Accessible Management, Action, Resolution and Tracking of Hearings**. In addition, the UI contained generic AI buzzwords ("AI-assisted civic grievance portal", "AI + Officer", "AI System", "AI inference", "BrainCircuit" icons) which detracted from the authentic civic and departmental authority. Finally, the primary orange palette used `#c24a00` as the button background (`Button.tsx`), which rendered as a dull, muddy dark rust/brown instead of an energetic, bright civic orange.
+
+**Decision:**
+- **Rebranding:**
+  - Application title and branding updated across `SiteHeader.tsx`, `SiteFooter.tsx`, `StaffSidebar.tsx`, `layout.tsx`, and all i18n language packs (`en.ts`, `hi.ts`, `mr.ts`, and 8 hidden locale packs).
+  - Logo initial updated from `G` to `S`.
+  - Brand expansion subtitle: "System for Accessible Management, Action, Resolution and Tracking of Hearings" (or concise header variant "System for Accessible Management, Action, Resolution & Tracking of Hearings").
+  - Support contact email updated in footer to `support@samarth.gov.in` (replacing `support@grievai.example`).
+  - Internal testing contracts and tokens (e.g. `ADMIN@GrievAI.TEST` in `check-contract.mjs`, localStorage keys like `grievai-voice-muted`) remain untouched for backward compatibility.
+- **De-AI Copy & Civic Tone:**
+  - Replaced generic AI claims across homepage and administrative surfaces:
+    - `heroBadge`: "AI-Assisted Civic Grievance Portal" → "SAMARTH — National Grievance Portal".
+    - `heroTrustHuman`: "Human-in-the-loop decisions" → "Accountable officer decisions".
+    - `homeStep2Text` / `principle2Text`: "AI-assisted triage" → "Structured triage" / "Automated triage".
+    - `ovActorAiOfficer` / `lcActorAi`: "AI + Officer" / "AI System" → "System + Officer" / "Triage System".
+    - `trustBadge` / `trustTitle` / `trust1Title`: "Accountability & Technology" → "Accountability & Oversight", "Structured triage with accountable human decisions", "Automated Categorization".
+    - Admin queue subtitle & review modal: replaced "see the AI's suggestion" and "AI recommends;" with "verify suggested routing" and "System recommends; the authorized officer decides".
+    - Section 6 trust icon: replaced `BrainCircuit` with `Layers` from `lucide-react`.
+    - Preserved field-level "AI suggestion" badge on draft inputs to maintain transparency on machine-extracted form values.
+- **Brighter Orange Accent Palette:**
+  - Refined `--color-primary-*` scale in `frontend/app/globals.css`:
+    - `--color-primary-500: #ff6f00;`
+    - `--color-primary-600: #ff5500;` (vivid, electric civic orange)
+    - `--color-primary-700: #e04800;` (rich saturated deep orange with high contrast, replacing muddy `#c24a00`)
+  - Updated `Button.tsx` `orange` variant: `bg-primary-600 hover:bg-primary-500 active:bg-primary-700 focus-visible:ring-primary-500` so orange action buttons pop brightly.
+  - Updated logo badges in header, footer, and sidebar to `bg-primary-600`.
+
+**Alternatives rejected:**
+- Keeping the "AI" emphasis in the civic header and badges: contradicts government portal expectations where municipal accountability takes precedence over technical implementation details.
+- Retaining `bg-primary-700` (`#c24a00`) for buttons: dark brownish appearance failed to read as orange.
+
+**Verification (2026-10-20):**
+- `npx tsc --noEmit` in `frontend/`: passes with 0 errors.
+- `npm run test:voice`: all 79 tests pass.
+- `node scripts/check-contract.mjs`: passes all contract assertions.
+- `npx eslint`: 0 errors, 0 warnings across all modified components, pages, and i18n files.
+
+**Reversible:** Revert the CSS palette hex codes and restore previous string constants in i18n dictionaries.

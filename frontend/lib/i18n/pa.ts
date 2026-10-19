@@ -31,7 +31,7 @@ const pa: Messages = {
   accountabilityLabel: "ਜਵਾਬਦੇਹੀ:",
   accountabilityText:
     "ਵਿਭਾਗੀ ਕਾਰਵਾਈਆਂ ਅਤੇ ਸਥਿਤੀ ਤਬਦੀਲੀਆਂ ਜਵਾਬਦੇਹ ਮਨੁੱਖੀ ਸਮੀਖਿਆ ਲਈ ਰਿਕਾਰਡ ਕੀਤੀਆਂ ਜਾਂਦੀਆਂ ਹਨ.",
-  copyright: "GrievAI — ਨਾਗਰਿਕ ਸ਼ਿਕਾਤ ਨਿਪਟਾਰਾ ਪ੍ਰੋਟੋਟਾਈਪ.",
+  copyright: "SAMARTH — ਨਾਗਰਿਕ ਸ਼ਿਕਾਤ ਨਿਪਟਾਰਾ ਪ੍ਰੋਟੋਟਾਈਪ.",
 
   // ── Home: hero ──
   homeBadge: "ਕੇਂਦਰੀ ਜਨਤਕ ਸ਼ਿਕਾਤ ਪੋਰਟਲ",

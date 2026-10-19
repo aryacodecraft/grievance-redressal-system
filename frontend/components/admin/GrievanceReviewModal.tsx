@@ -318,7 +318,7 @@ Attached Photo
                   Officer Action
                 </p>
                 <p className="mt-0.5 text-[11px] text-ink-400">
-                  AI recommends; the authorized officer decides and the action is recorded.
+                  System recommends; the authorized officer decides and the action is recorded.
                 </p>
               </div>
 

@@ -18,11 +18,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "GrievAI — National Grievance Redressal Portal",
-    template: "%s — GrievAI",
+    default: "SAMARTH — System for Accessible Management, Action, Resolution and Tracking of Hearings",
+    template: "%s — SAMARTH",
   },
   description:
-    "Official portal to register, track, and resolve public grievances with AI-assisted categorization and prioritization.",
+    "Official portal for accessible management, action, resolution, and tracking of public grievances and hearings.",
 };
 
 export default function RootLayout({

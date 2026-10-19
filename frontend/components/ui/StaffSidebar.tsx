@@ -93,12 +93,12 @@ export function StaffSidebar({
       >
         <span
           aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-primary-700 font-bold text-white shadow-xs"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs"
         >
-          G
+          S
         </span>
         <span className="hidden text-sm font-bold tracking-tight text-ink-950 sm:block">
-          GrievAI
+          SAMARTH
         </span>
       </Link>
 

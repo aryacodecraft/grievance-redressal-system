@@ -10,7 +10,7 @@ export default function AdminPage() {
       <div className="bg-white min-h-[calc(100vh-4rem)]">
         <AdminHeader
           title="Admin dashboard"
-          subtitle="Review new complaints, see the AI's suggestion, and hand each case to the right department team."
+          subtitle="Review new complaints, verify suggested routing, and hand each case to the right department team."
         />
         <div className="px-4 py-8 sm:px-6 lg:px-8 space-y-8">
           <AdminBoard />

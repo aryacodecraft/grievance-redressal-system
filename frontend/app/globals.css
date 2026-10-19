@@ -14,25 +14,24 @@
   --color-foreground: var(--foreground);
 
   /*
-   * Bright orange primary palette.
+   * Bright, vibrant civic orange primary palette.
    *
-   * 600 (#ff6b00) is the signature accent but is only used for decorative
-   * surfaces (borders, focus rings, progress bars, pins, hover states) —
-   * white-on-600 and 600-as-text both land near 2.9:1.
-   * 700 (#c24a00) is the "text safe" orange at 4.9:1 and is used wherever
-   * orange meets readable text.
+   * 600 (#ff5500) is the signature vivid accent used for CTAs, focus rings,
+   * badges, and high-energy interactive surfaces.
+   * 700 (#e04800) is a rich, saturated orange providing solid contrast on
+   * light backgrounds without appearing muddy or brown.
    */
-  --color-primary-50: #fff6ee;
-  --color-primary-100: #ffead9;
-  --color-primary-200: #ffd5b0;
-  --color-primary-300: #ffb77a;
-  --color-primary-400: #ff943d;
-  --color-primary-500: #ff7a14;
-  --color-primary-600: #ff6b00;
-  --color-primary-700: #c24a00;
-  --color-primary-800: #9c3b00;
-  --color-primary-900: #7a2f00;
-  --color-primary-950: #4a1c00;
+  --color-primary-50: #fff7ed;
+  --color-primary-100: #ffedd5;
+  --color-primary-200: #fed7aa;
+  --color-primary-300: #fdba74;
+  --color-primary-400: #fb923c;
+  --color-primary-500: #ff6f00;
+  --color-primary-600: #ff5500;
+  --color-primary-700: #e04800;
+  --color-primary-800: #b33600;
+  --color-primary-900: #802600;
+  --color-primary-950: #4a1400;
 
   /* True neutral greys (zinc) — no blue cast */
   --color-ink-50: #fafafa;
