@@ -158,6 +158,10 @@ def fresh_repository():
         _swap(mod, "audit_repository", fresh_audit)
     for mod in (ra, rp, rn):
         _swap(mod, "notif_repository", fresh_notif)
+    # The submit path also creates the "grievance.submitted" notification;
+    # without this swap it lands in the import-time store while the
+    # notifications endpoint reads the fresh one.
+    _swap(rg, "notif_repository", fresh_notif)
     for mod in (rp,):
         _swap(mod, "progress_repository", fresh_progress)
     for mod in (rd,):

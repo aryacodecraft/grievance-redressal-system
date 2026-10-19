@@ -9,6 +9,26 @@
 
 ---
 
+## 2026-10-20 — Citizen surfaces hide AI classification + confidence (DEC-044)
+
+- Submit success card no longer renders the AI triage panel; the citizen sees
+  only the reference ID and confirmation. The track-detail modal renders the
+  "Automated Triage Diagnostic" for staff only (`citizenView` guards the whole
+  panel instead of just the badges).
+- `AnalysisPanel` is staff-only; the `aiSure` confidence pill is deleted from
+  the component and all locale packs (no surface shows a confidence percentage).
+- Voice intake summary drops "Suggested category"/"Suggested priority"; the
+  classification note, submit-form subtitle and submit-page description now
+  promise neutral routing instead of showing department/priority.
+- Image upload stops printing the validation score; the backend submit
+  notification now reads "Your complaint has been registered and is awaiting
+  review." (no category/department).
+- Verification: `npm run test:voice` **79 passed**; new backend notification
+  test plus a `tests/conftest.py` isolation fix (the grievances router was not
+  swapped to the fresh notification store, so endpoint reads missed the
+  submit-created record); `tsc`, touched-file ESLint, `next build` clean;
+  `test_endpoints.py` 37 passed / 9 documented DEC-006 baseline failures.
+
 ## 2026-10-20 — Spoken opening prompt on Start speaking (DEC-043, Stage 15)
 
 - Voice intake starts with an audible prompt: tapping "Start speaking" plays a

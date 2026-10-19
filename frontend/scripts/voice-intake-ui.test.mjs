@@ -27,6 +27,7 @@ const mockApi = {
   transcribeAudio: (...args) => { apiCalls.transcribe.push(args); return apiScript.transcribe(...args); },
   extractVoiceIntake: (...args) => { apiCalls.extract.push(args); return apiScript.extract(...args); },
   submitGrievance: (...args) => { apiCalls.submit.push(args); return apiScript.submit(...args); },
+  getGrievanceHistory: async () => [],
 };
 
 class FakeCapture {
@@ -69,7 +70,6 @@ const load = sourceLoader({
   "@/components/ui/ToastProvider": { useToast: () => ({ notify: () => {} }) },
   "@/lib/voice/capture": { VoiceCapture: FakeCapture, recordingSupported: () => true },
   "@/lib/voice/speech": mockSpeech,
-  "./GrievanceCard": { AnalysisPanel: () => null },
   "./ImageUpload": {
     ImageUpload: ({ onChange, onBusyChange }) => React.createElement(
       "button",
@@ -92,9 +92,11 @@ const load = sourceLoader({
       React.createElement("button", { type: "button", onClick: () => onChange({ latitude: 28.7, longitude: 77.1 }) }, "Mock location"),
     ),
   },
+  "@/components/admin/SinglePinMap": { SinglePinMap: () => React.createElement("div", { "data-map": "true" }) },
 });
 const { I18nProvider } = load("lib/i18n/index.tsx");
 const { SubmitForm } = load("components/grievance/SubmitForm.tsx");
+const { GrievanceDetailModal } = load("components/grievance/GrievanceDetailModal.tsx");
 
 const extractionFull = {
   title: "Streetlight not working",
@@ -191,6 +193,14 @@ test("typed description asks for the missing location, then reviews and submits 
   assert.deepEqual(apiCalls.extract[0][0].draft, { title: "", description: "" });
   assert.equal(apiCalls.extract[0][0].language, "en-IN");
   assert.match(container.textContent, /Where exactly is the issue located/);
+
+  // The running summary shows only what the citizen said; the extracted
+  // category/priority never surface (DEC-044).
+  assert.match(container.textContent, /Your complaint so far/);
+  assert.ok(container.textContent.includes(extractionFull.title));
+  assert.doesNotMatch(container.textContent, /Suggested category|Suggested priority/);
+  assert.doesNotMatch(container.textContent, /AI is \d+% sure/);
+  assert.doesNotMatch(container.textContent, /electricity/, "the classified category is not shown to the citizen");
 
   const second = "Near the park gate on the main road";
   await typedAnswer(second);
@@ -433,6 +443,7 @@ test("repeated submit clicks post exactly one grievance", async () => {
   await act(async () => { resolveSubmit({ grievanceId: "GRV-X", message: "registered", hfEngine: "keyword" }); });
   await settle();
   assert.match(container.textContent, /GRV-X/);
+  assert.doesNotMatch(container.textContent, /AI Suggestion|AI is \d+% sure/, "the success card never renders the AI triage panel (DEC-044)");
 });
 
 test("opening prompt plays on first Start speaking, appears in conversation log, and then capture starts", async () => {
@@ -501,5 +512,53 @@ test("follow-up Answer by voice does not replay the opener", async () => {
   await click("Answer by voice");
   assert.equal(speechCalls.filter((c) => c.type === "play" && c.url === "/voice/questions/intro.en-IN.wav").length, 1, "intro was not replayed");
   assert.equal(captures.length, 2);
+});
+
+const citizenGrievance = {
+  id: "GRV-PRIV-1",
+  userId: "mock-citizen",
+  title: "Streetlight not working",
+  description: "The streetlight outside my house has been dark for three days.",
+  category: "electricity",
+  departmentId: "electricity",
+  priority: "high",
+  status: "open",
+  latitude: 28.7,
+  longitude: 77.1,
+  address: "Sector 9, Rohini",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  hfEngine: {
+    category: "electricity",
+    priority: "high",
+    explanation: "Category 'electricity' predicted from 'streetlight'.",
+    keywords: ["streetlight"],
+    categoryConfidence: 0.92,
+  },
+};
+
+async function renderModal(props) {
+  await act(async () => {
+    root.render(
+      React.createElement(I18nProvider, null, React.createElement(GrievanceDetailModal, props)),
+    );
+  });
+  await settle();
+}
+
+test("citizen detail modal never shows AI classification, confidence or department (DEC-044)", async () => {
+  await renderModal({ grievance: citizenGrievance, onClose: () => {}, citizenView: true });
+  assert.match(container.textContent, /Streetlight not working/, "the citizen's own report is still shown");
+  assert.doesNotMatch(container.textContent, /AI Suggestion|Automated Triage Diagnostic/);
+  assert.doesNotMatch(container.textContent, /AI is \d+% sure/);
+  assert.doesNotMatch(container.textContent, /electricity/i, "classified department/category is hidden");
+});
+
+test("staff detail modal keeps the triage diagnostic but never the confidence pill (DEC-044)", async () => {
+  await renderModal({ grievance: citizenGrievance, onClose: () => {} });
+  assert.match(container.textContent, /Automated Triage Diagnostic/);
+  assert.match(container.textContent, /AI Suggestion/);
+  assert.match(container.textContent, /electricity/i);
+  assert.doesNotMatch(container.textContent, /AI is \d+% sure/);
 });
 

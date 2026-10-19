@@ -203,7 +203,7 @@ def submit_grievance(
         "kind": "grievance.submitted",
         "entityId": doc_id,
         "title": f"Grievance {doc_id} registered",
-        "message": f"Your complaint was classified under {category} and is awaiting department review.",
+        "message": "Your complaint has been registered and is awaiting review.",
     })
     from ..services.sms import queue_stage_update
     queue_stage_update(background_tasks, user_id, doc_id, "SUBMITTED")

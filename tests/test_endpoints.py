@@ -224,6 +224,29 @@ def test_submit_without_llm_keys_still_succeeds(client):
     assert res.json()["hfEngine"]["category"] == "water"
 
 
+def test_submit_notification_hides_the_classification(client, sample_payload):
+    """The citizen inbox must not reveal the AI category/department (DEC-044)."""
+    user_id = "citizen-test-1"
+    res = client.post(
+        "/submit-grievance", json=sample_payload, headers=_auth_headers(user_id)
+    )
+    assert res.status_code == 200
+    grievance_id = res.json()["grievanceId"]
+    category = res.json()["hfEngine"]["category"]
+
+    inbox = client.get("/notifications", headers=_auth_headers(user_id)).json()
+    submitted = [
+        n
+        for n in inbox
+        if n.get("kind") == "grievance.submitted" and n.get("entityId") == grievance_id
+    ]
+    assert submitted, "submission produces an in-app notification"
+    message = submitted[0]["message"].lower()
+    assert category not in message, "the classified category leaked into the inbox"
+    assert "classified" not in message
+    assert "department" not in message
+
+
 # ── Read ────────────────────────────────────────────────────────────────────
 
 

@@ -458,7 +458,7 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
   }
 
   const summary = state.extraction;
-  const hasSummary = Boolean(summary && (summary.title || summary.locationText || summary.category || summary.priority));
+  const hasSummary = Boolean(summary && (summary.title || summary.locationText));
 
   return (
     <section aria-label={t("intakeVoiceTitle")} className="space-y-4">
@@ -664,18 +664,6 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
               <div className="flex gap-2">
                 <dt className="w-24 shrink-0 text-ink-400">{t("intakeSummaryLocation")}</dt>
                 <dd>{summary.locationText}</dd>
-              </div>
-            )}
-            {summary.category && (
-              <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-ink-400">{t("intakeSummaryCategory")}</dt>
-                <dd className="capitalize">{summary.category}</dd>
-              </div>
-            )}
-            {summary.priority && (
-              <div className="flex gap-2">
-                <dt className="w-24 shrink-0 text-ink-400">{t("intakeSummaryPriority")}</dt>
-                <dd className="capitalize">{summary.priority}</dd>
               </div>
             )}
           </dl>

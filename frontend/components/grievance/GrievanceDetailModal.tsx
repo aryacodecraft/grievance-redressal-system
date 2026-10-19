@@ -286,13 +286,14 @@ export function GrievanceDetailModal({
             )}
           </div>
 
-          {/* AI Assessment / Triage Diagnostic */}
-          {grievance.hfEngine && (
+          {/* AI Assessment / Triage Diagnostic — staff only; citizens never
+              see classification, confidence or keywords (DEC-044). */}
+          {!citizenView && grievance.hfEngine && (
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-ink-600 mb-2">
                 Automated Triage Diagnostic
               </h3>
-              <AnalysisPanel hfEngine={grievance.hfEngine} citizenView={citizenView} />
+              <AnalysisPanel hfEngine={grievance.hfEngine} />
             </div>
           )}
         </div>

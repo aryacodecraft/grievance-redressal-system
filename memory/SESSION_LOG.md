@@ -726,3 +726,52 @@ Confirmed design choices:
   verify that capture does not start until intro audio playback resolves).
 
 
+## 2026-10-20 — Citizen surfaces hide AI classification + confidence (DEC-044)
+
+### Request
+Owner: after registering, the system showed the classified department and the
+confidence score; remove the "AI is sure" text from everywhere on the user side —
+users must not see the classification in any section.
+
+### What changed
+- `SubmitForm.tsx`: dropped `AnalysisPanel` from the success card (ref ID +
+  confirmation only).
+- `GrievanceDetailModal.tsx`: the triage diagnostic is now staff-only; the
+  `citizenView` guard wraps the whole panel.
+- `GrievanceCard.tsx`: `AnalysisPanel` is staff-only; removed the confidence
+  pill and the `hideConfidence`/`citizenView` props; admin review-modal caller
+  updated.
+- `VoiceIntake.tsx` + `lib/i18n/voice.ts`: the running summary shows only
+  issue/location; `intakeClassificationNote` rewritten to neutral routing copy
+  (en/hi/mr).
+- `ImageUpload.tsx`: plain "Image accepted." (no validation score); `score`
+  removed from `UploadedImage`.
+- `backend/app/routers/grievances.py`: submit notification now says "Your
+  complaint has been registered and is awaiting review." (category removed).
+- i18n: `aiSure`, `imgAcceptedScore`, `intakeSummaryCategory`,
+  `intakeSummaryPriority` removed from every pack; `formSubtitle` and
+  `submitPageDesc` neutralized in en/hi/mr.
+- Tests: intake-summary/success-card/citizen-vs-staff modal assertions in
+  `voice-intake-ui.test.mjs`; new
+  `tests/test_endpoints.py::test_submit_notification_hides_the_classification`;
+  `tests/conftest.py` now swaps `notif_repository` on the grievances router too
+  (endpoint reads previously missed submit-created notifications).
+- `check-contract.mjs`: categoryConfidence rationale updated — retained for API
+  parity, no longer rendered.
+
+### Verification
+- `npm run test:voice` **79 passed** (0 failures).
+- `npx tsc --noEmit` clean; ESLint clean on touched files (repo-wide lint still
+  shows 4 pre-existing `FaceCapture.tsx` errors and `ResolverWorkspace.tsx`
+  warnings, untouched by this change); `next build` green.
+- `pytest tests/test_endpoints.py`: 37 passed / 9 failed = documented DEC-006
+  status-vocabulary baseline; the new notification test passes.
+
+### Not verified / notes
+- Live browser pass still pending (success card, track detail, voice summary,
+  image upload, notification inbox).
+- `hfEngine.categoryConfidence` still travels in API responses/types (UI-only
+  change); stripping it from citizen-facing payloads would be a separate
+  contract decision (DEC-044 alternatives).
+
+

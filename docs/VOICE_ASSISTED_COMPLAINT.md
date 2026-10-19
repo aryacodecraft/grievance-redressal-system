@@ -1337,3 +1337,53 @@ DEC-043. This stage ensures the assistant speaks first when voice mode is starte
 - `npm run test:voice` **77 passed** (0 failures).
 - `npx tsc --noEmit` and ESLint on touched files clean. Backend `pytest tests/test_voice_intake.py` 28 passed.
 
+---
+
+## Stage 16 — Citizen-Facing Classification Privacy (DEC-044) — IMPLEMENTED, TESTED (2026-10-20)
+
+DEC-044. Owner-reported: after registering, the citizen saw the classified
+department and the confidence score on the success card. This stage removes AI
+classification outputs and confidence from every citizen surface.
+
+### What changed
+
+- **Intake summary:** the running "Your complaint so far" box shows only the
+  citizen's issue and location; the "Suggested category" and "Suggested
+  priority" rows are removed.
+- **Classification note:** `intakeClassificationNote` no longer says category,
+  priority and department are confirmed automatically; it now reads "Your
+  complaint will be routed to the right team after you submit." (en/hi/mr).
+- **Submit success card:** the AI triage panel is removed; only the reference ID
+  and confirmation remain.
+- **Track/detail modal:** the "Automated Triage Diagnostic" renders for staff
+  only; citizens no longer see confidence, explanation or keywords.
+- **Confidence pill:** `aiSure` is deleted from `AnalysisPanel` and all locale
+  packs — no surface shows a confidence percentage.
+- **Image upload:** the validation score is no longer printed; plain
+  "Image accepted." copy only.
+- **Notification:** the submit notification no longer names the classified
+  category/department.
+- **Kept:** "AI suggestion" badges on voice-filled fields (HITL transparency,
+  not classification results), the human-confirmation assignment notification,
+  and `hfEngine`/`categoryConfidence` in API responses/types (UI-only change).
+
+### Verification (2026-10-20)
+
+- `npm run test:voice` **79 passed** (0 failures) — new assertions cover the
+  intake summary, the citizen success card, and the citizen-vs-staff detail
+  modal.
+- `tests/test_endpoints.py::test_submit_notification_hides_the_classification`
+  passes; `tests/conftest.py` now swaps the notification repository on the
+  grievances router so endpoint reads see submit-created records.
+- `npx tsc --noEmit`, touched-file ESLint and `next build` clean.
+- Full `tests/test_endpoints.py`: 37 passed / 9 failed — the documented DEC-006
+  status-vocabulary baseline.
+
+### Known limitations
+
+- Live browser verification of the citizen surfaces (success card, track
+  detail, intake summary, image upload, inbox) is still pending.
+- `hfEngine` including `categoryConfidence` remains in API JSON, so it can be
+  seen in devtools; stripping it from citizen payloads is a separate contract
+  decision (see DEC-044).
+

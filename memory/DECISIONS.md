@@ -2065,3 +2065,33 @@ Live submit latency after the change not re-measured.
 - `npx tsc --noEmit` and ESLint on touched files clean. Backend `pytest tests/test_voice_intake.py` 28 passed.
 
 **Reversible:** Remove `PROMPT_STARTED` dispatch in `start()` to restore silent recording.
+
+---
+
+## DEC-044 — Citizen Surfaces Never Show AI Classification or Confidence (2026-10-20)
+
+**Context:** After registering a grievance, the citizen saw the AI triage panel on the success card: the classified department/category, priority, "AI is X% sure", explanation and keywords. The same panel leaked on the citizen track-detail modal (`citizenView` hid only the badges, not the confidence/explanation/keywords), the voice intake summary showed "Suggested category" and "Suggested priority", the submit notification said "Your complaint was classified under {category}", and the image upload printed its validation score. Owner direction: users must not see the classified department or the confidence score in any section.
+
+**Decision:**
+- Remove the AI triage panel from the citizen success card (`SubmitForm.tsx`); the view shows only the reference ID and confirmation.
+- Render the "Automated Triage Diagnostic" in `GrievanceDetailModal.tsx` only for staff (`!citizenView`); the whole panel is hidden, not just the badges.
+- Make `AnalysisPanel` staff-only and delete the `aiSure` confidence pill; no surface renders the confidence percentage anywhere (the owner had already hidden it in the staff review modal).
+- Drop "Suggested category"/"Suggested priority" rows from the voice intake summary (`VoiceIntake.tsx`); the running summary shows only citizen-provided issue/location.
+- Neutralize form-level copy that promised visible classification: `formSubtitle`, `submitPageDesc` (en/hi/mr), `intakeClassificationNote`.
+- Stop printing the image validation score; the upload reports plain accepted/rejected copy (`imgAcceptedScore` key removed).
+- Replace the submit notification message with "Your complaint has been registered and is awaiting review." (no category/department).
+- Keep: the "AI suggestion" badges on voice-filled fields (they flag AI origin for HITL, not classification results); the human-confirmation assignment notification naming the department; the generic homepage AI copy; `hfEngine`/`categoryConfidence` in API responses, zod schemas and types (UI-only change).
+- Hidden locale packs drop the removed keys (`aiSure`, `imgAcceptedScore`); changed copy is updated in the three live languages en/hi/mr, hidden packs keep their existing values for keys they still define (not selectable, DEC-026).
+
+**Alternatives rejected:**
+- Passing `citizenView + hideConfidence` to the panel: the explanation and keywords still reveal the predicted category; the existing partial hiding already proved leaky.
+- Keeping confidence for staff/resolvers: contradicts the earlier owner directive and now has no visible use.
+- Stripping `hfEngine` from API responses: citizens and staff share the serialization; role-dependent shaping is a larger contract risk, and the requirement is about what the UI shows.
+
+**Verification (2026-10-20):**
+- `npm run test:voice` **79 passed** — added assertions that the intake summary shows no category/priority/confidence, the success card never renders "AI Suggestion" / "AI is X% sure", and the citizen detail modal shows no triage panel while the staff modal still shows it without the confidence pill.
+- New backend test `test_submit_notification_hides_the_classification` passes. `tests/conftest.py` now also swaps `notif_repository` on the grievances router: the submit path bound the import-time store while the notifications endpoint read the fresh one, so endpoint reads previously missed submit-created notifications.
+- `npx tsc --noEmit`, ESLint on touched files, `next build` clean. `tests/test_endpoints.py`: 37 passed / 9 failed — the documented DEC-006 status-vocabulary baseline.
+- Not verified: live browser pass (still pending together with the Stage 14/15 pass).
+
+**Reversible:** Restore the panel render in `SubmitForm.tsx` / `GrievanceDetailModal.tsx` and the confidence block in `AnalysisPanel`; classification data is still stored on `hfEngine`.

@@ -22,6 +22,9 @@ speech accuracy remains unvalidated. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASS
 5. Every module has a defined fallback behavior for unavailability.
 6. Evaluation metrics are defined before any module is declared VALIDATED.
 7. Experimental status is declared honestly — fabricated metrics are not acceptable.
+8. Citizen-facing surfaces never display classification outputs (predicted
+   category/department, priority, keywords, explanation) or confidence scores;
+   the operational triage diagnostic is staff-only (DEC-044).
 
 ---
 

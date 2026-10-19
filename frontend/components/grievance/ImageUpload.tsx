@@ -13,7 +13,6 @@ import { useI18n } from "@/lib/i18n";
 export interface UploadedImage {
   url: string;
   publicId: string;
-  score?: number;
 }
 
 export function ImageUpload({
@@ -80,13 +79,8 @@ export function ImageUpload({
       onChange({
         url: upJson.secure_url as string,
         publicId: upJson.public_id as string,
-        score: verdict.llm_score,
       });
-      setNote(
-        verdict.llm_score !== undefined
-          ? t("imgAcceptedScore", { score: verdict.llm_score })
-          : t("imgAccepted")
-      );
+      setNote(t("imgAccepted"));
     } catch (e) {
       onChange(null);
       setNote(

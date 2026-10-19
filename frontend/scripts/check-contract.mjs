@@ -135,14 +135,14 @@ const list = await api.listGrievances();
 assert.equal(list.length, 1);
 log("listGrievances parses a backend record");
 
-// GrievanceCard.tsx renders `hfEngine.categoryConfidence` ("Confidence 50%").
-// z.object() strips undeclared keys, so if the schema forgets the field the
-// record still parses — the display just silently vanishes on live data while
-// continuing to work in mock mode (mock.ts bypasses zod).
+// `hfEngine.categoryConfidence` stays in the API schema for parity with stored
+// records even though no UI renders it anymore (DEC-044 hides confidence from
+// every surface). z.object() strips undeclared keys, so if the schema drops the
+// field the typed record silently loses it for any future consumer.
 assert.equal(
   list[0].hfEngine.categoryConfidence,
   0.5,
-  "hfEngineSchema must declare categoryConfidence — GrievanceCard renders it"
+  "hfEngineSchema must declare categoryConfidence — retained for API parity"
 );
 log("hfEngine.categoryConfidence survives parsing");
 

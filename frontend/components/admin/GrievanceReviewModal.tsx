@@ -310,7 +310,7 @@ Attached Photo
 
           {/* Right: AI triage + actions */}
           <div className="space-y-5">
-            {g.hfEngine && <AnalysisPanel hfEngine={g.hfEngine} hideConfidence />}
+            {g.hfEngine && <AnalysisPanel hfEngine={g.hfEngine} />}
 
             <div className="space-y-4">
               <div>

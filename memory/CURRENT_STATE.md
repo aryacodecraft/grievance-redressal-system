@@ -74,17 +74,23 @@ only — humans retain assignment, escalation, resolution and closure authority
   tapping "Start speaking" plays an audible opening prompt (`intakeIntro`) in the
   selected language before capture starts, ensuring the assistant speaks first
   without contaminating STT; 3 dedicated intro clips synthesized (27 clips total).
-  Stages 1–15 IMPLEMENTED; one live English smoke + a full live typed-path browser E2E
+  **Citizen classification privacy (DEC-044, Stage 16):** the success card,
+  track-detail modal, voice summary, image upload and submit notification never
+  show the AI category/department/priority/confidence; the triage diagnostic is
+  staff-only and the confidence pill is gone everywhere.
+  Stages 1–16 IMPLEMENTED; one live English smoke + a full live typed-path browser E2E
   (`GRV-2026-0015`, 2026-10-18) passed; live en/hi question playback verified 2026-10-19;
   live spoken hi/mr STT and a post-Stage-14 browser pass pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
-  no metrics claimed (DEC-005). Similarity is client-side TF-IDF only.
+  no metrics claimed (DEC-005). Similarity is client-side TF-IDF only. Citizen
+  surfaces never display classification outputs or confidence (DEC-044); the
+  triage panel is staff-only.
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
 - **Test suites** — full pytest (2026-10-19, post-Stage-14): 511 passed / 32
   skipped / 23 failed = the documented pre-existing baseline (§5); the extra
   skip is the opt-in cross-stack voice E2E (`VOICE_E2E=1`); contract suite 18
-  checks; voice node suites 77 tests (DEC-041/043); intake backend suite 28 tests;
+  checks; voice node suites 79 tests (DEC-041/043/044); intake backend suite 28 tests;
   classification latency tests added (DEC-042).
 
 ---
@@ -164,7 +170,9 @@ only — humans retain assignment, escalation, resolution and closure authority
   tests/test_voice_e2e.py`) in a standalone terminal; the default suite skips it
   because the harness starts an in-process uvicorn server plus Node/jsdom.
 - A post-Stage-14 live browser pass (manual text-only branch + read-only voice
-  review + correction via mode switch) is still pending.
+  review + correction via mode switch) is still pending; check that the success
+  card, track detail, voice summary, image upload and notifications show no AI
+  category/department/priority/confidence (DEC-044).
 
 ### Staff workflows & i18n
 

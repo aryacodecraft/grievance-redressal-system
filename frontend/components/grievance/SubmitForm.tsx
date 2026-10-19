@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { Field, Input, Textarea } from "@/components/ui/Field";
 import { Alert } from "@/components/ui/Feedback";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { AnalysisPanel } from "./GrievanceCard";
 import { ImageUpload } from "./ImageUpload";
 import { LocationCapture, type Coords } from "./LocationCapture";
 import { IntakeModeToggle, VoiceIntake, useVoiceIntake } from "./VoiceIntake";
@@ -286,7 +285,6 @@ export function SubmitForm() {
               </p>
             </div>
             <Alert tone="info">{result.message}</Alert>
-            <AnalysisPanel hfEngine={result.hfEngine} />
           </CardBody>
         </Card>
         </div>
