@@ -1,12 +1,13 @@
 # VOICE_ASSISTED_COMPLAINT.md — Voice-Assisted Complaint Lodging
 
-> Stages 4-12, updated 2026-10-18, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038.
+> Stages 4-13, updated 2026-10-19, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038/DEC-039.
 > Backend and frontend IMPLEMENTED and TESTED with mocks; one user-verified live
-> English smoke test passed, and the Stage 12 conversational flow passed a full
+> English smoke test passed, the Stage 12 conversational flow passed a full
 > live typed-path browser E2E (real LLM extraction + real submission
-> `GRV-2026-0015`, 2026-10-18). Live spoken Hindi/Marathi remain unvalidated;
-> execution results are in memory/CHANGELOG.md. Speech accuracy EXPERIMENTAL,
-> not VALIDATED. Disabled by default, including Render.
+> `GRV-2026-0015`, 2026-10-18), and Stage 13 question playback was verified live
+> in English and Hindi (2026-10-19). Live spoken Hindi/Marathi STT remain
+> unvalidated; execution results are in memory/CHANGELOG.md. Speech accuracy
+> EXPERIMENTAL, not VALIDATED. Disabled by default, including Render.
 
 ---
 
@@ -995,6 +996,11 @@ Request JSON: `utterances` (1–8 items, ≤ 1000 chars each, ≤ 4000 total),
 category ∈ the eight canonical keys (aliases normalized), priority ∈
 low|medium|high, all fields nullable and all ≤ their field caps.
 
+> **Superseded by Stage 13 (DEC-039):** `question` (free text) is now
+> `question_kind` (one of eight fixed kinds, or null) and `asked_questions`
+> carries kinds rather than wording. The Stage 12 history below is preserved;
+> see Stage 13 for the current contract.
+
 The service builds a strict-data prompt (framework-derived instructions, "never
 invent", one-question policy), calls Groq with the configured model then the
 verified fallback list, and deterministically post-validates (never trusts the
@@ -1065,9 +1071,10 @@ location search ("Rajpur Road, Delhi, near SBI ATM"), category/priority hints �
 citizen edit dropped one AI badge → coordinate pin → real submission
 (`POST /submit-grievance 200`, ticket `GRV-2026-0015`, auto-analysis panel
 rendered). Zero console errors, zero form/hydration errors. The live spoken
-Sarvam path was **not** re-run (requires the separately-authorized retention/
-credit check); the historical single live English smoke remains the live STT
-evidence.
+Sarvam path was later re-run the same day with owner approval: one
+`POST /transcribe` returned an accurate English transcript, the real extraction
+and location follow-up worked, and the review showed two AI badges; the run
+stopped at review, so no second grievance was created (zero console errors).
 
 ### Known limitations
 
@@ -1080,3 +1087,144 @@ evidence.
 - The conversation is intentionally ephemeral: no server-side session storage;
   a page reload clears it (draft fields survive only for the page's lifetime).
 - Response language follows the selected spoken language (en/hi/mr only).
+
+---
+
+## Stage 13 — Spoken follow-up questions + optional photo step (DEC-039) — IMPLEMENTED, TESTED, live en/hi playback verified (2026-10-19)
+
+### What this stage adds
+
+The Stage 12 conversation was silent: the citizen had to read follow-up
+questions. Stage 13 makes it fully audio-guided and closes the loop with a
+photo opportunity before submission:
+
+1. **Every follow-up question is spoken** in the citizen-selected language
+   (`en-IN` / `hi-IN` / `mr-IN`), automatically as soon as it appears. The
+   question card and its transcript line use the same spoken-language wording;
+   changing the language while a question is open re-renders and re-speaks it.
+2. **Mute and replay controls:** a persistent "Spoken questions on/off" toggle
+   (stored in `localStorage`) and a "Play again" button on the question card.
+   Muting stops the current clip; replay is an explicit gesture and still works
+   while muted.
+3. **Optional photo step before submit:** when the conversation reaches review,
+   a photo section appears at the end and is scrolled into view. The citizen can
+   add one photo or skip it; the submit button remains one atomic
+   `POST /submit-grievance` including `imageUrl`.
+4. **Human-in-the-loop unchanged:** fields stay editable with "AI suggestion"
+   badges, the citizen explicitly submits, and the photo step never
+   auto-submits or opens a picker without a tap.
+
+### Contract change (supersedes Stage 12's free-text `question`)
+
+The model no longer writes question wording. The extraction reply is
+`{ title, description, location_text, category, priority, question_kind }`:
+
+| `question_kind` | Meaning |
+|---|---|
+| `details` | The problem is too vague |
+| `location` | No place was stated |
+| `when` | Start time is missing |
+| `frequency` | One-off vs recurring is unclear |
+| `affected` | Who/what is impacted is unclear |
+| `danger` | Safety risk is unclear |
+| `landmark` | A place was named but is not findable |
+| `clarify` | Genuine ambiguity remains |
+
+`question_kind` is whitelisted and alias-normalized in
+`backend/app/services/grievance_intake.py`; unknown values become `null`.
+`asked_questions` now carries the **kinds** already asked (last 3), so the
+backend dedupes on kinds without ever seeing wording. The deterministic policy
+still owns `details` and `location`; the model's kind only fills the single
+optional slot (`when`, `frequency`, `affected`, `danger`, `landmark`, or
+`clarify`), and one optional question per conversation remains the cap.
+
+Wording lives in `frontend/lib/i18n/voice.ts` (`intakeQuestionDetails`,
+`intakeQuestionLocation`, `intakeQuestionWhen`, `intakeQuestionFrequency`,
+`intakeQuestionAffected`, `intakeQuestionDanger`, `intakeQuestionLandmark`,
+`intakeQuestionClarify`) in en/hi/mr.
+
+### Pre-recorded audio assets
+
+- `frontend/scripts/generate-question-audio.mjs` synthesizes **8 kinds × 3
+  languages = 24 WAV clips** once, using Sarvam `bulbul:v3` (speaker `shubh`,
+  16 kHz mono, `output_audio_codec=wav`).
+- Clips are committed under `frontend/public/voice/questions/<kind>.<language>.wav`
+  (~2.7 MB total). The script skips existing files; `--force` regenerates.
+  It is never run during build or test, and it needs `SARVAM_API_KEY` inline
+  (never committed).
+- There is **no backend TTS endpoint and no runtime TTS call/flag/limit/cache**.
+  Questions keep working when Sarvam is down or credits are exhausted; the only
+  provider cost is the one-time generation.
+- `frontend/lib/voice/speech.ts` maps a kind + language to its static URL,
+  reads/writes the mute preference, and implements `SpeechPlayer`:
+  - a shared `AudioContext`, unlocked on a real tap (start / send / retry /
+    replay) because clips play after an async STT/LLM round-trip;
+  - decoded-buffer caching for instant replays, with correct
+    supersede/cancel/failure outcomes;
+  - an `<audio>` element fallback when Web Audio is unavailable or the context
+    stays suspended.
+- Auto-play is keyed to the new question message id, so ordinary re-renders do
+  not replay audio. Leaving the question (answer sent, skipped, reset) stops
+  playback immediately.
+
+### Photo step
+
+`SubmitForm.tsx` (voice branch only) renders, in order: editable review fields →
+classification note → location capture → photo step → submit. The photo step:
+
+- Appears automatically when `intakeReady` becomes true and scrolls into view
+  (`block: "nearest"`); browsers cannot open the OS picker without a gesture,
+  so the citizen taps "Choose photo" in the existing `ImageUpload` control.
+- Can be skipped; the skipped state collapses to "No photo added" with an
+  "Add a photo" action to reopen it.
+- Uses the existing Cloudinary upload + `/validate-image` flow. While an upload
+  is in flight, both "Skip photo" and submit are disabled (`onBusyChange`), so
+  an image the citizen chose to skip can never be attached silently.
+- Keeps the single-request contract: `imageUrl` is included only when an image
+  was uploaded. The manual branch is unchanged (image + location grid as
+  before).
+
+### Test coverage
+
+- Backend: `tests/test_voice_intake.py` — 26 tests, including kind aliases,
+  unknown-kind rejection, kind-based dedupe, all eight kinds round-tripping,
+  and a prompt assertion that no free-text `question` is requested.
+- Frontend: new `scripts/voice-speech.test.mjs` — 11 tests: asset completeness
+  for all 24 clips (RIFF/WAVE header, non-trivial size), URL mapping, mute
+  persistence and storage-failure tolerance, Web Audio play/cache/supersede/
+  cancel/missing-clip behavior, element fallback, blocked autoplay, and
+  disposal.
+- Updated `scripts/voice-intake.test.mjs` (planner kinds, asked-kind tracking,
+  response mapping) and `scripts/voice-intake-ui.test.mjs` (spoken-language
+  wording + URL, language-switch re-render/replay, mute + replay, photo skip,
+  photo attach payload).
+- Results (2026-10-19): `npm run test:voice` 148 passed; `tests/test_voice_intake.py`
+  26 passed; `tsc --noEmit` clean; `next build` green; ESLint at the documented
+  baseline (4 pre-existing `FaceCapture.tsx` errors + 4 warnings).
+
+### Live evidence (2026-10-19, owner's local stack, headless Playwright Chromium)
+
+Real backend (`:10000`, Mongo) + real Next dev server (`:3000`) + real Groq
+extraction, seeded citizen login. Typed first description → real extraction →
+location question appeared and auto-played from
+`/voice/questions/location.en-IN.wav` through a **running** `AudioContext`
+(clock advanced ~3 s). Switched the language selector to Hindi — the open
+question re-rendered in Hindi and auto-played `location.hi-IN.wav`; pressing
+"Play again" replayed it (no extra LLM call). Answered the location → review
+appeared → photo step auto-appeared in view (top ~190 px) → "Skip photo" showed
+"No photo added". Zero console errors or exceptions. No grievance was submitted
+during this verification.
+
+### Known limitations
+
+- Question wording is template-only by design; the model picks the kind, so a
+  question cannot be dynamically phrased for an unusual case. The eight kinds
+  cover the prototype's follow-ups.
+- Adding or changing a question requires regenerating its clips for all three
+  languages and updating the asset-completeness test.
+- The 24 committed WAVs add ~2.7 MB to the repository.
+- Playback depends on the page having received a user gesture (the same
+  constraint as any browser audio); the `<audio>` fallback covers browsers
+  that allow element playback after page interaction.
+- Photo capture is upload-only (no in-browser camera capture); the step is
+  optional and never blocks submission.

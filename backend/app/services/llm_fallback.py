@@ -83,14 +83,13 @@ Return ONLY valid JSON with lowercase values:
   "reason": "..."
 }}"""
 
-    # Valid Groq models in priority order (verified 2026-05-14)
+    # Valid Groq models in priority order; the groq/compound* models retired
+    # on 2026-09-21 were removed from the cascade.
     models_to_try = [
         model_name,
         "openai/gpt-oss-20b",
         "openai/gpt-oss-120b",
         "qwen/qwen3.8-27b",
-        "groq/compound-mini",
-        "groq/compound",
     ]
     # deduplicate preserving order
     seen = set()

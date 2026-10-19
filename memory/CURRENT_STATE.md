@@ -9,7 +9,7 @@
 > Decisions: `DECISIONS.md` (grep by topic). Status vocabulary: AGENTS.md
 > (PLANNED / IN PROGRESS / IMPLEMENTED / TESTED / VALIDATED / DEFERRED / OPTIONAL).
 >
-> **Last updated: 2026-10-18.** Keep this file current after every task — edit
+> **Last updated: 2026-10-19.** Keep this file current after every task — edit
 > it in place when implementation state or the backlog changes.
 
 ---
@@ -27,7 +27,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 | Database | MongoDB Atlas via `MongoRepository` when `MONGODB_URI` is set; `InMemoryRepository` fallback otherwise (`/health` reports which) |
 | Frontend | Next.js 16 + TypeScript + Tailwind v4 in `frontend/`; REST client `lib/api.ts`, session `lib/session.tsx` |
 | Auth | JWT access/refresh + Google OAuth + RBAC (DEC-017); optional face login + phone OTP binding behind flags |
-| AI/NLP | Keyword → HF Transformers → Groq cascade (`backend/app/services/classification.py`); Sarvam STT for voice; client-side TF-IDF similarity |
+| AI/NLP | Keyword → HF Transformers → Groq cascade (`backend/app/services/classification.py`); Sarvam STT for voice; pre-recorded Sarvam question clips (DEC-039); client-side TF-IDF similarity |
 | Tests | `tests/` pytest (Mongo tests need `TEST_MONGODB_URI`); `frontend/scripts/check-contract.mjs` + `e2e.mjs`; voice node suites |
 | Docs | `docs/*` (ARCHITECTURE, API, DATABASE, SECURITY, DEVELOPMENT, AI_SYSTEM, WORKFLOWS, VOICE_ASSISTED_COMPLAINT) + `memory/rbac/` (docs-only RBAC spec suite) |
 
@@ -62,16 +62,20 @@ only — humans retain assignment, escalation, resolution and closure authority
   focused follow-up → review → confirm over one shared draft; the classic form
   ("Fill the form manually") is retained as the default branch; stateless
   `POST /grievance-intake/extract` (no DB writes; submission unchanged).
-  Stages 1–12 IMPLEMENTED; one live English smoke + a full live typed-path
-  browser E2E (`GRV-2026-0015`, 2026-10-18) passed; hi/mr live validation
-  pending (§5).
+  **Spoken questions + photo step (DEC-039):** the model picks a fixed
+  `question_kind`; 24 pre-recorded en/hi/mr clips auto-play with persisted mute
+  and replay; the review offers an optional photo before the single submit.
+  Stages 1–13 IMPLEMENTED; one live English smoke + a full live typed-path
+  browser E2E (`GRV-2026-0015`, 2026-10-18) passed; live en/hi question playback
+  verified 2026-10-19; live spoken hi/mr STT validation pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
   no metrics claimed (DEC-005). Similarity is client-side TF-IDF only.
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — full pytest (2026-10-18): 503 passed / 31 skipped / 23
+- **Test suites** — full pytest (2026-10-19): 508 passed / 31 skipped / 23
   failed = the documented pre-existing baseline (§5); contract suite 18
-  checks; voice node suites 132 tests (19 added for the conversational intake).
+  checks; voice node suites 148 tests (Stage 13 adds 11 speech/asset tests and
+  updates the intake/UI suites).
 
 ---
 
@@ -180,8 +184,10 @@ only — humans retain assignment, escalation, resolution and closure authority
 **Live / external (credentials, hardware or authorization needed):**
 
 - Live Hindi/Marathi STT (Sarvam) — mock-covered only; one live English smoke
-  passed. The 2026-10-18 conversational E2E exercised the typed path live
-  (real LLM extraction + real submission `GRV-2026-0015`), not live speech.
+  passed (re-run 2026-10-18: one `/transcribe`, accurate transcript, stopped at
+  review). The 2026-10-18 conversational E2E also exercised the typed path live
+  (real LLM extraction + real submission `GRV-2026-0015`). 2026-10-19 verified
+  live en/hi question-clip playback, but not live hi/mr speech-to-text.
 - Live SMS delivery — blocked on DLT + Twilio credentials.
 - Real-webcam face enroll/login; tune `FACE_TURN_MIN_DEGREES`,
   `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`,
@@ -203,9 +209,11 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 - Full pytest re-run + triage of the known baseline: 370 passed / 22 failed
   (2026-10-10), ~480 passed / 23 failed (2026-10-14), 503 passed / 31 skipped /
-  23 failed (2026-10-18) — same set: mostly stale DEC-006 status-vocabulary and
-  i18n expectations. Exact failure names are in
-  `memory/archive/TODO-until-2026-10-18.md` §11. Decide fix vs retire per test.
+  23 failed (2026-10-18), 508 passed / 31 skipped / 23 failed (2026-10-19) —
+  same set: mostly stale DEC-006 status-vocabulary and i18n expectations. The
+  +5 in 2026-10-19 are the updated conversational-intake tests. Exact failure
+  names are in `memory/archive/TODO-until-2026-10-18.md` §11. Decide fix vs
+  retire per test.
 - Env-specific: `test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned`
   fails only with the developer's local `backend/.env` `FACE_CHALLENGES` override
   (passes with the stock `.env.example`).

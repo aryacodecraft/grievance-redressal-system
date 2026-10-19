@@ -73,6 +73,10 @@ export function SubmitForm() {
   const [mode, setMode] = useState<"voice" | "manual">("manual");
   const [locationSuggestion, setLocationSuggestion] = useState<{ text: string; token: number } | null>(null);
   const [intakeReady, setIntakeReady] = useState(false);
+  // Photo step at the end of the voice conversation: optional but explicit.
+  const [photoSkipped, setPhotoSkipped] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoRef = useRef<HTMLElement>(null);
   const submitLock = useRef(false);
   // The intake session lives here (not in the panel) so switching between
   // voice and manual entry preserves both the draft and the conversation.
@@ -85,6 +89,21 @@ export function SubmitForm() {
     onLocationSuggestion: (text) => setLocationSuggestion((previous) => ({ text, token: (previous?.token ?? 0) + 1 })),
     onReadyChange: setIntakeReady,
   });
+
+  // The photo step appears when the conversation ends. Browsers cannot open a
+  // file picker without a tap, so bring the step into view and let the citizen
+  // choose "Add photo" themselves (DEC-039).
+  useEffect(() => {
+    if (!intakeReady || mode !== "voice") return;
+    photoRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [intakeReady, mode]);
+
+  // A new conversation starts from zero, so the photo choice resets with it.
+  useEffect(() => {
+    if (intakeReady) return undefined;
+    const handle = window.setTimeout(() => setPhotoSkipped(false), 0);
+    return () => window.clearTimeout(handle);
+  }, [intakeReady]);
 
   async function onSubmit(values: FormValues) {
     // Repeated clicks/retries must never create two grievances (DEC-038).
@@ -115,6 +134,8 @@ export function SubmitForm() {
         reset();
         setTitleSuggestion(null);
         setImage(null);
+        setPhotoSkipped(false);
+        setPhotoBusy(false);
         setCoords(null);
         setLocationSuggestion(null);
         intake.reset();
@@ -164,13 +185,59 @@ export function SubmitForm() {
                       <AiSuggestionBadge visible={intake.ai.description && !dirtyFields.description} />
                     </Field>
                     <p className="text-xs leading-5 text-ink-500">{t("intakeClassificationNote")}</p>
-                    <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
-                      <ImageUpload onChange={setImage} />
+                    <div className="pt-2 border-t border-ink-100">
                       <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} />
                     </div>
+                    <section
+                      ref={photoRef}
+                      aria-labelledby="intake-photo-title"
+                      className={`space-y-3 rounded-md border p-3 transition ${
+                        !photoSkipped && !image
+                          ? "border-orange-200 bg-orange-50/40 ring-1 ring-orange-200"
+                          : "border-ink-100 bg-white"
+                      }`}
+                    >
+                      <div>
+                        <h3 id="intake-photo-title" className="text-sm font-semibold text-ink-900">
+                          {t("intakePhotoTitle")}
+                        </h3>
+                        <p className="text-xs leading-5 text-ink-500">{t("intakePhotoHint")}</p>
+                      </div>
+                      {photoSkipped ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs text-ink-500">{t("intakePhotoSkipped")}</p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPhotoSkipped(false)}
+                            disabled={submitting}
+                          >
+                            {t("intakePhotoAdd")}
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <ImageUpload onChange={setImage} onBusyChange={setPhotoBusy} />
+                          {image ? (
+                            <p className="text-xs font-medium text-emerald-700">{t("intakePhotoAdded")}</p>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setPhotoSkipped(true)}
+                              disabled={submitting || photoBusy}
+                            >
+                              {t("intakePhotoSkip")}
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </section>
                     {error && <Alert tone="error">{error}</Alert>}
                     <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
-                      <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-40">
+                      <Button type="submit" size="lg" disabled={submitting || photoBusy} className="w-full sm:w-auto min-w-40">
                         {submitting ? t("btnSubmitting") : t("submit")}
                       </Button>
                     </div>

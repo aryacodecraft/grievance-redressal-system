@@ -32,7 +32,7 @@ export interface IntakeExtraction {
   locationText: string | null;
   category: string | null;
   priority: "low" | "medium" | "high" | null;
-  question: string | null;
+  questionKind: IntakeQuestionKind | null;
 }
 
 /** Structural shape of the raw API response — kept here so this module stays
@@ -43,7 +43,7 @@ export interface IntakeExtractionResponse {
   location_text: string | null;
   category: string | null;
   priority: "low" | "medium" | "high" | null;
-  question: string | null;
+  question_kind: IntakeQuestionKind | null;
 }
 
 export function toExtraction(raw: IntakeExtractionResponse): IntakeExtraction {
@@ -53,18 +53,39 @@ export function toExtraction(raw: IntakeExtractionResponse): IntakeExtraction {
     locationText: raw.location_text,
     category: raw.category,
     priority: raw.priority,
-    question: raw.question,
+    questionKind: raw.question_kind,
   };
 }
 
-export type IntakeQuestionKind = "details" | "location" | "clarify";
+/** Every question the assistant can ask. Wording comes from the i18n
+ *  templates, which lets each one be pre-recorded once per language
+ *  (DEC-039) — the model only ever picks the kind. */
+export type IntakeQuestionKind =
+  | "details"
+  | "location"
+  | "when"
+  | "frequency"
+  | "affected"
+  | "danger"
+  | "landmark"
+  | "clarify";
+
+export const INTAKE_QUESTION_KINDS: readonly IntakeQuestionKind[] = [
+  "details",
+  "location",
+  "when",
+  "frequency",
+  "affected",
+  "danger",
+  "landmark",
+  "clarify",
+];
 
 export interface IntakeQuestion {
   kind: IntakeQuestionKind;
   /** Optional questions may be skipped; required ones only via "skip to review". */
   optional: boolean;
-  /** Display text. Model-authored for "clarify"; null → component resolves
-   *  the localized template via questionTemplateKey(). */
+  /** Always null now: every question resolves through questionTemplateKey(). */
   text: string | null;
 }
 
@@ -80,7 +101,7 @@ export interface IntakeState {
   messages: IntakeMessage[];
   /** Everything the citizen said, in order — the extraction context. */
   utterances: string[];
-  /** Question texts already asked (advisory context for the LLM). */
+  /** Question kinds already asked (advisory context for the LLM). */
   asked: string[];
   pending: PlannedQuestion | null;
   detailsAsked: boolean;
@@ -156,7 +177,7 @@ export function intakeReducer(state: IntakeState, action: IntakeAction): IntakeS
       const redundant = action.plan !== null && (
         (action.plan.kind === "details" && state.detailsAsked)
         || (action.plan.kind === "location" && state.locationAsked)
-        || (action.plan.kind === "clarify" && state.clarifyAsked)
+        || (action.plan.optional && state.clarifyAsked)
       );
       const plan = redundant ? null : action.plan;
       if (!plan) {
@@ -168,10 +189,11 @@ export function intakeReducer(state: IntakeState, action: IntakeAction): IntakeS
         pending: plan,
         phase: "awaiting_answer",
         messages: [...state.messages, { id: nextMessageId(state), role: "assistant", text: plan.text }],
-        asked: [...state.asked, plan.text],
+        // Kinds, not text: the backend dedupes on these and never sees wording.
+        asked: [...state.asked, plan.kind],
         detailsAsked: state.detailsAsked || plan.kind === "details",
         locationAsked: state.locationAsked || plan.kind === "location",
-        clarifyAsked: state.clarifyAsked || plan.kind === "clarify",
+        clarifyAsked: state.clarifyAsked || plan.optional,
       };
     }
     case "QUESTION_SKIPPED":
@@ -211,16 +233,34 @@ export function planNextStep(input: {
   if (!input.hasCoords && !input.locationAsked) {
     return { kind: "location", optional: false, text: null };
   }
-  if (descriptionOk && input.extraction.question && !input.clarifyAsked) {
-    return { kind: "clarify", optional: true, text: input.extraction.question };
+  // The model's pick only drives the optional slot, and never a kind the
+  // deterministic rules above already own (the form state is authoritative).
+  const kind = input.extraction.questionKind;
+  if (descriptionOk && kind && kind !== "details" && kind !== "location" && !input.clarifyAsked) {
+    return { kind, optional: true, text: null };
   }
   return null;
 }
 
 export function questionTemplateKey(kind: IntakeQuestionKind): MessageKey {
-  if (kind === "location") return "intakeQuestionLocation";
-  if (kind === "details") return "intakeQuestionDetails";
-  return "intakeQuestionClarify";
+  switch (kind) {
+    case "location":
+      return "intakeQuestionLocation";
+    case "details":
+      return "intakeQuestionDetails";
+    case "when":
+      return "intakeQuestionWhen";
+    case "frequency":
+      return "intakeQuestionFrequency";
+    case "affected":
+      return "intakeQuestionAffected";
+    case "danger":
+      return "intakeQuestionDanger";
+    case "landmark":
+      return "intakeQuestionLandmark";
+    default:
+      return "intakeQuestionClarify";
+  }
 }
 
 /** A field is AI-writable only while the citizen has neither edited it nor

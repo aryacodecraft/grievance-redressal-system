@@ -13,13 +13,15 @@ Object.defineProperty(global, "navigator", { value: dom.window.navigator, config
 global.localStorage = dom.window.localStorage;
 global.IS_REACT_ACT_ENVIRONMENT = true;
 global.HTMLElement = dom.window.HTMLElement;
-dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+let scrollCalls = 0;
+dom.window.HTMLElement.prototype.scrollIntoView = () => { scrollCalls += 1; };
 const { createRoot } = await import("react-dom/client");
 
 let root, container;
 let apiScript;
 const apiCalls = { transcribe: [], extract: [], submit: [] };
 const captures = [];
+const speechCalls = [];
 
 const mockApi = {
   transcribeAudio: (...args) => { apiCalls.transcribe.push(args); return apiScript.transcribe(...args); },
@@ -41,13 +43,41 @@ class FakeCapture {
   dispose() { this.disposed = true; }
 }
 
+class FakeSpeechPlayer {
+  unlock() { speechCalls.push({ type: "unlock" }); }
+  play(url) { speechCalls.push({ type: "play", url }); return Promise.resolve("played"); }
+  stopCurrent() { speechCalls.push({ type: "stop" }); }
+  dispose() { speechCalls.push({ type: "dispose" }); }
+}
+
+const mockSpeech = {
+  SpeechPlayer: FakeSpeechPlayer,
+  readMuted: () => window.localStorage.getItem("grievai-voice-muted") === "true",
+  writeMuted: (muted) => window.localStorage.setItem("grievai-voice-muted", muted ? "true" : "false"),
+  questionAudioUrl: (kind, language) => `/voice/questions/${kind}.${language}.wav`,
+};
+
 const load = sourceLoader({
   "@/lib/api": mockApi,
   "@/lib/session": { useDemoUser: () => ({ user: { id: "mock-citizen" } }) },
   "@/components/ui/ToastProvider": { useToast: () => ({ notify: () => {} }) },
   "@/lib/voice/capture": { VoiceCapture: FakeCapture, recordingSupported: () => true },
+  "@/lib/voice/speech": mockSpeech,
   "./GrievanceCard": { AnalysisPanel: () => null },
-  "./ImageUpload": { ImageUpload: () => null },
+  "./ImageUpload": {
+    ImageUpload: ({ onChange, onBusyChange }) => React.createElement(
+      "button",
+      {
+        type: "button",
+        onClick: () => {
+          onBusyChange?.(true);
+          onChange({ url: "https://img.example/photo.jpg", publicId: "photo" });
+          onBusyChange?.(false);
+        },
+      },
+      "Mock photo",
+    ),
+  },
   "./LocationCapture": {
     LocationCapture: ({ onChange, suggestedSearch }) => React.createElement(
       "div",
@@ -66,7 +96,7 @@ const extractionFull = {
   location_text: "Sector 9, Rohini",
   category: "electricity",
   priority: "high",
-  question: null,
+  question_kind: null,
 };
 
 beforeEach(() => {
@@ -74,6 +104,8 @@ beforeEach(() => {
   apiCalls.extract.length = 0;
   apiCalls.submit.length = 0;
   captures.length = 0;
+  speechCalls.length = 0;
+  scrollCalls = 0;
   window.localStorage.clear();
   apiScript = {
     transcribe: async () => ({ transcript: "The streetlight outside my house has been dark for three days.", language_code: "en-IN" }),
@@ -157,7 +189,7 @@ test("typed description asks for the missing location, then reviews, edits and s
   await typedAnswer(second);
   assert.equal(apiCalls.extract.length, 2);
   assert.deepEqual(apiCalls.extract[1][0].utterances, [first, second]);
-  assert.ok(apiCalls.extract[1][0].asked_questions.some((q) => q.includes("Where exactly is the issue located")));
+  assert.deepEqual(apiCalls.extract[1][0].asked_questions, ["location"], "the API receives kinds, not wording");
 
   assert.match(container.textContent, /Review your complaint/);
   assert.equal(container.querySelector("input").value, extractionFull.title);
@@ -197,7 +229,11 @@ test("voice recording uses the spoken language and answers the question by voice
   assert.equal(apiCalls.transcribe[0][1], "hi-IN");
   assert.equal(apiCalls.extract.length, 1);
   assert.equal(apiCalls.extract[0][0].language, "hi-IN");
-  assert.match(container.textContent, /Where exactly is the issue located/);
+  assert.match(container.textContent, /यह समस्या ठीक कहाँ है/, "the question is written in the spoken language");
+  assert.ok(
+    speechCalls.some((call) => call.type === "play" && call.url === "/voice/questions/location.hi-IN.wav"),
+    "the follow-up question is spoken in the selected language",
+  );
 
   await click("Answer by voice");
   assert.equal(captures.length, 2);
@@ -214,17 +250,95 @@ test("an optional clarifying question can be skipped", async () => {
   let call = 0;
   apiScript.extract = async () => {
     call += 1;
-    return call === 1 ? { ...extractionFull } : { ...extractionFull, question: "Which lane exactly is the light on?" };
+    return call === 1 ? { ...extractionFull } : { ...extractionFull, question_kind: "clarify" };
   };
   await mount();
   await click("Tell us your problem");
   await typedAnswer("The streetlight outside my house has been dark for three days.");
   assert.match(container.textContent, /Where exactly is the issue located/);
   await typedAnswer("Near the park gate");
-  assert.match(container.textContent, /Which lane exactly/);
+  assert.match(container.textContent, /Could you clarify a little more\?/);
+  assert.ok(
+    speechCalls.some((call) => call.type === "play" && call.url === "/voice/questions/clarify.en-IN.wav"),
+    "the optional question is spoken in English",
+  );
 
   await click("Skip");
   assert.match(container.textContent, /Review your complaint/);
+});
+
+test("changing the language re-speaks and re-renders the open question", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await typedAnswer("The streetlight outside my house has been dark for three days.");
+  assert.match(container.textContent, /Where exactly is the issue located/);
+
+  await chooseLanguage("mr-IN");
+  await settle();
+  assert.match(container.textContent, /ही समस्या नेमकी कुठे आहे/, "the card follows the spoken language");
+  assert.ok(
+    speechCalls.some((call) => call.type === "play" && call.url === "/voice/questions/location.mr-IN.wav"),
+    "the open question is re-spoken in Marathi",
+  );
+});
+
+test("spoken questions can be muted, persist and replay on demand", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await click("Spoken questions on");
+  assert.equal(window.localStorage.getItem("grievai-voice-muted"), "true");
+  assert.match(container.textContent, /Spoken questions off/);
+
+  await typedAnswer("The streetlight outside my house has been dark for three days.");
+  assert.match(container.textContent, /Where exactly is the issue located/);
+  assert.equal(speechCalls.filter((call) => call.type === "play").length, 0, "muted questions are not spoken");
+
+  await click("Play again");
+  assert.deepEqual(
+    speechCalls.filter((call) => call.type === "play").at(-1),
+    { type: "play", url: "/voice/questions/location.en-IN.wav" },
+    "replay is an explicit gesture and still works while muted",
+  );
+
+  await click("Spoken questions off");
+  assert.equal(window.localStorage.getItem("grievai-voice-muted"), "false");
+});
+
+test("the optional photo step appears before submit and can be skipped", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await typedAnswer("The streetlight outside my house has been dark for three days.");
+  await typedAnswer("Near the park gate");
+  assert.match(container.textContent, /Review your complaint/);
+  assert.match(container.textContent, /Add a photo \(optional\)/);
+  assert.ok(scrollCalls >= 1, "the photo step is brought into view when the conversation ends");
+  assert.ok(button("Skip photo"));
+
+  await click("Skip photo");
+  assert.match(container.textContent, /No photo added/);
+  assert.ok(button("Add a photo"), "the step can be reopened");
+
+  await click("Mock location");
+  const submit = container.querySelector('button[type="submit"]');
+  await act(async () => submit.click());
+  await settle();
+  assert.equal(apiCalls.submit.length, 1);
+  assert.equal(apiCalls.submit[0][0].imageUrl, undefined, "skipping sends no image");
+});
+
+test("a chosen photo is submitted with the grievance", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await typedAnswer("The streetlight outside my house has been dark for three days.");
+  await typedAnswer("Near the park gate");
+  await click("Mock photo");
+  assert.match(container.textContent, /Photo added/);
+  await click("Mock location");
+  const submit = container.querySelector('button[type="submit"]');
+  await act(async () => submit.click());
+  await settle();
+  assert.equal(apiCalls.submit.length, 1);
+  assert.equal(apiCalls.submit[0][0].imageUrl, "https://img.example/photo.jpg");
 });
 
 test("extraction failure offers a retry and never blocks manual submission", async () => {

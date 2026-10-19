@@ -9,6 +9,35 @@
 
 ---
 
+## 2026-10-19 — Spoken follow-up questions + optional photo step (DEC-039)
+
+- Intake contract: `question` (free text) → `question_kind` (one of eight
+  whitelisted kinds, aliases normalized, unknown → null); `asked_questions`
+  carries kinds, not wording; dedupe is kind-based. Prompt no longer asks the
+  model to write questions. `tests/test_voice_intake.py` updated (26 tests).
+- New `frontend/lib/voice/speech.ts`: static clip URLs, persisted mute
+  preference, shared gesture-unlocked `AudioContext`, decoded-buffer cache,
+  supersede/cancel outcomes, `<audio>` fallback. `VoiceIntake.tsx` auto-plays
+  each new question once, adds a mute toggle + "Play again", stops audio when
+  the question is answered/skipped/reset, and speaks in the selected language.
+- 8 kinds × 3 languages of pre-recorded WAVs (Sarvam `bulbul:v3`, 16 kHz mono,
+  ~2.7 MB) committed under `frontend/public/voice/questions/`; one-off
+  generator `frontend/scripts/generate-question-audio.mjs` (not run by
+  build/test). No runtime TTS endpoint/flag/cost.
+- Photo step in the voice review branch only: auto-appears and scrolls into
+  view, optional "Choose photo" or "Skip photo" (reopenable), `onBusyChange`
+  blocks skip/submit during upload, `imageUrl` stays in the single submit
+  request. Manual branch unchanged. i18n keys complete in en/hi/mr.
+- Tests: new `scripts/voice-speech.test.mjs` (11); updated intake/UI suites;
+  `npm run test:voice` 148 passed; pytest intake 26 passed; `tsc` clean;
+  `next build` green; ESLint at the 4-error FaceCapture baseline.
+- Live (headless Playwright Chromium, real Groq, no submission): English
+  location question auto-played with a running AudioContext; switching to Hindi
+  re-rendered and re-spoke the open question, and replay played
+  `location.hi-IN.wav`; photo step appeared in view and skipped; zero console
+  errors. Docs: `VOICE_ASSISTED_COMPLAINT.md` Stage 13, `API.md`; corrected the
+  Stage 12 "live spoken path not re-run" note.
+
 ## 2026-10-18 — Fix: nested form in location search (hydration error on /submit)
 
 - `frontend/components/grievance/LocationCapture.tsx`: the manual location

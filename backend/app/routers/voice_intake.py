@@ -2,7 +2,7 @@
 
 No grievance is created here and no database is touched — the endpoint turns
 what a citizen said so far into structured draft fields plus at most one
-follow-up question (services/grievance_intake.py). Submission still flows
+follow-up question *kind* (services/grievance_intake.py). Submission still flows
 through the existing POST /submit-grievance pipeline.
 """
 

@@ -13,14 +13,16 @@
  */
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { LoaderCircle, Mic, Send, SkipForward, Square } from "lucide-react";
+import { LoaderCircle, Mic, RotateCcw, Send, SkipForward, Square, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select, Textarea } from "@/components/ui/Field";
 import { useI18n, type MessageKey } from "@/lib/i18n";
+import { voiceEn, voiceHi, voiceMr } from "@/lib/i18n/voice";
 import { extractVoiceIntake, transcribeAudio } from "@/lib/api";
 import type { VoiceLanguage } from "@/lib/types";
 import { recordingSupported, VoiceCapture } from "@/lib/voice/capture";
 import { newIdempotencyKey, voiceErrorMessage } from "@/lib/voice/errors";
+import { questionAudioUrl, readMuted, SpeechPlayer, writeMuted } from "@/lib/voice/speech";
 import {
   computeLocks,
   initialIntakeState,
@@ -30,6 +32,7 @@ import {
   planNextStep,
   questionTemplateKey,
   toExtraction,
+  type IntakeQuestionKind,
   type IntakeState,
   type PlannedQuestion,
 } from "@/lib/voice/intake";
@@ -41,6 +44,13 @@ export interface VoiceIntakeController {
   language: VoiceLanguage;
   setLanguage: (language: VoiceLanguage) => void;
   ready: boolean;
+  /** Spoken questions are on unless the citizen muted them (persisted). */
+  muted: boolean;
+  toggleMuted: () => void;
+  /** Replay the current question in the selected language. */
+  replay: () => void;
+  /** True when the current question's clip could not be played. */
+  audioFailed: boolean;
   /** Fields last filled by AI (for the "AI suggestion" badges). */
   ai: { title: boolean; description: boolean };
   /** Stop everything and clear the conversation (draft fields are kept). */
@@ -69,13 +79,42 @@ export interface VoiceIntakeOptions {
 const TYPABLE: IntakeState["phase"][] = ["idle", "awaiting_answer", "error"];
 const STARTABLE: IntakeState["phase"][] = ["idle", "awaiting_answer", "error"];
 
+/** Question wording in the SPOKEN language, not the interface language — the
+ *  card, transcript and audio must agree (DEC-039). */
+const QUESTION_PACKS: Record<VoiceLanguage, Record<string, string>> = {
+  "en-IN": voiceEn,
+  "hi-IN": voiceHi,
+  "mr-IN": voiceMr,
+};
+
+function questionText(kind: IntakeQuestionKind, language: VoiceLanguage): string {
+  return QUESTION_PACKS[language][questionTemplateKey(kind)];
+}
+
 export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeController {
-  const { t, language: interfaceLanguage } = useI18n();
+  const { language: interfaceLanguage } = useI18n();
   const [state, dispatch] = useReducer(intakeReducer, initialIntakeState);
   const [language, setLanguage] = useState<VoiceLanguage>(() => `${interfaceLanguage}-IN` as VoiceLanguage);
   const [seconds, setSeconds] = useState(0);
   const [level, setLevel] = useState(0);
   const [ai, setAi] = useState({ title: false, description: false });
+  const [muted, setMutedState] = useState(false);
+  /** Message id whose clip failed, so the hint disappears with the question. */
+  const [audioFailedFor, setAudioFailedFor] = useState<number | null>(null);
+
+  const player = useRef<SpeechPlayer | null>(null);
+  const mutedRef = useRef(false);
+
+  const getPlayer = useCallback(() => {
+    if (!player.current) player.current = new SpeechPlayer();
+    return player.current;
+  }, []);
+
+  const speak = useCallback((kind: IntakeQuestionKind, messageId: number) => {
+    void getPlayer().play(questionAudioUrl(kind, language)).then((outcome) => {
+      if (outcome === "failed") setAudioFailedFor(messageId);
+    }).catch(() => setAudioFailedFor(messageId));
+  }, [getPlayer, language]);
 
   const optionsRef = useRef(options);
   useEffect(() => { optionsRef.current = options; });
@@ -89,6 +128,20 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
   const ticker = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const aiRef = useRef({ title: false, description: false });
   const lastSuggestion = useRef<string | null>(null);
+  const lastSpoken = useRef("");
+  const lastMessageId = state.messages.length ? state.messages[state.messages.length - 1].id : 0;
+  // Re-speak an open question when the citizen changes language.
+  const speakKey = `${lastMessageId}:${language}`;
+
+  // Muted preference is client-only; deferred so the first render matches SSR.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const stored = readMuted();
+      mutedRef.current = stored;
+      setMutedState(stored);
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, []);
 
   const hardStop = useCallback(() => {
     epoch.current += 1;
@@ -97,6 +150,7 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
     capture.current = null;
     request.current?.abort();
     request.current = null;
+    player.current?.stopCurrent();
     busy.current = false;
     stopping.current = false;
     setLevel(0);
@@ -115,6 +169,27 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
   useEffect(() => {
     optionsRef.current.onReadyChange(state.phase === "ready_for_review");
   }, [state.phase]);
+
+  // Speak each newly asked question in the citizen's selected language
+  // (DEC-039). The clip is a static asset; the AudioContext was unlocked by
+  // the tap that produced this question, so autoplay policy is satisfied.
+  useEffect(() => {
+    if (state.phase !== "awaiting_answer" || !state.pending) return;
+    if (!lastMessageId || lastSpoken.current === speakKey) return;
+    lastSpoken.current = speakKey;
+    if (mutedRef.current) return;
+    speak(state.pending.kind, lastMessageId);
+  }, [state.phase, state.pending, lastMessageId, speakKey, speak]);
+
+  // Leaving the question (answer sent, skipped, reset) silences it immediately.
+  useEffect(() => {
+    if (state.phase !== "awaiting_answer") player.current?.stopCurrent();
+  }, [state.phase]);
+
+  useEffect(() => () => {
+    player.current?.dispose();
+    player.current = null;
+  }, []);
 
   async function extract(utterances: string[], generation: number) {
     const controller = new AbortController();
@@ -151,7 +226,7 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
         clarifyAsked: state.clarifyAsked,
       });
       const planned: PlannedQuestion | null = plan
-        ? { ...plan, text: plan.text ?? t(questionTemplateKey(plan.kind)) }
+        ? { ...plan, text: questionText(plan.kind, language) }
         : null;
       dispatch({ type: "EXTRACTED", extraction, plan: planned });
     } catch (cause) {
@@ -208,6 +283,9 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
 
   async function start() {
     if (optionsRef.current.disabled || busy.current || !STARTABLE.includes(state.phase)) return;
+    // Gesture unlock: the next question arrives after async STT + LLM.
+    getPlayer().unlock();
+    player.current?.stopCurrent();
     dispatch({ type: "START" });
     const generation = epoch.current;
     busy.current = true;
@@ -242,6 +320,8 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
   function sendTyped(text: string) {
     const trimmed = text.trim();
     if (!trimmed || optionsRef.current.disabled || busy.current || !TYPABLE.includes(state.phase)) return;
+    getPlayer().unlock();
+    player.current?.stopCurrent();
     dispatch({ type: "UTTERANCE_ADDED", text: trimmed });
     const generation = epoch.current;
     busy.current = true;
@@ -250,6 +330,7 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
 
   function retry() {
     if (optionsRef.current.disabled || busy.current) return;
+    getPlayer().unlock();
     const generation = epoch.current;
     busy.current = true;
     if (state.failedStep === "extract" && state.utterances.length) {
@@ -266,11 +347,14 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
 
   const reset = useCallback(() => {
     hardStop();
+    setAudioFailedFor(null);
     aiRef.current = { title: false, description: false };
     setAi(aiRef.current);
     lastSuggestion.current = null;
     dispatch({ type: "RESET" });
   }, [hardStop]);
+
+  const audioFailed = audioFailedFor !== null && audioFailedFor === lastMessageId;
 
   return {
     state,
@@ -279,6 +363,20 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
     language,
     setLanguage,
     ready: state.phase === "ready_for_review",
+    muted,
+    toggleMuted: () => {
+      const next = !mutedRef.current;
+      mutedRef.current = next;
+      setMutedState(next);
+      writeMuted(next);
+      if (next) player.current?.stopCurrent();
+    },
+    replay: () => {
+      if (!state.pending) return;
+      getPlayer().unlock();
+      speak(state.pending.kind, lastMessageId);
+    },
+    audioFailed,
     ai,
     reset,
     actions: {
@@ -362,6 +460,19 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
         >
           <option value="en-IN">English</option><option value="hi-IN">हिन्दी</option><option value="mr-IN">मराठी</option>
         </Select>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-pressed={intake.muted}
+          aria-label={intake.muted ? t("intakeQuestionUnmute") : t("intakeQuestionMute")}
+          title={intake.muted ? t("intakeQuestionUnmute") : t("intakeQuestionMute")}
+          onClick={intake.toggleMuted}
+          disabled={disabled}
+        >
+          {intake.muted ? <VolumeX size={14} aria-hidden="true" /> : <Volume2 size={14} aria-hidden="true" />}
+          {intake.muted ? t("intakeQuestionSpokenOff") : t("intakeQuestionSpokenOn")}
+        </Button>
       </div>
 
       <div className="flex items-center gap-3 rounded-md border border-ink-200 bg-ink-50/60 p-3">
@@ -414,7 +525,15 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
 
       {answering && state.pending && (
         <div className="space-y-2 rounded-md border border-orange-200 bg-orange-50/60 p-3">
-          <p className="text-sm font-medium text-ink-900">{state.pending.text}</p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-sm font-medium text-ink-900">{questionText(state.pending.kind, intake.language)}</p>
+            <Button type="button" variant="ghost" size="sm" onClick={intake.replay} disabled={disabled}>
+              <RotateCcw size={14} aria-hidden="true" />{t("intakeQuestionReplay")}
+            </Button>
+          </div>
+          {intake.audioFailed && !intake.muted && (
+            <p className="text-xs leading-5 text-ink-500">{t("intakeQuestionAudioFailed")}</p>
+          )}
           {state.pending.kind === "location" && (
             <p className="text-xs leading-5 text-ink-500">{t("intakeLocationNote")}</p>
           )}

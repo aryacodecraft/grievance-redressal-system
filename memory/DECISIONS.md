@@ -1839,3 +1839,75 @@ citizen edit removed one AI badge → coordinate pin → real submission, ticket
 `GRV-2026-0015`; zero console errors. Live spoken Sarvam path not re-run
 (credit/retention checks not performed); historical single live English smoke
 remains the live STT evidence.
+
+---
+
+## DEC-039 — Spoken Question Templates + Optional Photo Step (2026-10-19)
+
+**Context:** Stage 12's conversational intake was silent — the citizen had to
+read every follow-up question, which defeats the voice-assisted premise for
+low-literacy users. The owner asked for the questions to be spoken in the
+selected language, with automatic playback, a persistent mute, and a replay
+control, plus an optional photo opportunity before final submission. Runtime
+TTS per question would add recurring cost, latency and a hard dependency on
+Sarvam availability; the owner chose fixed template questions so audio can be
+generated once.
+
+**Decision:**
+- The extraction contract changes from free-text `question` to
+  `question_kind` ∈ {details, location, when, frequency, affected, danger,
+  landmark, clarify} | null, whitelisted/alias-normalized server-side.
+  `asked_questions` carries the kinds already asked (last 3), never wording;
+  repeated kinds are dropped server-side and client-side.
+- Wording comes from the existing i18n templates (`lib/i18n/voice.ts`) in
+  en/hi/mr. The model only decides *which* fact is missing, preserving the
+  Stage 12 deterministic policy: `details`/`location` remain required rules;
+  the model's kind fills at most one optional question per conversation.
+- 24 pre-recorded WAV clips (8 kinds × 3 languages, Sarvam `bulbul:v3`,
+  16 kHz mono) are committed under `frontend/public/voice/questions/`.
+  `frontend/scripts/generate-question-audio.mjs` is a manual one-off generator
+  (skips existing files, `--force` to redo). No backend TTS endpoint, no
+  runtime TTS call, no new flag/quota/cache, no recurring provider cost.
+- `lib/voice/speech.ts` owns playback: static URL mapping, localStorage mute
+  preference, a shared `AudioContext` unlocked from an earlier real tap
+  (start/send/retry/replay), decoded-buffer caching, correct supersede/cancel
+  outcomes, and an `<audio>` fallback if the context stays suspended.
+- Every new question auto-plays once (keyed to the question message id);
+  mute stops playback and persists; replay is explicit and works while muted;
+  changing the spoken language re-renders and re-speaks an open question;
+  leaving the question stops audio.
+- The voice review branch gains an optional photo section **before** submit,
+  after location: it auto-appears and scrolls into view, supports
+  "Choose photo" or "Skip photo" (reopenable), disables skip/submit while an
+  upload is in flight, and includes `imageUrl` in the existing single
+  `POST /submit-grievance`. The manual branch is unchanged; no post-submit
+  image-attach endpoint is added.
+- HITL unchanged: review fields stay editable with "AI suggestion" badges and
+  the citizen explicitly submits.
+
+**Rationale:** template questions make spoken guidance free at runtime,
+deterministic, testable and resilient to provider outages, while keeping the
+LLM's role advisory (choose the missing fact). Static assets also avoid the
+browser autoplay problems of a post-LLM network TTS call: the clip is local and
+plays through an already-unlocked context.
+
+**Alternatives rejected:** runtime TTS per question (recurring cost, latency,
+provider dependency); browser `SpeechSynthesis` (inconsistent Indic voice
+quality across devices); letting the LLM keep writing free text and caching it
+(unbounded cache and no pre-generated assets); a backend TTS proxy (new
+surface and quota handling for no prototype benefit); attaching images after
+submission (extra endpoint and a second write).
+
+**Verification (2026-10-19):** `tests/test_voice_intake.py` 26 passed;
+`npm run test:voice` 148 passed (new `scripts/voice-speech.test.mjs` 11 tests:
+24-asset completeness, mute persistence, playback/cache/supersede/cancel/
+fallback/dispose; updated intake + UI suites for kinds, spoken-language wording
+and language switching, auto-play, mute/replay, photo skip/attach); `tsc --noEmit` clean; `next build` green; ESLint at the
+documented baseline (4 pre-existing FaceCapture errors + 4 warnings). Live
+verification on the real stack (headless Playwright Chromium, real Groq): typed
+conversation → location question auto-played from
+`/voice/questions/location.en-IN.wav` with a running AudioContext (clock
+advanced ~3 s) → language switched to Hindi (the open question re-rendered and
+auto-played) and "Play again" replayed `location.hi-IN.wav` → review → photo
+step in view → skipped → no submission; zero console errors. No new
+grievance/ticket was created.

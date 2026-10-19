@@ -201,7 +201,10 @@ const intakeExtractionSchema = z.object({
     .enum(["water", "roads", "electricity", "sanitation", "health", "transport", "governance", "other"])
     .nullable(),
   priority: z.enum(["low", "medium", "high"]).nullable(),
-  question: z.string().min(1).max(300).nullable(),
+  // DEC-039: the model picks a kind; wording is a pre-recorded template.
+  question_kind: z
+    .enum(["details", "location", "when", "frequency", "affected", "danger", "landmark", "clarify"])
+    .nullable(),
 });
 
 export interface VoiceIntakePayload {

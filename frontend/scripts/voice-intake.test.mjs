@@ -18,7 +18,7 @@ const extraction = {
   locationText: "Sector 9, Rohini",
   category: "electricity",
   priority: "high",
-  question: null,
+  questionKind: null,
 };
 const base = (overrides = {}) => ({ ...initialIntakeState, ...overrides });
 
@@ -34,16 +34,45 @@ test("planNextStep asks only what is missing, at most once per kind", () => {
   assert.deepEqual(planNextStep({ ...input, description: "too short" }), { kind: "details", optional: false, text: null });
   assert.deepEqual(planNextStep(input), { kind: "location", optional: false, text: null });
   assert.deepEqual(
-    planNextStep({ ...input, hasCoords: true, extraction: { ...extraction, question: "Which lane?" } }),
-    { kind: "clarify", optional: true, text: "Which lane?" },
+    planNextStep({ ...input, hasCoords: true, extraction: { ...extraction, questionKind: "clarify" } }),
+    { kind: "clarify", optional: true, text: null },
   );
   assert.equal(planNextStep({ ...input, hasCoords: true }), null);
   assert.equal(planNextStep({ ...input, locationAsked: true }), null);
   assert.deepEqual(planNextStep({ ...input, description: "short", detailsAsked: true }), { kind: "location", optional: false, text: null });
   assert.equal(
-    planNextStep({ ...input, hasCoords: true, extraction: { ...extraction, question: "Which lane?" }, clarifyAsked: true }),
+    planNextStep({ ...input, hasCoords: true, extraction: { ...extraction, questionKind: "clarify" }, clarifyAsked: true }),
     null,
   );
+  // The deterministic rules own "details"/"location": the model's pick can
+  // neither make them optional nor bypass the form/location state.
+  assert.equal(planNextStep({ ...input, hasCoords: true, extraction: { ...extraction, questionKind: "location" } }), null);
+  assert.deepEqual(
+    planNextStep({ ...input, description: "too short", extraction: { ...extraction, questionKind: "location" } }),
+    { kind: "details", optional: false, text: null },
+  );
+  assert.deepEqual(
+    planNextStep({ ...input, hasCoords: false, extraction: { ...extraction, questionKind: "details" } }),
+    { kind: "location", optional: false, text: null },
+  );
+});
+
+test("planNextStep surfaces every model-selected optional kind", () => {
+  const input = {
+    extraction,
+    description: extraction.description,
+    hasCoords: true,
+    detailsAsked: false,
+    locationAsked: false,
+    clarifyAsked: false,
+  };
+  for (const kind of ["when", "frequency", "affected", "danger", "landmark", "clarify"]) {
+    assert.deepEqual(planNextStep({ ...input, extraction: { ...extraction, questionKind: kind } }), {
+      kind,
+      optional: true,
+      text: null,
+    });
+  }
 });
 
 test("reducer drives the legal conversation flow and blocks invalid transitions", () => {
@@ -65,7 +94,7 @@ test("reducer drives the legal conversation flow and blocks invalid transitions"
 
   state = intakeReducer(state, { type: "EXTRACTED", extraction, plan: { kind: "location", optional: false, text: "Where?" } });
   assert.equal(state.phase, "awaiting_answer");
-  assert.deepEqual(state.asked, ["Where?"]);
+  assert.deepEqual(state.asked, ["location"], "asked kinds, not wording, go back to the API");
   assert.equal(state.locationAsked, true);
   assert.equal(state.messages.at(-1).role, "assistant");
 
@@ -91,6 +120,10 @@ test("reducer suppresses redundant questions, supports failures and resets", () 
   let state = base({ phase: "processing", locationAsked: true });
   state = intakeReducer(state, { type: "EXTRACTED", extraction, plan: { kind: "location", optional: false, text: "Again?" } });
   assert.equal(state.phase, "ready_for_review", "an already-asked kind never repeats");
+
+  state = base({ phase: "processing", clarifyAsked: true });
+  state = intakeReducer(state, { type: "EXTRACTED", extraction, plan: { kind: "danger", optional: true, text: "Anyone hurt?" } });
+  assert.equal(state.phase, "ready_for_review", "only one optional question per conversation");
 
   state = base({ phase: "awaiting_answer", pending: { kind: "details", optional: false, text: "More?" } });
   state = intakeReducer(state, { type: "QUESTION_SKIPPED" });
@@ -152,7 +185,7 @@ test("merge rules preserve citizen edits and let AI refresh its own fields", () 
     current: { title: "Keep me", description: "Keep my description too" },
     locks: unlocked,
     ai: { title: false, description: false },
-    extraction: { title: null, description: null, locationText: null, category: null, priority: null, question: null },
+    extraction: { title: null, description: null, locationText: null, category: null, priority: null, questionKind: null },
   });
   assert.deepEqual(nulls.values, { title: "Keep me", description: "Keep my description too" });
 
@@ -178,17 +211,21 @@ test("merge rules preserve citizen edits and let AI refresh its own fields", () 
 });
 
 test("response mapping and template keys", () => {
-  assert.deepEqual(toExtraction({ title: null, description: "D", location_text: "L", category: null, priority: "low", question: "Q" }), {
+  assert.deepEqual(toExtraction({ title: null, description: "D", location_text: "L", category: null, priority: "low", question_kind: "when" }), {
     title: null,
     description: "D",
     locationText: "L",
     category: null,
     priority: "low",
-    question: "Q",
+    questionKind: "when",
   });
   assert.equal(questionTemplateKey("location"), "intakeQuestionLocation");
   assert.equal(questionTemplateKey("details"), "intakeQuestionDetails");
   assert.equal(questionTemplateKey("clarify"), "intakeQuestionClarify");
+  for (const kind of ["when", "frequency", "affected", "danger", "landmark"]) {
+    assert.match(questionTemplateKey(kind), /^intakeQuestion[A-Z]/);
+  }
+  assert.equal(new Set(intake.INTAKE_QUESTION_KINDS.map(questionTemplateKey)).size, 8, "every kind has its own template");
 });
 
 // ---------------------------------------------------------------------------
@@ -199,7 +236,7 @@ const api = sourceLoader()("lib/api.ts");
 const originalFetch = global.fetch;
 const tokens = new Map();
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status });
-const extractionBody = { title: "T", description: "D", location_text: null, category: "water", priority: null, question: null };
+const extractionBody = { title: "T", description: "D", location_text: null, category: "water", priority: null, question_kind: null };
 
 beforeEach(() => {
   global.window = {};
@@ -224,7 +261,7 @@ test("extract posts JSON with bearer token and validates the reply", async () =>
     utterances: ["hello"],
     language: "en-IN",
     draft: { title: "", description: "" },
-    asked_questions: ["Where?"],
+    asked_questions: ["location"],
   });
   assert.ok(seen.url.endsWith("/grievance-intake/extract"));
   assert.equal(seen.init.headers.Authorization, "Bearer mock-access");
@@ -233,7 +270,7 @@ test("extract posts JSON with bearer token and validates the reply", async () =>
     utterances: ["hello"],
     language: "en-IN",
     draft: { title: "", description: "" },
-    asked_questions: ["Where?"],
+    asked_questions: ["location"],
   });
   assert.equal(result.title, "T");
 });
@@ -254,7 +291,7 @@ for (const status of [400, 502, 503, 504]) {
 }
 
 test("malformed extraction replies are rejected by Zod", async () => {
-  for (const body of [{}, { ...extractionBody, title: 5 }, { ...extractionBody, category: "space" }, { ...extractionBody, priority: "urgent" }]) {
+  for (const body of [{}, { ...extractionBody, title: 5 }, { ...extractionBody, category: "space" }, { ...extractionBody, priority: "urgent" }, { ...extractionBody, question_kind: "favourite colour" }]) {
     global.fetch = async () => response(body);
     await assert.rejects(api.extractVoiceIntake({ utterances: ["x"], language: "en-IN" }));
   }

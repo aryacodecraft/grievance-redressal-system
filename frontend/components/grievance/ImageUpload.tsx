@@ -18,8 +18,11 @@ export interface UploadedImage {
 
 export function ImageUpload({
   onChange,
+  onBusyChange,
 }: {
   onChange: (img: UploadedImage | null) => void;
+  /** Lets the parent block skip/submit while an upload is in flight. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -46,6 +49,7 @@ export function ImageUpload({
       return;
     }
     setBusy(true);
+    onBusyChange?.(true);
     setNote(t("imgUploading"));
     try {
       const fd = new FormData();
@@ -92,6 +96,7 @@ export function ImageUpload({
       );
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
 

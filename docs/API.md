@@ -20,7 +20,11 @@ DEC-038 (Stage 12) adds authenticated JSON `POST /grievance-intake/extract`:
 what the citizen said so far (transcripts and/or typed answers) becomes
 structured draft fields plus at most one follow-up question. Stateless — no
 grievance is created and no database is written; submission still goes through
-`POST /submit-grievance`. Contract, question policy and errors:
+`POST /submit-grievance`. DEC-039 (Stage 13) replaced the free-text `question`
+with `question_kind` (`details` | `location` | `when` | `frequency` |
+`affected` | `danger` | `landmark` | `clarify` | `null`) so every question can
+be pre-recorded; `asked_questions` now carries kinds, not wording. Contract,
+question policy and errors:
 [Voice-assisted complaints](VOICE_ASSISTED_COMPLAINT.md).
 
 Development: `http://localhost:10000`

@@ -83,7 +83,7 @@ def test_extracts_and_normalizes_fields(client, monkeypatch):
         "location_text": "Sector 9, Rohini",
         "category": "Streetlight",
         "priority": "HIGH",
-        "question": "Which lane exactly?",
+        "question_kind": "Landmark",
         "ignored_extra": {"nested": True},
     }))
     response = post(client)
@@ -94,7 +94,7 @@ def test_extracts_and_normalizes_fields(client, monkeypatch):
         "location_text": "Sector 9, Rohini",
         "category": "electricity",
         "priority": "high",
-        "question": "Which lane exactly?",
+        "question_kind": "landmark",
     }
 
 
@@ -114,27 +114,27 @@ def test_unstated_or_invalid_values_are_dropped(client, monkeypatch):
         "location_text": None,
         "category": "space program",
         "priority": "urgent",
-        "question": None,
+        "question_kind": None,
     }))
     data = post(client).json()
     assert data["title"] is None
     assert data["location_text"] is None
     assert data["category"] is None
     assert data["priority"] is None
-    assert data["question"] is None
+    assert data["question_kind"] is None
 
 
 def test_non_string_values_are_dropped(client, monkeypatch):
     stub_llm(monkeypatch, json.dumps({
         "title": {"a": 1}, "category": ["water"], "priority": 5,
-        "location_text": "   ", "question": "",
+        "location_text": "   ", "question_kind": ["location"],
     }))
     data = post(client).json()
     assert data["title"] is None
     assert data["category"] is None
     assert data["priority"] is None
     assert data["location_text"] is None
-    assert data["question"] is None
+    assert data["question_kind"] is None
     assert data["description"] == GOOD
 
 
@@ -148,20 +148,47 @@ def test_garbage_llm_reply_is_a_502(client, monkeypatch):
 def test_overlong_fields_are_truncated_not_rejected(client, monkeypatch):
     stub_llm(monkeypatch, json.dumps({
         "title": "T" * 400, "description": "D" * 5000,
-        "location_text": "L" * 400, "question": "Q" * 500,
+        "location_text": "L" * 400,
     }))
     data = post(client).json()
     assert len(data["title"]) == 120
     assert len(data["description"]) == 4000
     assert len(data["location_text"]) == 200
-    assert len(data["question"]) == 300
 
 
-def test_repeated_question_is_dropped(client, monkeypatch):
-    question = "Where exactly is the streetlight?"
-    stub_llm(monkeypatch, json.dumps({"description": GOOD, "question": question.upper()}))
-    data = post(client, asked_questions=[question]).json()
-    assert data["question"] is None
+def test_repeated_question_kind_is_dropped(client, monkeypatch):
+    stub_llm(monkeypatch, json.dumps({"description": GOOD, "question_kind": "location"}))
+    data = post(client, asked_questions=["location"]).json()
+    assert data["question_kind"] is None
+
+
+def test_unknown_question_kind_becomes_null(client, monkeypatch):
+    stub_llm(monkeypatch, json.dumps({"description": GOOD, "question_kind": "what colour is it"}))
+    assert post(client).json()["question_kind"] is None
+
+
+def test_question_kind_aliases_are_normalized(client, monkeypatch):
+    for raw, expected in [
+        ("Where", "location"), ("how_often", "frequency"),
+        ("Date", "when"), ("Safety", "danger"), ("who", "affected"),
+    ]:
+        stub_llm(monkeypatch, json.dumps({"description": GOOD, "question_kind": raw}))
+        assert post(client).json()["question_kind"] == expected
+
+
+def test_every_declared_question_kind_round_trips(client, monkeypatch):
+    for kind in grievance_intake.QUESTION_KINDS:
+        stub_llm(monkeypatch, json.dumps({"description": GOOD, "question_kind": kind}))
+        assert post(client).json()["question_kind"] == kind
+
+
+def test_asked_questions_only_accept_kinds(client, monkeypatch):
+    captured = stub_llm(monkeypatch, json.dumps({"description": GOOD}))
+    post(client, asked_questions=["location", "Where exactly is it?", "details"])
+    prompt = captured["prompt"]
+    assert "- location" in prompt
+    assert "- details" in prompt
+    assert "Where exactly is it?" not in prompt
 
 
 def test_verbatim_description_fallback_joins_utterances(client, monkeypatch):
@@ -214,7 +241,7 @@ def test_prompt_carries_language_draft_and_capped_questions(client, monkeypatch)
         client,
         language="mr-IN",
         utterances=["पाणी बंद आहे.", "शाळेजवळ कचरा आहे."],
-        asked_questions=["asked-one", "asked-two", "asked-three", "asked-four"],
+        asked_questions=["details", "location", "when", "frequency"],
         draft={"title": "Water issue", "description": "No water since Monday"},
     )
     prompt = captured["prompt"]
@@ -222,6 +249,17 @@ def test_prompt_carries_language_draft_and_capped_questions(client, monkeypatch)
     assert "पाणी बंद आहे." in prompt
     assert "Water issue" in prompt
     assert "No water since Monday" in prompt
-    assert "asked-one" not in prompt          # only the last 3 are kept
-    assert "asked-two" in prompt
-    assert "asked-four" in prompt
+    assert "- details" not in prompt           # only the last 3 kinds are kept
+    assert "- location" in prompt
+    assert "- when" in prompt
+    assert "- frequency" in prompt
+
+
+def test_prompt_never_asks_the_model_for_free_text_question(client, monkeypatch):
+    captured = stub_llm(monkeypatch, json.dumps({"description": GOOD}))
+    post(client)
+    prompt = captured["prompt"]
+    assert "question_kind" in prompt
+    assert '"question"' not in prompt
+    for kind in grievance_intake.QUESTION_KINDS:
+        assert kind in prompt

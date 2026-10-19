@@ -529,3 +529,58 @@ marked "[E2E TEST]" in its description. Local-only enablement
 files. No commits were made by this session.
 
 
+
+---
+
+## 2026-10-19 — Spoken follow-up questions + optional photo step (DEC-039)
+
+### Request
+Make voice intake fully audio-guided: speak each follow-up in the selected
+language (en/hi/mr), auto-play with a persistent mute and replay control, then
+offer an optional photo step before final submission. Keep one atomic submit,
+editable review with AI badges, the shared draft, the manual branch and
+explicit human confirmation. Fixed template questions were chosen so audio is
+generated once per language (no recurring TTS cost).
+
+### What changed
+- Backend `services/grievance_intake.py`: prompt/response `question` →
+  `question_kind` (8 kinds + aliases, unknown → null); `asked_questions` is a
+  kind list (last 3); kind-based dedupe. Router docstring updated. Backend
+  tests updated to 26.
+- Frontend `lib/voice/intake.ts`: 8-kind `IntakeQuestionKind`, kind-based
+  `asked` tracking, `planNextStep` lets the model fill only the optional slot;
+  `lib/api.ts` Zod schema now validates `question_kind`.
+- New `lib/voice/speech.ts` + `scripts/generate-question-audio.mjs`; 24 WAV
+  clips in `public/voice/questions/` (bulbul:v3, 16 kHz mono, ~2.7 MB).
+- `VoiceIntake.tsx`: auto-play per new question, gesture unlock on
+  start/send/retry/replay, persisted mute toggle, "Play again", stop on
+  answer/skip/reset/unmount; i18n keys in en/hi/mr.
+- `SubmitForm.tsx` / `ImageUpload.tsx`: voice-only optional photo section
+  before submit (auto-scroll, skip/reopen, upload-in-flight guard); manual
+  branch unchanged; `imageUrl` still in the single submit payload.
+- Tests: new `scripts/voice-speech.test.mjs` (11), updated intake/UI suites,
+  `package.json` test script.
+
+### Verification
+- `npm run test:voice` 148 passed; `pytest tests/test_voice_intake.py` 26
+  passed; full pytest 508 passed / 31 skipped / 23 known DEC-006 baseline
+  failures; `tsc --noEmit` clean; `next build` green; ESLint 4 pre-existing
+  FaceCapture errors + 4 warnings (unchanged baseline).
+- Live (headless Playwright Chromium on the owner's stack, real backend/Mongo/
+  Groq; no grievance submitted): typed description → location question
+  auto-played `location.en-IN.wav` with a running AudioContext (clock advanced
+  ~3 s) → switched to Hindi (the open question re-rendered and auto-played) and
+  "Play again" replayed `location.hi-IN.wav` → review → photo step in view →
+  "Skip photo" → "No photo added"; zero console errors/exceptions. Harness:
+  `/tmp/opencode/voice-speech-live.mjs`.
+- Docs updated: `VOICE_ASSISTED_COMPLAINT.md` Stage 13 (+ Stage 12 spoken-smoke
+  correction), `API.md`, `DECISIONS.md` DEC-039, `CURRENT_STATE.md`.
+
+### Not verified / notes
+- Live spoken Hindi/Marathi STT still unvalidated (Hindi *question playback*
+  was verified; STT was not re-run).
+- No live Cloudinary photo upload/submission was exercised; the photo payload
+  path is covered by UI tests with a mocked uploader.
+- 24 clips add ~2.7 MB to the repo; regeneration is manual and documented.
+- `GROQ compound*` retirement cleanup remains in the working tree and has now
+  been folded into this task (see `llm_fallback.py` / `grievance_intake.py`).
