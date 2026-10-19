@@ -1,14 +1,15 @@
 # VOICE_ASSISTED_COMPLAINT.md — Voice-Assisted Complaint Lodging
 
-> Stages 4-14, updated 2026-10-19, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038/
-> DEC-039/DEC-040/DEC-041/DEC-042.
+> Stages 4-15, updated 2026-10-20, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038/
+> DEC-039/DEC-040/DEC-041/DEC-042/DEC-043.
 > Backend and frontend IMPLEMENTED and TESTED with mocks; one user-verified live
 > English smoke test passed, the Stage 12 conversational flow passed a full
 > live typed-path browser E2E (real LLM extraction + real submission
 > `GRV-2026-0015`, 2026-10-18), and Stage 13 question playback was verified live
 > in English and Hindi (2026-10-19). Stage 14 (DEC-041) retires the single-shot
 > recorder surfaces from Stages 1–9: the manual branch is now text-only and the
-> conversational review is read-only. Live spoken Hindi/Marathi STT remain
+> conversational review is read-only. Stage 15 (DEC-043) adds an audible opening prompt
+> on the first "Start speaking" tap before microphone capture begins. Live spoken Hindi/Marathi STT remain
 > unvalidated; execution results are in memory/CHANGELOG.md. Speech accuracy
 > EXPERIMENTAL, not VALIDATED. Disabled by default, including Render.
 
@@ -1312,3 +1313,27 @@ Stages 1–9 and makes each mode own one input method.
   en/hi/mr.
 - The opt-in E2E is not part of default CI, so the real-HTTP intake path is
   verified only when someone runs it explicitly.
+
+---
+
+## Stage 15 — Spoken Opening Prompt for Conversational Intake — IMPLEMENTED, TESTED (2026-10-20)
+
+DEC-043. This stage ensures the assistant speaks first when voice mode is started, leading the interaction rather than recording silently.
+
+### What changed
+
+- **Audible opening prompt on first Start speaking.** Tapping "Start speaking" in voice mode now plays an audible opening prompt (`intakeIntro`) in the selected spoken language (`en-IN`, `hi-IN`, `mr-IN`) before capture begins.
+- **Pre-recorded clips.** Synthesized 3 dedicated 16 kHz mono WAV clips (`intro.en-IN.wav`, `intro.hi-IN.wav`, `intro.mr-IN.wav`, ~410 kB total) using Sarvam `bulbul:v3` via `frontend/scripts/generate-question-audio.mjs`. There is zero runtime TTS spend.
+- **Contract separation.** `intro` is client-only and kept out of `INTAKE_QUESTION_KINDS`; the backend LLM extraction contract and prompt are unchanged.
+- **Autoplay & echo prevention.** The browser `AudioContext` is unlocked synchronously inside the click gesture. The opening prompt plays completely before `VoiceCapture` starts listening, preventing audio echo from contaminating the citizen's STT transcript.
+- **Mute & failure tolerance.** When muted, no audio plays and recording starts immediately; the prompt text is still added to the conversation transcript log. If playback fails or times out (10 s guard), recording starts without blocking the user.
+- **Single-prompt lifecycle.** Follow-up questions ("Answer by voice") do not replay the opener; only the initial conversation turn triggers it.
+
+### Verification (2026-10-20)
+
+- `scripts/voice-speech.test.mjs` (12 tests) asserts all 27 clips (24 questions + 3 intro clips) exist and match WAV format specifications.
+- `scripts/voice-intake.test.mjs` (15 tests) asserts reducer `PROMPT_STARTED` transitions and cancellation.
+- `scripts/voice-intake-ui.test.mjs` (15 tests) asserts opener playback timing, log visibility, muted path, fallback on player failure, and follow-up suppression.
+- `npm run test:voice` **77 passed** (0 failures).
+- `npx tsc --noEmit` and ESLint on touched files clean. Backend `pytest tests/test_voice_intake.py` 28 passed.
+

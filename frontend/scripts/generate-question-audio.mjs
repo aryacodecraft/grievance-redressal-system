@@ -30,6 +30,7 @@ const FORCE = process.argv.includes("--force");
 /** Question text per kind per language. Mirrors lib/i18n/voice.ts. */
 const QUESTIONS = {
   "en-IN": {
+    intro: "Namaste. Please tell me what the problem is. You can speak after this prompt.",
     details: "Could you describe the problem in a little more detail? What exactly is happening?",
     location: "Where exactly is the issue located? Mention a landmark, street or area.",
     clarify: "Could you clarify a little more?",
@@ -40,6 +41,7 @@ const QUESTIONS = {
     landmark: "Which well-known place is it closest to? A landmark helps the team find it.",
   },
   "hi-IN": {
+    intro: "नमस्ते। कृपया बताएँ कि क्या समस्या है। इस संदेश के बाद आप बोल सकते हैं।",
     details: "कृपया समस्या थोड़ा और विस्तार से बताएँ — ठीक-ठीक क्या हो रहा है?",
     location: "यह समस्या ठीक कहाँ है? कोई लैंडमार्क, गली या इलाक़ा बताएँ।",
     clarify: "क्या थोड़ा और स्पष्ट कर सकते हैं?",
@@ -50,6 +52,7 @@ const QUESTIONS = {
     landmark: "यह किस जानी-मानी जगह के सबसे नज़दीक है? लैंडमार्क से टीम को ढूँढने में मदद मिलेगी।",
   },
   "mr-IN": {
+    intro: "नमस्ते. कृपया सांगा नक्की काय समस्या आहे. या संदेशानंतर तुम्ही बोलू शकता.",
     details: "कृपया समस्या थोडी अधिक तपशिलात सांगा — नक्की काय घडत आहे?",
     location: "ही समस्या नेमकी कुठे आहे? एखादा लँडमार्क, गल्ली किंवा भाग सांगा.",
     clarify: "थोडे अधिक स्पष्ट करू शकता का?",

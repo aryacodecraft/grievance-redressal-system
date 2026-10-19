@@ -33,7 +33,19 @@ test("every question kind has a non-empty WAV clip in every language", () => {
   }
 });
 
+test("opening prompt has a non-empty WAV clip in every language", () => {
+  for (const language of LANGUAGES) {
+    const file = path.join(frontendRoot, "public", "voice", "questions", `intro.${language}.wav`);
+    assert.ok(fs.existsSync(file), `missing clip: ${path.relative(frontendRoot, file)}`);
+    const data = fs.readFileSync(file);
+    assert.ok(data.length > 1000, `intro.${language}.wav is suspiciously small`);
+    assert.equal(data.subarray(0, 4).toString("ascii"), "RIFF", `intro.${language}.wav is not a WAV file`);
+    assert.equal(data.subarray(8, 12).toString("ascii"), "WAVE", `intro.${language}.wav is not a WAV file`);
+  }
+});
+
 test("audio URLs point at the static assets", () => {
+  assert.equal(questionAudioUrl("intro", "en-IN"), "/voice/questions/intro.en-IN.wav");
   assert.equal(questionAudioUrl("location", "hi-IN"), "/voice/questions/location.hi-IN.wav");
   assert.equal(questionAudioUrl("clarify", "mr-IN"), "/voice/questions/clarify.mr-IN.wav");
 });

@@ -22,7 +22,7 @@ import { extractVoiceIntake, transcribeAudio } from "@/lib/api";
 import type { VoiceLanguage } from "@/lib/types";
 import { recordingSupported, VoiceCapture } from "@/lib/voice/capture";
 import { newIdempotencyKey, voiceErrorMessage } from "@/lib/voice/errors";
-import { questionAudioUrl, readMuted, SpeechPlayer, writeMuted } from "@/lib/voice/speech";
+import { questionAudioUrl, readMuted, SpeechPlayer, writeMuted, type SpeechOutcome } from "@/lib/voice/speech";
 import {
   computeLocks,
   initialIntakeState,
@@ -183,7 +183,9 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
 
   // Leaving the question (answer sent, skipped, reset) silences it immediately.
   useEffect(() => {
-    if (state.phase !== "awaiting_answer") player.current?.stopCurrent();
+    if (state.phase !== "awaiting_answer" && state.phase !== "prompting") {
+      player.current?.stopCurrent();
+    }
   }, [state.phase]);
 
   useEffect(() => () => {
@@ -286,9 +288,37 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
     // Gesture unlock: the next question arrives after async STT + LLM.
     getPlayer().unlock();
     player.current?.stopCurrent();
-    dispatch({ type: "START" });
+
+    const isFirstStart = state.messages.length === 0 && state.utterances.length === 0;
+    epoch.current += 1;
     const generation = epoch.current;
     busy.current = true;
+
+    if (isFirstStart) {
+      const intro = QUESTION_PACKS[language].intakeIntro;
+      dispatch({ type: "PROMPT_STARTED", text: intro });
+
+      if (!mutedRef.current) {
+        let outcome: SpeechOutcome;
+        try {
+          const introUrl = questionAudioUrl("intro", language);
+          outcome = await Promise.race([
+            getPlayer().play(introUrl),
+            new Promise<SpeechOutcome>((resolve) => setTimeout(() => resolve("failed"), 10000)),
+          ]);
+        } catch {
+          outcome = "failed";
+        }
+
+        if (epoch.current !== generation) return;
+        if (outcome === "cancelled") {
+          busy.current = false;
+          return;
+        }
+      }
+    }
+
+    dispatch({ type: "START" });
     audio.current = null;
     const session = new VoiceCapture(
       () => { void finish(session, generation); },
@@ -407,10 +437,11 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
   const stepIndex = step === "describe" ? 0 : step === "clarify" ? 1 : 2;
   const busyPhase = state.phase === "transcribing" || state.phase === "processing";
   const answering = state.phase === "awaiting_answer";
-  const showInputs = state.phase === "idle" || state.phase === "listening" || answering;
+  const showInputs = state.phase === "idle" || state.phase === "prompting" || state.phase === "listening" || answering;
 
   const statusText =
-    state.phase === "listening" ? t("intakeListening", { seconds: intake.seconds })
+    state.phase === "prompting" ? t("intakeSpeaking")
+    : state.phase === "listening" ? t("intakeListening", { seconds: intake.seconds })
     : state.phase === "transcribing" ? t("intakeTranscribing")
     : state.phase === "processing" ? t("intakeThinking")
     : answering ? t("intakeAnswerHint")
@@ -455,7 +486,7 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
           id="intake-language"
           className="w-36"
           value={intake.language}
-          disabled={disabled || busyPhase || state.phase === "listening"}
+          disabled={disabled || busyPhase || state.phase === "listening" || state.phase === "prompting"}
           onChange={(event) => intake.setLanguage(event.target.value as VoiceLanguage)}
         >
           <option value="en-IN">English</option><option value="hi-IN">हिन्दी</option><option value="mr-IN">मराठी</option>
@@ -486,6 +517,8 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
               />
             ))}
           </span>
+        ) : state.phase === "prompting" ? (
+          <Volume2 size={16} className="animate-pulse text-orange-500" aria-hidden="true" />
         ) : busyPhase ? (
           <LoaderCircle size={16} className="animate-spin text-orange-500" aria-hidden="true" />
         ) : (
@@ -556,12 +589,12 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
                 variant="orange"
                 size="sm"
                 onClick={intake.actions.start}
-                disabled={disabled || !supported}
+                disabled={disabled || !supported || state.phase === "prompting"}
               >
                 <Mic size={14} aria-hidden="true" />{answering ? t("intakeAnswerVoice") : t("intakeStart")}
               </Button>
             )}
-            {state.phase === "listening" && (
+            {(state.phase === "listening" || state.phase === "prompting") && (
               <Button type="button" variant="ghost" size="sm" onClick={intake.actions.cancelRecording} disabled={disabled}>
                 {t("voiceCancel")}
               </Button>
@@ -571,7 +604,7 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
               variant="outline"
               size="sm"
               onClick={() => setTyping((value) => !value)}
-              disabled={disabled || busyPhase}
+              disabled={disabled || busyPhase || state.phase === "prompting"}
             >
               {t("intakeTypeInstead")}
             </Button>

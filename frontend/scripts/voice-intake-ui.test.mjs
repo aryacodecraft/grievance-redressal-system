@@ -43,9 +43,15 @@ class FakeCapture {
   dispose() { this.disposed = true; }
 }
 
+let customPlay = null;
+
 class FakeSpeechPlayer {
   unlock() { speechCalls.push({ type: "unlock" }); }
-  play(url) { speechCalls.push({ type: "play", url }); return Promise.resolve("played"); }
+  play(url) {
+    speechCalls.push({ type: "play", url });
+    if (customPlay) return customPlay(url);
+    return Promise.resolve("played");
+  }
   stopCurrent() { speechCalls.push({ type: "stop" }); }
   dispose() { speechCalls.push({ type: "dispose" }); }
 }
@@ -105,6 +111,7 @@ beforeEach(() => {
   apiCalls.submit.length = 0;
   captures.length = 0;
   speechCalls.length = 0;
+  customPlay = null;
   scrollCalls = 0;
   window.localStorage.clear();
   apiScript = {
@@ -427,3 +434,72 @@ test("repeated submit clicks post exactly one grievance", async () => {
   await settle();
   assert.match(container.textContent, /GRV-X/);
 });
+
+test("opening prompt plays on first Start speaking, appears in conversation log, and then capture starts", async () => {
+  let playResolve;
+  customPlay = () => new Promise((resolve) => { playResolve = resolve; });
+
+  await mount();
+  await click("Tell us your problem");
+
+  // Click Start speaking - this initiates the opening prompt
+  const startBtn = button("Start speaking");
+  await act(async () => startBtn.click());
+  await settle();
+
+  // Opener has started playing, but recording has NOT started yet
+  assert.equal(speechCalls.filter((c) => c.type === "play" && c.url === "/voice/questions/intro.en-IN.wav").length, 1);
+  assert.equal(captures.length, 0, "recording must not start before the opening prompt finishes playing");
+  assert.match(container.textContent, /Namaste\. Please tell me what the problem is/, "opener appears in the conversation log");
+
+  // Playback finishes
+  await act(async () => playResolve("played"));
+  await settle();
+
+  // Now capture has started
+  assert.equal(captures.length, 1);
+  assert.ok(captures[0].started);
+});
+
+test("muted mode skips opening prompt audio but still adds opener to conversation log and starts capture immediately", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await click("Spoken questions on"); // toggles to muted
+  assert.equal(window.localStorage.getItem("grievai-voice-muted"), "true");
+
+  await click("Start speaking");
+  assert.equal(speechCalls.filter((c) => c.type === "play").length, 0, "no audio should play when muted");
+  assert.match(container.textContent, /Namaste\. Please tell me what the problem is/, "opener is still added as transcript message");
+  assert.equal(captures.length, 1, "capture starts immediately when muted");
+  assert.ok(captures[0].started);
+});
+
+test("opener playback failure still proceeds to start capture", async () => {
+  customPlay = async () => "failed";
+
+  await mount();
+  await click("Tell us your problem");
+  await click("Start speaking");
+
+  assert.equal(speechCalls.filter((c) => c.type === "play" && c.url === "/voice/questions/intro.en-IN.wav").length, 1);
+  assert.equal(captures.length, 1, "capture starts even if audio playback fails");
+  assert.ok(captures[0].started);
+});
+
+test("follow-up Answer by voice does not replay the opener", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await click("Start speaking");
+
+  // First start played the intro
+  assert.equal(speechCalls.filter((c) => c.type === "play" && c.url === "/voice/questions/intro.en-IN.wav").length, 1);
+
+  await click("Stop recording");
+  assert.match(container.textContent, /Where exactly is the issue located/);
+
+  // Follow-up answer
+  await click("Answer by voice");
+  assert.equal(speechCalls.filter((c) => c.type === "play" && c.url === "/voice/questions/intro.en-IN.wav").length, 1, "intro was not replayed");
+  assert.equal(captures.length, 2);
+});
+

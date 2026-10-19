@@ -9,6 +9,26 @@
 
 ---
 
+## 2026-10-20 — Spoken opening prompt on Start speaking (DEC-043, Stage 15)
+
+- Voice intake starts with an audible prompt: tapping "Start speaking" plays a
+  localized opening prompt (`intakeIntro`) in the selected language (`en-IN`,
+  `hi-IN`, `mr-IN`) before capture begins, leading the conversation rather than
+  recording silently.
+- 3 dedicated 16 kHz mono WAV clips (`intro.en-IN.wav`, `intro.hi-IN.wav`,
+  `intro.mr-IN.wav`, ~410 kB total) generated via Sarvam `bulbul:v3` and committed
+  under `frontend/public/voice/questions/`. Generator extended; no runtime TTS spend.
+- Reducer & flow: `PROMPT_STARTED` adds the prompt as the first assistant message
+  in the transcript log and sets `phase: "prompting"`; playback is awaited before
+  `START` and `session.start()`, avoiding echo contamination in STT; muted mode
+  records immediately while still logging text; playback failure falls through to
+  recording; follow-up questions do not replay the opener.
+- Verification: `npm run test:voice` **77 passed** (6 new tests across UI, speech,
+  and intake suites); `npx tsc --noEmit` and touched-file ESLint clean; backend
+  `pytest tests/test_voice_intake.py` 28 passed.
+- Docs/memory: `VOICE_ASSISTED_COMPLAINT.md` Stage 15, DEC-043, `CURRENT_STATE.md`,
+  this log.
+
 ## 2026-10-19 — Mode consolidation + bounded submit classification (DEC-041/042)
 
 - Manual `/submit` branch is text-only: removed `VoiceRecorder.tsx`,

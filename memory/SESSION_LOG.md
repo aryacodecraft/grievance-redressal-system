@@ -676,3 +676,53 @@ corrections via the manual form; harden submit-time classification like intake.
 - The opt-in cross-stack E2E needs a standalone terminal or CI run; if it still
   destabilizes a machine, reduce it to the 3 language scenarios or retire it.
 
+---
+
+## 2026-10-20 — Spoken opening prompt for conversational intake (DEC-043, Stage 15)
+
+### Request
+Owner reported: "Start speaking" begins recording silently — the voice assistant
+never speaks first. Expected: tapping "Start speaking" plays an audible opening
+prompt in the selected language, then starts recording the citizen's response.
+Confirmed design choices:
+1. Trigger on "Start speaking" tap within the user gesture.
+2. Generate dedicated intro clips via Sarvam TTS.
+3. Display the opener as the first assistant message in the conversation log.
+
+### What changed
+- `frontend/lib/i18n/voice.ts`: added `intakeIntro` and `intakeSpeaking` keys in
+  en-IN, hi-IN, mr-IN and all fallback packs.
+- Generated 3 dedicated 16 kHz mono WAV clips (`intro.en-IN.wav`, `intro.hi-IN.wav`,
+  `intro.mr-IN.wav`, ~410 kB total) using Sarvam `bulbul:v3`; extended
+  `frontend/scripts/generate-question-audio.mjs`. `intro` is kept client-only and
+  out of `INTAKE_QUESTION_KINDS`.
+- `frontend/lib/voice/intake.ts`: added `prompting` phase to `IntakePhase`,
+  `PROMPT_STARTED` action, and transitions in `intakeReducer` and `ALLOWED`.
+- `frontend/components/grievance/VoiceIntake.tsx`:
+  - `start()` detects `isFirstStart = messages.length === 0 && utterances.length === 0`.
+  - Dispatches `PROMPT_STARTED`, logs the assistant message.
+  - If not muted: sets `phase: "prompting"`, awaits `getPlayer().play(introUrl)` (with 10 s fallback guard).
+  - Silencing effect ignores `phase === "prompting"`.
+  - Once settled (`played` or `failed`), dispatches `START` and starts `VoiceCapture`.
+  - If muted: starts recording immediately while keeping message in log.
+  - Controls: "Start speaking" and "Type instead" disabled while prompting; Cancel stops playback and resets to idle.
+  - Follow-up "Answer by voice" bypasses the intro.
+- Tests:
+  - `frontend/scripts/voice-speech.test.mjs`: added intro asset completeness and URL mapping (12 passed).
+  - `frontend/scripts/voice-intake.test.mjs`: added reducer transitions for `PROMPT_STARTED` and cancel (15 passed).
+  - `frontend/scripts/voice-intake-ui.test.mjs`: added 4 new tests for opener playback timing, transcript log visibility, muted path, playback failure, and follow-up suppression (15 passed).
+
+### Verification
+- `npm run test:voice`: **77 passed** (0 failures).
+- `npx tsc --noEmit` and ESLint on touched files clean.
+- `node scripts/check-contract.mjs` passed (21 checks).
+- Backend `pytest tests/test_voice_intake.py` **28 passed**.
+- Documentation & memory: `docs/VOICE_ASSISTED_COMPLAINT.md` Stage 15, DEC-043,
+  `memory/CURRENT_STATE.md`, `memory/CHANGELOG.md`, this log.
+
+### Not verified / notes
+- Real microphone capture and real speaker playback on physical hardware (tested
+  via fake capture and fake audio contexts in the Node test suite; unit test assertions
+  verify that capture does not start until intro audio playback resolves).
+
+

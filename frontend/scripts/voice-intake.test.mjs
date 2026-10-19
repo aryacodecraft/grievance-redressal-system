@@ -110,6 +110,24 @@ test("reducer drives the legal conversation flow and blocks invalid transitions"
   assert.deepEqual(state.utterances, ["The light is broken", "Near the park gate"]);
 });
 
+test("reducer drives opening prompt phase and transition to listening", () => {
+  let state = intakeReducer(initialIntakeState, { type: "PROMPT_STARTED", text: "Namaste. Please tell me what the problem is." });
+  assert.equal(state.phase, "prompting");
+  assert.equal(state.messages.length, 1);
+  assert.equal(state.messages[0].role, "assistant");
+  assert.equal(state.messages[0].text, "Namaste. Please tell me what the problem is.");
+  assert.equal(state.resume, "idle");
+
+  // cancelling while prompting returns to idle
+  const cancelled = intakeReducer(state, { type: "RECORDING_CANCELLED" });
+  assert.equal(cancelled.phase, "idle");
+
+  // playback completes and START transitions to listening
+  state = intakeReducer(state, { type: "START" });
+  assert.equal(state.phase, "listening");
+  assert.equal(state.resume, "idle");
+});
+
 test("reducer suppresses redundant questions, supports failures and resets", () => {
   let typed = intakeReducer(initialIntakeState, { type: "UTTERANCE_ADDED", text: "Typed first message" });
   assert.equal(typed.phase, "processing", "a typed first message works from idle");

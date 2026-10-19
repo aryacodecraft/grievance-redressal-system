@@ -2031,3 +2031,37 @@ Live submit latency after the change not re-measured.
 **Reversible:** constants and the budget helper live in `classification.py`
 (`GROQ_CALL_TIMEOUT_SECONDS`, `GROQ_TOTAL_BUDGET_SECONDS`) and `image.py`
 (`IMAGE_LLM_TIMEOUT_SECONDS`).
+
+---
+
+## DEC-043 — Spoken Opening Prompt for Conversational Intake (2026-10-20)
+
+**Context:** On `/submit`, clicking "Start speaking" in voice mode began recording silently ("Listening — 0 / 30 seconds") and expected the citizen to speak unprompted. The assistant's first question only auto-played after the citizen's first utterance was transcribed and extracted. Low-literacy or first-time citizens expected the voice assistant to speak first, greet them, and ask what the problem is. If they waited silently, nothing was ever spoken.
+
+**Decision:**
+- Add an audible opening prompt (`intakeIntro`) played on the first "Start speaking" tap before microphone capture begins.
+- Synthesize dedicated 16 kHz mono WAV clips (`intro.en-IN.wav`, `intro.hi-IN.wav`, `intro.mr-IN.wav`) using Sarvam `bulbul:v3` and commit them under `frontend/public/voice/questions/` (3 clips, ~410 kB total).
+- The opener kind (`intro`) remains client-only and is excluded from `INTAKE_QUESTION_KINDS` so the backend planner/extractor never plans or confuses it with diagnostic follow-up questions.
+- Autoplay compliance: `getPlayer().unlock()` is invoked synchronously within the "Start speaking" click gesture.
+- Sequence:
+  - If muted: skips audio playback, appends the localized opener prompt to the transcript log as the first assistant message, and immediately begins recording.
+  - If not muted: sets `phase: "prompting"`, appends the opener message to the transcript log, and plays the clip (`await getPlayer().play(introUrl)`).
+  - Playback finish (`"played"` or `"failed"`/timeout): transitions `phase` to `"listening"` (`dispatch({ type: "START" })`) and starts `VoiceCapture`. The mic never records while the intro plays, preventing echo contamination in STT.
+  - User cancellation (`intake.actions.cancelRecording()` / `reset()`): stops playback and resets to `"idle"`.
+- Follow-ups ("Answer by voice") do not replay the opener (`state.messages.length > 0`).
+
+**Alternatives rejected:**
+- Browser `speechSynthesis`: inconsistent Indic voice quality across OS/browsers; contradicts the static clip architecture of DEC-039.
+- Reusing `details.<lang>.wav`: phrasing ("Could you describe the problem in a little more detail?") is confusing as a first opening greeting.
+- Triggering on mode toggle ("Tell us your problem"): autoplay policy blocks audio without an explicit gesture directly targeted at audio/interaction.
+- Backend runtime TTS: recurring provider cost, latency, and reliability dependency.
+
+**Verification (2026-10-20):**
+- Generated 3 intro clips via `scripts/generate-question-audio.mjs`.
+- `scripts/voice-speech.test.mjs` (12 tests) asserts WAV completeness and URL mapping.
+- `scripts/voice-intake.test.mjs` (15 tests) asserts reducer `PROMPT_STARTED` and cancel transitions.
+- `scripts/voice-intake-ui.test.mjs` (15 tests) asserts opener plays on first Start before capture, appears in the transcript log, muted skips audio, playback failure falls through to recording, and follow-up does not replay opener.
+- `npm run test:voice` passes 77 tests (0 failures).
+- `npx tsc --noEmit` and ESLint on touched files clean. Backend `pytest tests/test_voice_intake.py` 28 passed.
+
+**Reversible:** Remove `PROMPT_STARTED` dispatch in `start()` to restore silent recording.

@@ -70,10 +70,13 @@ only — humans retain assignment, escalation, resolution and closure authority
   go through the shared draft in the manual form. **Bounded providers
   (DEC-040/042):** intake 10 s/attempt with a 25 s cascade budget; submit-path
   classification/refinement 8 s per call with a 20 s pass budget and no SDK
-  retries; image validation 8 s. Stages 1–14 IMPLEMENTED; one live English
-  smoke + a full live typed-path browser E2E (`GRV-2026-0015`, 2026-10-18)
-  passed; live en/hi question playback verified 2026-10-19; live spoken hi/mr
-  STT and a post-Stage-14 browser pass pending (§5).
+  retries; image validation 8 s. **Spoken opening prompt (DEC-043, Stage 15):**
+  tapping "Start speaking" plays an audible opening prompt (`intakeIntro`) in the
+  selected language before capture starts, ensuring the assistant speaks first
+  without contaminating STT; 3 dedicated intro clips synthesized (27 clips total).
+  Stages 1–15 IMPLEMENTED; one live English smoke + a full live typed-path browser E2E
+  (`GRV-2026-0015`, 2026-10-18) passed; live en/hi question playback verified 2026-10-19;
+  live spoken hi/mr STT and a post-Stage-14 browser pass pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
   no metrics claimed (DEC-005). Similarity is client-side TF-IDF only.
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
@@ -81,8 +84,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Test suites** — full pytest (2026-10-19, post-Stage-14): 511 passed / 32
   skipped / 23 failed = the documented pre-existing baseline (§5); the extra
   skip is the opt-in cross-stack voice E2E (`VOICE_E2E=1`); contract suite 18
-  checks; voice node suites 71 tests (legacy recorder suite removed, capture
-  lifecycle tests retained, DEC-041); intake backend suite 28 tests;
+  checks; voice node suites 77 tests (DEC-041/043); intake backend suite 28 tests;
   classification latency tests added (DEC-042).
 
 ---

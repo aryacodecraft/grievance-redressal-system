@@ -10,6 +10,7 @@ import type { MessageKey } from "@/lib/i18n";
 
 export type IntakePhase =
   | "idle"
+  | "prompting"
   | "listening"
   | "transcribing"
   | "processing"
@@ -126,6 +127,7 @@ export const initialIntakeState: IntakeState = {
 };
 
 export type IntakeAction =
+  | { type: "PROMPT_STARTED"; text: string }
   | { type: "START" }
   | { type: "RECORDING_STOPPED" }
   | { type: "RECORDING_CANCELLED" }
@@ -138,15 +140,16 @@ export type IntakeAction =
 
 /** Phases each action may fire from — everything else is a no-op. */
 const ALLOWED: Record<IntakeAction["type"], IntakePhase[]> = {
-  START: ["idle", "awaiting_answer", "error"],
+  PROMPT_STARTED: ["idle", "error"],
+  START: ["idle", "prompting", "awaiting_answer", "error"],
   RECORDING_STOPPED: ["listening"],
-  RECORDING_CANCELLED: ["listening"],
+  RECORDING_CANCELLED: ["listening", "prompting"],
   UTTERANCE_ADDED: ["idle", "transcribing", "awaiting_answer", "error"],
   EXTRACTED: ["processing"],
   QUESTION_SKIPPED: ["awaiting_answer"],
-  FAILED: ["listening", "transcribing", "processing", "awaiting_answer"],
+  FAILED: ["prompting", "listening", "transcribing", "processing", "awaiting_answer"],
   RETRY: ["error"],
-  RESET: ["idle", "listening", "transcribing", "processing", "awaiting_answer", "ready_for_review", "error"],
+  RESET: ["idle", "prompting", "listening", "transcribing", "processing", "awaiting_answer", "ready_for_review", "error"],
 };
 
 function nextMessageId(state: IntakeState): number {
@@ -157,12 +160,34 @@ export function intakeReducer(state: IntakeState, action: IntakeAction): IntakeS
   if (!ALLOWED[action.type].includes(state.phase)) return state;
 
   switch (action.type) {
+    case "PROMPT_STARTED": {
+      const text = action.text.trim();
+      return {
+        ...state,
+        phase: "prompting",
+        resume: "idle",
+        errorKey: null,
+        failedStep: null,
+        messages: text
+          ? [...state.messages, { id: nextMessageId(state), role: "assistant", text }]
+          : state.messages,
+      };
+    }
     case "START":
-      return { ...state, phase: "listening", resume: state.phase, errorKey: null, failedStep: null };
+      return {
+        ...state,
+        phase: "listening",
+        resume: state.phase === "prompting" ? "idle" : state.phase,
+        errorKey: null,
+        failedStep: null,
+      };
     case "RECORDING_STOPPED":
       return { ...state, phase: "transcribing" };
     case "RECORDING_CANCELLED":
-      return { ...state, phase: state.resume === "listening" ? "idle" : state.resume };
+      return {
+        ...state,
+        phase: state.resume === "listening" || state.resume === "prompting" ? "idle" : state.resume,
+      };
     case "UTTERANCE_ADDED": {
       const text = action.text.trim();
       if (!text) return state;
