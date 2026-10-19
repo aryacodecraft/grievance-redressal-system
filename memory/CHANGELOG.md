@@ -9,6 +9,32 @@
 
 ---
 
+## 2026-10-19 — Mode consolidation + bounded submit classification (DEC-041/042)
+
+- Manual `/submit` branch is text-only: removed `VoiceRecorder.tsx`,
+  `TranscriptionChoice.tsx`, `lib/voice/title.ts`, their legacy i18n keys, the
+  709-line `voice-ui.test.mjs` and the title/browser probes; the 8
+  capture-lifecycle tests were ported to `voice-capture.test.mjs`; `test:voice`
+  now runs the capture/intake/speech/audio/API suites (**71 passed**).
+- Voice review is read-only: title/description render as text plus hidden
+  payload inputs, keeping the "AI suggestion" badges; wording is shaped only by
+  the conversation, and corrections switch to the manual form on the same RHF
+  draft. Copy updated in en/hi/mr (`intakeReviewHint`, `intakeManualHint`).
+- Cross-stack voice E2E rebuilt around the intake (real UI → real
+  `/transcribe` → mocked Sarvam → canned extraction) and made opt-in
+  (`VOICE_E2E=1`) because the in-process uvicorn + Node/jsdom harness is too
+  heavy for the default suite/constrained machines; default pytest skips it.
+- Submit-path Groq latency bounded (DEC-042): classification and refinement use
+  `with_options(max_retries=0)`, an 8 s per-call timeout and a 20 s shared
+  `classification_budget()`; image validation is 8 s/no retries. Exhaustion
+  falls through to HF/keywords instead of hanging.
+- Verification: `tsc` clean, ESLint clean on touched files, `next build` green,
+  `npm run test:voice` 71 passed, full pytest **511 passed / 32 skipped / 23
+  failed** (documented baseline; the extra skip is the opt-in E2E). The opt-in
+  E2E and a live post-consolidation browser check were not run.
+- Docs/memory: `VOICE_ASSISTED_COMPLAINT.md` Stage 14, DEC-041/042,
+  `CURRENT_STATE.md`, this log.
+
 ## 2026-10-19 — Spoken follow-up questions + optional photo step (DEC-039)
 
 - Intake contract: `question` (free text) → `question_kind` (one of eight

@@ -56,30 +56,34 @@ only — humans retain assignment, escalation, resolution and closure authority
   stores (DEC-024). IMPLEMENTED, TESTED (face/drift suites); real-webcam
   validation pending (§5).
 - **Voice-assisted lodging (flag-gated, default off)** — consent gate,
-  AudioWorklet 16 kHz WAV capture, `/transcribe` → Sarvam, title suggestion,
-  append/replace/cancel flow (DEC-032–035). **Conversational two-mode intake
-  (DEC-038):** "Tell us your problem" guides listen → transcribe → extract →
-  focused follow-up → review → confirm over one shared draft; the classic form
-  ("Fill the form manually") is retained as the default branch; stateless
-  `POST /grievance-intake/extract` (no DB writes; submission unchanged).
-  **Spoken questions + photo step (DEC-039):** the model picks a fixed
-  `question_kind`; 24 pre-recorded en/hi/mr clips auto-play with persisted mute
-  and replay; the review offers an optional photo before the single submit.
-  Intake provider calls are latency-bounded (SDK retries disabled, 10 s per
-  model attempt, 25 s cascade budget) so a stalled provider fails fast instead
-  of spinning for minutes (DEC-040). Stages 1–13 IMPLEMENTED; one live English
+  AudioWorklet 16 kHz WAV capture, `/transcribe` → Sarvam. **Conversational
+  two-mode intake (DEC-038):** "Tell us your problem" guides listen →
+  transcribe → extract → focused follow-up → review → confirm over one shared
+  draft; the classic form ("Fill the form manually") is the default branch;
+  stateless `POST /grievance-intake/extract` (no DB writes; submission
+  unchanged). **Spoken questions + photo step (DEC-039):** the model picks a
+  fixed `question_kind`; 24 pre-recorded en/hi/mr clips auto-play with persisted
+  mute and replay; the review offers an optional photo before the single
+  submit. **Mode consolidation (DEC-041, Stage 14):** the manual branch is
+  text-only — the legacy single-shot recorder/append-replace/title-suggestion
+  stack (Stages 1–9) is retired; the voice review is read-only and corrections
+  go through the shared draft in the manual form. **Bounded providers
+  (DEC-040/042):** intake 10 s/attempt with a 25 s cascade budget; submit-path
+  classification/refinement 8 s per call with a 20 s pass budget and no SDK
+  retries; image validation 8 s. Stages 1–14 IMPLEMENTED; one live English
   smoke + a full live typed-path browser E2E (`GRV-2026-0015`, 2026-10-18)
   passed; live en/hi question playback verified 2026-10-19; live spoken hi/mr
-  STT validation pending (§5).
+  STT and a post-Stage-14 browser pass pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
   no metrics claimed (DEC-005). Similarity is client-side TF-IDF only.
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — full pytest (2026-10-19): 510 passed / 31 skipped / 23
-  failed = the documented pre-existing baseline (§5); contract suite 18
-  checks; voice node suites 148 tests (Stage 13 adds 11 speech/asset tests and
-  updates the intake/UI suites); intake backend suite 28 tests (2 new
-  latency-bound tests, DEC-040).
+- **Test suites** — full pytest (2026-10-19, post-Stage-14): 511 passed / 32
+  skipped / 23 failed = the documented pre-existing baseline (§5); the extra
+  skip is the opt-in cross-stack voice E2E (`VOICE_E2E=1`); contract suite 18
+  checks; voice node suites 71 tests (legacy recorder suite removed, capture
+  lifecycle tests retained, DEC-041); intake backend suite 28 tests;
+  classification latency tests added (DEC-042).
 
 ---
 
@@ -154,6 +158,11 @@ only — humans retain assignment, escalation, resolution and closure authority
 - Finish guarded-launcher runtime verification (Stage 10 diagnostic guard).
   Local Mongo-backed login was verified working on 2026-10-18, so the Stage 11
   "not restored" note is no longer current.
+- Run the opt-in cross-stack voice E2E (`VOICE_E2E=1 pytest
+  tests/test_voice_e2e.py`) in a standalone terminal; the default suite skips it
+  because the harness starts an in-process uvicorn server plus Node/jsdom.
+- A post-Stage-14 live browser pass (manual text-only branch + read-only voice
+  review + correction via mode switch) is still pending.
 
 ### Staff workflows & i18n
 
@@ -213,11 +222,13 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 - Full pytest re-run + triage of the known baseline: 370 passed / 22 failed
   (2026-10-10), ~480 passed / 23 failed (2026-10-14), 503 passed / 31 skipped /
-  23 failed (2026-10-18), 508 passed / 31 skipped / 23 failed (2026-10-19) —
-  same set: mostly stale DEC-006 status-vocabulary and i18n expectations. The
-  +5 in 2026-10-19 are the updated conversational-intake tests. Exact failure
-  names are in `memory/archive/TODO-until-2026-10-18.md` §11. Decide fix vs
-  retire per test.
+  23 failed (2026-10-18), 508 passed / 31 skipped / 23 failed (2026-10-19),
+  511 passed / 32 skipped / 23 failed (2026-10-19 post-Stage-14; the 32nd skip
+  is the opt-in voice cross-stack E2E) — same failure set: mostly stale DEC-006
+  status-vocabulary and i18n expectations. The +5 in 2026-10-19 are the updated
+  conversational-intake tests, then +2 classification latency tests (DEC-042).
+  Exact failure names are in `memory/archive/TODO-until-2026-10-18.md` §11.
+  Decide fix vs retire per test.
 - Env-specific: `test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned`
   fails only with the developer's local `backend/.env` `FACE_CHALLENGES` override
   (passes with the stock `.env.example`).

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:voice": "node --test scripts/voice-audio.test.mjs scripts/voice-api.test.mjs scripts/voice-ui.test.mjs scripts/voice-speech.test.mjs scripts/voice-intake.test.mjs scripts/voice-intake-ui.test.mjs"
+    "test:voice": "node --test scripts/voice-audio.test.mjs scripts/voice-capture.test.mjs scripts/voice-api.test.mjs scripts/voice-speech.test.mjs scripts/voice-intake.test.mjs scripts/voice-intake-ui.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

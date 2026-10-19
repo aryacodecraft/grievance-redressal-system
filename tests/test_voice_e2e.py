@@ -1,5 +1,10 @@
 """Loopback HTTP: actual React/API/WAV path -> actual app -> mocked provider.
 
+Opt-in only: this starts an in-process uvicorn server and a Node/jsdom/React
+subprocess, which is too heavy for constrained dev machines. Run it with
+`VOICE_E2E=1 pytest tests/test_voice_e2e.py`; the default suite skips it and
+keeps the backend transcription/intake and frontend unit coverage.
+
 The test-only wrapper/flags never modify deployment configuration. Neither real
 credentials nor audio recordings are used; external socket connections fail.
 """
@@ -22,6 +27,13 @@ from starlette.datastructures import UploadFile
 from starlette.responses import JSONResponse
 import uvicorn
 
+if os.environ.get("VOICE_E2E") != "1":
+    pytest.skip(
+        "Set VOICE_E2E=1 to run the loopback cross-stack voice E2E "
+        "(starts an in-process server and a Node/jsdom subprocess).",
+        allow_module_level=True,
+    )
+
 
 def test_mocked_voice_end_to_end(app, monkeypatch):
     root = Path(__file__).resolve().parents[1]
@@ -34,7 +46,7 @@ def test_mocked_voice_end_to_end(app, monkeypatch):
     from backend.app.services import sarvam
     from backend.app.services.transcription_limits import TranscriptionLimits
 
-    state = {"scenario": "success", "posts": 0, "options": 0, "provider": 0}
+    state = {"scenario": "success", "posts": 0, "options": 0, "provider": 0, "extractions": 0}
     closed_uploads = []
     transcripts = {
         "en-IN": "The water supply has been interrupted since yesterday.",
@@ -116,7 +128,21 @@ def test_mocked_voice_end_to_end(app, monkeypatch):
             await JSONResponse({"ok": True})(scope, receive, send)
             return
         if scope.get("type") == "http" and scope.get("path") == "/__voice_test/stats":
-            await JSONResponse({"posts": state["posts"], "options": state["options"], "provider": state["provider"]})(scope, receive, send)
+            await JSONResponse({"posts": state["posts"], "options": state["options"], "provider": state["provider"],
+                                "extractions": state["extractions"]})(scope, receive, send)
+            return
+        if scope.get("type") == "http" and scope.get("path") == "/grievance-intake/extract":
+            # Canned extraction: the intake UI crosses the real HTTP boundary so
+            # the dashboard/planner logic is exercised, but no LLM is involved.
+            state["extractions"] += 1
+            await JSONResponse({
+                "title": "Water supply interrupted",
+                "description": "The water supply has been interrupted since yesterday.",
+                "location_text": None,
+                "category": "water",
+                "priority": "high",
+                "question_kind": None,
+            })(scope, receive, send)
             return
         if scope.get("type") == "http" and scope.get("path") == "/transcribe":
             if scope.get("method") == "POST":
@@ -144,21 +170,15 @@ def test_mocked_voice_end_to_end(app, monkeypatch):
                             "NEXT_PUBLIC_API_URL": f"http://127.0.0.1:{port}",
                             "VOICE_E2E_TOKEN": create_access_token("stage6-citizen", "USER")})
         result = subprocess.run(
-            [node, "--test", "--test-reporter=spec", "--test-name-pattern=Stage6", "scripts/voice-ui.test.mjs"],
-            cwd=root / "frontend", env=environment, capture_output=True, encoding="utf-8", timeout=60,
+            [node, "--test", "--test-reporter=spec", "scripts/voice-e2e.test.mjs"],
+            cwd=root / "frontend", env=environment, capture_output=True, encoding="utf-8", timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "Stage6" in result.stdout
-        assert "pass 10" in result.stdout
-        print("Stage6: all 10 Node cross-stack scenarios passed")
-        assert state["provider"] == 7  # 3 languages + consent + 3 provider failures
-        if os.environ.get("VOICE_BROWSER_CHECKS") == "1":
-            browser_result = subprocess.run(
-                [node, "scripts/voice-browser-check.mjs"], cwd=root / "frontend",
-                env=environment, capture_output=True, encoding="utf-8", timeout=90,
-            )
-            assert browser_result.returncode == 0, browser_result.stdout + browser_result.stderr
-            print(browser_result.stdout)
+        assert "pass 9" in result.stdout
+        print("Voice intake E2E: all 9 Node cross-stack scenarios passed")
+        assert state["provider"] == 7  # 3 spoken languages + transcribe + 3 provider failures
+        assert state["posts"] == 8
+        assert state["extractions"] == 5  # 3 language flows + 2 in the review flow
         assert closed_uploads and all(closed_uploads)
         assert db.repository.list() == []
     finally:

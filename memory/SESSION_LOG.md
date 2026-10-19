@@ -634,3 +634,45 @@ fix."
 - Do not run `next build` while `next dev` is serving the same `.next`
   directory; restart the dev server after a build.
 
+---
+
+## 2026-10-19 — Mode consolidation + bounded submit classification (DEC-041/042)
+
+### Request
+Owner: remove the legacy voice fields and the manual text-filling form from the
+mode that should not own them, and fix anything else in the pipeline. Confirmed
+scope: manual branch becomes text-only; the voice review becomes read-only with
+corrections via the manual form; harden submit-time classification like intake.
+
+### What changed
+- Manual branch: plain text entry only (title, description, image, location,
+  submit). Deleted `VoiceRecorder.tsx`, `TranscriptionChoice.tsx`,
+  `lib/voice/title.ts`, their legacy i18n keys and the 709-line recorder test
+  suite (its 8 capture-lifecycle cases were ported to
+  `voice-capture.test.mjs`); `test:voice` now runs 6 suites.
+- Voice review: read-only title/description plus hidden registered inputs; AI
+  badges kept; the conversation (spoken or "Type instead") is the only text
+  input, and copy points to "Switch to manual form" for wording changes.
+- Cross-stack pytest E2E rebuilt for the intake and made opt-in
+  (`VOICE_E2E=1`) because the in-process uvicorn + Node/jsdom harness proved
+  too heavy for default/constrained runs; it covers 3 language paths, the
+  read-only review, 4 provider-failure modes and transport rejections.
+- `classification.py`: `_groq_complete` uses `max_retries=0`, 8 s per call and a
+  shared 20 s `classification_budget` (wrapped around the submit cascade);
+  `image.py` bounded at 8 s/no retries. New tests cover retries, the timeout
+  kwarg and budget exhaustion.
+
+### Verification
+- `npx tsc --noEmit`, ESLint on touched files, `next build` — clean.
+- `npm run test:voice` **71 passed**; full pytest **511 passed / 32 skipped /
+  23 failed** (baseline unchanged; the 32nd skip is the opt-in E2E). Targeted
+  classification/image suites pass; one imageUrl assertion fails at HEAD too.
+- The heavy E2E was attempted twice and coincided with extension-host restarts;
+  it was not re-run. Do not launch it from the agent terminal.
+
+### Not verified / notes
+- Post-consolidation live browser pass (manual text-only branch, read-only
+  review, switch-to-manual correction) is pending.
+- The opt-in cross-stack E2E needs a standalone terminal or CI run; if it still
+  destabilizes a machine, reduce it to the 3 language scenarios or retire it.
+

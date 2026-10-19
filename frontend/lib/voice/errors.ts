@@ -1,8 +1,8 @@
 import type { MessageKey } from "@/lib/i18n";
 
 /** Map capture/transcription/extraction failures onto citizen-facing copy.
- *  Shared by the single-shot recorder (VoiceRecorder) and the conversational
- *  intake (VoiceIntake) so both surfaces explain errors identically. */
+ *  Shared by the conversational intake and the manual-mode error surfaces so
+ *  every voice failure is explained with the same wording. */
 export function voiceErrorMessage(error: unknown): MessageKey {
   if (error instanceof Error) {
     if (error.name === "NotAllowedError" || error.name === "SecurityError") return "voicePermission";

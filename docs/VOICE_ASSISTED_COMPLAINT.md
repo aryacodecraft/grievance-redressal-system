@@ -1,11 +1,14 @@
 # VOICE_ASSISTED_COMPLAINT.md — Voice-Assisted Complaint Lodging
 
-> Stages 4-13, updated 2026-10-19, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038/DEC-039.
+> Stages 4-14, updated 2026-10-19, DEC-032/DEC-033/DEC-034/DEC-035/DEC-038/
+> DEC-039/DEC-040/DEC-041/DEC-042.
 > Backend and frontend IMPLEMENTED and TESTED with mocks; one user-verified live
 > English smoke test passed, the Stage 12 conversational flow passed a full
 > live typed-path browser E2E (real LLM extraction + real submission
 > `GRV-2026-0015`, 2026-10-18), and Stage 13 question playback was verified live
-> in English and Hindi (2026-10-19). Live spoken Hindi/Marathi STT remain
+> in English and Hindi (2026-10-19). Stage 14 (DEC-041) retires the single-shot
+> recorder surfaces from Stages 1–9: the manual branch is now text-only and the
+> conversational review is read-only. Live spoken Hindi/Marathi STT remain
 > unvalidated; execution results are in memory/CHANGELOG.md. Speech accuracy
 > EXPERIMENTAL, not VALIDATED. Disabled by default, including Render.
 
@@ -27,6 +30,11 @@ original-language Unicode, including Devanagari; no romanization or translation.
 
 ## Citizen workflow — IMPLEMENTED, mock TESTED
 
+> **Historical (Stages 1–9, retired by Stage 14/DEC-041, 2026-10-19):** the
+> single-shot recorder described in this section is no longer rendered. The
+> current workflow is the two-mode intake in Stages 12–14: "Tell us your
+> problem" (conversation) or "Fill the form manually" (plain text entry).
+
 1. Select a language and record up to 30 seconds.
 2. Stop, play back or re-record without contacting Sarvam.
 3. Explicitly click Transcribe; choose Append, Replace or Cancel for a non-empty
@@ -43,6 +51,10 @@ PCM directly. The API helper supports FormData without forcing Content-Type;
 the browser sets the boundary and existing JSON requests keep their JSON header.
 
 ## Manual Input and Voice Transcription — Field Behavior
+
+> **Historical for the retired recorder surface (Stage 14/DEC-041).** The
+> manual branch is now plain text entry; the voice branch owns recording and
+> the conversational review is read-only.
 
 | Situation | Expected behavior |
 | --- | --- |
@@ -296,13 +308,13 @@ check was performed. Handle both exhausted-credit 402 and quota 429, since docs 
 | backend/app/services/sarvam.py | Bounded mockable HTTP request |
 | backend/app/main.py, config.py | Registration/settings |
 | tests/test_transcription*.py, test_audio_validation.py | Mock integration, concurrency, boundaries |
-| frontend/components/grievance/VoiceRecorder.tsx | Accessible recorder/language/playback/transcribe controls |
-| frontend/components/grievance/SubmitForm.tsx | Pre-upload and post-edit confirmation; form insertion/reset |
+| frontend/components/grievance/VoiceIntake.tsx | Conversational panel; spoken question playback, mute/replay, typed fallback; owns the intake hook |
+| frontend/components/grievance/SubmitForm.tsx | Shared draft across modes; text-only manual branch; read-only voice review + photo/location/submit |
 | frontend/lib/voice/{capture,audio}.ts | Capture lifecycle, bounded resampling and WAV encoding |
 | frontend/public/voice-processor.js | AudioWorklet mono capture and frame cap |
-| frontend/lib/api.ts, types.ts | Typed multipart STT, deadline, Zod contract |
+| frontend/lib/api.ts, types.ts | Typed multipart STT, intake extraction, deadline, Zod contract |
 | frontend/lib/i18n/voice.ts | en/hi/mr copy; hidden locale packs use English fallback |
-| frontend/scripts/voice-*.test.mjs, voice-test-loader.mjs | Node mocks, actual React DOM in jsdom |
+| frontend/scripts/voice-*.test.mjs, voice-test-loader.mjs | Node mocks, actual React DOM in jsdom; `voice-e2e.test.mjs` is opt-in (`VOICE_E2E=1`) |
 
 ## Mock-testing instructions
 
@@ -1241,3 +1253,62 @@ during this verification.
   that allow element playback after page interaction.
 - Photo capture is upload-only (no in-browser camera capture); the step is
   optional and never blocks submission.
+
+---
+
+## Stage 14 — Mode consolidation + bounded submit analysis — IMPLEMENTED, TESTED (2026-10-19)
+
+DEC-041/DEC-042. This stage retires the single-shot recorder surface from
+Stages 1–9 and makes each mode own one input method.
+
+### What changed
+
+- **Manual branch = text only.** `SubmitForm.tsx` renders title, description,
+  image, location and submit. `VoiceRecorder.tsx`, `TranscriptionChoice.tsx`,
+  `lib/voice/title.ts`, their i18n keys and the legacy recorder UI suite were
+  removed. The two-mode toggle and the shared react-hook-form draft remain.
+- **Voice review = read-only.** The conversation (spoken or "Type instead") is
+  the only way to shape the title/description. The review displays the captured
+  text, keeps the "AI suggestion" badges and hidden registered inputs for the
+  submit payload, retains the photo step/location/submit, and points to
+  "Switch to manual form" for corrections. Editing there mutates the same draft
+  and the badges clear on the dirty field, as before.
+- **Cross-stack E2E rebuilt around the intake.** The old loopback test drove the
+  recorder that no longer exists. The replacement drives the intake through the
+  real UI and real `/transcribe` (mocked Sarvam) with canned extraction, and is
+  opt-in: `VOICE_E2E=1 pytest tests/test_voice_e2e.py`. The default suite skips
+  it because it starts an in-process uvicorn server plus Node/jsdom; that
+  harness proved too heavy for constrained dev machines.
+- **Bounded submit analysis (DEC-042).** `classification.py` sends every Groq
+  call through `_groq_complete` (`max_retries=0`, 8 s per call); the router wraps
+  category → priority → refinement in a 20 s `classification_budget()`.
+  `image.py` bounds multimodal validation at 8 s with no retries. Exhaustion
+  falls through to the existing HF/keyword/heuristic paths, so a stalled
+  provider cannot hold the submit open for minutes.
+- **Capture tests kept.** The deleted recorder suite also covered
+  `lib/voice/capture.ts`; the lifecycle cases (WAV output, permission denied,
+  missing microphone, unsupported/insecure context, dispose, late permission,
+  30 s auto-stop, processor failure) moved to
+  `frontend/scripts/voice-capture.test.mjs`.
+
+### Verification (2026-10-19)
+
+- `npx tsc --noEmit` clean; ESLint clean on touched files; `next build` green.
+- `npm run test:voice` **71 passed** — audio, capture, API, speech, intake
+  logic and intake UI; the recorder-only tests were deleted with the surface.
+- Full pytest **511 passed / 32 skipped / 23 failed**: the 23 failures are the
+  documented DEC-006 baseline; the 32nd skip is the opt-in E2E. New backend
+  tests assert `max_retries=0`, the per-call timeout and budget exhaustion.
+- Not run: the opt-in cross-stack E2E and a live post-consolidation browser
+  pass. Do not launch the E2E from the agent terminal — its uvicorn + Node
+  harness coincided with extension-host restarts on the owner's machine.
+
+### Known limitations
+
+- Correcting voice-captured text requires switching to the manual form; the
+  conversation cannot be resumed after the review appears.
+- The read-only review means a citizen who misses a wrong extraction must notice
+  the "Switch to manual form" affordance; the hint copy calls this out in
+  en/hi/mr.
+- The opt-in E2E is not part of default CI, so the real-HTTP intake path is
+  verified only when someone runs it explicitly.

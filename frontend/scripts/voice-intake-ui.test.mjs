@@ -169,7 +169,7 @@ async function typedAnswer(text) {
 const badgeCount = () => (container.textContent.match(/AI suggestion/g) ?? []).length;
 const suggestValue = () => container.querySelector("[data-suggest]")?.getAttribute("data-suggest") ?? null;
 
-test("typed description asks for the missing location, then reviews, edits and submits", async () => {
+test("typed description asks for the missing location, then reviews and submits the captured text", async () => {
   await mount();
   assert.ok(button("Fill the form manually"), "manual mode is the default branch");
 
@@ -192,14 +192,16 @@ test("typed description asks for the missing location, then reviews, edits and s
   assert.deepEqual(apiCalls.extract[1][0].asked_questions, ["location"], "the API receives kinds, not wording");
 
   assert.match(container.textContent, /Review your complaint/);
-  assert.equal(container.querySelector("input").value, extractionFull.title);
-  assert.equal(container.querySelector("textarea").value, extractionFull.description);
+  const hidden = [...container.querySelectorAll('input[type="hidden"]')];
+  assert.equal(hidden.length, 2, "title and description ride along as hidden form values");
+  assert.equal(hidden[0].value, extractionFull.title);
+  assert.equal(hidden[1].value, extractionFull.description);
+  assert.ok(container.textContent.includes(extractionFull.title), "the review displays the captured title");
+  assert.ok(container.textContent.includes(extractionFull.description), "the review displays the captured description");
+  assert.equal(container.querySelector("textarea"), null, "the voice review has no editable description");
+  assert.equal(container.querySelector('input:not([type="hidden"])'), null, "the voice review has no editable text fields");
   assert.equal(suggestValue(), extractionFull.location_text, "voice location seeds the search box only");
   assert.equal(badgeCount(), 2, "both AI-filled fields are labelled");
-
-  const edited = "The streetlight is still dark and children cannot walk past it safely at night.";
-  await setNativeValue(container.querySelector("textarea"), edited);
-  assert.equal(badgeCount(), 1, "editing a field removes its AI badge");
 
   await click("Mock location");
   const submit = container.querySelector('button[type="submit"]');
@@ -209,10 +211,33 @@ test("typed description asks for the missing location, then reviews, edits and s
   assert.equal(apiCalls.submit.length, 1);
   const payload = apiCalls.submit[0][0];
   assert.equal(payload.title, extractionFull.title);
-  assert.equal(payload.description, edited, "the citizen's edit is what gets submitted");
+  assert.equal(payload.description, extractionFull.description, "the conversation text is what gets submitted");
   assert.equal(payload.latitude, 28.7);
   assert.equal(payload.userId, "mock-citizen");
   assert.doesNotMatch(container.textContent, /Review your complaint/, "successful submission resets the conversation");
+});
+
+test("voice review text is corrected by switching to the manual form, not by typing in the review", async () => {
+  await mount();
+  await click("Tell us your problem");
+  await typedAnswer("The streetlight outside my house has been dark for three days.");
+  await typedAnswer("Near the park gate");
+  assert.match(container.textContent, /Review your complaint/);
+
+  await click("Switch to manual form");
+  assert.equal(container.querySelector('input:not([type="hidden"])').value, extractionFull.title, "the manual form receives the AI draft");
+  assert.equal(container.querySelector("textarea").value, extractionFull.description);
+
+  const edited = "The streetlight is still dark and children cannot walk past it safely at night.";
+  await setNativeValue(container.querySelector("textarea"), edited);
+  assert.equal(container.querySelector("textarea").value, edited, "manual text filling is the way to fix the wording");
+
+  await click("Mock location");
+  const submit = container.querySelector('button[type="submit"]');
+  await act(async () => submit.click());
+  await settle();
+  assert.equal(apiCalls.submit.length, 1);
+  assert.equal(apiCalls.submit[0][0].description, edited, "the citizen's edit is what gets submitted");
 });
 
 test("voice recording uses the spoken language and answers the question by voice", async () => {

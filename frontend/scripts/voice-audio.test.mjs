@@ -7,55 +7,6 @@ import { spawnSync } from "node:child_process";
 import { sourceLoader, frontendRoot } from "./voice-test-loader.mjs";
 
 const { encodeWav, resampleMono } = sourceLoader()("lib/voice/audio.ts");
-const { suggestVoiceTitle } = sourceLoader()("lib/voice/title.ts");
-
-for (const [text, expected] of [
-  ["Hello! Um. Water supply is not working. Please help.", "Water supply is not working"],
-  ["Hi, street lights are broken!", "street lights are broken"],
-  ["नमस्ते। पानी की आपूर्ति नहीं हो रही है।", "पानी की आपूर्ति नहीं हो रही है"],
-  ["नमस्कार! रस्त्यावरील दिवे चालू नाहीत।", "रस्त्यावरील दिवे चालू नाहीत"],
-  ["  Garbage\n collection\t has stopped? Please help!", "Garbage collection has stopped"],
-  ["I have a complaint. Water is leaking at sector 2.5.", "Water is leaking at sector 2.5"],
-  ["", null], ["Hello! धन्यवाद। Please help.", null], ["पाणी", null],
-]) {
-  test(`extractive title: ${JSON.stringify(text)}`, () => assert.equal(suggestVoiceTitle(text), expected));
-}
-test("long clauses abstain instead of losing issue details or splitting graphemes", () => {
-  for (const text of ["The broken road surface near the local bus station causes travel difficulties for residents every single morning",
-    "आमच्या परिसरातील रस्त्यावर मोठमोठे खड्डे पडल्यामुळे वाहनचालकांना आणि पादचाऱ्यांना दररोज प्रवास करताना अडचणी येत आहेत आणि दुरुस्तीची आवश्यकता आहे"]) {
-    assert.equal(suggestVoiceTitle(text), null);
-  }
-});
-// Representative fixture for the reported live street-light issue, not a stored live transcript.
-for (const [text, expected] of [
-  ["There is a broken street light near my house.", "broken street light near my house"],
-  ["I want to report that two street lights near Gate 3 are not working.", "two street lights near Gate 3 are not working"],
-  ["I would like to report water leaking at sector 2.5! Please help.", "water leaking at sector 2.5"],
-  ["Hello, there is no water supply in Sector 4.", "no water supply in Sector 4"],
-  ["There are 3 broken street lights on MG Road.", "3 broken street lights on MG Road"],
-  ["There are a few broken street lights on MG Road.", "a few broken street lights on MG Road"],
-  ["There is a little water in Sector 4.", "a little water in Sector 4"],
-  ["मैं बताना चाहता हूँ कि सेक्टर २.५ में दो दिवे बंद हैं।", "सेक्टर २.५ में दो दिवे बंद हैं"],
-  ["मैं बताना चाहती हूँ कि सेक्टर ५ में दो स्ट्रीट लाइट नहीं जल रही हैं।", "सेक्टर ५ में दो स्ट्रीट लाइट नहीं जल रही हैं"],
-  ["मला सांगायचे आहे की आमच्या गल्लीत तीन दिवे चालू नाहीत।", "आमच्या गल्लीत तीन दिवे चालू नाहीत"],
-  ["मला तक्रार करायची आहे की आमच्या रस्त्यावर खड्डे आहेत.", "आमच्या रस्त्यावर खड्डे आहेत"],
-  ["I do not want to report a broken street light.", "I do not want to report a broken street light"],
-  ["I want to report hi.", null],
-  ["There is a broken street light near the bridge beside the old school building at Gate 7.", null],
-]) test(`safe introductory trimming: ${JSON.stringify(text)}`, () => assert.equal(suggestVoiceTitle(text), expected));
-test("long negated clauses abstain rather than drop or change negation", () => {
-  for (const negative of ["not", "isn’t", "नहीं", "नाही", "नसल्यामुळे"]) {
-    assert.equal(suggestVoiceTitle(`The local water supply ${"additional details ".repeat(12)}${negative} working`), null);
-  }
-});
-test("oversized single words are never split", () => {
-  assert.equal(suggestVoiceTitle("क्ष".repeat(100) + " खराब आहे"), null);
-});
-test("missing grapheme segmentation abstains safely", () => {
-  const original = Intl.Segmenter;
-  try { Intl.Segmenter = undefined; assert.equal(suggestVoiceTitle("Water supply is not working"), null); }
-  finally { Intl.Segmenter = original; }
-});
 
 test("WAV headers and little-endian signed PCM", () => {
   const wav = encodeWav(new Float32Array([-1, 0, 1, 2, NaN]));

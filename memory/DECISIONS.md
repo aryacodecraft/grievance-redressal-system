@@ -1943,3 +1943,91 @@ SDK retries disabled; cascade stops at the total budget); live extraction
 
 **Reversible:** the timeout constants and `max_retries` setting live only in
 `grievance_intake.py`; reverting the commit restores the previous behavior.
+
+---
+
+## DEC-041 — Manual and Voice Modes Are Single-Purpose (2026-10-19)
+
+**Context:** `/submit` had two overlapping text-entry surfaces. The "Fill the
+form manually" branch still carried the Stage 1–9 single-shot recorder
+(`VoiceRecorder` + `TranscriptionChoice` + local title suggestion) even though
+the conversational intake (DEC-038/039) now owns voice assistance. The voice
+review also rendered editable title/description inputs, duplicating the manual
+form inside the voice flow.
+
+**Decision:** separate the modes by input method and keep one shared draft.
+
+- The manual branch is plain text entry only: title, description, optional
+  photo, location, submit. The legacy recorder, its append/replace/cancel
+  confirmation dialog, title suggestion and their i18n/test assets are retired.
+- The voice branch shapes the text only through the conversation (spoken or
+  "Type instead"). Its review renders the captured title/description as
+  read-only text, keeps the "AI suggestion" badges and hidden form payload
+  inputs, and retains the photo step, location capture and explicit submit.
+  Corrections go through "Switch to manual form", which edits the same
+  react-hook-form draft and then submits normally.
+- The cross-stack E2E is rebuilt around the intake (real UI → real `/transcribe`
+  → mocked Sarvam → canned extraction) and made opt-in (`VOICE_E2E=1`) because
+  its in-process uvicorn + Node/jsdom harness is too heavy for the default
+  suite and constrained dev machines.
+
+**Alternatives rejected:** keeping the mic in the manual form (two voice
+surfaces, duplicate consent/recording UX); a fully read-only voice review with
+no edit path (citizens could not correct AI wording); removing the manual form
+(typing remains a required accessible fallback); keeping the deleted recorder
+tests (they assert a UI that no longer exists).
+
+**HITL:** unchanged and explicit — AI text is labelled, the citizen reviews it,
+and submission remains a human action. The manual form is the correction
+surface, so AI text never becomes an uneditable final decision.
+
+**Verification (2026-10-19):** `npx tsc --noEmit` clean; ESLint clean on touched
+files; `next build` green; `npm run test:voice` **71 passed** (the legacy recorder
+UI suite was removed and the 8 capture-lifecycle tests were ported to
+`voice-capture.test.mjs`; intake/speech/audio/API coverage retained); full
+pytest **511 passed / 32 skipped / 23 failed** (documented DEC-006 baseline;
+the opt-in E2E is the extra skip). Live post-consolidation browser check not
+run.
+
+**Reversible:** the removed components are recoverable from git history; the
+review fields can be made editable again in `SubmitForm.tsx` without backend
+changes.
+
+---
+
+## DEC-042 — Bound Submit-Path Groq Latency (2026-10-19)
+
+**Context:** `POST /submit-grievance` runs up to four Groq calls inline while
+the citizen waits: category classification, priority classification,
+refinement, and image validation when a photo is attached. None had an explicit
+timeout, and the Groq SDK retries twice by default, so a stalled or
+rate-limited provider could occupy a submit for minutes — the same failure
+mode DEC-040 fixed for intake.
+
+**Decision:** treat submit-path provider calls as a bounded resource.
+
+- `classification.py` owns a single bounded helper (`_groq_complete`):
+  `client.with_options(max_retries=0)`, an 8 s per-call timeout, and a 20 s
+  shared budget per classification pass via `classification_budget()`
+  (context variable; the router wraps category → priority → refinement).
+  Budget exhaustion or a provider failure returns `None`, so the cascade falls
+  through to HuggingFace/keywords instead of hanging.
+- `image.py` bounds multimodal validation the same way (8 s, no SDK retries);
+  its existing heuristic fallback remains the failure path.
+- Timeouts are deliberately small because these calls only enrich the stored
+  analysis; the grievance must still be accepted quickly.
+
+**Alternatives rejected:** the intake's 10 s/25 s per-call shape (three
+sequential calls would allow ~75 s); racing models in parallel (extra provider
+cost for a rare outage); moving classification to a background job (changes the
+submit API contract and the frontend's immediate analysis panel).
+
+**Verification (2026-10-19):** `tests/test_classification_cascade.py` and
+`tests/test_classification.py` pass, including new tests that assert
+`max_retries=0`, the per-call `timeout` kwarg, and that a spent budget skips the
+Groq call; full pytest **511 passed / 32 skipped / 23 failed** (baseline only).
+Live submit latency after the change not re-measured.
+
+**Reversible:** constants and the budget helper live in `classification.py`
+(`GROQ_CALL_TIMEOUT_SECONDS`, `GROQ_TOTAL_BUDGET_SECONDS`) and `image.py`
+(`IMAGE_LLM_TIMEOUT_SECONDS`).
