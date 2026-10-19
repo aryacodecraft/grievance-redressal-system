@@ -29,6 +29,7 @@ from ..services.classification import (
     PRIORITY_MODEL,
     classify_category,
     classify_priority,
+    classification_budget,
     extract_keywords,
     find_urgent_matches,
     infer_category_from_keywords,
@@ -96,39 +97,41 @@ def submit_grievance(
                 },
             )
 
-    # 2. Classification cascade (HF → Groq → keywords)
+    # 2. Classification cascade (HF → Groq → keywords). The budget bounds the
+    # combined Groq time for this request; deterministic steps still run.
     full_text = f"{title}\n{description}"
-    try:
-        cat_res = classify_category(full_text)
-    except Exception:
-        logger.exception("category classification failed")
-        cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
-    try:
-        pri_res = classify_priority(full_text)
-    except Exception:
-        logger.exception("priority classification failed")
-        pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
+    with classification_budget():
+        try:
+            cat_res = classify_category(full_text)
+        except Exception:
+            logger.exception("category classification failed")
+            cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
+        try:
+            pri_res = classify_priority(full_text)
+        except Exception:
+            logger.exception("priority classification failed")
+            pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
 
-    hf_priority = pri_res.get("priority", "low")
-    sentiment_raw = pri_res.get("sentiment", "neutral")
-    sentiment_score = pri_res.get("sentimentScore", 0.0)
-    urgent_matches = find_urgent_matches(full_text)
+        hf_priority = pri_res.get("priority", "low")
+        sentiment_raw = pri_res.get("sentiment", "neutral")
+        sentiment_score = pri_res.get("sentimentScore", 0.0)
+        urgent_matches = find_urgent_matches(full_text)
 
-    hf_category = cat_res.get("category", "other")
-    keyword_category = infer_category_from_keywords(full_text)
-    if keyword_category:
-        hf_category = keyword_category
+        hf_category = cat_res.get("category", "other")
+        keyword_category = infer_category_from_keywords(full_text)
+        if keyword_category:
+            hf_category = keyword_category
 
-    if hf_category == "sanitation" and hf_priority == "low":
-        hf_priority = "medium"
+        if hf_category == "sanitation" and hf_priority == "low":
+            hf_priority = "medium"
 
-    hf_raw_label = cat_res.get("rawLabel", "")
-    keywords = extract_keywords(full_text)
+        hf_raw_label = cat_res.get("rawLabel", "")
+        keywords = extract_keywords(full_text)
 
-    try:
-        groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
-    except Exception:
-        groq_res = None
+        try:
+            groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
+        except Exception:
+            groq_res = None
 
     if groq_res:
         priority = groq_res.get("priority", hf_priority)

@@ -8,15 +8,67 @@ runs only when the previous one returns None/other or low confidence.
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import re
+import time
+from contextlib import contextmanager
 
 import requests
 
 from ..config import GROQ_MODEL, HF_API_TOKEN, HF_BASE_URL, get_groq_client
 
 logger = logging.getLogger("grievance-api")
+
+# Hard latency bound for every Groq call in the submit path. These calls run
+# inline while the citizen waits, and the SDK's default retries could multiply
+# a stalled provider into minutes. `classification_budget` caps their combined
+# time for one classification pass (category → priority → refinement).
+GROQ_CALL_TIMEOUT_SECONDS = 8.0
+GROQ_TOTAL_BUDGET_SECONDS = 20.0
+_groq_deadline: contextvars.ContextVar[float] = contextvars.ContextVar(
+    "groq_deadline", default=0.0
+)
+
+
+@contextmanager
+def classification_budget(seconds: float = GROQ_TOTAL_BUDGET_SECONDS):
+    """Bound the combined wall time of Groq calls made inside the block."""
+    token = _groq_deadline.set(time.monotonic() + seconds)
+    try:
+        yield
+    finally:
+        _groq_deadline.reset(token)
+
+
+def _groq_complete(prompt: str, max_tokens: int) -> str | None:
+    """One bounded Groq completion: no SDK retries, per-call timeout.
+
+    Returns None (instead of raising) when the client is unconfigured, the
+    shared budget is exhausted, or the provider fails — every caller treats
+    None as "fall through to the next cascade step".
+    """
+    client = get_groq_client()
+    if not client:
+        return None
+    deadline = _groq_deadline.get()
+    remaining = (
+        deadline - time.monotonic() if deadline else GROQ_CALL_TIMEOUT_SECONDS
+    )
+    if remaining <= 1.0:
+        logger.warning("Groq budget exhausted; skipping classification call")
+        return None
+    bounded = client.with_options(max_retries=0)
+    res = bounded.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0,
+        max_tokens=max_tokens,
+        timeout=min(GROQ_CALL_TIMEOUT_SECONDS, remaining),
+    )
+    return res.choices[0].message.content
+
 
 # ---------------------------------------------------------------------------
 # Lazy ML model singleton (GrievanceModel + predict_with_fallback from main).
@@ -301,9 +353,6 @@ def _classify_with_hf(text: str) -> dict | None:
 
 
 def _classify_with_groq_category(text: str) -> dict | None:
-    groq_client = get_groq_client()
-    if not groq_client:
-        return None
     prompt = (
         "You are an expert civic grievance classifier.\n"
         "Classify the grievance into exactly one of the allowed categories.\n\n"
@@ -323,14 +372,10 @@ def _classify_with_groq_category(text: str) -> dict | None:
         '  "reason": "short explanation"\n}\n'
     )
     try:
-        res = groq_client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=150,
-        )
-        raw = res.choices[0].message.content.strip()
-        parsed = _extract_json(raw)
+        raw = _groq_complete(prompt, max_tokens=150)
+        if raw is None:
+            return None
+        parsed = _extract_json(raw.strip())
         if parsed and "category" in parsed:
             cat_key = str(parsed.get("category")).lower().strip()
             if cat_key in CATEGORY_KEYS:
@@ -432,9 +477,6 @@ def _analyse_sentiment(text: str) -> tuple[str, float]:
 
 
 def _classify_priority_with_groq(text: str) -> str | None:
-    groq_client = get_groq_client()
-    if not groq_client:
-        return None
     prompt = (
         "You are an expert civic grievance classifier.\n"
         "Classify the grievance priority.\n\n"
@@ -448,14 +490,10 @@ def _classify_priority_with_groq(text: str) -> str | None:
         '{\n  "priority": "high|medium|low",\n  "reason": "short explanation"\n}\n'
     )
     try:
-        res = groq_client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=150,
-        )
-        raw = res.choices[0].message.content.strip()
-        parsed = _extract_json(raw)
+        raw = _groq_complete(prompt, max_tokens=150)
+        if raw is None:
+            return None
+        parsed = _extract_json(raw.strip())
         if parsed and "priority" in parsed:
             p = str(parsed.get("priority")).lower().strip()
             if p in ("high", "medium", "low"):
@@ -490,8 +528,7 @@ def classify_priority(text: str) -> dict:
 def refine_with_groq(
     text: str, hf_category: str, hf_priority: str, hf_raw_label: str
 ) -> dict | None:
-    groq_client = get_groq_client()
-    if not groq_client:
+    if not get_groq_client():
         logger.warning("Groq client not initialized; skipping refinement.")
         return None
 
@@ -512,14 +549,10 @@ def refine_with_groq(
     )
 
     try:
-        res = groq_client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=300,
-        )
-        raw = res.choices[0].message.content.strip()
-        parsed = _extract_json(raw)
+        raw = _groq_complete(prompt, max_tokens=300)
+        if raw is None:
+            return None
+        parsed = _extract_json(raw.strip())
         if parsed and "category" in parsed and "priority" in parsed:
             if parsed.get("category") not in CATEGORY_KEYS:
                 parsed["category"] = hf_category

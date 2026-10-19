@@ -173,6 +173,9 @@ def test_refine_returns_a_dict_when_the_model_answers(monkeypatch):
         choices = [_Choice()]
 
     class _Client:
+        def with_options(self, **_kwargs):
+            return self
+
         class chat:
             class completions:
                 @staticmethod
@@ -188,9 +191,72 @@ def test_refine_returns_a_dict_when_the_model_answers(monkeypatch):
     )
 
     result = clf.refine_with_groq("pipe leak", "other", "low", "Other")
-    if result:  # only assert the shape if the patch actually took
-        assert result["category"] in {"water", "other"}
-        assert result["priority"] in {"low", "medium", "high"}
+    assert result
+    assert result["category"] in {"water", "other"}
+    assert result["priority"] in {"low", "medium", "high"}
+
+
+def test_groq_completion_is_bounded_and_retry_free(monkeypatch):
+    """Submit-path Groq calls must not let the SDK retry a stalled provider."""
+    calls = {}
+
+    class _Choice:
+        message = type("M", (), {"content": '{"category":"water"}'})()
+
+    class _Resp:
+        choices = [_Choice()]
+
+    class _Client:
+        def with_options(self, **kwargs):
+            calls["options"] = kwargs
+            return self
+
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    calls["create"] = kwargs
+                    return _Resp()
+
+    monkeypatch.setattr(
+        "backend.app.services.classification.get_groq_client",
+        lambda: _Client(),
+        raising=False,
+    )
+
+    raw = clf._groq_complete("prompt", max_tokens=42)
+
+    assert raw == '{"category":"water"}'
+    assert calls["options"] == {"max_retries": 0}
+    assert calls["create"]["timeout"] == clf.GROQ_CALL_TIMEOUT_SECONDS
+    assert calls["create"]["max_tokens"] == 42
+
+
+def test_classification_budget_skips_groq_calls_once_spent(monkeypatch):
+    """A spent shared budget falls through to keywords instead of calling Groq."""
+    calls = []
+
+    class _Client:
+        def with_options(self, **_kwargs):
+            return self
+
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**kwargs):
+                    calls.append(kwargs)
+                    raise AssertionError("Groq must not be called once the budget is spent")
+
+    monkeypatch.setattr(
+        "backend.app.services.classification.get_groq_client",
+        lambda: _Client(),
+        raising=False,
+    )
+
+    with clf.classification_budget(seconds=0):
+        assert clf._groq_complete("prompt", max_tokens=10) is None
+
+    assert calls == []
 
 
 # ── Submit-time behaviour (the contract the frontend renders) ───────────────

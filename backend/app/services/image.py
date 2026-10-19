@@ -13,6 +13,10 @@ from ..config import IMAGE_LLM_THRESHOLD, LLAVA_MODEL, get_groq_client
 
 logger = logging.getLogger("grievance-api")
 
+# Image validation runs inline during submit, before the grievance is stored.
+# Bound it like the classification calls: no SDK retries, hard per-call limit.
+IMAGE_LLM_TIMEOUT_SECONDS = 8.0
+
 
 def compute_image_quality_score(pil_img: Image.Image) -> dict:
     img = pil_img.convert("RGB")
@@ -75,7 +79,7 @@ def llm_image_confidence(image_url: str) -> dict:
     groq_client = get_groq_client()
     if groq_client:
         try:
-            res = groq_client.chat.completions.create(
+            res = groq_client.with_options(max_retries=0).chat.completions.create(
                 model=LLAVA_MODEL,
                 messages=[
                     {
@@ -114,6 +118,7 @@ def llm_image_confidence(image_url: str) -> dict:
                 ],
                 temperature=0.0,
                 max_tokens=500,
+                timeout=IMAGE_LLM_TIMEOUT_SECONDS,
             )
 
             try:
