@@ -9,6 +9,17 @@
 
 ---
 
+## 2026-10-20 — Voice Intake Subsequent Recording Capture Fix (DEC-053)
+
+- `VoiceCapture.ts`: Added explicit `await context.resume()` check right after connecting the audio graph (`source -> worklet -> mute -> destination`) and before posting `"start"`. Resolves the issue where asynchronous operations (`getUserMedia`, `addModule`) caused browsers to leave the audio context in `"suspended"` state, preventing the worklet from receiving audio samples.
+- `speech.ts`: In `SpeechPlayer.stopCurrent()`, suspended the player's `AudioContext` when idle to prevent audio output hardware conflicts from stalling the recording context on secondary recordings.
+- `VoiceIntake.tsx`:
+  - Null out `capture.current` when the active session stops, fails, or completes in `finish()`.
+  - Properly dispose orphaned sessions and clear `capture.current` and `busy.current` if `epoch.current !== generation` inside `start()`.
+- `voice-processor.js`: Removed `if (!this.recording) return;` guard from `finish()` so the worklet always flushes and posts `{ type: "complete" }` even if recording had already stopped.
+- `scripts/voice-capture.test.mjs`: Added regression test verifying sequential sessions (Session 1 stop -> Session 2 start -> stop) record audio and release hardware without errors.
+- Verification: `npm run test:voice` 80 passed, `npx tsc --noEmit` 0 errors, `check-contract.mjs` passed (21 checks), Next.js build passed (20/20 routes).
+
 ## 2026-10-20 — Superadmin 2FA Exemption (DEC-052)
 
 - `backend/app/routers/auth.py`: In `_face_step_required`, added an explicit exemption for `SUPERADMIN` accounts (`if user.get("role") == "SUPERADMIN": return False`), ensuring superadmin logins never pause for 2FA verification.

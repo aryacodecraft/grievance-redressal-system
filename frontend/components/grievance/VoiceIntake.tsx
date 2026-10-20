@@ -266,15 +266,18 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
     clearInterval(ticker.current);
     try {
       const blob = await session.stop();
+      if (capture.current === session) capture.current = null;
       if (epoch.current !== generation) return;
       audio.current = blob;
       setLevel(0);
       dispatch({ type: "RECORDING_STOPPED" });
       await transcribeAndExtract(blob, generation, state.utterances);
     } catch (cause) {
+      if (capture.current === session) capture.current = null;
       if (epoch.current !== generation) return;
       dispatch({ type: "FAILED", step: "transcribe", errorKey: voiceErrorMessage(cause) });
     } finally {
+      if (capture.current === session) capture.current = null;
       if (epoch.current === generation) {
         stopping.current = false;
         busy.current = false;
@@ -333,7 +336,12 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
     capture.current = session;
     try {
       await session.start();
-      if (epoch.current !== generation) return;
+      if (epoch.current !== generation) {
+        session.dispose();
+        if (capture.current === session) capture.current = null;
+        busy.current = false;
+        return;
+      }
       const started = performance.now();
       setSeconds(0);
       ticker.current = setInterval(() => setSeconds(Math.min(30, Math.floor((performance.now() - started) / 1000))), 250);

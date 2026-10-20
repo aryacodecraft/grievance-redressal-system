@@ -2443,5 +2443,42 @@ The project owner requested:
 
 **Reversible:** Remove the `user.get("role") == "SUPERADMIN"` check to re-enable optional 2FA for superadmin.
 
+---
+
+## DEC-053 — Voice Intake Subsequent Recording Capture Fix (2026-10-20)
+
+**Context:**
+During conversational voice intake, after the initial recording and assistant follow-up question, tapping "Answer by voice" for subsequent recordings failed with:
+`"No audio was captured. Record again and speak into the microphone"` (`voiceEmpty` error) across all supported languages (English, Hindi, Marathi).
+
+**Root Cause:**
+1. In `VoiceCapture.start()`, `context.resume()` was called before the asynchronous `getUserMedia` and `addModule` operations. Once the node graph was connected, if `context.state` was suspended (due to autoplay policies or device switching after the first session closed), `process()` on `AudioWorkletNode` was never called, leading to 0 samples recorded.
+2. In `SpeechPlayer.stopCurrent()`, the audio player left its own `AudioContext` running, causing device arbitration conflicts with the freshly initialized `VoiceCapture` context on some browsers and platforms.
+3. In `VoiceIntake.tsx`, `capture.current` was never cleared in `finish()` or in `start()` upon epoch mismatch, leaving a stale reference to the disposed prior session.
+4. In `voice-processor.js`, `finish()` returned early if `!this.recording`, risking missed `complete` handshake signals if stop was requested when recording had already ceased.
+
+**Decision:**
+1. **Context Resume Post-Graph Connection (`frontend/lib/voice/capture.ts`)**:
+   - Check `context.state !== "running"` and explicitly call `await context.resume()` immediately after connecting `source -> worklet -> mute -> destination` right before posting `"start"`.
+2. **Audio Player Context Suspension (`frontend/lib/voice/speech.ts`)**:
+   - Suspend the `SpeechPlayer` audio context on `stopCurrent()` when not actively playing audio to release the audio output device cleanly.
+3. **Session Lifecycle & Stale Reference Cleanup (`frontend/components/grievance/VoiceIntake.tsx`)**:
+   - Null out `capture.current` when the active session stops, fails, or completes in `finish()`.
+   - Properly dispose of orphaned sessions and clear `capture.current` and `busy.current` if `epoch.current !== generation` inside `start()`.
+4. **Reliable Worklet Complete Post (`frontend/public/voice-processor.js`)**:
+   - Ensure `finish()` in the AudioWorklet processor always flushes and posts `{ type: "complete" }` even if `this.recording` was already false.
+5. **Regression Test (`frontend/scripts/voice-capture.test.mjs`)**:
+   - Added sequential session recording test verifying that two consecutive start -> stop sessions capture audio, resample, and clean up hardware contexts without error.
+
+**Verification:**
+- `cd frontend && npm run test:voice`: 80 passed (0 failed).
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run build`: 20/20 static pages compiled cleanly.
+- `pytest tests/test_voice_intake.py`: 28 passed.
+
+**Reversible:** Revert the modified context resume and lifecycle guards if needed.
+
+
 
 

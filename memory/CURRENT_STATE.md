@@ -118,8 +118,8 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Test suites** — full pytest (2026-10-20): 516 passed / 32 skipped / 22
   failed = the documented pre-existing baseline (2026-10-19 was 511/32/23; the
   23rd was the local `.env` face-challenge leak, now pinned in conftest).
-  Includes 3 new prepare-model tests; contract suite 18 checks; voice node
-  suites 79 tests (DEC-041/043/044); intake backend suite 28 tests;
+  Includes 3 new prepare-model tests; contract suite 21 checks; voice node
+  suites 80 tests (DEC-041/043/044/053); intake backend suite 28 tests;
   classification latency tests added (DEC-042).
 
 ---

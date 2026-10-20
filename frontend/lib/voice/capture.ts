@@ -90,6 +90,13 @@ export class VoiceCapture {
       stream.getAudioTracks().forEach((track) => { track.onended = fail; });
       this.source.connect(this.worklet);
       this.worklet.connect(this.mute).connect(context.destination);
+      if (context.state !== "running") {
+        try {
+          await context.resume();
+        } catch {
+          // Handled downstream if resume fails
+        }
+      }
       this.worklet.port.postMessage("start");
       this.timer = setTimeout(() => this.requestStop(), VOICE_MAX_SECONDS * 1000);
     } catch (error) {

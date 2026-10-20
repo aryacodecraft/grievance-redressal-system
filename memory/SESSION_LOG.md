@@ -1018,5 +1018,34 @@ Owner: remove 2fa from superadmin.
 - `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
 - Memory updated: DEC-052, CURRENT_STATE.md, CHANGELOG.md, this log.
 
+---
+
+## 2026-10-20 — Voice Intake Subsequent Recording Capture Fix (DEC-053)
+
+### Request
+Owner: "in any langauge the 2nd voice recording is not being captureed: No audio was captured. Record again and speak into the microphon"
+
+### What changed
+- `capture.ts`:
+  - Added explicit check and resume on `this.context.state !== "running"` right after connecting the audio graph (`source -> worklet -> mute -> destination`) and before posting `"start"`. Resolves the issue where asynchronous operations (`getUserMedia`, `addModule`) caused browsers to leave the audio context in `"suspended"` state, preventing the worklet from receiving audio samples.
+- `speech.ts`:
+  - In `SpeechPlayer.stopCurrent()`, suspended the player's `AudioContext` when idle to prevent audio output hardware conflicts from stalling the recording context on secondary recordings.
+- `VoiceIntake.tsx`:
+  - Null out `capture.current` when the active session stops, fails, or completes in `finish()`.
+  - Properly dispose orphaned sessions and clear `capture.current` and `busy.current` if `epoch.current !== generation` inside `start()`.
+- `voice-processor.js`:
+  - Removed `if (!this.recording) return;` guard from `finish()` so the worklet always flushes and posts `{ type: "complete" }` even if recording had already stopped.
+- `scripts/voice-capture.test.mjs`:
+  - Added regression test verifying sequential sessions (Session 1 stop -> Session 2 start -> stop) record audio and release hardware without errors.
+
+### Verification
+- `npm run test:voice`: 80 passed (0 failures).
+- `npx tsc --noEmit`: 0 errors.
+- `node scripts/check-contract.mjs`: passed (21 checks green).
+- `npm run build`: passed (20/20 static pages generated).
+- Pytest `test_voice_intake.py`: 28 passed.
+- Memory updated: DEC-053, CHANGELOG.md, CURRENT_STATE.md, this log.
+
+
 
 

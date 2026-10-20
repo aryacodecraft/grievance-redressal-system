@@ -89,6 +89,25 @@ test("start → stop returns a 16 kHz mono WAV and releases hardware", async () 
   assert.ok(worklets.every((node) => node.port.closed));
 });
 
+test("sequential recording sessions (session 1 stop -> session 2 start -> stop) succeed cleanly", async () => {
+  let completed = 0;
+  const errors = [];
+  const capture1 = new VoiceCapture(() => { completed += 1; }, (error) => errors.push(error));
+  await capture1.start();
+  const blob1 = await capture1.stop();
+  assert.equal(completed, 1);
+  assert.equal(contexts[0].state, "closed");
+
+  const capture2 = new VoiceCapture(() => { completed += 1; }, (error) => errors.push(error));
+  await capture2.start();
+  assert.equal(contexts[1].state, "running");
+  const blob2 = await capture2.stop();
+  assert.equal(completed, 2);
+  assert.equal(contexts[1].state, "closed");
+  assert.ok(blob1.size > 0 && blob2.size > 0);
+  assert.deepEqual(errors, []);
+});
+
 test("permission denied closes the context and surfaces the DOMException", async () => {
   navigator.mediaDevices.getUserMedia = async () => { throw new DOMException("denied", "NotAllowedError"); };
   const capture = new VoiceCapture(() => assert.fail("must not complete"), () => {});

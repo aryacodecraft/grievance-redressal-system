@@ -19,7 +19,6 @@ class VoiceProcessor extends AudioWorkletProcessor {
     this.used = 0;
   }
   finish() {
-    if (!this.recording) return;
     this.recording = false;
     this.flush();
     this.port.postMessage({ type: "complete" });
