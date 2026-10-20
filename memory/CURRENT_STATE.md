@@ -105,8 +105,8 @@ only — humans retain assignment, escalation, resolution and closure authority
   recognition only) into `FACE_MODEL_ROOT`; `FACE_ORT_THREADS=1` for the free
   instance. Twilio demo uses the Trial US sender/international route
   (verified number only) and the OTP text is rebranded to SAMARTH. Code,
-  config, docs and tests IMPLEMENTED; live Render Twilio OTP + face 2FA/citizen
-  login pending owner verification (§5).
+  config, docs and tests IMPLEMENTED (commit `dd6dbea`); live Render Twilio OTP
+  + face 2FA/citizen login pending owner verification (§5).
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
 - **Test suites** — full pytest (2026-10-20): 516 passed / 32 skipped / 22

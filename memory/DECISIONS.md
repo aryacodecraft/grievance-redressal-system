@@ -2228,7 +2228,8 @@ first; reuse the local key; change OTP branding to SAMARTH before DLT.
   machine (not Render).
 - `render.yaml` parsed successfully (43 env entries, no duplicate keys).
 - Live Render Twilio OTP and face 2FA/citizen login: pending owner/dashboard
-  verification; not claimed working.
+  verification; not claimed working. Commit `dd6dbea` pushed to `origin/main`;
+  the Render deploy is pending.
 
 **Reversible:** Set `FACE_AUTH_ENABLED=false` and/or remove the face build step
 to disable; restore `SMS_PROVIDER=dry-run`; revert the OTP string. Existing

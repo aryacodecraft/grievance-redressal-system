@@ -852,6 +852,7 @@ SAMARTH, deploy face auth on Render free first, and reuse the local
   compile checks passed.
 - Not verified: live Render Twilio OTP delivery; Render face 2FA/citizen
   login; free-tier latency; DLT domestic SMS. See CURRENT_STATE §5.
+- Commit `dd6dbea` pushed to `origin/main`; Render deploy pending.
 
 
 
