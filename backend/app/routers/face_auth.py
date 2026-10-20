@@ -759,9 +759,11 @@ def enroll_face(
             "modelName": config.FACE_MODEL_NAME,
             "frameCount": verified.frame_count,
             "consentAt": datetime.now(timezone.utc).isoformat(),
-            # The optional 2FA step only exists for privileged accounts (DEC-024).
+            # The optional 2FA step only exists for privileged accounts (DEC-024). Superadmin is exempt (DEC-052).
             "requireLogin2fa": bool(
-                payload.require_login_2fa and current["role"] in PRIVILEGED_ROLES
+                payload.require_login_2fa
+                and current["role"] in PRIVILEGED_ROLES
+                and current["role"] != "SUPERADMIN"
             ),
         })
         timing.db_template_ms += (time.perf_counter() - t_tm0) * 1000
@@ -994,9 +996,11 @@ def update_template(
     request: Request,
     current: Annotated[dict, Depends(get_current_user)],
 ):
-    """Toggle the optional post-password face step (privileged accounts only)."""
+    """Toggle the optional post-password face step (ADMIN only; SUPERADMIN exempt)."""
     if current["role"] not in PRIVILEGED_ROLES:
         raise HTTPException(status_code=403, detail="Requires role: ADMIN, SUPERADMIN")
+    if current["role"] == "SUPERADMIN":
+        raise HTTPException(status_code=400, detail="2FA is disabled for SUPERADMIN accounts")
     ip = _client_ip(request)
     user_id = current["user_id"]
     template = face_repository.get_template(user_id)

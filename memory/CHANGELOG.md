@@ -123,6 +123,59 @@
 
 ---
 
+## 2026-10-20 — Executive Analytics Dashboard Reliability & In-Memory Feeds (DEC-054 follow-up)
+
+- Refactored `frontend/components/charts/AnalyticsCharts.tsx` to compute all metrics directly from the live `items` grievance feed (`items: Grievance[]` prop), removing all external network dependencies and eliminating loading stalls, 401 token refresh pauses, and blank charts.
+- Restored the cohesive 2-tab layout in `frontend/components/admin/AdminAnalytics.tsx` (`Overview & Trends` and `Location Analysis (Map)`), rendering macro metric cards, complaint trends AreaChart, department performance BarChart, stage distribution PieChart, resolution times & SLA adherence metrics, complaint aging backlog, and priority matrix all in one unified, responsive view.
+- Handled React purity rules: moved `Date.now()` calls into external helper utilities to satisfy `react-hooks/purity` ESLint requirements.
+- Verification: `npx tsc --noEmit` clean, ESLint clean (0 errors, 0 warnings), contract checks 21/21 passed, Next.js build 20/20 static pages compiled.
+
+## 2026-10-20 — Voice Intake Subsequent Recording Capture Fix (DEC-053)
+
+- `VoiceCapture.ts`: Added explicit `await context.resume()` check right after connecting the audio graph (`source -> worklet -> mute -> destination`) and before posting `"start"`. Resolves the issue where asynchronous operations (`getUserMedia`, `addModule`) caused browsers to leave the audio context in `"suspended"` state, preventing the worklet from receiving audio samples.
+- `speech.ts`: In `SpeechPlayer.stopCurrent()`, suspended the player's `AudioContext` when idle to prevent audio output hardware conflicts from stalling the recording context on secondary recordings.
+- `VoiceIntake.tsx`:
+  - Null out `capture.current` when the active session stops, fails, or completes in `finish()`.
+  - Properly dispose orphaned sessions and clear `capture.current` and `busy.current` if `epoch.current !== generation` inside `start()`.
+- `voice-processor.js`: Removed `if (!this.recording) return;` guard from `finish()` so the worklet always flushes and posts `{ type: "complete" }` even if recording had already stopped.
+- `scripts/voice-capture.test.mjs`: Added regression test verifying sequential sessions (Session 1 stop -> Session 2 start -> stop) record audio and release hardware without errors.
+- Verification: `npm run test:voice` 80 passed, `npx tsc --noEmit` 0 errors, `check-contract.mjs` passed (21 checks), Next.js build passed (20/20 routes).
+
+## 2026-10-20 — Superadmin 2FA Exemption (DEC-052)
+
+- `backend/app/routers/auth.py`: In `_face_step_required`, added an explicit exemption for `SUPERADMIN` accounts (`if user.get("role") == "SUPERADMIN": return False`), ensuring superadmin logins never pause for 2FA verification.
+- `backend/app/routers/face_auth.py`: Updated `enroll_face` and `update_template` to disallow enabling `requireLogin2fa` on `SUPERADMIN` accounts.
+- Database: Updated face template for `superadmin@grievance.local` to `requireLogin2fa: False`.
+- Verification: Tested direct token issue on `/auth/login` for superadmin (status 200, access/refresh tokens returned immediately); all 121 pytest face auth tests passed.
+
+
+## 2026-10-20 — Location Picker Button Harmonization & Modal Map Loading Fix (DEC-050 follow-up)
+
+- `LocationCapture.tsx`:
+  - Harmonized "Pick on map" button sizing to be identical to its sibling GPS button: both use `h-10 px-3 text-xs sm:text-sm font-medium`, `variant="outline"`, and `text-ink-800`.
+  - Removed emoji (`📍`) from the button label, replaced with clean `<MapPin size={15} />` icon.
+  - Fixed popup map loading issue: attached `modalMapRef` directly to a container with guaranteed explicit height (`h-[55vh] sm:h-[420px] min-h-[320px] relative z-0 overflow-hidden bg-ink-100`), preventing height collapse from nested flex `h-full` without explicit ancestor height.
+  - Bulletproofed Leaflet initialization: cleans up stale `_leaflet_id` on the DOM node, handles ESM/CommonJS module interop (`(mod as any).default || mod`), catches initialization errors, and triggers staggered `invalidateSize()` (rAF, 100ms, 300ms, 600ms) alongside a `ResizeObserver`.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node frontend/scripts/check-contract.mjs` passed, `npm run build` passed (20/20 static routes).
+
+## 2026-10-20 — Admin Active Queue & Resolved Archive Separation (DEC-051)
+
+- `AdminBoard.tsx`: Separated active/pending complaints from completed complaints with a dedicated tabbed interface (`Active & Priority Queue` vs `Resolved Archive`). Active view hides resolved/closed tickets and automatically surfaces urgent and high-priority tickets first; Resolved view acts as a historical archive sorted chronologically by resolution date.
+- Added segmented navigation tab bar above the queue table displaying dynamic counts for active complaints and archived resolutions.
+- Converted all 6 Executive Command metric cards into interactive triage switches (Urgent, Unassigned, In-progress, and Flagged cards switch to filtered Active views; Resolved card toggles to Resolved Archive with ring highlight).
+- Adapted the Status dropdown options contextually based on the active tab (Active: All Active, Open, Assigned, In Progress, Flagged; Resolved: All in Archive, Resolved, Closed). Contextual empty states and subtitles updated.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node frontend/scripts/check-contract.mjs` passed, `npm run build` passed (20/20 static routes).
+
+
+## 2026-10-20 — Citizen Privacy Shield, Auth Hardening, and Pop-out Map UX (DEC-050)
+
+- `GrievanceDetailModal.tsx`: When `citizenView` is true, hides "Recent Officer & Field Updates" activity logs, resolver names ("Assigned Officer / Team"), and completion/resolution photos. Citizens see only status, lifecycle timeline, title, description, and location pin. Staff/admin surfaces (`!citizenView`) retain complete details.
+- `session.tsx`: Synchronous client-side hydration of `user` state from `localStorage` prevents momentary unauthenticated "Sign in" flashes on page loads or navigation. `initSession` only wipes tokens on explicit 401 unauthenticated responses from backend; transient network errors or cold starts no longer clear sessions.
+- `api.ts`: Token refresh retains both access and refresh tokens (`setStoredTokens(data.access_token, data.refresh_token)`); network errors during refresh no longer wipe tokens.
+- `app/track/page.tsx`: Displays clean spinner while restoring session instead of abruptly showing the "Sign in to track" card.
+- `LocationCapture.tsx`: Overhauled location picker UX with responsive buttons (`flex flex-col sm:flex-row`, `w-full sm:flex-1`, `h-auto min-h-[44px] py-2.5 px-3.5`, `break-words text-center`) preventing text overflow/escape on mobile devices. Replaced inline map with a dedicated Pop-out Map Dialog featuring live search, GPS positioning, a touch-friendly interactive map canvas (`h-[55vh]` mobile, `h-[420px]` desktop), reverse-geocoded place preview, and explicit "Confirm Pin Location" action.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node scripts/check-contract.mjs` passed (18 checks green), `npm run build` passed (20/20 static routes).
+
 ## 2026-10-20 — Quality gate & suspicious grievance flagging (DEC-049)
 
 - Added `backend/app/services/quality_check.py` with `check_quality()` using Groq bounded completion within `classification_budget()`; detects non-civic/fake submissions (e.g. arithmetic, riddles, spam) and fails safe to accepted (`is_genuine=True`) on any error or timeout.
@@ -623,3 +676,27 @@ Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local back
   gitignored local `backend/.env`; repo/production default stays `false`.
 
 
+
+## 2026-10-20 — Admin Analytics Aggregation Endpoints & Executive Dashboards (DEC-054)
+
+- Backend Analytics Router (`backend/app/routers/analytics.py`):
+  - Endpoints: `GET /admin/analytics/trends`, `GET /admin/analytics/departments`, `GET /admin/analytics/resolution`, `GET /admin/analytics/aging`, `GET /admin/analytics/priorities`.
+  - Authenticated and role-scoped: SUPERADMIN has global visibility; ADMIN is scoped to their department.
+  - Privacy: responses return strictly aggregate metrics and zero citizen PII.
+  - Aggregation architecture: MongoDB aggregation pipelines for production (`storage_mode() == "mongodb"`), in-memory Python fallback for dev/testing.
+- Frontend Analytics Charts (`frontend/components/charts/AnalyticsCharts.tsx`):
+  - Recharts AreaChart for complaint trends (received vs resolved, daily/weekly/monthly granularity, quick date range selection).
+  - Grouped BarChart for department performance (received, open, resolved, overdue).
+  - Resolution time & SLA compliance metrics panel with mean/median days and department performance table.
+  - Complaint aging bar chart with 0–2, 3–7, 8–14, 15+ days buckets.
+  - Priority distribution chart showing stored priority values by lifecycle state.
+- Leaflet Map Hotspots (`frontend/components/admin/AdminMap.tsx`):
+  - Extended existing Leaflet 1.9.4 map without adding new libraries.
+  - Added proximity-based hotspot clustering with density-scaled markers (24px for 2-4 items, 32px with heat rings for 5+ items) and scrollable popup grievance lists.
+  - Added view toggle between "Hotspot Density" and "All Pins".
+  - Graceful handling of complaints without coordinates with a clear status footer.
+- Analytics Page Layout (`frontend/components/admin/AdminAnalytics.tsx`):
+  - Added segmented tabs: Overview, Trends, Departments, Resolution & SLA, Location (Map).
+- Tests & Validation:
+  - Added `tests/test_admin_analytics.py`: 11 passed (100% pass on auth, RBAC, filters, metrics, PII checks).
+  - `npx tsc --noEmit` clean, ESLint clean on all touched files, contract checks 21/21 passed, voice tests 80/80 passed, `next build` 20/20 static pages green.

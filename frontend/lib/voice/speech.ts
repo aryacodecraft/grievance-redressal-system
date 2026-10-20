@@ -118,6 +118,9 @@ export class SpeechPlayer {
       element.pause();
       element.removeAttribute("src");
     }
+    if (this.context && this.context.state === "running" && typeof this.context.suspend === "function") {
+      void this.context.suspend().catch(() => undefined);
+    }
   }
 
   dispose(): void {

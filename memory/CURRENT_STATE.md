@@ -38,17 +38,16 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Grievance lifecycle** — 15-state machine (`backend/app/services/state_machine.py`),
   role-gated transitions, assignment/history arrays; status PATCH restricted to
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
-- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047), track
-  (master-detail, sign-in required; department/priority not shown to citizens —
-  DEC-028/029/030/044), notifications inbox v1, profile. IMPLEMENTED, TESTED.
+- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal — DEC-050), track
+  (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
+  DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.
 - **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
   quality gate in the submit pipeline; non-civic or fake complaints (e.g. math queries,
   riddles, gibberish, spam) are flagged with `qualityFlag="suspicious"` and reason,
   warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
   board under a dedicated "Flagged" filter and review badge without ever silently dropping
   submissions. IMPLEMENTED, TESTED.
-- **Staff experience** — admin queue/board + detail modal, analytics (charts,
-  map, TF-IDF clusters, CSV), department-employees workspace, resolver workbench
+- **Staff experience** — tabbed admin queue/board separating active/priority complaints from historical resolved archive with interactive triage metrics (DEC-051) + detail review modal, comprehensive executive analytics (DEC-054: trends area chart, grouped department performance bar chart, resolution times & SLA compliance metrics, complaint aging buckets, priority distribution, Leaflet hotspot density clustering, TF-IDF clusters, CSV export), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
   audit), account-scoped notifications. IMPLEMENTED, TESTED.
 - **Auth** — email/password + JWT + refresh, Google OAuth, RBAC guards, signup
@@ -62,7 +61,7 @@ only — humans retain assignment, escalation, resolution and closure authority
   owner verification. Full citizen delivery is blocked on Twilio upgrade + DLT
   (§4/§5). OTP text rebranded to SAMARTH (DEC-046).
 - **Face auth (flag-gated, default off)** — enrollment, 1:1 login, recovery
-  phrase, liveness challenges, lockout counters, `requireLogin2fa`; in-memory
+  phrase, liveness challenges, lockout counters, `requireLogin2fa` (ADMIN only; SUPERADMIN exempt — DEC-052); in-memory
   stores (DEC-024). IMPLEMENTED, TESTED (face/drift suites); real-webcam
   validation pending (§5). Production packaging (DEC-046) now installs
   `insightface==2.1` + a pruned `buffalo_s` at Render build time; live Render
@@ -137,24 +136,7 @@ only — humans retain assignment, escalation, resolution and closure authority
   + face 2FA/citizen login pending owner verification (§5).
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — after classification reliability changes (2026-10-20),
-  the earlier full pytest run reported 588 passed / 24 failed / 5 skipped;
-  separate collection reported 616 tests while run totals 617, an unexplained
-  one-test difference. On 2026-10-20, focused classification/auth/RBAC/seed/
-  endpoint stabilization checks passed (142 passed, 10 legacy status cases
-  deselected). A subsequent full-suite attempt produced no completion summary
-  and was interrupted after progress stalled; do not treat it as a completed
-  result. Previously observed status vocabulary/state, Render transcription
-  configuration, and image validation issues remain unverified in this pass.
-  `npm run build` succeeded with Webpack, TypeScript and all 20 static pages.
-  Earlier frontend contract and `tsc --noEmit` checks passed. Provider keys
-  were blank; no live AI calls or grievance writes were made.
-  Civic relevance validation (2026-10-20): focused route/classifier/quality
-  checks passed (124 passed, 9 legacy status tests deselected); the full
-  endpoint subset additionally confirms the deselected failures are legacy
-  status expectations. API contract, TypeScript and production build verified.
-  Includes 3 new prepare-model tests; contract suite 18 checks; voice node
-  suites 79 tests (DEC-041/043/044); intake backend suite 28 tests;
+- **Test suites** — baseline pytest on main reported 516 passed / 32 skipped / 22 failed (2026-10-20; 23rd was the local `.env` face-challenge leak, pinned in conftest). On the classification reliability & civic relevance branch, focused test passes succeeded (124-142 passed, legacy status cases deselected). `npm run build` succeeded with Webpack, TypeScript and all 20 static pages. Includes 3 new prepare-model tests; contract suite 21 checks; voice node suites 80 tests (DEC-041/043/044/053); intake backend suite 28 tests; admin analytics suite 11 tests (DEC-054);
   classification latency tests added (DEC-042).
 
 ---

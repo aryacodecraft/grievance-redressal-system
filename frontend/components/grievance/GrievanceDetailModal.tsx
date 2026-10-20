@@ -44,7 +44,7 @@ export function GrievanceDetailModal({
   const [loadingHistory, setLoadingHistory] = useState(true);
 
   useEffect(() => {
-    if (!grievance) return;
+    if (!grievance || citizenView) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -62,7 +62,7 @@ export function GrievanceDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [grievance]);
+  }, [grievance, citizenView]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -159,7 +159,8 @@ export function GrievanceDetailModal({
               </div>
               )}
 
-              {grievance.assignee && (
+              {/* Assigned Officer / Team - only visible to staff/admins (DEC-050) */}
+              {!citizenView && grievance.assignee && (
                 <div className="flex items-center gap-2 rounded-md border border-ink-100 bg-ink-50/50 p-3">
                   <User size={16} className="text-ink-400 shrink-0" />
                   <div>
@@ -246,45 +247,47 @@ export function GrievanceDetailModal({
             </div>
           )}
 
-          {/* Activity / Field Updates History */}
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-ink-600 mb-2">
-              Recent Officer & Field Updates
-            </h3>
-            {loadingHistory ? (
-              <p className="text-xs text-ink-500 py-2">Loading updates…</p>
-            ) : history.length === 0 ? (
-              <p className="text-xs text-ink-500 italic py-2">
-                No field updates posted yet.
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {history.map((entry, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-ink-100 bg-ink-50/70 p-3 text-xs text-ink-800"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-ink-900">
-                        {String(entry.kind ?? "Update")}
-                      </span>
-                      <span className="text-[11px] text-ink-500">
-                        {formatDate(String(entry.createdAt ?? entry.at ?? ""))}
-                      </span>
+          {/* Activity / Field Updates History — staff/admin only (DEC-050) */}
+          {!citizenView && (
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-ink-600 mb-2">
+                Recent Officer & Field Updates
+              </h3>
+              {loadingHistory ? (
+                <p className="text-xs text-ink-500 py-2">Loading updates…</p>
+              ) : history.length === 0 ? (
+                <p className="text-xs text-ink-500 italic py-2">
+                  No field updates posted yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {history.map((entry, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded-lg border border-ink-100 bg-ink-50/70 p-3 text-xs text-ink-800"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-ink-900">
+                          {String(entry.kind ?? "Update")}
+                        </span>
+                        <span className="text-[11px] text-ink-500">
+                          {formatDate(String(entry.createdAt ?? entry.at ?? ""))}
+                        </span>
+                      </div>
+                      <p className="mt-1 leading-relaxed text-ink-700">
+                        {String(
+                          entry.bodyCustomer ??
+                            entry.workCompleted ??
+                            entry.reason ??
+                            "Status update recorded"
+                        )}
+                      </p>
                     </div>
-                    <p className="mt-1 leading-relaxed text-ink-700">
-                      {String(
-                        entry.bodyCustomer ??
-                          entry.workCompleted ??
-                          entry.reason ??
-                          "Status update recorded"
-                      )}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* AI Assessment / Triage Diagnostic — staff only; citizens never
               see classification, confidence or keywords (DEC-044). */}

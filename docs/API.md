@@ -636,3 +636,111 @@ Common HTTP status codes:
   an open grievance to a validated same-department employee. Initial worker
   assignment moves `PENDING_ASSIGNMENT`/`SUBMITTED` to `ASSIGNED`, establishes
   its due date, and records state history.
+
+
+---
+
+## Admin Analytics Endpoints (DEC-054)
+
+All analytics endpoints require authentication and `grievance.view_dept` permission (`ADMIN` or `SUPERADMIN`). `SUPERADMIN` retrieves global data across all departments; department `ADMIN` accounts are automatically scoped to their assigned `departmentId`. Responses return aggregated numbers only and never expose citizen PII (names, emails, phones, user IDs).
+
+### GET /admin/analytics/trends
+Time-series distribution of complaints received and resolved.
+
+**Query Parameters:**
+- `granularity`: `"daily"` (default), `"weekly"`, or `"monthly"`.
+- `date_from`: Optional ISO date string (e.g. `2026-09-01`).
+- `date_to`: Optional ISO date string (e.g. `2026-10-01`).
+
+**Response Shape:**
+```json
+{
+  "granularity": "daily",
+  "data": [
+    { "date": "2026-09-08", "received": 4, "resolved": 1 }
+  ]
+}
+```
+
+### GET /admin/analytics/departments
+Department-level workload performance comparison.
+
+**Query Parameters:**
+- `date_from`: Optional ISO date string filter on `createdAt`.
+- `date_to`: Optional ISO date string filter on `createdAt`.
+
+**Response Shape:**
+```json
+{
+  "data": [
+    {
+      "department": "roads",
+      "received": 14,
+      "open": 8,
+      "resolved": 6,
+      "overdue": 2
+    }
+  ]
+}
+```
+
+### GET /admin/analytics/resolution
+Resolution speed and SLA compliance metrics.
+
+**Query Parameters:**
+- `date_from`: Optional ISO date string filter.
+- `date_to`: Optional ISO date string filter.
+
+**Response Shape:**
+```json
+{
+  "overall_mean_days": 3.4,
+  "overall_median_days": 2.5,
+  "overall_sla_compliance_pct": 87.5,
+  "sla_note": "SLA compliance counts only complaints that were assigned a due date (dueDate is set at assignment time). Unassigned complaints are excluded.",
+  "by_department": [
+    {
+      "department": "roads",
+      "count": 6,
+      "mean_days": 3.2,
+      "median_days": 2.1,
+      "within_sla": 5,
+      "total_with_due": 6
+    }
+  ]
+}
+```
+
+### GET /admin/analytics/aging
+Backlog aging analysis for active, unresolved complaints (excludes `RESOLVED`, `CLOSED`, `REJECTED`, `WITHDRAWN`).
+
+**Response Shape:**
+```json
+{
+  "reference_time": "2026-10-20T16:00:00Z",
+  "buckets": [
+    { "label": "0–2 days", "days_min": 0, "days_max": 2, "count": 12 },
+    { "label": "3–7 days", "days_min": 3, "days_max": 7, "count": 8 },
+    { "label": "8–14 days", "days_min": 8, "days_max": 14, "count": 4 },
+    { "label": "15+ days", "days_min": 15, "days_max": null, "count": 2 }
+  ]
+}
+```
+
+### GET /admin/analytics/priorities
+Breakdown of stored priority values by current lifecycle state. AI-suggested priorities (`hfEngine.priority`) are kept separate.
+
+**Query Parameters:**
+- `date_from`: Optional ISO date string filter.
+- `date_to`: Optional ISO date string filter.
+
+**Response Shape:**
+```json
+{
+  "data": [
+    { "priority": "high", "status": "IN_PROGRESS", "count": 5 },
+    { "priority": "low", "status": "SUBMITTED", "count": 8 }
+  ],
+  "note": "Priorities shown are stored/human-assigned values. AI-suggested priorities are separate (hfEngine.priority) and not mixed in."
+}
+```

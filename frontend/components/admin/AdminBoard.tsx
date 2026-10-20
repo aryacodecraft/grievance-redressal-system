@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Archive,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -86,6 +87,7 @@ export function AdminBoard() {
   useEffect(() => { if (isDepartmentManager) void listUsers().then((rows) => setEmployees((rows as DepartmentEmployee[]).filter((row) => row.role === "RESOLVER" && row.isActive !== false))).catch(() => setEmployees([])); }, [isDepartmentManager]);
 
   // Filtering & Sorting
+  const [queueTab, setQueueTab] = useState<"active" | "resolved">("active");
   const [selectedDeptTab, setSelectedDeptTab] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -130,6 +132,12 @@ export function AdminBoard() {
       const p = (g.priority || "low").toLowerCase();
       const c = canonicalDepartmentId(g.departmentId ?? g.category);
       const s = (g.status || "open").toLowerCase();
+      const isResolved = s === "resolved" || s === "closed";
+
+      // Tab separation (DEC-051):
+      // "active" queue hides resolved/closed; "resolved" archive shows only resolved/closed
+      if (queueTab === "active" && isResolved) return false;
+      if (queueTab === "resolved" && !isResolved) return false;
 
       if (selectedDeptTab !== "all" && c !== selectedDeptTab) return false;
       if (priorityFilter !== "all" && p !== priorityFilter) return false;
@@ -150,6 +158,9 @@ export function AdminBoard() {
     });
 
     list = [...list].sort((a, b) => {
+      if (queueTab === "resolved") {
+        return asEpoch(b.resolvedAt || b.createdAt) - asEpoch(a.resolvedAt || a.createdAt);
+      }
       if (sortBy === "urgency") {
         const uA = a.hfEngine?.isUrgent ? 1 : 0;
         const uB = b.hfEngine?.isUrgent ? 1 : 0;
@@ -163,7 +174,7 @@ export function AdminBoard() {
     });
 
     return list;
-  }, [items, selectedDeptTab, priorityFilter, statusFilter, search, sortBy]);
+  }, [items, queueTab, selectedDeptTab, priorityFilter, statusFilter, search, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -191,8 +202,9 @@ export function AdminBoard() {
       }
     });
 
+    const activeCount = items.length - resolved;
     const resolutionRate = items.length > 0 ? Math.round((resolved / items.length) * 100) : 0;
-    return { total: items.length, urgentCount, unassigned, inProgress, resolved, resolutionRate, flaggedCount };
+    return { total: items.length, activeCount, urgentCount, unassigned, inProgress, resolved, resolutionRate, flaggedCount };
   }, [items]);
 
   function patchLocal(id: string, patch: Partial<Grievance>) {
@@ -241,90 +253,154 @@ export function AdminBoard() {
     <div className="space-y-6">
       {/* ── Executive Command Metrics Bar ─────────────────────────────── */}
       <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Card className="border-ink-200/80 shadow-2xs">
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
-                Total Grievances
-              </span>
-              <Layers size={16} className="text-ink-400" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.total}</p>
-            <p className="mt-0.5 text-[11px] text-ink-400">Received in total</p>
-          </CardBody>
-        </Card>
-
-        <Card className="border-rose-200/80 bg-rose-50/20 shadow-2xs">
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">
-                Urgent Attention
-              </span>
-              <AlertTriangle size={16} className="text-rose-600" />
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <p className="text-2xl font-bold tracking-tight text-rose-950">{stats.urgentCount}</p>
-              {stats.urgentCount > 0 && (
-                <span className="rounded-sm bg-rose-600 px-1.5 py-0.2 text-[10px] font-bold uppercase text-white animate-pulse">
-                  Action Needed
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("active");
+            setPriorityFilter("all");
+            setStatusFilter("all");
+            setPage(1);
+          }}
+          className="text-left w-full transition focus:outline-none"
+          title="View all active grievances"
+        >
+          <Card className={`border-ink-200/80 shadow-2xs transition hover:bg-ink-50/50 ${queueTab === "active" && priorityFilter === "all" && statusFilter === "all" ? "ring-2 ring-primary-500" : ""}`}>
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+                  Total Grievances
                 </span>
-              )}
-            </div>
-            <p className="mt-0.5 text-[11px] text-rose-600">Needs a decision right away</p>
-          </CardBody>
-        </Card>
+                <Layers size={16} className="text-ink-400" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.total}</p>
+              <p className="mt-0.5 text-[11px] text-ink-400">{stats.activeCount} active · {stats.resolved} archived</p>
+            </CardBody>
+          </Card>
+        </button>
 
-        <Card className="border-amber-200/80 bg-amber-50/20 shadow-2xs">
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
-                Unassigned
-              </span>
-              <Clock size={16} className="text-amber-600" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.unassigned}</p>
-            <p className="mt-0.5 text-[11px] text-amber-700">Waiting for a team to take charge</p>
-          </CardBody>
-        </Card>
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("active");
+            setPriorityFilter("high");
+            setStatusFilter("all");
+            setPage(1);
+          }}
+          className="text-left w-full transition focus:outline-none"
+          title="Filter to high priority & urgent grievances"
+        >
+          <Card className={`border-rose-200/80 bg-rose-50/20 shadow-2xs transition hover:bg-rose-50/40 ${queueTab === "active" && priorityFilter === "high" ? "ring-2 ring-rose-500" : ""}`}>
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">
+                  Urgent Attention
+                </span>
+                <AlertTriangle size={16} className="text-rose-600" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-2xl font-bold tracking-tight text-rose-950">{stats.urgentCount}</p>
+                {stats.urgentCount > 0 && (
+                  <span className="rounded-sm bg-rose-600 px-1.5 py-0.2 text-[10px] font-bold uppercase text-white animate-pulse">
+                    Action Needed
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11px] text-rose-600">Needs a decision right away</p>
+            </CardBody>
+          </Card>
+        </button>
 
-        <Card className="border-primary-200/80 bg-primary-50/20 shadow-2xs">
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-800">
-                Work Underway
-              </span>
-              <Wrench size={16} className="text-primary-700" />
-            </div>
-            <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.inProgress}</p>
-            <p className="mt-0.5 text-[11px] text-primary-700">Repairs or checks happening now</p>
-          </CardBody>
-        </Card>
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("active");
+            setPriorityFilter("all");
+            setStatusFilter("open");
+            setPage(1);
+          }}
+          className="text-left w-full transition focus:outline-none"
+          title="Filter to unassigned complaints"
+        >
+          <Card className={`border-amber-200/80 bg-amber-50/20 shadow-2xs transition hover:bg-amber-50/40 ${queueTab === "active" && statusFilter === "open" ? "ring-2 ring-amber-500" : ""}`}>
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
+                  Unassigned
+                </span>
+                <Clock size={16} className="text-amber-600" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.unassigned}</p>
+              <p className="mt-0.5 text-[11px] text-amber-700">Waiting for a team to take charge</p>
+            </CardBody>
+          </Card>
+        </button>
 
-        <Card className="border-emerald-200/80 bg-emerald-50/20 shadow-2xs">
-          <CardBody className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
-                Resolved
-              </span>
-              <CheckCircle2 size={16} className="text-emerald-600" />
-            </div>
-            <div className="mt-2 flex items-baseline gap-2">
-              <p className="text-2xl font-bold tracking-tight text-emerald-950">{stats.resolved}</p>
-              <span className="text-xs font-semibold text-emerald-700">({stats.resolutionRate}%)</span>
-            </div>
-            <p className="mt-0.5 text-[11px] text-emerald-700">              Fixed and closed
-            </p>
-          </CardBody>
-        </Card>
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("active");
+            setPriorityFilter("all");
+            setStatusFilter("in_progress");
+            setPage(1);
+          }}
+          className="text-left w-full transition focus:outline-none"
+          title="Filter to work underway"
+        >
+          <Card className={`border-primary-200/80 bg-primary-50/20 shadow-2xs transition hover:bg-primary-50/40 ${queueTab === "active" && statusFilter === "in_progress" ? "ring-2 ring-primary-500" : ""}`}>
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-primary-800">
+                  Work Underway
+                </span>
+                <Wrench size={16} className="text-primary-700" />
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.inProgress}</p>
+              <p className="mt-0.5 text-[11px] text-primary-700">Repairs or checks happening now</p>
+            </CardBody>
+          </Card>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setQueueTab("resolved");
+            setPriorityFilter("all");
+            setStatusFilter("all");
+            setPage(1);
+          }}
+          className="text-left w-full transition focus:outline-none"
+          title="Open the Resolved Archive tab"
+        >
+          <Card className={`border-emerald-200/80 bg-emerald-50/20 shadow-2xs transition hover:bg-emerald-50/40 ${queueTab === "resolved" ? "ring-2 ring-emerald-500" : ""}`}>
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
+                  Resolved
+                </span>
+                <CheckCircle2 size={16} className="text-emerald-600" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-2xl font-bold tracking-tight text-emerald-950">{stats.resolved}</p>
+                <span className="text-xs font-semibold text-emerald-700">({stats.resolutionRate}%)</span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-emerald-700">Fixed &amp; archived (Click to view)</p>
+            </CardBody>
+          </Card>
+        </button>
 
         {/* Flagged / suspicious (DEC-049) — clicking the card sets the filter */}
         <button
           type="button"
-          onClick={() => { setStatusFilter(statusFilter === "flagged" ? "all" : "flagged"); setPage(1); }}
-          className="text-left w-full"
+          onClick={() => {
+            setQueueTab("active");
+            setPriorityFilter("all");
+            setStatusFilter(statusFilter === "flagged" ? "all" : "flagged");
+            setPage(1);
+          }}
+          className="text-left w-full transition focus:outline-none"
           title="Click to filter by flagged complaints"
         >
-          <Card className={`border-orange-300/80 bg-orange-50/30 shadow-2xs transition hover:bg-orange-50/60 ${statusFilter === "flagged" ? "ring-2 ring-orange-400" : ""}`}>
+          <Card className={`border-orange-300/80 bg-orange-50/30 shadow-2xs transition hover:bg-orange-50/60 ${queueTab === "active" && statusFilter === "flagged" ? "ring-2 ring-orange-500" : ""}`}>
             <CardBody className="p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-800">
@@ -406,12 +482,21 @@ export function AdminBoard() {
                   setPage(1);
                 }}
               >
-                <option value="all">All Statuses</option>
-                <option value="open">Open / Unassigned</option>
-                <option value="assigned">Assigned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="flagged">Flagged for Review</option>
+                {queueTab === "active" ? (
+                  <>
+                    <option value="all">All Active Statuses</option>
+                    <option value="open">Open / Unassigned</option>
+                    <option value="assigned">Assigned</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="flagged">Flagged for Review</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="all">All in Archive</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </>
+                )}
               </Select>
             </div>
 
@@ -435,15 +520,67 @@ export function AdminBoard() {
       {loading && <Spinner label="Loading complaints…" />}
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {/* ── Full-width Grievance Queue Table ──────────────────────────── */}
-      <Card className="border-ink-200/80 shadow-2xs">
+      {/* ── Full-width Grievance Queue Table with Active & Archive Tabs ───────── */}
+      <Card className="border-ink-200/80 shadow-2xs overflow-hidden">
+        {/* Navigation Tabs (DEC-051) */}
+        <div className="flex border-b border-ink-200 bg-ink-50/70 px-4 pt-2.5 sm:px-6 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setQueueTab("active");
+              setStatusFilter("all");
+              setPage(1);
+            }}
+            className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+              queueTab === "active"
+                ? "border-primary-600 text-primary-900 bg-white rounded-t-lg shadow-2xs"
+                : "border-transparent text-ink-600 hover:text-ink-900 hover:border-ink-300"
+            }`}
+          >
+            <Layers size={16} className={queueTab === "active" ? "text-primary-600" : "text-ink-500"} />
+            <span>Active &amp; Priority Queue</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                queueTab === "active" ? "bg-primary-100 text-primary-800" : "bg-ink-200 text-ink-700"
+              }`}
+            >
+              {stats.activeCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setQueueTab("resolved");
+              setStatusFilter("all");
+              setPage(1);
+            }}
+            className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+              queueTab === "resolved"
+                ? "border-emerald-600 text-emerald-900 bg-white rounded-t-lg shadow-2xs"
+                : "border-transparent text-ink-600 hover:text-ink-900 hover:border-ink-300"
+            }`}
+          >
+            <Archive size={16} className={queueTab === "resolved" ? "text-emerald-600" : "text-ink-500"} />
+            <span>Resolved Archive</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                queueTab === "resolved" ? "bg-emerald-100 text-emerald-800" : "bg-ink-200 text-ink-700"
+              }`}
+            >
+              {stats.resolved}
+            </span>
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-6 py-4">
           <div>
-            <h2 className="text-base font-semibold tracking-tight text-ink-900">Grievance Queue</h2>
+            <h2 className="text-base font-semibold tracking-tight text-ink-900">
+              {queueTab === "active" ? "Active Grievance Queue" : "Resolved Grievance Archive"}
+            </h2>
             <p className="mt-0.5 text-xs text-ink-500">
               {selectedDeptTab === "all"
-                ? "All departments combined"
-                : `${DEPARTMENT_TABS.find((t) => t.key === selectedDeptTab)?.label} complaints`}
+                ? (queueTab === "active" ? "All active departmental complaints · Urgent & high priority sorted first" : "All resolved and closed departmental records · Preserved for auditing")
+                : `${DEPARTMENT_TABS.find((t) => t.key === selectedDeptTab)?.label} complaints (${queueTab === "active" ? "active" : "archived"})`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -563,9 +700,13 @@ export function AdminBoard() {
               {pageItems.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center">
-                    <p className="text-sm font-semibold text-ink-700">No grievances found</p>
+                    <p className="text-sm font-semibold text-ink-700">
+                      {queueTab === "active" ? "No active grievances found" : "No resolved grievances in archive"}
+                    </p>
                     <p className="mt-1 text-xs text-ink-400">
-                      Try adjusting your filters or department selection.
+                      {queueTab === "active"
+                        ? "Try adjusting your filters or department selection."
+                        : "Complaints marked resolved or closed will be safely archived here."}
                     </p>
                   </td>
                 </tr>

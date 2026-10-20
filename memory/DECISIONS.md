@@ -2337,7 +2337,199 @@ officer review.
 
 ---
 
-## DEC-050 — Preserve Existing Category Model; Audit Data and Gate Fallbacks (2026-10-20)
+## DEC-050 — Citizen Privacy Shield, Auth Hardening, and Pop-out Map UX (2026-10-20)
+
+**Context:** The project owner requested four distinct fixes:
+1. **Complaint visibility & privacy**: The citizen/user should only see the status and timeline of their complaint; officer updates, internal progress notes, resolver assignments, and completion photos should only be visible to managers or admins.
+2. **Auth session stability**: The frontend occasionally showed "Sign in" while performing normal tasks because the client forgot the signed-in session during navigation or refresh.
+3. **Mobile view overflow fixes**: Buttons and texts overflowed their containers on mobile (e.g. "Use my current location" text escaping the box).
+4. **Interactive Location Picker UX**: The inline map was cramped and difficult to use; replaced with a large, spacious pop-out map modal window with search, pin dragging, and touch-friendly controls across mobile and desktop.
+
+**Decision:**
+1. **Citizen Privacy Shield (`GrievanceDetailModal.tsx`)**:
+   - In `GrievanceDetailModal`, when `citizenView` is true:
+     - Hidden: "Recent Officer & Field Updates" activity log.
+     - Hidden: "Assigned Officer / Team" (resolver name).
+     - Hidden: Resolver completion/resolution photos.
+     - Skipped unneeded `getGrievanceHistory` network calls when viewing in citizen mode.
+     - Preserved: Status badge, lifecycle timeline, title, citizen description, date, address, and pinned incident location.
+   - Staff/admin surfaces (`!citizenView`) retain complete employee notes, resolver details, completion photos, and field updates.
+2. **Auth Session Persistence Hardening (`session.tsx` & `api.ts`)**:
+   - In `session.tsx`: Initialized `user` synchronously from `localStorage` (`STORAGE_KEY`) on client mount so no momentary "Sign in" flicker occurs during page load.
+   - Fixed premature sign-out bug: in `initSession`, transient network errors, cold-start timeouts, or non-401 errors no longer clear stored tokens or wipe the user session. Tokens are only cleared if the backend explicitly returns a 401 unauthenticated.
+   - In `api.ts`: Token refresh now persists both `access_token` and `refresh_token`; network errors during refresh no longer wipe tokens.
+   - In `app/track/page.tsx`: Respects `isLoading` state, displaying a clean spinner instead of flashing the unauthenticated "Sign in to track" card.
+3. **Mobile Overflow Fixes & Pop-out Map Dialog (`LocationCapture.tsx`)**:
+   - Fixed button box escape: Replaced cramped side-by-side buttons with responsive `flex flex-col sm:flex-row`, `w-full sm:flex-1`, `h-auto min-h-[44px] py-2.5 px-3.5`, and flexible text wrapping (`break-words text-center`).
+   - Built a dedicated **Pop-out Map Dialog** modal:
+     - Header: Modal title, guidance hint, and close (`X`) button.
+     - Integrated search & GPS toolbar: Search input to jump to any locality/city, and "My Location" GPS shortcut directly inside the map window.
+     - Spacious interactive map canvas: Responsive `h-[55vh]` on mobile and `h-[420px]` on desktop, supporting click-to-pin, pin dragging, and full pinch/zoom.
+     - Sticky footer: Displays live reverse-geocoded place name and coordinates, with "Cancel" and bold "Confirm Pin Location" buttons.
+   - Main form view: Displays an uncluttered verified location card with "Change on Map" and "Remove" actions once pinned.
+
+**Verification:**
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed (18 checks green).
+- `npm run build`: 20/20 static pages compiled successfully.
+- Pytest quality and lifecycle test suites passed.
+
+**Reversible:** Revert `LocationCapture.tsx` to inline rendering; restore employee update block in `GrievanceDetailModal.tsx`.
+
+---
+
+## DEC-051 — Admin Active & Resolved Archive Tabbed Queue Architecture (2026-10-20)
+
+**Context:**
+In the Admin View (`AdminBoard.tsx`), active, pending, urgent, and resolved complaints previously shared a single mixed table. As complaints are resolved, having resolved/closed tickets mixed into the primary operational view caused visual clutter and distracted officers from high-urgency, active issues needing immediate triage.
+The project owner requested:
+1. In the admin view, only active and priority problems should appear at the top of the queue.
+2. Resolved problems should go to a separated tab, like an archive.
+3. All historical data must remain preserved, searchable, and reviewable.
+
+**Decision:**
+1. **Queue Tab State (`AdminBoard.tsx`)**:
+   - Added `queueTab: "active" | "resolved"` state defaulting to `"active"`.
+   - When `queueTab === "active"`, complaints with status `"resolved"` or `"closed"` are filtered out.
+   - When `queueTab === "resolved"`, only complaints with status `"resolved"` or `"closed"` are shown.
+   - High priority and urgent tickets naturally float to the top of the Active queue via the default `sortBy === "urgency"` comparator without being diluted by completed historical tickets.
+   - In the "Resolved Archive" tab, records are ordered chronologically by newest resolution timestamp (`resolvedAt || createdAt`).
+2. **Dedicated Segmented Tab Bar**:
+   - Prominent tabs placed above the grievance table:
+     - `Active & Priority Queue` with live count badge (`stats.activeCount`).
+     - `Resolved Archive` with live count badge (`stats.resolved`).
+3. **Interactive Executive Metrics Cards**:
+   - Made all metric cards one-click triage switches:
+     - "Total Grievances": resets filters to Active queue.
+     - "Urgent Attention": switches to Active queue filtered to high priority.
+     - "Unassigned": switches to Active queue filtered to open/unassigned tickets.
+     - "Work Underway": switches to Active queue filtered to in-progress tickets.
+     - "Resolved": directly opens the "Resolved Archive" tab with active ring indicator.
+     - "Flagged": switches to Active queue filtered to flagged suspicious complaints.
+4. **Adaptive Status Filter**:
+   - When on Active queue: options are `All Active Statuses`, `Open / Unassigned`, `Assigned`, `In Progress`, `Flagged for Review`.
+   - When on Resolved Archive: options are `All in Archive`, `Resolved`, `Closed`.
+5. **Contextual Headers & Empty States**:
+   - Title/subtitle and zero-state copy adapt dynamically between active triage and historical archive modes.
+
+**Verification:**
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `cd frontend && npm run test:voice`: 79/79 passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run build`: 20/20 static pages compiled successfully.
+
+**Reversible:** Revert the tab filter in `filtered` useMemo to display unified table.
+
+---
+
+## DEC-052 — Superadmin 2FA Exemption (2026-10-20)
+
+**Context:**
+The system previously permitted 2FA (`requireLogin2fa`) on all privileged accounts (`ADMIN` and `SUPERADMIN`). The system `superadmin@grievance.local` test/demo account had `requireLogin2fa: True` stored in its face template, which halted superadmin password and Google login at the face step-up verification stage (`pending_token`).
+The project owner requested:
+"remove 2fa from superadmin"
+
+**Decision:**
+1. **Exempt SUPERADMIN in Login Gate (`backend/app/routers/auth.py`)**:
+   - In `_face_step_required(user: dict)`, added an explicit early return `if user.get("role") == "SUPERADMIN": return False`.
+   - Ensures superadmin accounts always receive direct access & refresh tokens on password login or Google OAuth without pausing for 2FA.
+2. **Prevent 2FA Enrollment/Toggling for SUPERADMIN (`backend/app/routers/face_auth.py`)**:
+   - In `enroll_face`, sets `"requireLogin2fa": False` if `current["role"] == "SUPERADMIN"`.
+   - In `update_template`, returns HTTP 400 if a `SUPERADMIN` attempts to toggle `require_login_2fa`.
+3. **Database Template Updated**:
+   - Updated the stored face template for `superadmin@grievance.local` via `face_repository.upsert_template` to ensure `requireLogin2fa: False`.
+
+**Verification:**
+- `TestClient(app).post("/auth/login", json={"email": "superadmin@grievance.local", ...})`: status 200, returned `access_token` and `refresh_token` directly (no 2FA pause).
+- `.venv/bin/pytest tests/test_face_auth.py`: all 121 tests passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+
+**Reversible:** Remove the `user.get("role") == "SUPERADMIN"` check to re-enable optional 2FA for superadmin.
+
+---
+
+## DEC-053 — Voice Intake Subsequent Recording Capture Fix (2026-10-20)
+
+**Context:**
+During conversational voice intake, after the initial recording and assistant follow-up question, tapping "Answer by voice" for subsequent recordings failed with:
+`"No audio was captured. Record again and speak into the microphone"` (`voiceEmpty` error) across all supported languages (English, Hindi, Marathi).
+
+**Root Cause:**
+1. In `VoiceCapture.start()`, `context.resume()` was called before the asynchronous `getUserMedia` and `addModule` operations. Once the node graph was connected, if `context.state` was suspended (due to autoplay policies or device switching after the first session closed), `process()` on `AudioWorkletNode` was never called, leading to 0 samples recorded.
+2. In `SpeechPlayer.stopCurrent()`, the audio player left its own `AudioContext` running, causing device arbitration conflicts with the freshly initialized `VoiceCapture` context on some browsers and platforms.
+3. In `VoiceIntake.tsx`, `capture.current` was never cleared in `finish()` or in `start()` upon epoch mismatch, leaving a stale reference to the disposed prior session.
+4. In `voice-processor.js`, `finish()` returned early if `!this.recording`, risking missed `complete` handshake signals if stop was requested when recording had already ceased.
+
+**Decision:**
+1. **Context Resume Post-Graph Connection (`frontend/lib/voice/capture.ts`)**:
+   - Check `context.state !== "running"` and explicitly call `await context.resume()` immediately after connecting `source -> worklet -> mute -> destination` right before posting `"start"`.
+2. **Audio Player Context Suspension (`frontend/lib/voice/speech.ts`)**:
+   - Suspend the `SpeechPlayer` audio context on `stopCurrent()` when not actively playing audio to release the audio output device cleanly.
+3. **Session Lifecycle & Stale Reference Cleanup (`frontend/components/grievance/VoiceIntake.tsx`)**:
+   - Null out `capture.current` when the active session stops, fails, or completes in `finish()`.
+   - Properly dispose of orphaned sessions and clear `capture.current` and `busy.current` if `epoch.current !== generation` inside `start()`.
+4. **Reliable Worklet Complete Post (`frontend/public/voice-processor.js`)**:
+   - Ensure `finish()` in the AudioWorklet processor always flushes and posts `{ type: "complete" }` even if `this.recording` was already false.
+5. **Regression Test (`frontend/scripts/voice-capture.test.mjs`)**:
+   - Added sequential session recording test verifying that two consecutive start -> stop sessions capture audio, resample, and clean up hardware contexts without error.
+
+**Verification:**
+- `cd frontend && npm run test:voice`: 80 passed (0 failed).
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run build`: 20/20 static pages compiled cleanly.
+- `pytest tests/test_voice_intake.py`: 28 passed.
+
+**Reversible:** Revert the modified context resume and lifecycle guards if needed.
+
+---
+
+## DEC-054 — Admin Analytics Aggregation Endpoints & Executive Oversight Dashboards (2026-10-20)
+
+**Context:**
+The admin analytics dashboard (`/admin/analytics`) relied on a client-side calculation from `useAdminGrievanceFeed` (polling every 15s) and rendered only a basic single-slice pie chart. Backend admin routes (`/admin/overview`, `/admin/workload`, etc.) loaded up to 1000 full documents into Python memory. Meaningful, aggregated, privacy-safe analytics were required using the existing technology stack (FastAPI, MongoDB Atlas, Recharts 3.10.1, Leaflet 1.9.4).
+
+**Decision:**
+1. **Authenticated Analytics Router (`backend/app/routers/analytics.py`)**:
+   - Gated behind `require_permission("grievance.view_dept")` (SUPERADMIN sees all; ADMIN is scoped to their department).
+   - Zero citizen PII exposed in responses (aggregates only).
+   - Endpoints:
+     - `GET /admin/analytics/trends`: Received vs resolved complaints over time with daily, weekly, and monthly granularity and date range filters (`$dateToString`).
+     - `GET /admin/analytics/departments`: Grouped received, open, resolved, and overdue counts per department (`$group`, `$facet`).
+     - `GET /admin/analytics/resolution`: Median and mean resolution time (in days) and SLA compliance percentage per department. Transparently includes `sla_note` stating that SLA compliance applies only to complaints assigned a due date.
+     - `GET /admin/analytics/aging`: Unresolved complaints categorized into 0–2, 3–7, 8–14, and 15+ days buckets relative to a unified `reference_time`.
+     - `GET /admin/analytics/priorities`: Stored priority values (low, medium, high, urgent) grouped by complaint status. Includes transparency note that AI-predicted priorities are distinct from stored/human-assigned priorities.
+   - Dual-path architecture: MongoDB aggregation pipelines for production (`storage_mode() == "mongodb"`); robust in-memory Python calculations for dev/test fallback (`storage_mode() == "in-memory"`).
+2. **Frontend Analytics Components (`frontend/components/charts/AnalyticsCharts.tsx`)**:
+   - `ComplaintTrendsChart`: Recharts AreaChart with dual gradients, daily/weekly/monthly switch, date-range picker, loading/empty/error states.
+   - `DepartmentChart`: Grouped Recharts BarChart comparing received, open, resolved, and overdue counts per department with horizontal text rotation for readability.
+   - `ResolutionStatsPanel`: Executive KPI metric cards (median days, mean days, SLA compliance %) with full department performance breakdown table.
+   - `AgingChart`: Horizontal BarChart with colour-coded urgency buckets (green, orange, red, purple) excluding resolved complaints.
+   - `PriorityChart`: Grouped BarChart showing stored priorities by lifecycle status.
+3. **Geographic Hotspots Extension (`frontend/components/admin/AdminMap.tsx`)**:
+   - Extended existing Leaflet 1.9.4 implementation without adding third-party dependencies.
+   - Hotspot density clustering: nearby complaints within ~2km cluster into density-scaled circular badges (24px orange for 2–4 complaints, 32px red with heat rings for 5+ complaints) with scrollable multi-grievance popups.
+   - View mode toggle: "Hotspot Density" vs "All Pins".
+   - Graceful missing coordinate handling: displays a bottom summary reporting exactly how many complaints are mapped and how many lack coordinates.
+4. **Tabbed Navigation in `AdminAnalytics.tsx`**:
+   - Segmented navigation tabs: Overview, Trends, Departments, Resolution & SLA, Location (Map).
+5. **Mock Mode Resilience (`frontend/lib/api.ts`)**:
+   - Added honest mock-data generators for demo mode when `NEXT_PUBLIC_USE_MOCKS=true` or backend is unreachable.
+
+**Verification:**
+- Backend pytest `tests/test_admin_analytics.py`: 11 passed (100% pass on auth, RBAC, filters, metrics, PII checks).
+- Frontend TypeScript `npx tsc --noEmit`: 0 errors.
+- Frontend ESLint on touched files: 0 errors, 0 warnings.
+- Contract checks `node frontend/scripts/check-contract.mjs`: 21 passed.
+- Voice test suites `npm run test:voice`: 80 passed.
+- Next.js build `npm run build`: 20/20 static routes compiled successfully.
+
+**Reversible:** Revert router and frontend components if previous simplified dashboard is preferred.
+
+---
+
+## DEC-055 — Preserve Existing Category Model; Audit Data and Gate Fallbacks (2026-10-20)
 
 **Context:** The owner requested reducing Water overprediction, improving
 classification reliability and reducing LLM cost while preserving the existing
@@ -2385,7 +2577,7 @@ later evaluation supports its added cost.
 
 ---
 
-## DEC-051 — Fit Every Available Unique Text in the Serving Classifier (2026-10-20)
+## DEC-056 — Fit Every Available Unique Text in the Serving Classifier (2026-10-20)
 
 **Context:** Independent verification found that the process-local model
 singleton called `GrievanceModel.train()` with its default 80/20 evaluation
@@ -2410,9 +2602,9 @@ evaluation script.
 
 ---
 
-## DEC-052 — Distinguish Classification Outcome from Routing Category (2026-10-20)
+## DEC-057 — Distinguish Classification Outcome from Routing Category (2026-10-20)
 
-**Scope update:** DEC-057 supersedes the fail-open rule only for requests
+**Scope update:** DEC-062 supersedes the fail-open rule only for requests
 recognized by the deterministic clear non-civic gate. `other` and `uncertain`
 classification outcomes still remain reviewable.
 
@@ -2444,7 +2636,7 @@ parsing. See `docs/API.md` and `docs/AI_SYSTEM.md`.
 
 ---
 
-## DEC-053 — Validate Water Candidates Across the Shared Category Cascade (2026-10-20)
+## DEC-058 — Validate Water Candidates Across the Shared Category Cascade (2026-10-20)
 
 **Context:** Review found Water could be selected from generic token overlap by
 the local classifier or a remote candidate, even when the text described
@@ -2478,7 +2670,7 @@ across all candidate sources.
 
 ---
 
-## DEC-054 — Reject Only Text Without Any Letters at Submission (2026-10-20)
+## DEC-059 — Reject Only Text Without Any Letters at Submission (2026-10-20)
 
 **Context:** Punctuation-only or numeric-only payloads do not convey a
 classifiable grievance and waste provider calls, while short or misspelled
@@ -2496,10 +2688,12 @@ See `docs/API.md` and the classification audit report.
 **Reversible:** Remove this narrow input guard without changing category
 outcome handling or provider fallback behavior.
 
-**Scope update:** DEC-057 adds a separate clear non-civic intent gate; this
+**Scope update:** DEC-062 adds a separate clear non-civic intent gate; this
 decision still protects punctuation-only and numeric-only input.
 
-## DEC-055 — Enforce Department Scope and Initial Assignment Boundaries (2026-10-20)
+---
+
+## DEC-060 — Enforce Department Scope and Initial Assignment Boundaries (2026-10-20)
 
 **Context:** Optional-user routes and progress routes must preserve the same
 server-side department boundary as required-auth routes. A department manager
@@ -2520,7 +2714,9 @@ and seeded staff workflows. See the 2026-10-20 stabilization session entry.
 **Reversible:** Adjust these guards if the documented role and assignment
 model changes; do not remove server-side department authorization.
 
-## DEC-056 — Use Webpack for the Next.js Production Build (2026-10-20)
+---
+
+## DEC-061 — Use Webpack for the Next.js Production Build (2026-10-20)
 
 **Context:** The installed Next.js 16 Turbopack build crashed in this Windows
 environment; its supported Webpack build completed TypeScript and static page
@@ -2536,7 +2732,9 @@ generation of all 20 static pages.
 **Reversible:** Restore Turbopack in the script after it builds reliably in
 the supported environment.
 
-## DEC-057 — Reject Clearly Non-Civic Submissions Before Side Effects (2026-10-20)
+---
+
+## DEC-062 — Reject Clearly Non-Civic Submissions Before Side Effects (2026-10-20)
 
 **Context:** The existing classifier already identified several explicit
 out-of-scope requests, but submission still created a grievance under `other`
@@ -2565,4 +2763,3 @@ reviewable. See `docs/API.md`, `docs/AI_SYSTEM.md`, and
 
 **Reversible:** Remove the 422 prefilter and restore DEC-049 flagging for all
 submissions if product policy changes; retain a local review fallback.
-

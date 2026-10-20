@@ -1,11 +1,27 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Clock, Download, FileText, Layers, MapPin } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  Download,
+  FileText,
+  Layers,
+  MapPin,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Feedback";
 import { AdminCharts } from "@/components/charts/AdminCharts";
+import {
+  ComplaintAgingChart,
+  ComplaintTrendsChart,
+  DepartmentPerformanceChart,
+  PriorityDistributionChart,
+  ResolutionSlaPanel,
+} from "@/components/charts/AnalyticsCharts";
 import { groupSimilarComplaints } from "@/lib/tfidf";
 import { getSlaInfo } from "@/lib/sla";
 import { AdminClusters } from "./AdminClusters";
@@ -47,8 +63,9 @@ function MetricCard({
 
 /**
  * Executive analytics & oversight dashboard (`/admin/analytics`).
- * Houses macro metrics, distribution charts, similar-complaint groups,
- * the spatial grievance map, and CSV report export.
+ * Houses macro metrics, trend charts, department performance comparisons,
+ * resolution & SLA adherence metrics, complaint aging, priority distribution,
+ * similar-complaint groups, spatial grievance maps, and CSV exports.
  */
 export function AdminAnalytics() {
   const { items: feedItems, loading, error, user } = useAdminGrievanceFeed();
@@ -56,6 +73,7 @@ export function AdminAnalytics() {
   const departmentId = user?.departmentId;
   const scopedDepartmentId = canonicalDepartmentId(departmentId);
   const isDepartmentManager = userRole === "ADMIN" && Boolean(scopedDepartmentId);
+
   const items = useMemo(() => {
     if (!isDepartmentManager || !scopedDepartmentId) return feedItems;
     return feedItems.filter((g) => {
@@ -63,6 +81,7 @@ export function AdminAnalytics() {
       return department === scopedDepartmentId.toLowerCase();
     });
   }, [feedItems, isDepartmentManager, scopedDepartmentId]);
+
   const [activeTab, setActiveTab] = useState<"overview" | "location">("overview");
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
@@ -116,7 +135,9 @@ export function AdminAnalytics() {
             Analytics &amp; oversight
           </h2>
           <p className="text-xs text-ink-500">
-            {isDepartmentManager ? `Complaint patterns and workload for ${user?.departmentId ?? "your department"}.` : "Macro metrics, complaint patterns, and where problems are happening — across all areas."}
+            {isDepartmentManager
+              ? `Complaint patterns and workload for ${user?.departmentId ?? "your department"}.`
+              : "Macro metrics, complaint trends, department performance, and spatial hotspots — across all areas."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -181,6 +202,7 @@ export function AdminAnalytics() {
         </button>
       </div>
 
+      {/* ── Overview & Trends Tab ─────────────────────────────────────────── */}
       {activeTab === "overview" && (
         <div className="space-y-6">
           {/* Macro metrics */}
@@ -215,8 +237,23 @@ export function AdminAnalytics() {
             />
           </div>
 
-          {/* Distribution charts */}
-          <AdminCharts items={items} />
+          {/* 1. Complaint Trends (Time-series) */}
+          <ComplaintTrendsChart items={items} />
+
+          {/* 2. Department Performance & Stage Distribution */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DepartmentPerformanceChart items={items} />
+            <AdminCharts items={items} />
+          </div>
+
+          {/* 3. Resolution Time / SLA & Aging Backlog */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ResolutionSlaPanel items={items} />
+            <ComplaintAgingChart items={items} />
+          </div>
+
+          {/* 4. Priority Distribution Matrix */}
+          <PriorityDistributionChart items={items} />
 
           {/* Similarity is a cross-queue analysis; department managers only need
               their operational metrics, map, and hotspot view. */}
@@ -232,6 +269,7 @@ export function AdminAnalytics() {
         </div>
       )}
 
+      {/* ── Location Analysis Tab ─────────────────────────────────────────── */}
       {activeTab === "location" && (
         <div className="space-y-6">
           <div>
