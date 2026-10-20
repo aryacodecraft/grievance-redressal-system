@@ -9,6 +9,15 @@
 
 ---
 
+## 2026-10-20 — Citizen Privacy Shield, Auth Hardening, and Pop-out Map UX (DEC-050)
+
+- `GrievanceDetailModal.tsx`: When `citizenView` is true, hides "Recent Officer & Field Updates" activity logs, resolver names ("Assigned Officer / Team"), and completion/resolution photos. Citizens see only status, lifecycle timeline, title, description, and location pin. Staff/admin surfaces (`!citizenView`) retain complete details.
+- `session.tsx`: Synchronous client-side hydration of `user` state from `localStorage` prevents momentary unauthenticated "Sign in" flashes on page loads or navigation. `initSession` only wipes tokens on explicit 401 unauthenticated responses from backend; transient network errors or cold starts no longer clear sessions.
+- `api.ts`: Token refresh retains both access and refresh tokens (`setStoredTokens(data.access_token, data.refresh_token)`); network errors during refresh no longer wipe tokens.
+- `app/track/page.tsx`: Displays clean spinner while restoring session instead of abruptly showing the "Sign in to track" card.
+- `LocationCapture.tsx`: Overhauled location picker UX with responsive buttons (`flex flex-col sm:flex-row`, `w-full sm:flex-1`, `h-auto min-h-[44px] py-2.5 px-3.5`, `break-words text-center`) preventing text overflow/escape on mobile devices. Replaced inline map with a dedicated Pop-out Map Dialog featuring live search, GPS positioning, a touch-friendly interactive map canvas (`h-[55vh]` mobile, `h-[420px]` desktop), reverse-geocoded place preview, and explicit "Confirm Pin Location" action.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node scripts/check-contract.mjs` passed (18 checks green), `npm run build` passed (20/20 static routes).
+
 ## 2026-10-20 — Quality gate & suspicious grievance flagging (DEC-049)
 
 - Added `backend/app/services/quality_check.py` with `check_quality()` using Groq bounded completion within `classification_budget()`; detects non-civic/fake submissions (e.g. arithmetic, riddles, spam) and fails safe to accepted (`is_genuine=True`) on any error or timeout.

@@ -928,3 +928,29 @@ Owner: When registering a fake/non-acceptable grievance (e.g. arithmetic questio
 - `node scripts/check-contract.mjs`: passed (18 checks green).
 - `npm run test:voice`: 79 passed.
 - Memory updated: DEC-049, CHANGELOG.md, CURRENT_STATE.md, this log.
+
+---
+
+## 2026-10-20 — Citizen Privacy Shield, Auth Hardening, and Pop-out Map UX (DEC-050)
+
+### Request
+Owner:
+1. Citizen should only see status of complaints; employee updates and photos should only be visible to managers or admins.
+2. Frontend forgets user is signed in and shows "Sign in"; harden session handling.
+3. Mobile view overflow fixes: buttons and texts overflowing (e.g. "Use my location" text escaping the box).
+4. Harden location picker UI logic, use a pop-out map modal window for bigger visual and better UX on mobile and desktop.
+
+### What changed
+- `GrievanceDetailModal.tsx`: When `citizenView` is true, hides "Recent Officer & Field Updates" activity log, resolver names ("Assigned Officer / Team"), and completion/resolution photos. Citizens see only status, lifecycle timeline, title, description, and location pin. Staff/admin surfaces (`!citizenView`) retain complete details.
+- `session.tsx`: Synchronous client-side hydration of `user` state from `localStorage` prevents momentary unauthenticated "Sign in" flashes on page loads or navigation. `initSession` only wipes tokens on explicit 401 unauthenticated responses from backend; transient network errors or cold starts no longer clear sessions.
+- `api.ts`: Token refresh retains both access and refresh tokens (`setStoredTokens(data.access_token, data.refresh_token)`); network errors during refresh no longer wipe tokens.
+- `app/track/page.tsx`: Displays clean spinner while restoring session instead of abruptly showing the "Sign in to track" card.
+- `LocationCapture.tsx`: Overhauled location picker UX with responsive buttons (`flex flex-col sm:flex-row`, `w-full sm:flex-1`, `h-auto min-h-[44px] py-2.5 px-3.5`, `break-words text-center`) preventing text overflow/escape on mobile devices. Replaced inline map with a dedicated Pop-out Map Dialog featuring live search, GPS positioning, a touch-friendly interactive map canvas (`h-[55vh]` mobile, `h-[420px]` desktop), reverse-geocoded place preview, and explicit "Confirm Pin Location" action.
+
+### Verification
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed (18 checks green).
+- `npm run build`: passed (20/20 static routes generated).
+- Pytest quality and lifecycle test suites passed.
+- Memory updated: DEC-050, CHANGELOG.md, CURRENT_STATE.md, this log.

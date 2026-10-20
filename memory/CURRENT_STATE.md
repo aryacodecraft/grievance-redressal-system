@@ -38,9 +38,9 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Grievance lifecycle** — 15-state machine (`backend/app/services/state_machine.py`),
   role-gated transitions, assignment/history arrays; status PATCH restricted to
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
-- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047), track
-  (master-detail, sign-in required; department/priority not shown to citizens —
-  DEC-028/029/030/044), notifications inbox v1, profile. IMPLEMENTED, TESTED.
+- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal — DEC-050), track
+  (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
+  DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.
 - **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
   quality gate in the submit pipeline; non-civic or fake complaints (e.g. math queries,
   riddles, gibberish, spam) are flagged with `qualityFlag="suspicious"` and reason,

@@ -2331,3 +2331,45 @@ face templates are untouched unless re-enrolled.
 
 **Reversible:** Remove quality check invocation from `submit_grievance` and hide the flagged UI filters.
 
+---
+
+## DEC-050 — Citizen Privacy Shield, Auth Hardening, and Pop-out Map UX (2026-10-20)
+
+**Context:** The project owner requested four distinct fixes:
+1. **Complaint visibility & privacy**: The citizen/user should only see the status and timeline of their complaint; officer updates, internal progress notes, resolver assignments, and completion photos should only be visible to managers or admins.
+2. **Auth session stability**: The frontend occasionally showed "Sign in" while performing normal tasks because the client forgot the signed-in session during navigation or refresh.
+3. **Mobile view overflow fixes**: Buttons and texts overflowed their containers on mobile (e.g. "Use my current location" text escaping the box).
+4. **Interactive Location Picker UX**: The inline map was cramped and difficult to use; replaced with a large, spacious pop-out map modal window with search, pin dragging, and touch-friendly controls across mobile and desktop.
+
+**Decision:**
+1. **Citizen Privacy Shield (`GrievanceDetailModal.tsx`)**:
+   - In `GrievanceDetailModal`, when `citizenView` is true:
+     - Hidden: "Recent Officer & Field Updates" activity log.
+     - Hidden: "Assigned Officer / Team" (resolver name).
+     - Hidden: Resolver completion/resolution photos.
+     - Skipped unneeded `getGrievanceHistory` network calls when viewing in citizen mode.
+     - Preserved: Status badge, lifecycle timeline, title, citizen description, date, address, and pinned incident location.
+   - Staff/admin surfaces (`!citizenView`) retain complete employee notes, resolver details, completion photos, and field updates.
+2. **Auth Session Persistence Hardening (`session.tsx` & `api.ts`)**:
+   - In `session.tsx`: Initialized `user` synchronously from `localStorage` (`STORAGE_KEY`) on client mount so no momentary "Sign in" flicker occurs during page load.
+   - Fixed premature sign-out bug: in `initSession`, transient network errors, cold-start timeouts, or non-401 errors no longer clear stored tokens or wipe the user session. Tokens are only cleared if the backend explicitly returns a 401 unauthenticated.
+   - In `api.ts`: Token refresh now persists both `access_token` and `refresh_token`; network errors during refresh no longer wipe tokens.
+   - In `app/track/page.tsx`: Respects `isLoading` state, displaying a clean spinner instead of flashing the unauthenticated "Sign in to track" card.
+3. **Mobile Overflow Fixes & Pop-out Map Dialog (`LocationCapture.tsx`)**:
+   - Fixed button box escape: Replaced cramped side-by-side buttons with responsive `flex flex-col sm:flex-row`, `w-full sm:flex-1`, `h-auto min-h-[44px] py-2.5 px-3.5`, and flexible text wrapping (`break-words text-center`).
+   - Built a dedicated **Pop-out Map Dialog** modal:
+     - Header: Modal title, guidance hint, and close (`X`) button.
+     - Integrated search & GPS toolbar: Search input to jump to any locality/city, and "My Location" GPS shortcut directly inside the map window.
+     - Spacious interactive map canvas: Responsive `h-[55vh]` on mobile and `h-[420px]` on desktop, supporting click-to-pin, pin dragging, and full pinch/zoom.
+     - Sticky footer: Displays live reverse-geocoded place name and coordinates, with "Cancel" and bold "Confirm Pin Location" buttons.
+   - Main form view: Displays an uncluttered verified location card with "Change on Map" and "Remove" actions once pinned.
+
+**Verification:**
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed (18 checks green).
+- `npm run build`: 20/20 static pages compiled successfully.
+- Pytest quality and lifecycle test suites passed.
+
+**Reversible:** Revert `LocationCapture.tsx` to inline rendering; restore employee update block in `GrievanceDetailModal.tsx`.
+

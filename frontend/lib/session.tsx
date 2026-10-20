@@ -56,8 +56,22 @@ interface Session {
 const DemoUserContext = createContext<Session | null>(null);
 
 export function DemoUserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Synchronous initialization from localStorage so the client never flickers
+  // to an unauthenticated "Sign in" state on reload or navigation (DEC-050).
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !localStorage.getItem(STORAGE_KEY);
+  });
   const liveMode = !useMocks();
 
   useEffect(() => {
@@ -90,16 +104,25 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
               setUser(authUser);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
             }
-          } catch {
-            if (isMounted) {
-              clearStoredTokens();
-              localStorage.removeItem(STORAGE_KEY);
-              setUser(null);
+          } catch (err: unknown) {
+            // ONLY clear tokens if the backend explicitly returned 401 Unauthorized
+            // (e.g. revoked token). Temporary network failures or 5xx cold starts must
+            // NOT wipe the stored session (DEC-050).
+            const status = (err as { status?: number })?.status;
+            if (status === 401) {
+              if (isMounted) {
+                clearStoredTokens();
+                localStorage.removeItem(STORAGE_KEY);
+                setUser(null);
+              }
+            } else {
+              console.warn("Could not refresh user profile; keeping cached user session:", err);
             }
           }
         } else {
           // If no token, check if there's any stale user object
           localStorage.removeItem(STORAGE_KEY);
+          if (isMounted) setUser(null);
         }
       } else {
         try {

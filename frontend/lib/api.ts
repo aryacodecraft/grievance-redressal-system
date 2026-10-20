@@ -116,16 +116,18 @@ async function requestJson<T>(
         });
         if (refreshRes.ok) {
           const data = await refreshRes.json();
-          setStoredTokens(data.access_token);
+          setStoredTokens(data.access_token, data.refresh_token || refreshToken);
           _isRefreshing = false;
           return requestJson<T>(path, init, false);
-        } else {
+        } else if (refreshRes.status === 401 || refreshRes.status === 403) {
+          // Token is genuinely invalid or expired on backend (DEC-050)
           clearStoredTokens();
         }
       } catch (error) {
         // Cancelling voice upload/refresh must not sign the user out.
         if (init.signal?.aborted) throw error;
-        clearStoredTokens();
+        // Network glitches / timeouts during refresh must NOT wipe authentication!
+        console.warn("Token refresh network failure; keeping tokens for retry:", error);
       } finally {
         _isRefreshing = false;
       }
