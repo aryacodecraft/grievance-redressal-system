@@ -1049,3 +1049,53 @@ Owner: "in any langauge the 2nd voice recording is not being captureed: No audio
 
 
 
+
+---
+
+## 2026-10-20 — Admin Analytics Aggregation Endpoints & Executive Dashboards (DEC-054)
+
+### Request
+Implement meaningful admin analytics for the SAMARTH grievance system using the existing stack (Next.js/TypeScript, Recharts 3.10.1, Leaflet 1.9.4, FastAPI, MongoDB Atlas).
+Deliver:
+- A. Complaint Trends (AreaChart: received vs resolved over time, daily/weekly/monthly, date-range filtering)
+- B. Department Performance (Grouped BarChart: received, open, resolved, overdue)
+- C. Resolution Time & SLA Compliance (median & mean resolution days, SLA compliance %, department table)
+- D. Complaint Aging (0–2, 3–7, 8–14, 15+ days buckets)
+- E. Priority Distribution (low, medium, high, urgent by status, separating stored from AI priorities)
+- F. Geographic Hotspots (Leaflet density-scaled markers and clusters, graceful handling of missing coordinates)
+- Fast aggregation endpoints (avoid loading 1000 records into memory; MongoDB aggregation + in-memory fallback)
+- Privacy (zero citizen PII in aggregate responses)
+
+### What changed
+- `backend/app/routers/analytics.py` (new):
+  - Five authenticated, role-scoped endpoints: `GET /admin/analytics/trends`, `/departments`, `/resolution`, `/aging`, `/priorities`.
+  - Scoped by `grievance.view_dept` permission; SUPERADMIN has full visibility, department ADMIN has departmental scope.
+  - Zero citizen PII returned.
+  - MongoDB pipelines using `$match`, `$group`, `$dateToString`, `$divide`, `$bucket`, `$cond`. In-memory fallback for testing and dev mode.
+- `backend/app/main.py`: Mounted `analytics_router.router`.
+- `frontend/lib/api.ts`:
+  - Added typed analytics API client functions: `fetchAnalyticsTrends`, `fetchAnalyticsDepartments`, `fetchAnalyticsResolution`, `fetchAnalyticsAging`, `fetchAnalyticsPriorities`.
+  - Added honest mock-data generators for demo mode when `NEXT_PUBLIC_USE_MOCKS=true`.
+- `frontend/components/charts/AnalyticsCharts.tsx` (new):
+  - Built 5 dedicated analytics components (`ComplaintTrendsChart`, `DepartmentChart`, `ResolutionStatsPanel`, `AgingChart`, `PriorityChart`) using Recharts 3.10.1 with brand palette (`#ff5500`), clean loading spinners, retryable error states, and empty states.
+- `frontend/components/admin/AdminMap.tsx`:
+  - Extended Leaflet map with proximity-based hotspot clustering (~2km).
+  - Density-scaled markers (24px badge for 2-4 items, 32px badge with heat rings for 5+ items) with multi-complaint scrollable popups.
+  - Mode toggle: "Hotspot Density" vs "All Pins".
+  - Graceful coordinate footer showing count of mapped items and excluded uncoordinated items.
+- `frontend/components/admin/AdminAnalytics.tsx`:
+  - Updated layout with 5 clear segmented tabs: Overview, Trends, Departments, Resolution & SLA, Location (Map).
+- `tests/test_admin_analytics.py` (new):
+  - 11 unit & integration tests covering authorization, scoping, daily/weekly/monthly trends, department counts, date range filters, SLA metrics, aging buckets, priority distribution, and zero-PII guarantees.
+- Documentation & Memory:
+  - `docs/API.md`: Documented all 5 new analytics endpoints.
+  - `memory/DECISIONS.md`: Recorded DEC-054.
+  - `memory/CURRENT_STATE.md`, `memory/CHANGELOG.md`, this log.
+
+### Verification
+- `.venv/bin/pytest tests/test_admin_analytics.py`: 11 passed (100%).
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `cd frontend && npx eslint components/admin/AdminAnalytics.tsx components/admin/AdminMap.tsx components/charts/AnalyticsCharts.tsx lib/api.ts`: 0 errors, 0 warnings.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run test:voice`: 80/80 passed.
+- `cd frontend && npm run build`: passed (all 20/20 static pages generated).

@@ -555,3 +555,27 @@ Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local back
   gitignored local `backend/.env`; repo/production default stays `false`.
 
 
+
+## 2026-10-20 — Admin Analytics Aggregation Endpoints & Executive Dashboards (DEC-054)
+
+- Backend Analytics Router (`backend/app/routers/analytics.py`):
+  - Endpoints: `GET /admin/analytics/trends`, `GET /admin/analytics/departments`, `GET /admin/analytics/resolution`, `GET /admin/analytics/aging`, `GET /admin/analytics/priorities`.
+  - Authenticated and role-scoped: SUPERADMIN has global visibility; ADMIN is scoped to their department.
+  - Privacy: responses return strictly aggregate metrics and zero citizen PII.
+  - Aggregation architecture: MongoDB aggregation pipelines for production (`storage_mode() == "mongodb"`), in-memory Python fallback for dev/testing.
+- Frontend Analytics Charts (`frontend/components/charts/AnalyticsCharts.tsx`):
+  - Recharts AreaChart for complaint trends (received vs resolved, daily/weekly/monthly granularity, quick date range selection).
+  - Grouped BarChart for department performance (received, open, resolved, overdue).
+  - Resolution time & SLA compliance metrics panel with mean/median days and department performance table.
+  - Complaint aging bar chart with 0–2, 3–7, 8–14, 15+ days buckets.
+  - Priority distribution chart showing stored priority values by lifecycle state.
+- Leaflet Map Hotspots (`frontend/components/admin/AdminMap.tsx`):
+  - Extended existing Leaflet 1.9.4 map without adding new libraries.
+  - Added proximity-based hotspot clustering with density-scaled markers (24px for 2-4 items, 32px with heat rings for 5+ items) and scrollable popup grievance lists.
+  - Added view toggle between "Hotspot Density" and "All Pins".
+  - Graceful handling of complaints without coordinates with a clear status footer.
+- Analytics Page Layout (`frontend/components/admin/AdminAnalytics.tsx`):
+  - Added segmented tabs: Overview, Trends, Departments, Resolution & SLA, Location (Map).
+- Tests & Validation:
+  - Added `tests/test_admin_analytics.py`: 11 passed (100% pass on auth, RBAC, filters, metrics, PII checks).
+  - `npx tsc --noEmit` clean, ESLint clean on all touched files, contract checks 21/21 passed, voice tests 80/80 passed, `next build` 20/20 static pages green.

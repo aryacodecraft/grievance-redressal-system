@@ -2482,3 +2482,47 @@ During conversational voice intake, after the initial recording and assistant fo
 
 
 
+
+---
+
+## DEC-054 — Admin Analytics Aggregation Endpoints & Executive Oversight Dashboards (2026-10-20)
+
+**Context:**
+The admin analytics dashboard (`/admin/analytics`) relied on a client-side calculation from `useAdminGrievanceFeed` (polling every 15s) and rendered only a basic single-slice pie chart. Backend admin routes (`/admin/overview`, `/admin/workload`, etc.) loaded up to 1000 full documents into Python memory. Meaningful, aggregated, privacy-safe analytics were required using the existing technology stack (FastAPI, MongoDB Atlas, Recharts 3.10.1, Leaflet 1.9.4).
+
+**Decision:**
+1. **Authenticated Analytics Router (`backend/app/routers/analytics.py`)**:
+   - Gated behind `require_permission("grievance.view_dept")` (SUPERADMIN sees all; ADMIN is scoped to their department).
+   - Zero citizen PII exposed in responses (aggregates only).
+   - Endpoints:
+     - `GET /admin/analytics/trends`: Received vs resolved complaints over time with daily, weekly, and monthly granularity and date range filters (`$dateToString`).
+     - `GET /admin/analytics/departments`: Grouped received, open, resolved, and overdue counts per department (`$group`, `$facet`).
+     - `GET /admin/analytics/resolution`: Median and mean resolution time (in days) and SLA compliance percentage per department. Transparently includes `sla_note` stating that SLA compliance applies only to complaints assigned a due date.
+     - `GET /admin/analytics/aging`: Unresolved complaints categorized into 0–2, 3–7, 8–14, and 15+ days buckets relative to a unified `reference_time`.
+     - `GET /admin/analytics/priorities`: Stored priority values (low, medium, high, urgent) grouped by complaint status. Includes transparency note that AI-predicted priorities are distinct from stored/human-assigned priorities.
+   - Dual-path architecture: MongoDB aggregation pipelines for production (`storage_mode() == "mongodb"`); robust in-memory Python calculations for dev/test fallback (`storage_mode() == "in-memory"`).
+2. **Frontend Analytics Components (`frontend/components/charts/AnalyticsCharts.tsx`)**:
+   - `ComplaintTrendsChart`: Recharts AreaChart with dual gradients, daily/weekly/monthly switch, date-range picker, loading/empty/error states.
+   - `DepartmentChart`: Grouped Recharts BarChart comparing received, open, resolved, and overdue counts per department with horizontal text rotation for readability.
+   - `ResolutionStatsPanel`: Executive KPI metric cards (median days, mean days, SLA compliance %) with full department performance breakdown table.
+   - `AgingChart`: Horizontal BarChart with colour-coded urgency buckets (green, orange, red, purple) excluding resolved complaints.
+   - `PriorityChart`: Grouped BarChart showing stored priorities by lifecycle status.
+3. **Geographic Hotspots Extension (`frontend/components/admin/AdminMap.tsx`)**:
+   - Extended existing Leaflet 1.9.4 implementation without adding third-party dependencies.
+   - Hotspot density clustering: nearby complaints within ~2km cluster into density-scaled circular badges (24px orange for 2–4 complaints, 32px red with heat rings for 5+ complaints) with scrollable multi-grievance popups.
+   - View mode toggle: "Hotspot Density" vs "All Pins".
+   - Graceful missing coordinate handling: displays a bottom summary reporting exactly how many complaints are mapped and how many lack coordinates.
+4. **Tabbed Navigation in `AdminAnalytics.tsx`**:
+   - Segmented navigation tabs: Overview, Trends, Departments, Resolution & SLA, Location (Map).
+5. **Mock Mode Resilience (`frontend/lib/api.ts`)**:
+   - Added honest mock-data generators for demo mode when `NEXT_PUBLIC_USE_MOCKS=true` or backend is unreachable.
+
+**Verification:**
+- Backend pytest `tests/test_admin_analytics.py`: 11 passed (100% pass on auth, RBAC, filters, metrics, PII checks).
+- Frontend TypeScript `npx tsc --noEmit`: 0 errors.
+- Frontend ESLint on touched files: 0 errors, 0 warnings.
+- Contract checks `node frontend/scripts/check-contract.mjs`: 21 passed.
+- Voice test suites `npm run test:voice`: 80 passed.
+- Next.js build `npm run build`: 20/20 static routes compiled successfully.
+
+**Reversible:** Revert router and frontend components if previous simplified dashboard is preferred.

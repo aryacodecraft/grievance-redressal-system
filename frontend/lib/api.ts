@@ -537,9 +537,13 @@ export async function checkBackendHealth(): Promise<boolean> {
   }
 }
 
-export function useMocks(): boolean {
+function isMockMode(): boolean {
   const value = (process.env.NEXT_PUBLIC_USE_MOCKS ?? "true").trim().toLowerCase();
   return !["false", "0", "no", "off"].includes(value);
+}
+
+export function useMocks(): boolean {
+  return isMockMode();
 }
 
 export const CLOUDINARY_CLOUD_NAME =
@@ -853,4 +857,228 @@ export function reEnrollFace(body: {
     "/auth/face/re-enroll",
     body
   );
+}
+
+
+/* ── Admin Analytics ─────────────────────────────────────────────────────── */
+
+export interface AnalyticsTrendsPoint {
+  date: string;
+  received: number;
+  resolved: number;
+}
+export interface AnalyticsTrendsResponse {
+  granularity: string;
+  data: AnalyticsTrendsPoint[];
+}
+
+export interface AnalyticsDeptStats {
+  department: string;
+  received: number;
+  open: number;
+  resolved: number;
+  overdue: number;
+}
+export interface AnalyticsDepartmentsResponse {
+  data: AnalyticsDeptStats[];
+}
+
+export interface AnalyticsResolutionDeptStat {
+  department: string;
+  count: number;
+  mean_days: number | null;
+  median_days: number | null;
+  within_sla: number | null;
+  total_with_due: number | null;
+}
+export interface AnalyticsResolutionResponse {
+  overall_mean_days: number | null;
+  overall_median_days: number | null;
+  overall_sla_compliance_pct: number | null;
+  sla_note: string;
+  by_department: AnalyticsResolutionDeptStat[];
+}
+
+export interface AnalyticsAgingBucket {
+  label: string;
+  days_min: number;
+  days_max: number | null;
+  count: number;
+}
+export interface AnalyticsAgingResponse {
+  reference_time: string;
+  buckets: AnalyticsAgingBucket[];
+}
+
+export interface AnalyticsPriorityCell {
+  priority: string;
+  status: string;
+  count: number;
+}
+export interface AnalyticsPrioritiesResponse {
+  data: AnalyticsPriorityCell[];
+  note: string;
+}
+
+function _analyticsParams(params: Record<string, string | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, v);
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+async function _getMockTrends(params: { granularity?: string }): Promise<AnalyticsTrendsResponse> {
+  const { MOCK_GRIEVANCES } = await import("./mock");
+  const gran = params.granularity ?? "daily";
+  const receivedMap: Record<string, number> = {};
+  const resolvedMap: Record<string, number> = {};
+  for (const g of MOCK_GRIEVANCES) {
+    if (g.createdAt) {
+      const d = g.createdAt.slice(0, 10);
+      receivedMap[d] = (receivedMap[d] ?? 0) + 1;
+    }
+    if (g.status === "resolved") {
+      const d = (g.createdAt ?? "").slice(0, 10);
+      resolvedMap[d] = (resolvedMap[d] ?? 0) + 1;
+    }
+  }
+  const dates = Array.from(new Set([...Object.keys(receivedMap), ...Object.keys(resolvedMap)])).sort();
+  return {
+    granularity: gran,
+    data: dates.map((d) => ({ date: d, received: receivedMap[d] ?? 0, resolved: resolvedMap[d] ?? 0 })),
+  };
+}
+
+async function _getMockDepartments(): Promise<AnalyticsDepartmentsResponse> {
+  const { MOCK_GRIEVANCES } = await import("./mock");
+  const { canonicalDepartmentId } = await import("./departments");
+  const stats: Record<string, { received: number; open: number; resolved: number; overdue: number }> = {};
+  for (const g of MOCK_GRIEVANCES) {
+    const dept = canonicalDepartmentId(g.departmentId ?? g.category);
+    if (!stats[dept]) stats[dept] = { received: 0, open: 0, resolved: 0, overdue: 0 };
+    stats[dept].received++;
+    if (g.status === "resolved" || g.status === "closed") {
+      stats[dept].resolved++;
+    } else {
+      stats[dept].open++;
+    }
+  }
+  return {
+    data: Object.entries(stats).map(([department, s]) => ({ department, ...s })),
+  };
+}
+
+async function _getMockResolution(): Promise<AnalyticsResolutionResponse> {
+  return {
+    overall_mean_days: 2.5,
+    overall_median_days: 2.0,
+    overall_sla_compliance_pct: 100,
+    sla_note: "Demo data: Sample resolution times based on mock records.",
+    by_department: [
+      { department: "sanitation", count: 1, mean_days: 2.0, median_days: 2.0, within_sla: 1, total_with_due: 1 },
+      { department: "roads", count: 0, mean_days: null, median_days: null, within_sla: 0, total_with_due: 0 },
+    ],
+  };
+}
+
+async function _getMockAging(): Promise<AnalyticsAgingResponse> {
+  const { MOCK_GRIEVANCES } = await import("./mock");
+  const openItems = MOCK_GRIEVANCES.filter((g) => g.status !== "resolved" && g.status !== "closed");
+  return {
+    reference_time: new Date().toISOString(),
+    buckets: [
+      { label: "0–2 days", days_min: 0, days_max: 2, count: 0 },
+      { label: "3–7 days", days_min: 3, days_max: 7, count: 1 },
+      { label: "8–14 days", days_min: 8, days_max: 14, count: 1 },
+      { label: "15+ days", days_min: 15, days_max: null, count: Math.max(0, openItems.length - 2) },
+    ],
+  };
+}
+
+async function _getMockPriorities(): Promise<AnalyticsPrioritiesResponse> {
+  const { MOCK_GRIEVANCES } = await import("./mock");
+  const cells: Record<string, number> = {};
+  for (const g of MOCK_GRIEVANCES) {
+    const key = `${g.priority || "low"}_${g.status || "open"}`;
+    cells[key] = (cells[key] ?? 0) + 1;
+  }
+  return {
+    data: Object.entries(cells).map(([k, count]) => {
+      const [priority, status] = k.split("_");
+      return { priority, status: status.toUpperCase(), count };
+    }),
+    note: "Demo data: Stored priority values from mock grievances.",
+  };
+}
+
+export async function fetchAnalyticsTrends(params: {
+  granularity?: string;
+  date_from?: string;
+  date_to?: string;
+}): Promise<AnalyticsTrendsResponse> {
+  try {
+    return await requestJson<AnalyticsTrendsResponse>(
+      `/admin/analytics/trends${_analyticsParams(params as Record<string, string | undefined>)}`,
+      { method: "GET" }
+    );
+  } catch (err) {
+    if (isMockMode()) return _getMockTrends(params);
+    throw err;
+  }
+}
+
+export async function fetchAnalyticsDepartments(params: {
+  date_from?: string;
+  date_to?: string;
+}): Promise<AnalyticsDepartmentsResponse> {
+  try {
+    return await requestJson<AnalyticsDepartmentsResponse>(
+      `/admin/analytics/departments${_analyticsParams(params as Record<string, string | undefined>)}`,
+      { method: "GET" }
+    );
+  } catch (err) {
+    if (isMockMode()) return _getMockDepartments();
+    throw err;
+  }
+}
+
+export async function fetchAnalyticsResolution(params: {
+  date_from?: string;
+  date_to?: string;
+}): Promise<AnalyticsResolutionResponse> {
+  try {
+    return await requestJson<AnalyticsResolutionResponse>(
+      `/admin/analytics/resolution${_analyticsParams(params as Record<string, string | undefined>)}`,
+      { method: "GET" }
+    );
+  } catch (err) {
+    if (isMockMode()) return _getMockResolution();
+    throw err;
+  }
+}
+
+export async function fetchAnalyticsAging(): Promise<AnalyticsAgingResponse> {
+  try {
+    return await requestJson<AnalyticsAgingResponse>("/admin/analytics/aging", { method: "GET" });
+  } catch (err) {
+    if (isMockMode()) return _getMockAging();
+    throw err;
+  }
+}
+
+export async function fetchAnalyticsPriorities(params: {
+  date_from?: string;
+  date_to?: string;
+}): Promise<AnalyticsPrioritiesResponse> {
+  try {
+    return await requestJson<AnalyticsPrioritiesResponse>(
+      `/admin/analytics/priorities${_analyticsParams(params as Record<string, string | undefined>)}`,
+      { method: "GET" }
+    );
+  } catch (err) {
+    if (isMockMode()) return _getMockPriorities();
+    throw err;
+  }
 }

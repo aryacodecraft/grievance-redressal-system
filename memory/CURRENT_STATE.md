@@ -47,8 +47,7 @@ only — humans retain assignment, escalation, resolution and closure authority
   warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
   board under a dedicated "Flagged" filter and review badge without ever silently dropping
   submissions. IMPLEMENTED, TESTED.
-- **Staff experience** — tabbed admin queue/board separating active/priority complaints from historical resolved archive with interactive triage metrics (DEC-051) + detail review modal, analytics (charts,
-  map, TF-IDF clusters, CSV), department-employees workspace, resolver workbench
+- **Staff experience** — tabbed admin queue/board separating active/priority complaints from historical resolved archive with interactive triage metrics (DEC-051) + detail review modal, comprehensive executive analytics (DEC-054: trends area chart, grouped department performance bar chart, resolution times & SLA compliance metrics, complaint aging buckets, priority distribution, Leaflet hotspot density clustering, TF-IDF clusters, CSV export), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
   audit), account-scoped notifications. IMPLEMENTED, TESTED.
 - **Auth** — email/password + JWT + refresh, Google OAuth, RBAC guards, signup

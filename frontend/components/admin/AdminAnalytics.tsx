@@ -1,11 +1,18 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Clock, Download, FileText, Layers, MapPin } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, Clock, Download, FileText, Layers, MapPin, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Feedback";
 import { AdminCharts } from "@/components/charts/AdminCharts";
+import {
+  AgingChart,
+  ComplaintTrendsChart,
+  DepartmentChart,
+  PriorityChart,
+  ResolutionStatsPanel,
+} from "@/components/charts/AnalyticsCharts";
 import { groupSimilarComplaints } from "@/lib/tfidf";
 import { getSlaInfo } from "@/lib/sla";
 import { AdminClusters } from "./AdminClusters";
@@ -45,6 +52,16 @@ function MetricCard({
   );
 }
 
+type Tab = "overview" | "trends" | "departments" | "resolution" | "location";
+
+const TABS: { id: Tab; label: string; Icon: typeof Layers }[] = [
+  { id: "overview",     label: "Overview",          Icon: BarChart3    },
+  { id: "trends",       label: "Trends",            Icon: TrendingUp   },
+  { id: "departments",  label: "Departments",       Icon: Layers       },
+  { id: "resolution",   label: "Resolution & SLA",  Icon: Clock        },
+  { id: "location",     label: "Location (Map)",    Icon: MapPin       },
+];
+
 /**
  * Executive analytics & oversight dashboard (`/admin/analytics`).
  * Houses macro metrics, distribution charts, similar-complaint groups,
@@ -63,7 +80,7 @@ export function AdminAnalytics() {
       return department === scopedDepartmentId.toLowerCase();
     });
   }, [feedItems, isDepartmentManager, scopedDepartmentId]);
-  const [activeTab, setActiveTab] = useState<"overview" | "location">("overview");
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
@@ -145,42 +162,32 @@ export function AdminAnalytics() {
       {loading && <Spinner label="Gathering complaint numbers…" />}
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {/* Tabs */}
+      {/* Tab bar */}
       <div
-        className="flex gap-1 rounded-lg border border-ink-200 bg-ink-50 p-1 w-fit"
+        className="flex flex-wrap gap-1 rounded-lg border border-ink-200 bg-ink-50 p-1"
         role="tablist"
         aria-label="Analytics view"
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "overview"}
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
-            activeTab === "overview"
-              ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
-              : "text-ink-600 hover:text-ink-950"
-          }`}
-        >
-          <BarChart3 size={16} />
-          Overview &amp; Trends
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "location"}
-          onClick={() => setActiveTab("location")}
-          className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
-            activeTab === "location"
-              ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
-              : "text-ink-600 hover:text-ink-950"
-          }`}
-        >
-          <MapPin size={16} />
-          Location Analysis (Map)
-        </button>
+        {TABS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
+              activeTab === id
+                ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
+                : "text-ink-600 hover:text-ink-950"
+            }`}
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
       </div>
 
+      {/* ── Overview tab ──────────────────────────────────────────────────── */}
       {activeTab === "overview" && (
         <div className="space-y-6">
           {/* Macro metrics */}
@@ -232,6 +239,32 @@ export function AdminAnalytics() {
         </div>
       )}
 
+      {/* ── Trends tab ────────────────────────────────────────────────────── */}
+      {activeTab === "trends" && (
+        <div className="space-y-6">
+          <ComplaintTrendsChart />
+          <div className="grid gap-6 lg:grid-cols-2">
+            <AgingChart />
+            <PriorityChart />
+          </div>
+        </div>
+      )}
+
+      {/* ── Departments tab ───────────────────────────────────────────────── */}
+      {activeTab === "departments" && (
+        <div className="space-y-6">
+          <DepartmentChart />
+        </div>
+      )}
+
+      {/* ── Resolution & SLA tab ──────────────────────────────────────────── */}
+      {activeTab === "resolution" && (
+        <div className="space-y-6">
+          <ResolutionStatsPanel />
+        </div>
+      )}
+
+      {/* ── Location tab ──────────────────────────────────────────────────── */}
       {activeTab === "location" && (
         <div className="space-y-6">
           <div>
