@@ -173,10 +173,10 @@ Return ONLY valid JSON with lowercase values:
         except Exception as err:
             last_exception = err
             logger.warning(
-                "Legacy Groq fallback failed model=%s latency_ms=%d",
+                "Legacy Groq fallback failed model=%s latency_ms=%d error_type=%s",
                 target_model,
                 int((time.monotonic() - call_started) * 1000) if "call_started" in locals() else 0,
-                exc_info=True,
+                type(err).__name__,
             )
             continue
 
@@ -214,74 +214,24 @@ def derive_priority_from_text(text: str) -> str:
 
 def predict_with_fallback(model, text: str) -> dict:
     """
-    Predicts grievance category and details using the ML model first.
-    Falls back to Groq LLM if confidence < 0.5 or category is 'other'.
-    Returns dict with canonical lowercase category and capitalized priority.
+    Backwards-compatible adapter around the shared category cascade.
+
+    New serving code should call ``classification.classify_category`` directly.
+    This adapter preserves the historical return shape while ensuring older
+    callers use the same scope, Water-context, and provider-failure policy.
     """
-    # Step 1: Call existing ML model
-    result = model.predict(text)
-    raw_cat = result.get("category", "other")
-    # Normalize ML category to canonical lowercase
-    ml_cat = canonicalize_category(raw_cat)
-    confidence = float(result.get("confidence", 0.0))
-    source = result.get("source")
+    from .classification import classification_budget, classify_category
 
-    # Step 2: Check fallback condition: confidence < 0.5 OR category == "other"
-    is_low_conf = confidence < 0.5 and source != "domain_override"
-    is_other = ml_cat.lower() == "other"
-    if is_low_conf or is_other:
-        from .classification import _has_civic_category_signal
-
-        if not _has_civic_category_signal(text):
-            return {
-                "category": "other",
-                "priority": derive_priority_from_text(text),
-                "confidence": 0.0,
-                "source": "scope_gate",
-                "reason": "No supported civic-service signal; category is uncertain.",
-            }
-        # Step 3: Trigger LLM Fallback
-        try:
-            llm_result = llm_classify(text)
-        except Exception:
-            logger.warning("Legacy Groq fallback unavailable; returning Other", exc_info=True)
-            return {
-                "category": "other",
-                "priority": derive_priority_from_text(text),
-                "confidence": 0.0,
-                "source": "fallback_unavailable",
-                "reason": "Category fallback unavailable; human review required.",
-            }
-
-        llm_cat = canonicalize_category(llm_result.get("category", "other"))
-        if llm_cat not in _ALLOWED_CATEGORIES:
-            logger.warning("Legacy Groq fallback produced an unsupported category; using Other")
-            llm_cat = "other"
-        llm_priority = llm_result.get("priority", "Medium")
-        # Normalize priority capitalization
-        if isinstance(llm_priority, str):
-            llm_priority = llm_priority.strip().capitalize()
-            if llm_priority.lower() not in ["high", "medium", "low"]:
-                llm_priority = "Medium"
-        else:
-            llm_priority = "Medium"
-
-        # Step 4: Return the validated categorical answer without a fabricated
-        # probability.
-        return {
-            "category": llm_cat,
-            "priority": llm_priority,
-            # LLM output is categorical, not a calibrated probability.
-            "confidence": 0.0,
-            "source": "llm_fallback",
-            "reason": llm_result.get("reason", "LLM classification")
-        }
-
-    # Step 4: Return ML result format with canonical category
+    with classification_budget(seconds=_LLM_TOTAL_BUDGET_SECONDS):
+        result = classify_category(text, model=model)
     return {
-        "category": ml_cat,
+        "category": result.get("category", "other"),
         "priority": derive_priority_from_text(text),
-        "confidence": confidence,
-        "source": source or "ml_model",
-        "reason": result.get("reason", "")
+        "confidence": float(result.get("confidence", 0.0)),
+        "source": result.get("source", "uncertain"),
+        "reason": result.get("reason", ""),
+        "categoryOutcome": result.get("categoryOutcome", "uncertain"),
+        "categoryConfidenceSemantics": result.get(
+            "categoryConfidenceSemantics", "unavailable"
+        ),
     }

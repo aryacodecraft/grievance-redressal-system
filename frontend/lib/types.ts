@@ -7,6 +7,14 @@ export interface HfEngine {
   rawCategoryLabel?: string;
   categoryConfidence?: number;
   urgentMatches?: string[];
+  modelInfo?: {
+    categorySource?: string;
+    categoryOutcome?: "categorized" | "other" | "uncertain" | "out_of_scope";
+    categoryConfidenceSemantics?:
+      | "uncalibrated_model_probability"
+      | "uncalibrated_zero_shot_score"
+      | "unavailable";
+  };
 }
 
 export interface Grievance {

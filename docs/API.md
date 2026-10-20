@@ -41,7 +41,7 @@ Development: `http://localhost:10000`
 | `GET` | `/grievances/department-counts` | Aggregate totals by category; no individual grievance data is returned |
 | `GET` | `/grievances/{grievance_id}` | Single grievance; public reference lookup returns a limited tracking projection; `404` if unknown |
 | `GET` | `/grievances/{grievance_id}/history` | Full history for authorized accounts; anonymous/non-owner tracking receives customer-visible/system updates only |
-| `PATCH` | `/grievances/{grievance_id}/status` | Officer action: `{ status?, assignee? }` — blank/whitespace-only values are `400`; surrounding whitespace is trimmed. No auth and no transition rules yet (Phase 1/2). |
+| `PATCH` | `/grievances/{grievance_id}/status` | Legacy officer patch: `{ status?, assignee? }` — authenticated officer roles only; blank/whitespace-only values are `400`; surrounding whitespace is trimmed. Use `/state` for validated workflow transitions. |
 | `POST` | `/validate-image` | Image validation |
 | `POST` | `/sign-cloudinary` | Cloudinary upload signature |
 | `POST` | `/delete-cloudinary` | Cloudinary asset removal |
@@ -49,6 +49,44 @@ Development: `http://localhost:10000`
 > **Naming note:** the implemented create route is `POST /submit-grievance`
 > (kept for parity with the legacy client), not `POST /grievances` as
 > originally planned below. Interactive docs: `http://localhost:10000/docs`.
+
+### Classification metadata on submission
+
+`POST /submit-grievance` returns `hfEngine.modelInfo.categoryOutcome` with one
+of `categorized`, `other`, or `uncertain`, alongside `categorySource` and
+`categoryConfidenceSemantics`. These fields describe the classifier result.
+Clearly non-civic text is rejected before classification; uncertain text is
+still accepted for the existing officer-review workflow. The persisted
+category remains the routing value (`other` is the general fallback queue).
+The separate `qualityFlag` marks uncertain content flagged by the optional
+quality check.
+
+`categoryConfidence` is interpreted together with
+`categoryConfidenceSemantics`: `uncalibrated_model_probability` is the local
+LogisticRegression score, `uncalibrated_zero_shot_score` is the Hugging Face
+zero-shot score, and `unavailable` means no numeric confidence estimate exists
+(including keyword/domain rules and Groq). A value of `0.0` with semantics
+`unavailable` is a sentinel, not a measured 0% chance of correctness.
+
+The submit route rejects a request with HTTP 400 when the combined title and
+description contain no Unicode letters (for example, punctuation-only text),
+with a message asking the citizen to describe the issue in words. It does not
+reject short, misspelled, or otherwise uncertain text solely based on length;
+such submissions remain available for officer review.
+
+Before image validation, classifier/provider calls, reference-ID generation or
+any persistence, the submit route locally rejects clear non-civic intent with
+HTTP 422: supported patterns include arithmetic questions, joke/creative
+requests, general-information questions without civic-problem language, plain
+greetings, keyboard-row gibberish and sports-result questions. The response
+contains an `error` asking the citizen to describe a public-service problem
+and where it is affecting them. It has no `grievanceId`; no grievance,
+notification, assignment or SMS side effect is created. This is a conservative
+prototype gate, not a complete language-understanding system. Ambiguous,
+short, misspelled and multilingual civic complaints continue to classification
+or the `other` officer-review path; a civic noun by itself does not make a
+generic information request a complaint. The optional quality classifier runs
+only when the local classifier abstains, and its failure remains fail-open.
 
 Authenticated `RESOLVER` requests to `GET /grievances` are always restricted to
 the caller's `ownerId` assignments. A department filter is optional; omitting
@@ -341,9 +379,16 @@ history. A history error must never turn a successful detail lookup into a
 ---
 
 ### PATCH /grievances/{grievance_id}/status
-Update grievance status. **Auth:** RESOLVER (limited), ADMIN.
-**Request:** `{ "status": "IN_PROGRESS", "reason"?: "string" }`
-**Side effect:** Creates `grievance_status_history` entry.
+Legacy partial status/assignee patch. **Auth:** `ADMIN`, `SUPERADMIN`, or
+`RESOLVER`. Blank status and assignee values return `400`. This compatibility
+route does not replace the canonical state-machine workflow below.
+
+### PATCH /grievances/{grievance_id}/state
+Apply a validated workflow transition. **Auth:** authenticated workflow role;
+the state machine validates both the transition and role. **Request:**
+`{ "to_state": "IN_PROGRESS", "reason": "string" }`. The transition is
+persisted to `state` and the legacy lowercase `status` projection, and is
+recorded in state history and the audit log.
 
 ---
 
@@ -379,7 +424,9 @@ User withdraws own grievance. **Auth:** USER (own), ADMIN.
 List grievances pending assignment. **Auth:** ADMIN.
 
 ### POST /grievances/{grievance_id}/assign
-Assign grievance. **Auth:** ADMIN.
+Make the initial department assignment. **Auth:** `ADMIN` or `SUPERADMIN`.
+Allowed from `SUBMITTED` or `PENDING_ASSIGNMENT`; later changes use
+`/reassign` so they do not reset the active state.
 **Request:**
 ```json
 {

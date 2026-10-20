@@ -126,6 +126,9 @@ const backendGrievance = {
       groqModel: "openai/gpt-oss-20b",
       hfCategory: "roads",
       hfPriority: "medium",
+      categorySource: "ml_model",
+      categoryOutcome: "categorized",
+      categoryConfidenceSemantics: "uncalibrated_model_probability",
     },
   },
 };
@@ -145,6 +148,12 @@ assert.equal(
   "hfEngineSchema must declare categoryConfidence — retained for API parity"
 );
 log("hfEngine.categoryConfidence survives parsing");
+assert.equal(list[0].hfEngine.modelInfo.categoryOutcome, "categorized");
+assert.equal(
+  list[0].hfEngine.modelInfo.categoryConfidenceSemantics,
+  "uncalibrated_model_probability"
+);
+log("classification outcome and score semantics survive parsing");
 
 // Same for the other hfEngine fields the card / types.ts expose.
 for (const key of ["rawCategoryLabel", "urgentMatches", "modelInfo"]) {
