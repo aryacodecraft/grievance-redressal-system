@@ -306,7 +306,7 @@ export function LocationCapture({
                   if (!searchBusy && searchQuery.trim()) void handleSearch();
                 }}
                 placeholder="Type area, city, or landmark (e.g. Connaught Place, Delhi)"
-                className="pl-8 text-xs h-9"
+                className="pl-8 text-xs h-10 sm:h-9"
               />
             </div>
             <Button
@@ -315,7 +315,7 @@ export function LocationCapture({
               size="sm"
               disabled={searchBusy || !searchQuery.trim()}
               onClick={() => void handleSearch()}
-              className="h-9 px-3 text-xs shrink-0"
+              className="h-10 sm:h-9 px-3.5 sm:px-3 text-xs shrink-0"
             >
               {searchBusy ? <Loader2 size={13} className="animate-spin" /> : "Search"}
             </Button>
@@ -345,8 +345,8 @@ export function LocationCapture({
                 >
                   <MapPin size={12} className="mt-0.5 shrink-0 text-primary-600" />
                   <div className="min-w-0">
-                    <p className="font-medium truncate">{res.name}</p>
-                    <p className="text-[10px] text-ink-500 truncate">{res.displayName}</p>
+                    <p className="font-medium break-words sm:truncate">{res.name}</p>
+                    <p className="text-[10px] text-ink-500 break-words sm:truncate">{res.displayName}</p>
                   </div>
                 </button>
               ))}
@@ -355,14 +355,14 @@ export function LocationCapture({
         </div>
 
         {/* Quick GPS & Map Toggle Actions */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-center sm:justify-start gap-2.5 sm:gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={captureGps}
             disabled={gpsState === "busy"}
-            className="flex-1 min-w-[140px] text-xs h-9 justify-center gap-1.5"
+            className="flex-1 min-w-[130px] sm:min-w-[140px] text-xs h-10 sm:h-9 justify-center gap-1.5"
           >
             {gpsState === "busy" ? (
               <>
@@ -382,7 +382,7 @@ export function LocationCapture({
             variant={mapOpen ? "primary" : "secondary"}
             size="sm"
             onClick={() => setMapOpen(!mapOpen)}
-            className="flex-1 min-w-[140px] text-xs h-9 justify-center gap-1.5"
+            className="flex-1 min-w-[130px] sm:min-w-[140px] text-xs h-10 sm:h-9 justify-center gap-1.5"
           >
             <Crosshair size={13} />
             {mapOpen ? t("locCloseMap") : "Pick place on map"}
@@ -398,7 +398,7 @@ export function LocationCapture({
           <div className="overflow-hidden rounded-md border border-ink-200">
             <div
               ref={mapRef}
-              className="h-64 w-full cursor-crosshair relative z-0"
+              className="h-48 sm:h-64 w-full cursor-crosshair relative z-0"
               role="application"
               aria-label="Choose grievance location map"
             />

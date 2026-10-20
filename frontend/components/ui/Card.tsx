@@ -30,7 +30,7 @@ export function CardHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4.5">
+    <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-4 py-3.5 sm:px-6 sm:py-4.5">
       <div>
         <h2 className="text-base font-semibold tracking-tight text-ink-900">
           {title}
@@ -53,5 +53,5 @@ export function CardBody({
   children: ReactNode;
   className?: string;
 }) {
-  return <div className={clsx("px-6 py-5", className)}>{children}</div>;
+  return <div className={clsx("px-4 py-4 sm:px-6 sm:py-5", className)}>{children}</div>;
 }

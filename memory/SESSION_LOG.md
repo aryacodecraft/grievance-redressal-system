@@ -854,5 +854,25 @@ SAMARTH, deploy face auth on Render free first, and reuse the local
   login; free-tier latency; DLT domestic SMS. See CURRENT_STATE §5.
 - Commit `dd6dbea` pushed to `origin/main`; Render deploy pending.
 
+---
 
+## 2026-10-20 — Mobile UI layout: side-by-side mode toggle, spacious fields & centered buttons (DEC-047)
 
+### Request
+Owner: Selection of manual vs voice should be side by side (not above and below). Other fields should be big and spaced out. Buttons should be centered on mobile. Zero changes to desktop view; no changes to functional fields or validation logic.
+
+### What changed
+- `frontend/components/grievance/VoiceIntake.tsx`: `IntakeModeToggle` uses `grid-cols-2` at base so options sit side-by-side on mobile screens; titles/hints wrap on mobile (`break-words`) instead of clipping, with desktop sizing/alignment restored via `sm:`; voice recorder action buttons (Start/Stop/Cancel/Type instead/Skip), language/mute row, and bottom switch actions centered on mobile (`justify-center sm:justify-start`).
+- `frontend/components/grievance/LocationCapture.tsx`: Search suggestions wrap on mobile (`break-words`) and keep desktop truncation (`sm:truncate`); upgraded search input & GPS/Map action button heights (`h-10 sm:h-9`) with centered button layout (`justify-center sm:justify-start`); map height `h-48 sm:h-64`.
+- `frontend/components/ui/Field.tsx`: Increased input and select base touch height (`h-11 sm:h-10`) with `py-2.5 sm:py-2` padding and mobile label/hint spacing (`mb-2 sm:mb-1.5`, `mt-2 sm:mt-1.5`).
+- `frontend/components/grievance/SubmitForm.tsx`: Mobile form spacing (`space-y-6 sm:space-y-5`), taller mobile description area (`rows={4}` + `min-h-32 sm:min-h-0`; desktop stays 4 rows), spaced manual grid (`gap-6 sm:gap-5`), submit buttons centered on mobile (`justify-center sm:justify-end`).
+- `frontend/components/ui/Card.tsx`: Adjusted `CardHeader` and `CardBody` base padding to `px-4 py-3.5` and `px-4 py-4`; desktop values preserved via `sm:px-6 sm:py-4.5` and `sm:px-6 sm:py-5`.
+- Base classes are mobile-first; `sm:` values restore the previous desktop styling. No functional or validation changes.
+
+### Verification
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed.
+- ESLint clean on all modified files.
+- `npm run build`: passed; 18/18 static pages generated.
+- Memory updated: DEC-047, CHANGELOG.md, CURRENT_STATE.md, this log.

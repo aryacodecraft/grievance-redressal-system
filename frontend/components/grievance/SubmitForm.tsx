@@ -135,7 +135,7 @@ export function SubmitForm() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <Card className="border-ink-200/80 shadow-xs">
         <CardHeader
           title={t("complaintDetails")}
@@ -147,27 +147,27 @@ export function SubmitForm() {
               e.preventDefault();
               void handleSubmit(onSubmit)(e);
             }}
-            className="space-y-5"
+            className="space-y-6 sm:space-y-5"
           >
             <IntakeModeToggle value={mode} onChange={setMode} disabled={submitting} />
             {mode === "voice" ? (
               <>
                 <VoiceIntake intake={intake} disabled={submitting} onSwitchManual={() => setMode("manual")} />
                 {intakeReady && (
-                  <section className="space-y-5 border-t border-ink-100 pt-5">
+                  <section className="space-y-6 border-t border-ink-100 pt-6 sm:space-y-5 sm:pt-5">
                     <div>
                       <h3 className="text-sm font-semibold text-ink-900">{t("intakeReviewTitle")}</h3>
-                      <p className="text-xs leading-5 text-ink-500">{t("intakeReviewHint")}</p>
+                      <p className="mt-0.5 sm:mt-0 text-xs leading-5 text-ink-500">{t("intakeReviewHint")}</p>
                     </div>
                     <Field label={t("formTitleLabel")} required error={errors.title?.message}>
-                      <span className="block rounded-md border border-ink-100 bg-ink-50 px-3.5 py-2 text-sm text-ink-900">
+                      <span className="block rounded-md border border-ink-100 bg-ink-50 px-3.5 py-2.5 sm:py-2 text-sm text-ink-900">
                         {currentTitle || "—"}
                       </span>
                       <input type="hidden" {...register("title")} />
                       <AiSuggestionBadge visible={intake.ai.title && !dirtyFields.title} />
                     </Field>
                     <Field label={t("formDescLabel")} required error={errors.description?.message}>
-                      <span className="block whitespace-pre-wrap rounded-md border border-ink-100 bg-ink-50 px-3.5 py-2 text-sm text-ink-900">
+                      <span className="block whitespace-pre-wrap rounded-md border border-ink-100 bg-ink-50 px-3.5 py-2.5 sm:py-2 text-sm text-ink-900">
                         {currentDescription || "—"}
                       </span>
                       <input type="hidden" {...register("description")} />
@@ -180,7 +180,7 @@ export function SubmitForm() {
                     <section
                       ref={photoRef}
                       aria-labelledby="intake-photo-title"
-                      className={`space-y-3 rounded-md border p-3 transition ${
+                      className={`space-y-3 rounded-md border p-4 sm:p-3 transition ${
                         !photoSkipped && !image
                           ? "border-orange-200 bg-orange-50/40 ring-1 ring-orange-200"
                           : "border-ink-100 bg-white"
@@ -193,7 +193,7 @@ export function SubmitForm() {
                         <p className="text-xs leading-5 text-ink-500">{t("intakePhotoHint")}</p>
                       </div>
                       {photoSkipped ? (
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                           <p className="text-xs text-ink-500">{t("intakePhotoSkipped")}</p>
                           <Button
                             type="button"
@@ -209,24 +209,26 @@ export function SubmitForm() {
                         <>
                           <ImageUpload onChange={setImage} onBusyChange={setPhotoBusy} />
                           {image ? (
-                            <p className="text-xs font-medium text-emerald-700">{t("intakePhotoAdded")}</p>
+                            <p className="text-xs font-medium text-emerald-700 text-center sm:text-left">{t("intakePhotoAdded")}</p>
                           ) : (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setPhotoSkipped(true)}
-                              disabled={submitting || photoBusy}
-                            >
-                              {t("intakePhotoSkip")}
-                            </Button>
+                            <div className="flex justify-center sm:justify-start">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPhotoSkipped(true)}
+                                disabled={submitting || photoBusy}
+                              >
+                                {t("intakePhotoSkip")}
+                              </Button>
+                            </div>
                           )}
                         </>
                       )}
                     </section>
                     {error && <Alert tone="error">{error}</Alert>}
-                    <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
-                      <Button type="submit" size="lg" disabled={submitting || photoBusy} className="w-full sm:w-auto min-w-40">
+                    <div className="pt-4 sm:pt-3 border-t border-ink-100 flex items-center justify-center sm:justify-end">
+                      <Button type="submit" size="lg" disabled={submitting || photoBusy} className="w-full sm:w-auto min-w-44 sm:min-w-40 text-base sm:text-sm py-2.5 sm:py-2">
                         {submitting ? t("btnSubmitting") : t("submit")}
                       </Button>
                     </div>
@@ -248,17 +250,18 @@ export function SubmitForm() {
                 >
                   <Textarea
                     rows={4}
+                    className="min-h-32 sm:min-h-0"
                     placeholder={t("formDescPlaceholder")}
                     {...register("description")}
                   />
                 </Field>
-                <div className="pt-2 border-t border-ink-100 grid gap-5 sm:grid-cols-2">
+                <div className="pt-4 sm:pt-2 border-t border-ink-100 grid gap-6 sm:gap-5 sm:grid-cols-2">
                   <ImageUpload onChange={setImage} />
                   <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} />
                 </div>
                 {error && <Alert tone="error">{error}</Alert>}
-                <div className="pt-3 border-t border-ink-100 flex items-center justify-end">
-                  <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-40">
+                <div className="pt-4 sm:pt-3 border-t border-ink-100 flex items-center justify-center sm:justify-end">
+                  <Button type="submit" size="lg" disabled={submitting} className="w-full sm:w-auto min-w-44 sm:min-w-40 text-base sm:text-sm py-2.5 sm:py-2">
                     {submitting ? t("btnSubmitting") : t("submit")}
                   </Button>
                 </div>

@@ -16,12 +16,12 @@ export default function SubmitPage() {
   return (
     <div className="bg-white min-h-[calc(100vh-4rem)]">
       {/* Page header — full bleed */}
-      <div className="border-b border-ink-100 bg-ink-50/50 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="border-b border-ink-100 bg-ink-50/50 px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
         <div className="mx-auto max-w-6xl">
-        <h1 className="text-xl font-bold tracking-tight text-ink-950">
+        <h1 className="text-lg font-bold tracking-tight text-ink-950 sm:text-xl">
           {t("registerSubtitle")}
         </h1>
-        <p className="mt-1 text-sm text-ink-500">
+        <p className="mt-0.5 text-xs text-ink-500 sm:mt-1 sm:text-sm">
           {t("submitPageDesc")}
         </p>
         </div>
@@ -30,14 +30,14 @@ export default function SubmitPage() {
       {/* Two-column layout: form left, my grievances right (stacked on mobile) */}
       <div className="mx-auto grid min-h-[calc(100vh-8rem)] w-full max-w-6xl gap-0 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Left: submit form */}
-        <div className="flex justify-center border-b border-ink-100 px-4 py-6 sm:px-6 sm:py-8 lg:border-b-0 lg:border-r lg:justify-end lg:px-8">
+        <div className="flex justify-center border-b border-ink-100 px-3 py-4 sm:px-6 sm:py-8 lg:border-b-0 lg:border-r lg:justify-end lg:px-8">
           <div className="w-full max-w-3xl">
             <SubmitForm />
           </div>
         </div>
 
         {/* Right: citizen's grievance history sidebar */}
-        <div className="bg-ink-50/30 px-4 py-6 sm:px-6 sm:py-8">
+        <div className="bg-ink-50/30 px-3 py-4 sm:px-6 sm:py-8">
           <MyGrievances />
         </div>
       </div>

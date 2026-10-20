@@ -38,9 +38,9 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Grievance lifecycle** — 15-state machine (`backend/app/services/state_machine.py`),
   role-gated transitions, assignment/history arrays; status PATCH restricted to
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
-- **Citizen experience** — submit (auth required, GPS, image upload), track
+- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047), track
   (master-detail, sign-in required; department/priority not shown to citizens —
-  DEC-028/029/030), notifications inbox v1, profile. IMPLEMENTED, TESTED.
+  DEC-028/029/030/044), notifications inbox v1, profile. IMPLEMENTED, TESTED.
 - **Staff experience** — admin queue/board + detail modal, analytics (charts,
   map, TF-IDF clusters, CSV), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
@@ -257,6 +257,8 @@ only — humans retain assignment, escalation, resolution and closure authority
 - Visual passes: orange/black palette across `/`, `/login`, `/submit`, `/track`,
   `/admin`, `/admin/analytics`, `/resolver`; department dropdown at ~1024px;
   face tabs (`/login` face tab, `2FA` step, `/signup/face`, `/re-enroll`, `/profile`).
+- Mobile `/submit` layout at 320/375/430 px: intake modes side-by-side, labels
+  wrap, actions centered; desktop ≥640 px unchanged (DEC-047).
 
 **Suite health:**
 

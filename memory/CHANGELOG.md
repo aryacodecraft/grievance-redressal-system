@@ -9,6 +9,16 @@
 
 ---
 
+## 2026-10-20 — Mobile UI: side-by-side mode toggle, spacious fields & centered buttons (DEC-047)
+
+- `VoiceIntake.tsx`: `IntakeModeToggle` enforces `grid-cols-2` on mobile so manual vs voice options sit side-by-side; titles/hints wrap on mobile (`break-words`) instead of clipping, with desktop sizing/alignment restored via `sm:` overrides; centered voice recorder action buttons (Start/Stop/Cancel/Type instead/Skip), language/mute row, and bottom switch actions on mobile (`justify-center sm:justify-start`).
+- `LocationCapture.tsx`: Search suggestions wrap on mobile (`break-words`) and keep their previous desktop truncation (`sm:truncate`); search input and quick action buttons upgraded to comfortable mobile heights (`h-10 sm:h-9`) with centered button layout (`justify-center sm:justify-start`); map container height adjusted on mobile (`h-48 sm:h-64`).
+- `Field.tsx`: Increased mobile touch target height for `Input` and `Select` (`h-11 sm:h-10`) with `px-3.5 py-2.5 sm:py-2` and mobile label/hint spacing (`mb-2 sm:mb-1.5`, `mt-2 sm:mt-1.5`).
+- `SubmitForm.tsx`: Increased mobile form spacing (`space-y-6 sm:space-y-5`), taller mobile description area (4 rows + `min-h-32`; desktop stays 4 rows), spaced grid (`gap-6 sm:gap-5`), and centered submit buttons on mobile (`flex items-center justify-center sm:justify-end`).
+- `Card.tsx`: `CardHeader` and `CardBody` base padding adjusted (`px-4 py-3.5 sm:px-6 sm:py-4.5` and `px-4 py-4 sm:px-6 sm:py-5`).
+- Base classes are mobile-first; `sm:` values restore the previous desktop sizing/spacing. No changes to form fields, state machine, or API contracts.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node scripts/check-contract.mjs` passed, ESLint clean, `npm run build` passed (18/18 static pages).
+
 ## 2026-10-20 — Twilio demo + free-first Render face packaging (DEC-046)
 
 - Added `backend/scripts/prepare_face_model.py` (downloads `buffalo_s.zip`, extracts only detector/landmark/recognition ONNX files, removes unused models) and `tests/test_prepare_face_model.py`.
