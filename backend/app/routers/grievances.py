@@ -32,8 +32,6 @@ from ..services.classification import (
     classification_budget,
     extract_keywords,
     find_urgent_matches,
-    infer_category_from_keywords,
-    refine_with_groq,
 )
 from ..services.image import llm_image_confidence
 from ..repositories.notifications import notif_repository
@@ -99,8 +97,8 @@ def submit_grievance(
                 },
             )
 
-    # 2. Classification cascade (HF → Groq → keywords). The budget bounds the
-    # combined Groq time for this request; deterministic steps still run.
+    # 2. Classification cascade (local model → local scope/keyword policy →
+    # scoped provider fallback). The budget bounds provider time.
     full_text = f"{title}\n{description}"
     with classification_budget():
         try:
@@ -120,20 +118,11 @@ def submit_grievance(
         urgent_matches = find_urgent_matches(full_text)
 
         hf_category = cat_res.get("category", "other")
-        keyword_category = infer_category_from_keywords(full_text)
-        if keyword_category:
-            hf_category = keyword_category
-
         if hf_category == "sanitation" and hf_priority == "low":
             hf_priority = "medium"
 
         hf_raw_label = cat_res.get("rawLabel", "")
         keywords = extract_keywords(full_text)
-
-        try:
-            groq_res = refine_with_groq(full_text, hf_category, hf_priority, hf_raw_label)
-        except Exception:
-            groq_res = None
 
         # Quality gate: detect non-civic content
         try:
@@ -141,18 +130,18 @@ def submit_grievance(
         except Exception:
             quality_result = {"is_genuine": True, "reason": "quality check error"}
 
-    if groq_res:
-        priority = groq_res.get("priority", hf_priority)
-        category = groq_res.get("category", hf_category)
-        ai_explanation = groq_res.get("explanation", "Refined by Groq LLM.")
-    else:
-        priority = hf_priority
-        category = hf_category
+    priority = hf_priority
+    category = hf_category
+    ai_explanation = (
+        f"Category '{category}' predicted from '{hf_raw_label}' "
+        f"(score: {float(cat_res.get('confidence', 0.0)):.2f}), "
+        f"Priority '{priority}' determined using sentiment ('{sentiment_raw}', "
+        f"score: {float(sentiment_score):.2f}) and urgency keywords."
+    )
+    if cat_res.get("source") in {"scope_gate", "uncertain", "invalid_input"}:
         ai_explanation = (
-            f"Category '{category}' predicted from '{hf_raw_label}' "
-            f"(score: {float(cat_res.get('confidence', 0.0)):.2f}), "
-            f"Priority '{priority}' determined using sentiment ('{sentiment_raw}', "
-            f"score: {float(sentiment_score):.2f}) and urgency keywords."
+            "Category is uncertain. Please add details about the municipal service "
+            "or issue, or have an officer review the category."
         )
 
     hf_engine = {
@@ -169,7 +158,12 @@ def submit_grievance(
             "priorityModel": PRIORITY_MODEL,
             "sentimentLabel": sentiment_raw,
             "sentimentScore": float(sentiment_score),
-            "groqModel": GROQ_MODEL if groq_res else "None",
+            "groqModel": GROQ_MODEL if (
+                cat_res.get("source") == "groq_fallback"
+                or pri_res.get("source") == "groq_fallback"
+            ) else "None",
+            "categorySource": cat_res.get("source", "unknown"),
+            "prioritySource": pri_res.get("source", "unknown"),
             "hfCategory": hf_category,
             "hfPriority": hf_priority,
         },

@@ -1,203 +1,280 @@
 #!/usr/bin/env python3
-"""
-evaluate.py — Full evaluation suite (Step 6 + 10)
-Reproducible, leak-free evaluation matching the notebook.
+"""Audit and evaluate the existing TF-IDF + LogisticRegression classifier.
 
-4 metrics:
-1. Train vs test accuracy (raw classifier, no gate) — overfitting signal
-2. Classification report on leak-free test set
-3. Confusion matrix on leak-free test set
-4. Gated pipeline results (Correct / Other / Wrong) on leak-free test + holdout
+All reported train/test metrics use distinct cleaned complaints. An optional
+separate holdout is evaluated only for categories represented in training;
+unrepresented categories are reported as out of taxonomy, never as correct
+"Other" predictions. No external API is called.
 
-Usage:
-    python backend/evaluate.py
-    python backend/evaluate.py --holdout
+Usage: python backend/evaluate.py
 """
-import re
+from __future__ import annotations
+
 import pathlib
-import numpy as np
+import re
+import sys
+import time
+
 import pandas as pd
 from scipy.sparse import hstack
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_recall_fscore_support,
+)
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Import the project model — it lives in the serving package (DEC-010).
-import sys
-sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))  # repository root
-from backend.app.services.grievance_model import (
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
+from backend.app.services.grievance_model import (  # noqa: E402
+    CATEGORY_RENAME,
     GrievanceModel,
     clean_text,
-    CATEGORY_RENAME,
+    vectorize,
 )
+from backend.app.services.classification import infer_category_from_keywords  # noqa: E402
 
-def leak_free_split(df, test_size=0.2, seed=42):
-    if 'clean_text' not in df.columns:
-        df = df.copy()
-        df['clean_text'] = df['text'].apply(clean_text)
-    unique_df = df.drop_duplicates(subset=['clean_text'])[['clean_text', 'category']].copy()
-    train_groups, test_groups = train_test_split(
-        unique_df, test_size=test_size, stratify=unique_df['category'], random_state=seed
+ROOT = pathlib.Path(__file__).parent
+TRAIN_PATH = ROOT / "data" / "Citizen (1).csv"
+HOLDOUT_PATH = ROOT / "data" / "grievances_holdout_templates (2).csv"
+HOLDOUT_RENAME = {
+    "Water Supply": "Water", "Healthcare & Hospitals": "Health",
+    "Sanitation & Garbage": "Sanitation", "Roads & Infrastructure": "Road",
+    "Transport & Traffic": "Transport", "Electricity & Power": "Electricity",
+    "Water": "Water", "Health": "Health", "Sanitation": "Sanitation",
+    "Road": "Road", "Transport": "Transport", "Electricity": "Electricity",
+}
+LABEL_FROM_KEY = {
+    "water": "Water", "roads": "Road", "transport": "Transport",
+    "electricity": "Electricity", "sanitation": "Sanitation",
+    "health": "Health", "governance": "Governance", "other": "Other",
+}
+LEGACY_DOMAIN_KEYWORDS = {
+    "Electricity": ["electricity", "meter reading", "load shedding", "fuse", "wire", "streetlight", "street light", "power", "voltage", "transformer", "sparking", "cable", "blackout", "current", "electrical"],
+    "Water": ["water", "pipeline", "pipe", "tap", "tanker", "leakage", "leak", "contaminated", "drinking water", "borewell", "supply", "pressure"],
+    "Road": ["road", "pothole", "highway", "flyover", "bridge", "traffic", "speedbreaker", "signage", "overbridge", "footpath", "divider"],
+    "Sanitation": ["garbage", "sanitation", "dirty", "sewage", "drain", "dustbin", "waste", "cleanliness", "sweeper", "trash", "dump", "sewer"],
+    "Health": ["hospital", "doctor", "health", "medicine", "treatment", "ambulance", "clinic", "nurse", "patient", "blood bank", "blood group"],
+    "Transport": ["bus", "transport", "route", "auto", "rickshaw", "train", "station", "conductor", "bus stop", "taxi"],
+}
+
+
+def legacy_predict(text: str, word_vec, char_vec, clf) -> str:
+    """Reproduce the prior model's domain override and confidence rejection."""
+    clean = clean_text(text)
+    scores = {
+        domain: sum(
+            1 for word in words
+            if re.search(r"\b" + re.escape(word) + r"\b", clean)
+        )
+        for domain, words in LEGACY_DOMAIN_KEYWORDS.items()
+    }
+    max_hits = max(scores.values())
+    top = [domain for domain, hits in scores.items() if hits == max_hits and hits]
+    if len(top) == 1:
+        return top[0]
+    features = hstack([word_vec.transform([clean]), char_vec.transform([clean])])
+    probabilities = clf.predict_proba(features)[0]
+    order = probabilities.argsort()[::-1]
+    top1, top2 = float(probabilities[order[0]]), float(probabilities[order[1]])
+    if top1 < 0.50 or top1 - top2 < 0.25:
+        return "Other"
+    predicted = str(clf.classes_[order[0]])
+    return {"Roads": "Road", "Healthcare": "Health"}.get(predicted, predicted)
+
+
+def updated_offline_predict(text: str, model: GrievanceModel) -> str:
+    """Run the local model and deterministic fallback, without providers."""
+    result = model.predict(text)
+    category = result["category"]
+    if result.get("source") == "domain_override":
+        return LABEL_FROM_KEY.get(category, "Other")
+    if category != "other" and float(result.get("confidence", 0.0)) >= model.confidence_threshold:
+        return LABEL_FROM_KEY.get(category, "Other")
+    keyword_category = infer_category_from_keywords(text)
+    return LABEL_FROM_KEY.get(keyword_category, "Other")
+
+
+def load_training_rows() -> pd.DataFrame:
+    frame = pd.read_csv(TRAIN_PATH, skiprows=1, encoding="utf-8", engine="python")
+    frame = frame.iloc[:, :2].copy()
+    frame.columns = ["text", "category"]
+    frame = frame.dropna(subset=["text", "category"])
+    frame["text"] = frame["text"].astype(str).str.strip()
+    frame = frame[frame["text"] != ""].copy()
+    frame["category"] = (
+        frame["category"].astype(str).str.strip().map(CATEGORY_RENAME)
+        .fillna(frame["category"].astype(str).str.strip())
     )
-    train_texts = set(train_groups['clean_text'])
-    test_texts = set(test_groups['clean_text'])
-    train_rows = df[df['clean_text'].isin(train_texts)].copy()
-    test_rows = df[df['clean_text'].isin(test_texts)].copy()
-    assert len(set(train_rows['clean_text']).intersection(set(test_rows['clean_text']))) == 0
-    return train_rows, test_rows
+    frame["clean_text"] = frame["text"].map(clean_text)
+    return frame
 
-def build_vectorizers(train_texts):
-    word_vec = TfidfVectorizer(analyzer='word', ngram_range=(1, 2), min_df=1)
-    char_vec = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), min_df=1, max_features=1500)
-    word_vec.fit(train_texts)
-    char_vec.fit(train_texts)
-    return word_vec, char_vec
 
-def vectorize(texts, word_vec, char_vec):
-    if char_vec is None:
-        return word_vec.transform(texts)
-    return hstack([word_vec.transform(texts), char_vec.transform(texts)])
+def audit(frame: pd.DataFrame) -> tuple[pd.DataFrame, set[str]]:
+    label_counts = frame.groupby("clean_text")["category"].nunique()
+    conflicting = set(label_counts[label_counts > 1].index)
+    unique = frame[~frame["clean_text"].isin(conflicting)].drop_duplicates("clean_text")
+    raw_dupe_rate = 1 - frame["text"].nunique() / max(1, len(frame))
+    clean_dupe_rate = 1 - frame["clean_text"].nunique() / max(1, len(frame))
+    print("DATASET AUDIT")
+    print(f"  Rows: {len(frame)}")
+    print(f"  Unique raw complaint texts: {frame['text'].nunique()}")
+    print(f"  Unique cleaned complaint texts: {frame['clean_text'].nunique()}")
+    print(f"  Raw duplicate rate: {raw_dupe_rate:.2%}; cleaned duplicate rate: {clean_dupe_rate:.2%}")
+    print(f"  Conflicting cleaned texts: {len(conflicting)} (excluded from training/evaluation)")
+    print(f"  Category rows: {frame['category'].value_counts().sort_index().to_dict()}")
+    print(f"  Distinct unconflicted examples/category: {unique['category'].value_counts().sort_index().to_dict()}")
+    return unique, conflicting
 
-def main():
-    # Load Citizen (1).csv with robust handling
-    train_path = pathlib.Path(__file__).parent / "data" / "Citizen (1).csv"
-    if not train_path.exists():
-        train_path = pathlib.Path("backend/data/Citizen (1).csv")
-    print(f"Loading training data from: {train_path} exists={train_path.exists()}")
-    try:
-        df = pd.read_csv(train_path, skiprows=1, encoding='utf-8', engine='python', on_bad_lines='skip')
-        if list(df.columns)[:2] != ['Complaint_Text', 'Category']:
-            alt = pd.read_csv(train_path, encoding='utf-8', engine='python', on_bad_lines='skip')
-            if list(alt.columns) == ['Column1', 'Column2']:
-                df = pd.read_csv(train_path, skiprows=1, encoding='utf-8', engine='python', on_bad_lines='skip')
-            else:
-                df = alt
-        df.columns = ['text', 'category'] if len(df.columns) >= 2 else df.columns
-    except Exception:
-        df = pd.read_csv(train_path, encoding='utf-8', engine='python', on_bad_lines='skip')
-        df.columns = ['text', 'category'] if len(df.columns) >= 2 else df.columns
-    df = df.dropna(subset=['text', 'category'])
-    df = df[df['text'].astype(str).str.strip() != '']
-    df['category'] = df['category'].map(CATEGORY_RENAME).fillna(df['category'])
-    df['clean_text'] = df['text'].apply(clean_text)
-    print(f"Total samples: {len(df)}, unique: {df['clean_text'].nunique()}, categories: {sorted(df['category'].unique())}")
 
-    # Train model (leak-free)
-    model = GrievanceModel()
-    model.train(str(train_path), verbose=True)
+def fit_classifier(rows: pd.DataFrame) -> tuple[TfidfVectorizer, TfidfVectorizer, LogisticRegression, float]:
+    started = time.perf_counter()
+    texts = rows["clean_text"].tolist()
+    word_vec = TfidfVectorizer(analyzer="word", ngram_range=(1, 2), min_df=1)
+    char_vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=1, max_features=1500)
+    features = hstack([word_vec.fit_transform(texts), char_vec.fit_transform(texts)])
+    clf = LogisticRegression(max_iter=2000, class_weight="balanced")
+    clf.fit(features, rows["category"])
+    return word_vec, char_vec, clf, time.perf_counter() - started
 
-    # 1. Train vs test accuracy (raw, no gate)
-    train_rows, test_rows = model.train_rows_, model.test_rows_
-    X_train = vectorize(train_rows['clean_text'], model.word_vec, model.char_vec)
-    X_test = vectorize(test_rows['clean_text'], model.word_vec, model.char_vec)
-    train_pred = model.clf.predict(X_train)
-    test_pred = model.clf.predict(X_test)
-    train_acc = accuracy_score(train_rows['category'], train_pred)
-    test_acc = accuracy_score(test_rows['category'], test_pred)
-    print("\n1. TRAIN vs TEST ACCURACY (raw classifier, no domain override / no gate)")
-    print(f"   Train: {train_acc:.2%} | Test: {test_acc:.2%} | Gap: {train_acc - test_acc:.2%}")
 
-    # 2. Classification report on leak-free test set (raw)
-    print("\n2. CLASSIFICATION REPORT (leak-free test set, raw classifier)")
-    print(classification_report(test_rows['category'], test_pred, zero_division=0))
+def report_metrics(title: str, truth: list[str], predictions: list[str], labels: list[str]) -> None:
+    metric_labels = [label for label in labels if label in truth or label in predictions]
+    metric_labels.extend(sorted(set(predictions) - set(metric_labels)))
+    print(f"\n{title} (n={len(truth)} distinct examples)")
+    print(f"  Accuracy: {accuracy_score(truth, predictions):.3f}")
+    print(f"  Macro F1: {f1_score(truth, predictions, average='macro', labels=metric_labels, zero_division=0):.3f}")
+    print(f"  Weighted F1: {f1_score(truth, predictions, average='weighted', labels=metric_labels, zero_division=0):.3f}")
+    print(classification_report(truth, predictions, labels=metric_labels, zero_division=0))
+    cm = confusion_matrix(truth, predictions, labels=labels)
+    print("  Confusion matrix labels:", labels)
+    print(cm)
+    if "Water" in labels:
+        p, r, f, _ = precision_recall_fscore_support(
+            truth, predictions, labels=["Water"], average=None, zero_division=0
+        )
+        print(f"  Water precision={p[0]:.3f} recall={r[0]:.3f} F1={f[0]:.3f}")
 
-    # 3. Confusion matrix (raw)
-    labels = sorted(test_rows['category'].unique())
-    cm = confusion_matrix(test_rows['category'], test_pred, labels=labels)
-    cm_df = pd.DataFrame(cm, index=[f"true:{l}" for l in labels], columns=[f"pred:{l}" for l in labels])
-    print("3. CONFUSION MATRIX (counts, raw classifier)")
-    print(cm_df.to_string())
-    cm_norm = cm.astype(float) / cm.sum(axis=1, keepdims=True)
-    cm_norm_df = pd.DataFrame(cm_norm.round(3), index=[f"true:{l}" for l in labels], columns=[f"pred:{l}" for l in labels])
-    print("\n   Row-normalized (recall):")
-    print(cm_norm_df.to_string())
 
-    # 4. Gated pipeline results on leak-free test set (canonical comparison)
-    def _canon(cat):
-        m = {'Road':'roads','Roads':'roads','Water':'water','Electricity':'electricity','Sanitation':'sanitation','Health':'health','Transport':'transport','Other':'other','other':'other'}
-        c = str(cat).strip()
-        return m.get(c, m.get(c.capitalize(), c.lower()))
-    gated_results = test_rows['text'].apply(model.predict)
-    gated_preds = gated_results.apply(lambda r: _canon(r['category']))
-    true_labels_canonical = test_rows['category'].apply(_canon)
-    correct = (gated_preds == true_labels_canonical)
-    other = (gated_preds == 'other')
-    wrong = (~correct) & (~other)
-    print(f"\n4. GATED PIPELINE RESULTS -- leak-free test set (n={len(test_rows)})")
-    print(f"   Correct: {correct.mean():.2%}")
-    print(f"   Sent to 'Other': {other.mean():.2%}")
-    print(f"   Wrong: {wrong.mean():.2%}")
+def main() -> None:
+    frame = load_training_rows()
+    unique, conflicting = audit(frame)
+    if conflicting:
+        print("  Conflicting labels:", {
+            text: sorted(frame.loc[frame.clean_text == text, "category"].unique().tolist())
+            for text in sorted(conflicting)
+        })
 
-    # 5. Holdout evaluation (if available)
-    holdout_path = pathlib.Path(__file__).parent / "data" / "grievances_holdout_templates (2).csv"
-    if not holdout_path.exists():
-        holdout_path = pathlib.Path("backend/data/grievances_holdout_templates (2).csv")
-    if holdout_path.exists():
-        print(f"\n--- HOLDOUT EVALUATION ---")
-        print(f"Loading holdout from: {holdout_path}")
-        holdout_df = pd.read_csv(holdout_path, encoding='utf-8', engine='python', on_bad_lines='skip')
-        holdout_df.columns = [c.strip().lower() for c in holdout_df.columns]
-        col_map = {'complaint_text':'text','complaint':'text','grievance':'text','text':'text','category':'category','label':'category'}
-        holdout_df = holdout_df.rename(columns={k:v for k,v in col_map.items() if k in holdout_df.columns})
-        if 'text' not in holdout_df.columns:
-            holdout_df.columns = ['grievance_id','text','category'][:len(holdout_df.columns)]
-        HOLDOUT_TO_TRAIN = {
-            'Water Supply': 'Water','Healthcare & Hospitals': 'Health','Sanitation & Garbage': 'Sanitation',
-            'Roads & Infrastructure': 'Road','Transport & Traffic': 'Transport','Electricity & Power': 'Electricity',
-            'Water':'Water','Health':'Health','Sanitation':'Sanitation','Road':'Road','Transport':'Transport','Electricity':'Electricity',
-        }
-        if 'category' in holdout_df.columns:
-            holdout_df['category_raw'] = holdout_df['category']
-            holdout_df['category'] = holdout_df['category'].map(HOLDOUT_TO_TRAIN).fillna(holdout_df['category'])
-            holdout_df['category'] = holdout_df['category'].map(CATEGORY_RENAME).fillna(holdout_df['category'])
-        holdout_df['clean_text'] = holdout_df['text'].astype(str).apply(clean_text)
-        print(f"Holdout: {len(holdout_df)} rows, {holdout_df['category'].nunique()} categories")
-        print(holdout_df['category'].value_counts().head(15).to_string())
+    labels = sorted(unique["category"].unique().tolist())
+    train_rows, test_rows = train_test_split(
+        unique, test_size=0.2, stratify=unique["category"], random_state=42
+    )
+    train_texts = set(train_rows["clean_text"])
+    repeated_train_rows = frame[
+        frame["clean_text"].isin(train_texts) & ~frame["clean_text"].isin(conflicting)
+    ]
 
-        known_cats = set(model.train_rows_['category'].unique())
-        holdout_known_mask = holdout_df['category'].isin(known_cats)
-        holdout_unknown_mask = ~holdout_known_mask
-        print(f"\nHoldout known: {holdout_known_mask.sum()} | unknown: {holdout_unknown_mask.sum()}")
+    # Compare the prior duplicate-weighted training procedure with the fixed
+    # procedure on the same exact-text-group split and untouched test groups.
+    legacy_vecs = fit_classifier(repeated_train_rows)
+    improved_vecs = fit_classifier(train_rows)
+    legacy_word, legacy_char, legacy_clf, legacy_seconds = legacy_vecs
+    word_vec, char_vec, clf, improved_seconds = improved_vecs
+    X_test_legacy = hstack([legacy_word.transform(test_rows.clean_text), legacy_char.transform(test_rows.clean_text)])
+    X_test = hstack([word_vec.transform(test_rows.clean_text), char_vec.transform(test_rows.clean_text)])
+    test_truth = test_rows.category.tolist()
+    report_metrics(
+        "LEAKAGE-RESISTANT UNIQUE-TEXT TEST — prior duplicate-weighted fit",
+        test_truth, legacy_clf.predict(X_test_legacy).tolist(), labels,
+    )
+    report_metrics(
+        "LEAKAGE-RESISTANT UNIQUE-TEXT TEST — deduplicated existing model",
+        test_truth, clf.predict(X_test).tolist(), labels,
+    )
+    split_policy_model = GrievanceModel()
+    split_policy_model.word_vec = word_vec
+    split_policy_model.char_vec = char_vec
+    split_policy_model.clf = clf
+    split_policy_model.train_rows_ = train_rows
+    split_policy_model.is_trained = True
+    report_metrics(
+        "LEAKAGE-RESISTANT UNIQUE-TEXT TEST — prior production model policy",
+        test_truth,
+        [legacy_predict(text, legacy_word, legacy_char, legacy_clf) for text in test_rows.text],
+        labels,
+    )
+    report_metrics(
+        "LEAKAGE-RESISTANT UNIQUE-TEXT TEST — updated local policy",
+        test_truth,
+        [updated_offline_predict(text, split_policy_model) for text in test_rows.text],
+        labels,
+    )
+    print(f"\nDistinct examples/split: train={len(train_rows)}, test={len(test_rows)}")
+    print(f"Train split class counts: {train_rows.category.value_counts().sort_index().to_dict()}")
+    print(f"Test split class counts: {test_rows.category.value_counts().sort_index().to_dict()}")
+    print(f"Exact cleaned-text overlap across split: {len(train_texts.intersection(set(test_rows.clean_text)))}")
+    print(f"Fit time: prior={legacy_seconds:.4f}s ({len(repeated_train_rows)} rows); deduplicated={improved_seconds:.4f}s ({len(train_rows)} rows)")
 
-        if holdout_known_mask.sum() > 0:
-            X_holdout = vectorize(holdout_df['clean_text'], model.word_vec, model.char_vec)
-            holdout_raw_pred = model.clf.predict(X_holdout)
-            known_acc = accuracy_score(holdout_df.loc[holdout_known_mask, 'category'], holdout_raw_pred[holdout_known_mask])
-            print(f"\nHoldout RAW accuracy (known only): {known_acc:.2%}")
-            print(classification_report(holdout_df.loc[holdout_known_mask, 'category'], holdout_raw_pred[holdout_known_mask], zero_division=0))
-            labels_known = sorted(holdout_df.loc[holdout_known_mask, 'category'].unique())
-            cm_h = confusion_matrix(holdout_df.loc[holdout_known_mask, 'category'], holdout_raw_pred[holdout_known_mask], labels=labels_known)
-            cm_h_df = pd.DataFrame(cm_h, index=[f"true:{l}" for l in labels_known], columns=[f"pred:{l}" for l in labels_known])
-            print("Confusion Matrix (holdout known):")
-            print(cm_h_df.to_string())
+    # The holdout is only category-evaluable for classes represented in the
+    # training labels. Other service categories are out of taxonomy, not true
+    # positives for the catch-all label.
+    if HOLDOUT_PATH.exists():
+        holdout = pd.read_csv(HOLDOUT_PATH, encoding="utf-8", engine="python")
+        holdout["category"] = holdout["category"].map(HOLDOUT_RENAME).fillna(holdout["category"])
+        holdout["clean_text"] = holdout["text"].astype(str).map(clean_text)
+        holdout = holdout.drop_duplicates("clean_text")
+        known = holdout[holdout.category.isin(labels)].copy()
+        unknown = holdout[~holdout.category.isin(labels)]
+        print("\nSEPARATE HOLDOUT AUDIT")
+        print(f"  Rows/unique cleaned texts: {len(holdout)}/{holdout.clean_text.nunique()}")
+        print(f"  In-taxonomy: {len(known)}; out-of-taxonomy: {len(unknown)} (not scored as Other)")
+        print(f"  Holdout category counts: {holdout.category.value_counts().sort_index().to_dict()}")
 
-        gated_holdout = holdout_df['text'].apply(model.predict)
-        gated_holdout_pred = gated_holdout.apply(lambda r: _canon(r['category']))
-        # Canonicalize holdout true categories as well
-        holdout_cats_canonical = holdout_df['category'].apply(_canon)
-        known_cats_canonical = set([_canon(c) for c in known_cats])
-        is_known = holdout_cats_canonical.isin(known_cats_canonical)
-        is_correct_known = (gated_holdout_pred == holdout_cats_canonical) & is_known
-        is_other_unknown = (gated_holdout_pred == 'other') & (~is_known)
-        is_correct = is_correct_known | is_other_unknown
-        is_other_known = (gated_holdout_pred == 'other') & is_known
-        is_wrong = ~(is_correct | is_other_known)
-        print(f"\nGATED PIPELINE on HOLDOUT (n={len(holdout_df)}):")
-        print(f"  Correct (known correct + unknown->Other): {is_correct.mean():.2%} ({is_correct.sum()}/{len(holdout_df)})")
-        print(f"  Sent to 'Other' for known (abstained): {is_other_known.mean():.2%}")
-        print(f"  Wrong: {is_wrong.mean():.2%}")
-        print(f"  Breakdown: known correct {is_correct_known.sum()}/{is_known.sum()} ({is_correct_known.sum()/max(1,is_known.sum()):.1%}), unknown->Other {is_other_unknown.sum()}/{holdout_unknown_mask.sum()} ({is_other_unknown.sum()/max(1,holdout_unknown_mask.sum()):.1%})")
+        # Report approximate near-duplicate overlap from character n-gram
+        # cosine similarity; this is an audit signal, not a semantic label.
+        all_texts = unique.clean_text.tolist() + holdout.clean_text.tolist()
+        overlap_vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=1).fit_transform(all_texts)
+        pair_scores = cosine_similarity(overlap_vec[:len(unique)], overlap_vec[len(unique):])
+        print(f"  Exact cross-dataset cleaned-text overlap: {len(set(unique.clean_text) & set(holdout.clean_text))}")
+        print(f"  Cross-dataset char-TFIDF pairs >=0.85: {int((pair_scores >= 0.85).sum())}; max similarity: {pair_scores.max():.3f}")
 
-        print("\nSUMMARY COMPARISON")
-        print(f"  Train (raw): {train_acc:.2%}")
-        print(f"  Leak-free Test (raw): {test_acc:.2%} Gap {train_acc-test_acc:.2%}")
-        if holdout_known_mask.sum()>0:
-            print(f"  Holdout known RAW: {known_acc:.2%}")
-        print(f"  Gated leak-free test: Correct {correct.mean():.2%}, Other {other.mean():.2%}, Wrong {wrong.mean():.2%}")
-        print(f"  Gated holdout: Correct {is_correct.mean():.2%}, Other-known {is_other_known.mean():.2%}, Wrong {is_wrong.mean():.2%}")
-    else:
-        print(f"\nHoldout file not found at {holdout_path}, skipping holdout evaluation")
+        trained_rows = unique
+        updated = GrievanceModel().train(test_size=0)
+        baseline_word, baseline_char, baseline_clf, _ = fit_classifier(frame[~frame.clean_text.isin(conflicting)])
+        known_truth = known.category.tolist()
+        baseline_features = hstack([baseline_word.transform(known.clean_text), baseline_char.transform(known.clean_text)])
+        baseline_predictions = baseline_clf.predict(baseline_features).tolist()
+        report_metrics(
+            "KNOWN-CATEGORY HOLDOUT — prior duplicate-weighted raw classifier",
+            known_truth, baseline_predictions, labels,
+        )
+        updated_predictions = [updated_offline_predict(text, updated) for text in known.text]
+        legacy_policy_predictions = [
+            legacy_predict(text, baseline_word, baseline_char, baseline_clf)
+            for text in known.text
+        ]
+        report_metrics(
+            "KNOWN-CATEGORY HOLDOUT — prior production model + domain override",
+            known_truth, legacy_policy_predictions, labels,
+        )
+        report_metrics(
+            "KNOWN-CATEGORY HOLDOUT — updated deduplicated model + confidence policy",
+            known_truth, updated_predictions, labels,
+        )
+        print(f"  Updated policy rejection rate (category=Other): {sum(p == 'Other' for p in updated_predictions) / max(1, len(updated_predictions)):.2%}")
+        started = time.perf_counter()
+        for text in known.text:
+            updated.predict(text)
+        mean_ms = (time.perf_counter() - started) * 1000 / max(1, len(known))
+        print(f"  Updated local inference mean: {mean_ms:.3f} ms/example")
+        print(f"  Training examples used by updated model: {len(trained_rows)} distinct")
+    print("\nNo alternative algorithm benchmarked: only 30 distinct training complaints are available.")
+    print("Scope-gate accuracy, calibrated confidence, and LLM fallback rate require labeled scope/production telemetry and are not inferred here.")
+
 
 if __name__ == "__main__":
     main()

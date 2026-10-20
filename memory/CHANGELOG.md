@@ -9,6 +9,31 @@
 
 ---
 
+## 2026-10-20 — Classification pipeline reliability and Water precision (DEC-050)
+
+- Audited `GrievanceModel`: kept word + character TF-IDF and balanced
+  LogisticRegression; training now excludes conflicting cleaned texts and uses
+  one row per distinct complaint. Evaluation reports unique-text splits and
+  keeps out-of-taxonomy holdout rows out of category accuracy.
+- Tightened Water domain evidence, made keyword ties abstain, added a local
+  no-signal gate and decisive keyword path, removed submit-time category
+  overwrite and unconditional Groq refinement, and stopped assigning
+  uncalibrated 0.95 confidence to Groq categories.
+- Added provider source/latency/failure/token logging and bounded/validated the
+  dormant legacy Groq fallback. Added uncertainty explanation while preserving
+  the existing category/API schema.
+- Dataset audit: 1,200 rows, 30 unique cleaned texts (97.5% duplicates), five
+  distinct examples per each of six categories, no exact-text label conflicts.
+  On the 200-example known-category holdout, prior raw Water P/R was 0.606/1.000;
+  updated local policy was 1.000/1.000. Both prior domain policy and updated
+  policy scored 1.000 overall on this template-style holdout; see
+  `docs/ML_EVALUATION.md` for limits and full metrics.
+- Verification: classification suites + direct submit regressions + quality
+  check unit tests: 69 passed, 5 integration tests deselected; evaluation script
+  and compile checks passed. No provider calls or alternate model benchmark.
+
+---
+
 ## 2026-10-20 — Quality gate & suspicious grievance flagging (DEC-049)
 
 - Added `backend/app/services/quality_check.py` with `check_quality()` using Groq bounded completion within `classification_budget()`; detects non-civic/fake submissions (e.g. arithmetic, riddles, spam) and fails safe to accepted (`is_genuine=True`) on any error or timeout.

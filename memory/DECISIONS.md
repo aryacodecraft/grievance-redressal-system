@@ -2331,3 +2331,51 @@ face templates are untouched unless re-enrolled.
 
 **Reversible:** Remove quality check invocation from `submit_grievance` and hide the flagged UI filters.
 
+---
+
+## DEC-050 — Preserve Existing Category Model; Audit Data and Gate Fallbacks (2026-10-20)
+
+**Context:** The owner requested reducing Water overprediction, improving
+classification reliability and reducing LLM cost while preserving the existing
+model unless a fair, leakage-resistant evaluation supports a replacement.
+The serving model is word + character TF-IDF and LogisticRegression in
+`backend/app/services/grievance_model.py`; it is trained lazily from CSV and has
+no serialized artifact. The training file has 1,200 rows but only 30 distinct
+cleaned complaints (five in each of six categories), so it cannot support
+reliable model selection or probability calibration.
+
+**Decision:**
+1. Keep the existing LogisticRegression production algorithm and current
+   feature configuration. Do not promote or benchmark a replacement against a
+   30-example training set, and do not tune thresholds on the final test data.
+2. Exclude identical normalized texts with conflicting labels; fit and
+   evaluate once per unique cleaned text so duplicated rows do not inflate
+   support or weight individual templates.
+3. Keep rule-based Water evidence specific: generic `supply` or one incidental
+   Water mention cannot override the model. Preserve explicit English/Hindi
+   supply phrases; report rule output as uncalibrated (`confidence=0.0`).
+4. Do not overwrite a classifier result with a second keyword pass. A unique
+   deterministic keyword match is handled locally; clear no-signal text returns
+   `other` with an uncertainty explanation; only remaining in-scope uncertainty
+   proceeds to HF/Groq category fallback.
+5. Remove unconditional Groq refinement after submit classification. Keep the
+   existing response categories and schema; log provider source, latency,
+   failures and token usage when available.
+
+**Evidence:** `docs/ML_EVALUATION.md` records the exact-text split and 614-row
+separate holdout. The prior raw classifier scored Water precision/recall
+0.606/1.000 on 200 known-category holdout examples; the updated local policy
+scored 1.000/1.000. Both prior production and updated policies scored 1.000
+overall on that holdout, so this is a template-set result, not validation. The
+training-only held-out set has six distinct examples and is explicitly too
+small for conclusions.
+
+**Alternatives considered:** LinearSVC and threshold/hyperparameter tuning were
+not evaluated because the available independent data cannot establish a fair
+winner. Replacing the model is not justified.
+
+**Reversible:** The model, data preparation, domain gate and classification
+cascade remain separated in `grievance_model.py` and `classification.py`; the
+refinement call was removed from the submit router and can be restored only if
+later evaluation supports its added cost.
+

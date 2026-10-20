@@ -66,7 +66,7 @@ neutrally and identify the core issues without adding interpretation.
 
 ## AI-02 — Category Classification
 
-**Status:** PLANNED
+**Status:** IMPLEMENTED — EXPERIMENTAL; not VALIDATED (2026-10-20 audit)
 **Purpose:** Classify the grievance into a predefined category from `grievance_categories`.
 
 **Input:**
@@ -86,13 +86,42 @@ neutrally and identify the core issues without adding interpretation.
 }
 ```
 
-**Approach:**
-- Primary: LLM API with category list in prompt (zero-shot classification)
-- Candidate: Sentence Transformer + cosine similarity against category descriptions
+**Serving implementation:** `backend/app/services/classification.py` calls the existing
+`backend/app/services/grievance_model.py` first: word TF-IDF (1–2 grams) plus
+character `char_wb` TF-IDF (3–5 grams, at most 1,500 features), horizontally
+combined and fitted with `LogisticRegression(max_iter=2000,
+class_weight="balanced")`. Text is lowercased, Hinglish terms are normalized,
+and punctuation outside Latin/Devanagari text is removed. Vectorizers are fit
+only on the training groups. The current dataset is
+`backend/data/Citizen (1).csv`; exact cleaned-text duplicates and conflicting
+label groups are audited before fitting. There is no serialized model artifact:
+the model is trained lazily in each server process.
 
-**Evaluation Metrics:** Accuracy, macro-F1 across categories (labeled dataset required).
+The local confidence policy keeps the existing 0.50 LogisticRegression score
+and 0.25 top-two-margin thresholds; these scores have not been calibrated on
+independent data. HF's zero-shot score is also not treated as a calibrated
+probability. Explicit domain overrides, keyword decisions, and Groq outputs
+are tagged by source and report confidence `0.0` because they do not produce a
+calibrated probability. Local model and decisive keyword results avoid HF/Groq
+category calls. Explicitly unrelated requests are stopped before local model
+classification; after the local model, no-signal text returns `other` with zero
+confidence and an uncertainty explanation. Uncertain text with a civic signal
+may use the existing bounded HF/Groq cascade. Groq categories are validated
+against `CATEGORY_KEYS`; a generative answer does not receive an invented 0.95
+confidence. The submit route no longer overwrites a model category with a
+second generic keyword pass or performs unconditional Groq refinement.
 
-**Fallback:** Leave `category_id` as NULL — admin must manually categorize.
+Thresholds and model hyperparameters were not tuned: the labeled file contains
+only 30 distinct cleaned examples (five per category), too few to establish a
+reliable winner or calibrate confidence. See [ML evaluation audit](ML_EVALUATION.md).
+The production algorithm remains the existing LogisticRegression model.
+
+**Evaluation Metrics:** Accuracy, macro-F1, per-category precision/recall/F1,
+confusion matrix, Water precision/recall, and rejection rate. Formal validation
+still needs a larger, independently labeled dataset.
+
+**Fallback:** Preserve the existing API/taxonomy with `category="other"`,
+`categoryConfidence=0`, and an uncertainty explanation; do not force Water.
 
 **Human Review:** Low-confidence classifications surfaced to admin for confirmation.
 

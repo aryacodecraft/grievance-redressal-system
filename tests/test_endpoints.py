@@ -224,6 +224,74 @@ def test_submit_without_llm_keys_still_succeeds(client):
     assert res.json()["hfEngine"]["category"] == "water"
 
 
+def test_submit_keeps_local_category_and_skips_duplicate_refinement(monkeypatch):
+    from fastapi import BackgroundTasks
+    from backend.app import db
+    from backend.app.models import SubmitGrievanceRequest
+    from backend.app.routers import grievances as router
+    from backend.app.services import classification
+
+    monkeypatch.setattr(router, "repository", db.InMemoryRepository())
+    monkeypatch.setattr(router, "classify_category", lambda text: {
+        "rawLabel": "Roads", "category": "roads", "confidence": 0.88,
+        "source": "ml_model",
+    })
+    monkeypatch.setattr(router, "classify_priority", lambda text: {
+        "priority": "medium", "sentiment": "neutral", "sentimentScore": 0.0,
+    })
+    monkeypatch.setattr(router, "check_quality", lambda *args: {
+        "is_genuine": True, "reason": "",
+    })
+    groq_calls = []
+    monkeypatch.setattr(
+        classification, "_groq_complete",
+        lambda *args, **kwargs: groq_calls.append(args) or None,
+    )
+
+    result = router.submit_grievance(
+        SubmitGrievanceRequest(
+            title="Potholes along the road",
+            description="A water tanker leaked nearby, but potholes need repair.",
+        ),
+        BackgroundTasks(),
+        {"user_id": "citizen-test-1"},
+    )
+    assert result["hfEngine"]["category"] == "roads"
+    assert groq_calls == []
+
+
+def test_submit_returns_explicit_uncertainty_without_forcing_water(monkeypatch):
+    from fastapi import BackgroundTasks
+    from backend.app import db
+    from backend.app.models import SubmitGrievanceRequest
+    from backend.app.routers import grievances as router
+
+    monkeypatch.setattr(router, "repository", db.InMemoryRepository())
+    monkeypatch.setattr(router, "classify_category", lambda text: {
+        "rawLabel": "Other issues not matching the above categories",
+        "category": "other", "confidence": 0.0, "source": "scope_gate",
+    })
+    monkeypatch.setattr(router, "classify_priority", lambda text: {
+        "priority": "low", "sentiment": "neutral", "sentimentScore": 0.0,
+        "source": "sentiment_fallback",
+    })
+    monkeypatch.setattr(router, "check_quality", lambda *args: {
+        "is_genuine": True, "reason": "",
+    })
+
+    result = router.submit_grievance(
+        SubmitGrievanceRequest(
+            title="Water was mentioned in conversation",
+            description="What is the answer of 1+2?",
+        ),
+        BackgroundTasks(),
+        {"user_id": "citizen-test-1"},
+    )
+    assert result["hfEngine"]["category"] == "other"
+    assert result["hfEngine"]["categoryConfidence"] == 0.0
+    assert "Category is uncertain" in result["hfEngine"]["explanation"]
+
+
 def test_submit_notification_hides_the_classification(client, sample_payload):
     """The citizen inbox must not reveal the AI category/department (DEC-044)."""
     user_id = "citizen-test-1"

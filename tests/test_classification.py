@@ -86,6 +86,16 @@ def test_keyword_inference_is_case_insensitive():
     assert upper == lower is not None
 
 
+def test_incidental_water_mention_does_not_outvote_road_evidence():
+    assert clf.infer_category_from_keywords(
+        "Potholes on the road beside the water tanker"
+    ) == "roads"
+
+
+def test_keyword_tie_is_uncertain_instead_of_first_category_wins():
+    assert clf.infer_category_from_keywords("bus on a damaged road") is None
+
+
 # ── Urgency / risk / priority ───────────────────────────────────────────────
 
 

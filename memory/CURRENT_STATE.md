@@ -27,7 +27,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 | Database | MongoDB Atlas via `MongoRepository` when `MONGODB_URI` is set; `InMemoryRepository` fallback otherwise (`/health` reports which) |
 | Frontend | Next.js 16 + TypeScript + Tailwind v4 in `frontend/`; REST client `lib/api.ts`, session `lib/session.tsx`; SAMARTH official emblem & favicon (DEC-048) |
 | Auth | JWT access/refresh + Google OAuth + RBAC (DEC-017); optional face login + phone OTP binding behind flags |
-| AI/NLP | Keyword → HF Transformers → Groq cascade (`backend/app/services/classification.py`); Sarvam STT for voice; pre-recorded Sarvam question clips (DEC-039); client-side TF-IDF similarity |
+| AI/NLP | Local word+character TF-IDF + LogisticRegression → civic-scope gate → deterministic keyword fallback → HF/Groq only for remaining in-scope uncertainty (`backend/app/services/classification.py`); Sarvam STT for voice; client-side TF-IDF similarity |
 | Tests | `tests/` pytest (Mongo tests need `TEST_MONGODB_URI`); `frontend/scripts/check-contract.mjs` + `e2e.mjs`; voice node suites |
 | Docs | `docs/*` (ARCHITECTURE, API, DATABASE, SECURITY, DEVELOPMENT, AI_SYSTEM, WORKFLOWS, VOICE_ASSISTED_COMPLAINT) + `memory/rbac/` (docs-only RBAC spec suite) |
 
@@ -94,7 +94,11 @@ only — humans retain assignment, escalation, resolution and closure authority
   (`GRV-2026-0015`, 2026-10-18) passed; live en/hi question playback verified 2026-10-19;
   live spoken hi/mr STT and a post-Stage-14 browser pass pending (§5).
 - **Grievance AI (EXPERIMENTAL)** — category/priority/urgency via the cascade;
-  no metrics claimed (DEC-005). Similarity is client-side TF-IDF only. Citizen
+  category audit in `docs/ML_EVALUATION.md` reports 1,200 rows but only 30
+  distinct cleaned training complaints (five/category), so model selection and
+  confidence thresholds are not validated (DEC-005/050). Exact duplicates are
+  excluded from fitting/evaluation; exact-text conflicts are rejected rather
+  than silently labeled. Similarity is client-side TF-IDF only. Citizen
   surfaces never display classification outputs or confidence (DEC-044); the
   triage panel is staff-only.
 - **Branding & UI refresh (DEC-045, 2026-10-20)** — project rebranded to

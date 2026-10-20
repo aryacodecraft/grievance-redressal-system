@@ -928,3 +928,44 @@ Owner: When registering a fake/non-acceptable grievance (e.g. arithmetic questio
 - `node scripts/check-contract.mjs`: passed (18 checks green).
 - `npm run test:voice`: 79 passed.
 - Memory updated: DEC-049, CHANGELOG.md, CURRENT_STATE.md, this log.
+
+---
+
+## 2026-10-20 — ML pipeline reliability audit (DEC-050)
+
+### Request
+Owner asked to create a branch and improve the existing ML classification
+pipeline while retaining its production model absent clear evaluation evidence.
+
+### What changed
+- Created `codex/ml-pipeline-reliability` from clean `main`.
+- Confirmed production model: lazy-trained word/character TF-IDF + balanced
+  LogisticRegression, no serialized artifact. Cleaned exact duplicates and
+  conflicting-label groups before train/test splitting and fitting.
+- Narrowed Water override evidence, stopped broad keyword results from
+  replacing category predictions, added scope/uncertainty handling, and removed
+  unconditional submit-time Groq refinement. Groq category answers now carry
+  zero calibrated confidence; source/latency/failure/token telemetry is logged.
+- Bounded and validated the otherwise unused `llm_fallback.py` path. Preserved
+  category/API schema and added staff-side uncertainty explanation.
+- Replaced misleading evaluator behavior: unique-text evaluation; 414 holdout
+  rows in unsupported categories are excluded rather than counted as correct
+  `Other`. Added `docs/ML_EVALUATION.md` with audit, metrics and limitations.
+
+### Verification
+- Dataset: 1,200 rows, 30 distinct cleaned complaints (five/category), 97.5%
+  exact duplicates, zero exact-label conflicts; holdout 614 unique texts, 200
+  in-taxonomy; no exact overlap and no char-TFIDF cross-set pairs >=0.85.
+- Prior raw model vs updated local policy on 200 known holdout rows: Water
+  precision/recall 0.606/1.000 vs 1.000/1.000. Both policy pipelines scored
+  1.000 overall on this template-style set; train-only unique test is only six
+  examples and cannot establish generalization.
+- Focused classification, legacy fallback, direct submit and quality-check
+  tests: 69 passed; 5 submit/admin integration cases deselected. Evaluation
+  script and Python compile checks passed; provider calls were mocked/not made.
+- Full backend suite, frontend checks and live-provider cost impact not run.
+
+### Remaining
+Collect more independent, label-audited complaint texts and scope labels before
+tuning thresholds or considering an alternative model. `docs/ML_EVALUATION.md`
+records the current recommendation: retain LogisticRegression.

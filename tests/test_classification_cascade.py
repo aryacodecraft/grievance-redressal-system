@@ -1,4 +1,4 @@
-"""Classifier cascade: ML model → HF → Groq → keywords, and what survives a provider outage.
+"""Local-first classifier, scoped provider fallbacks, and outage behavior.
 
 `conftest.py` pins `GROQ_API_KEY`/`HF_API_TOKEN` empty, so every test here runs
 the offline path deterministically. The point is to prove the cascade *degrades*
@@ -36,7 +36,8 @@ def test_category_cascade_falls_through_to_keywords(monkeypatch):
 
     result = clf.classify_category("There is a huge pothole on the main road")
     assert result["category"] == "roads"
-    assert result["confidence"] == 0.5  # keyword confidence, not a model's
+    assert result["confidence"] == 0.0  # keyword match is not calibrated
+    assert result["source"] == "keyword_fallback"
 
 
 def test_category_cascade_prefers_hf_when_available(monkeypatch):
@@ -51,7 +52,7 @@ def test_category_cascade_prefers_hf_when_available(monkeypatch):
         "_classify_with_groq_category",
         lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
     )
-    result = clf.classify_category("anything")
+    result = clf.classify_category("municipal issue needs review")
     assert result["confidence"] == 0.91
 
 
@@ -63,7 +64,7 @@ def test_category_cascade_uses_groq_when_hf_fails(monkeypatch):
         "_classify_with_groq_category",
         lambda text: {"rawLabel": "Water", "category": "water", "confidence": 0.77},
     )
-    assert clf.classify_category("pipe burst")["category"] == "water"
+    assert clf.classify_category("municipal infrastructure issue")["category"] == "water"
 
 
 def test_category_cascade_treats_a_failed_hf_call_as_a_miss(monkeypatch):
@@ -104,6 +105,159 @@ def test_category_cascade_empty_text_short_circuits(monkeypatch):
         lambda text: (_ for _ in ()).throw(AssertionError("must not be called")),
     )
     assert clf.classify_category("")["category"] == "other"
+
+
+@pytest.mark.parametrize("text", [
+    "what is the answer of 1+2?",
+    "asdf qwer zxcv",
+    "tell me a joke",
+])
+def test_clearly_unsupported_text_skips_paid_category_fallbacks(monkeypatch, text):
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: None)
+    monkeypatch.setattr(
+        clf, "_classify_with_hf",
+        lambda text: (_ for _ in ()).throw(AssertionError("HF must not run")),
+    )
+    monkeypatch.setattr(
+        clf, "_classify_with_groq_category",
+        lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
+    )
+    result = clf.classify_category(text)
+    assert result["category"] == "other"
+    assert result["source"] == "scope_gate"
+    assert result["confidence"] == 0.0
+
+
+def test_explicit_math_request_is_rejected_before_local_or_provider_classification(monkeypatch):
+    monkeypatch.setattr(
+        clf, "_classify_with_ml",
+        lambda text: (_ for _ in ()).throw(AssertionError("local model must not run")),
+    )
+    monkeypatch.setattr(
+        clf, "_classify_with_hf",
+        lambda text: (_ for _ in ()).throw(AssertionError("HF must not run")),
+    )
+    monkeypatch.setattr(
+        clf, "_classify_with_groq_category",
+        lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
+    )
+    result = clf.classify_category("what is the answer of 1+2?")
+    assert result["category"] == "other"
+    assert result["source"] == "scope_gate"
+
+
+def test_confident_local_category_skips_hf_and_groq(monkeypatch):
+    monkeypatch.setattr(clf, "_classify_with_ml", lambda text: {
+        "rawLabel": "Roads", "category": "roads", "confidence": 0.86,
+        "source": "ml_model",
+    })
+    monkeypatch.setattr(
+        clf, "_classify_with_hf",
+        lambda text: (_ for _ in ()).throw(AssertionError("HF must not run")),
+    )
+    monkeypatch.setattr(
+        clf, "_classify_with_groq_category",
+        lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
+    )
+    result = clf.classify_category("Potholes on the road")
+    assert result["category"] == "roads"
+    assert result["source"] == "ml_model"
+
+
+def test_decisive_domain_match_is_accepted_without_fake_probability(monkeypatch):
+    class DomainModel:
+        def predict(self, text):
+            return {
+                "category": "water", "confidence": 0.0,
+                "source": "domain_override",
+            }
+
+    monkeypatch.setattr(clf, "_get_ml_model", lambda: DomainModel())
+    result = clf._classify_with_ml("water supply stopped")
+    assert result["category"] == "water"
+    assert result["confidence"] == 0.0
+    assert result["source"] == "domain_override"
+
+
+def test_groq_category_result_does_not_claim_calibrated_confidence(monkeypatch):
+    monkeypatch.setattr(clf, "_groq_complete", lambda *args, **kwargs: '{"category":"water"}')
+    result = clf._classify_with_groq_category("municipal infrastructure issue")
+    assert result["category"] == "water"
+    assert result["confidence"] == 0.0
+
+
+def test_legacy_fallback_scope_gate_skips_groq_for_unrelated_text(monkeypatch):
+    from backend.app.services import llm_fallback
+
+    class UncertainModel:
+        def predict(self, text):
+            return {"category": "other", "confidence": 0.2}
+
+    monkeypatch.setattr(
+        llm_fallback, "llm_classify",
+        lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
+    )
+    result = llm_fallback.predict_with_fallback(UncertainModel(), "what is 1+2?")
+    assert result["category"] == "other"
+    assert result["source"] == "scope_gate"
+
+
+def test_legacy_fallback_validates_mocked_category_and_uses_no_fake_confidence(monkeypatch):
+    from backend.app.services import llm_fallback
+
+    class UncertainModel:
+        def predict(self, text):
+            return {"category": "other", "confidence": 0.2}
+
+    monkeypatch.setattr(
+        llm_fallback, "llm_classify",
+        lambda text: {"category": "not_a_supported_category", "priority": "wild"},
+    )
+    result = llm_fallback.predict_with_fallback(
+        UncertainModel(), "Municipal infrastructure concern"
+    )
+    assert result["category"] == "other"
+    assert result["priority"] == "Medium"
+    assert result["confidence"] == 0.0
+
+
+def test_model_split_keeps_one_row_per_clean_text():
+    from backend.app.services.grievance_model import GrievanceModel
+
+    model = GrievanceModel().train(test_size=0.2, seed=42)
+    assert model.train_rows_["clean_text"].is_unique
+    assert model.test_rows_["clean_text"].is_unique
+    assert set(model.train_rows_["clean_text"]).isdisjoint(model.test_rows_["clean_text"])
+    assert model.train_rows_["clean_text"].nunique() + model.test_rows_["clean_text"].nunique() == 30
+
+
+def test_model_excludes_conflicting_normalized_labels(tmp_path):
+    from backend.app.services.grievance_model import GrievanceModel
+
+    path = tmp_path / "conflicting.csv"
+    path.write_text(
+        "Column1,Column2\n"
+        "Complaint_Text,Category\n"
+        "Same complaint,Water\n"
+        "Same complaint,Roads\n"
+        "Pothole in lane,Roads\n"
+        "Broken streetlight,Electricity\n",
+        encoding="utf-8",
+    )
+    model = GrievanceModel().train(str(path), test_size=0)
+    assert model.conflicting_labels_ == {"same complaint": ["Road", "Water"]}
+    assert "same complaint" not in set(model.train_rows_["clean_text"])
+
+
+def test_domain_gate_ignores_incidental_water_but_keeps_real_supply_issue():
+    from backend.app.services.grievance_model import clean_text, detect_domain
+
+    incidental, _, _ = detect_domain(clean_text("road work paused while workers discussed water"))
+    legitimate, _, _ = detect_domain(clean_text("water supply stopped in our lane"))
+    hindi, _, _ = detect_domain(clean_text("पानी सप्लाई का समय बदल दिया गया"))
+    assert incidental is None
+    assert legitimate == "Water"
+    assert hindi == "Water"
 
 
 # ── Priority rules ──────────────────────────────────────────────────────────
@@ -350,7 +504,7 @@ def test_category_cascade_falls_to_hf_when_ml_returns_none(monkeypatch):
         "_classify_with_groq_category",
         lambda text: (_ for _ in ()).throw(AssertionError("Groq must not run")),
     )
-    result = clf.classify_category("streetlight not working")
+    result = clf.classify_category("municipal electrical concern")
     assert result["category"] == "electricity"
 
 
