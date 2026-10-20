@@ -273,6 +273,17 @@ const hfEngineSchema = z.object({
         .optional(),
       hfCategory: z.string().optional(),
       hfPriority: z.string().optional(),
+      categorySource: z.string().optional(),
+      categoryOutcome: z
+        .enum(["categorized", "other", "uncertain", "out_of_scope"])
+        .optional(),
+      categoryConfidenceSemantics: z
+        .enum([
+          "uncalibrated_model_probability",
+          "uncalibrated_zero_shot_score",
+          "unavailable",
+        ])
+        .optional(),
     })
     .passthrough()
     .optional(),

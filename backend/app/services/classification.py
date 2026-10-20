@@ -1,9 +1,9 @@
 """Civic grievance classification: category, priority and urgency.
 
-Ported from the legacy Flask `backend/server.py` (~lines 264-668) and extended
-to match main's cascade order: ML model (GrievanceModel) → HuggingFace zero-shot
-→ Groq LLM → keyword fallback.  Each step is attempted in order; the next step
-runs only when the previous one returns None/other or low confidence.
+Ported from the legacy Flask `backend/server.py` and extended for the FastAPI
+serving path: explicit out-of-scope gate → local GrievanceModel → local civic
+signal/keyword checks → Hugging Face zero-shot → Groq. Providers run only for
+in-scope complaints that remain uncertain after local classification.
 """
 
 from __future__ import annotations
@@ -42,7 +42,9 @@ def classification_budget(seconds: float = GROQ_TOTAL_BUDGET_SECONDS):
         _groq_deadline.reset(token)
 
 
-def _groq_complete(prompt: str, max_tokens: int) -> str | None:
+def _groq_complete(
+    prompt: str, max_tokens: int, *, stage: str = "classification"
+) -> str | None:
     """One bounded Groq completion: no SDK retries, per-call timeout.
 
     Returns None (instead of raising) when the client is unconfigured, the
@@ -51,21 +53,37 @@ def _groq_complete(prompt: str, max_tokens: int) -> str | None:
     """
     client = get_groq_client()
     if not client:
+        logger.info("Groq call skipped stage=%s reason=unconfigured", stage)
         return None
     deadline = _groq_deadline.get()
     remaining = (
         deadline - time.monotonic() if deadline else GROQ_CALL_TIMEOUT_SECONDS
     )
     if remaining <= 1.0:
-        logger.warning("Groq budget exhausted; skipping classification call")
+        logger.warning("Groq call skipped stage=%s reason=budget_exhausted", stage)
         return None
     bounded = client.with_options(max_retries=0)
-    res = bounded.chat.completions.create(
-        model=GROQ_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,
-        max_tokens=max_tokens,
-        timeout=min(GROQ_CALL_TIMEOUT_SECONDS, remaining),
+    started = time.monotonic()
+    try:
+        res = bounded.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=max_tokens,
+            timeout=min(GROQ_CALL_TIMEOUT_SECONDS, remaining),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Groq call failed stage=%s model=%s latency_ms=%d error_type=%s",
+            stage, GROQ_MODEL, int((time.monotonic() - started) * 1000),
+            type(exc).__name__,
+        )
+        raise
+    usage = getattr(res, "usage", None)
+    total_tokens = getattr(usage, "total_tokens", None) if usage else None
+    logger.info(
+        "Groq call completed stage=%s model=%s latency_ms=%d total_tokens=%s",
+        stage, GROQ_MODEL, int((time.monotonic() - started) * 1000), total_tokens,
     )
     return res.choices[0].message.content
 
@@ -87,7 +105,9 @@ def _get_ml_model():
         return _ml_model
     try:
         from .grievance_model import GrievanceModel
-        model = GrievanceModel().train()
+        # The stratified holdout split is for local evaluation only. The
+        # serving model must fit every distinct, unconflicted training text.
+        model = GrievanceModel().train(test_size=0)
         if model.is_trained:
             _ml_model = model
             logger.info("GrievanceModel trained and ready.")
@@ -103,25 +123,36 @@ def _get_ml_model():
 def _classify_with_ml(text: str) -> dict | None:
     """First cascade step: TF-IDF + LogisticRegression model.
 
-    Matches main's ``predict_with_fallback`` fallback condition:
-    skip (return None) when confidence < 0.5 **or** category is 'other'
-    so the next cascade step (HF) gets a chance.
+    Low-probability model predictions and 'other' fall through to the next
+    cascade step. Decisive domain overrides are accepted with confidence 0.0:
+    the rule provides a category, not a calibrated probability.
     """
     model = _get_ml_model()
     if model is None:
         return None
+    return _classify_with_model(text, model)
+
+
+def _classify_with_model(text: str, model) -> dict | None:
+    """Apply production confidence and contextual checks to a supplied model."""
     try:
         from .llm_fallback import canonicalize_category
         result = model.predict(text)
         raw_cat = result.get("category", "other")
         ml_cat = canonicalize_category(raw_cat)
         confidence = float(result.get("confidence", 0.0))
+        source = result.get("source")
 
-        # Same fallback condition as main's predict_with_fallback
-        if confidence < 0.5 or ml_cat == "other":
+        # Reject weak probabilities, but preserve decisive rule-based matches.
+        if (confidence < 0.5 and source != "domain_override") or ml_cat == "other":
+            logger.info("local classifier abstained reason=weak_or_other")
             return None
 
         if ml_cat not in CATEGORY_KEYS:
+            return None
+
+        if ml_cat == "water" and not _water_context_supports(text):
+            logger.info("ignoring Water model result without contextual Water evidence")
             return None
 
         idx = CATEGORY_KEYS.index(ml_cat)
@@ -129,9 +160,10 @@ def _classify_with_ml(text: str) -> dict | None:
             "rawLabel": CATEGORY_LABELS[idx],
             "category": ml_cat,
             "confidence": confidence,
+            "source": source or "ml_model",
         }
     except Exception as exc:
-        logger.error("ML model classification failed: %s", exc)
+        logger.error("ML model classification failed error_type=%s", type(exc).__name__)
         return None
 
 CATEGORY_LABELS = [
@@ -186,8 +218,11 @@ SANITATION_KEYWORDS = [
 
 ALL_KEYWORD_LISTS = {
     "water": [
-        "water", "leak", "contamination", "pipeline", "pressure", "supply",
-        "pipe", "borewell",
+        "water supply", "no water", "water nahi", "paani nahi", "water pressure",
+        "drinking water", "water leak", "water leakage", "water contamination",
+        "contaminated water", "pipeline", "pipe burst", "pipe leak", "pipe leakage",
+        "burst water main", "water main burst", "broken water main", "leaking water main",
+        "borewell", "water tanker", "tap water",
     ],
     "roads": [
         "road", "pothole", "footpath", "traffic", "tar", "asphalt",
@@ -268,6 +303,25 @@ def _extract_json(raw: str):
     return None
 
 
+def _water_context_supports(text: str) -> bool:
+    """Require the shared Water issue policy for every category source."""
+    try:
+        from .grievance_model import clean_text, detect_domain
+
+        category, _, _ = detect_domain(clean_text(text))
+        return category == "Water"
+    except Exception as exc:
+        logger.warning("Water context check unavailable; abstaining (%s)", type(exc).__name__)
+        return False
+
+
+def _validated_candidate(text: str, result: dict, source: str) -> dict | None:
+    if result.get("category") == "water" and not _water_context_supports(text):
+        logger.warning("rejecting unsupported Water result from source=%s", source)
+        return None
+    return _with_category_metadata(result)
+
+
 def normalize_sentiment(sentiment) -> str:
     if not sentiment:
         return "neutral"
@@ -311,29 +365,131 @@ def infer_category_from_keywords(text: str) -> str | None:
             if _matches(text_lower, kw):
                 counts[cat] += 1
 
-    max_cat = None
-    max_count = 0
-    for cat, count in counts.items():
-        if count > max_count:
-            max_count = count
-            max_cat = cat
+    max_count = max(counts.values(), default=0)
+    if max_count == 0:
+        return None
+    winners = [cat for cat, count in counts.items() if count == max_count]
+    # A tie is ambiguous evidence. Do not let category declaration order turn
+    # an incidental Water mention into a Water prediction.
+    return winners[0] if len(winners) == 1 else None
 
-    return max_cat if max_count > 0 else None
+
+def _has_civic_category_signal(text: str) -> bool:
+    """Conservative local scope check before paid category fallbacks.
+
+    This is only a provider gate: it never assigns a category. A confident
+    model prediction is accepted first; unsupported text is otherwise left
+    uncertain instead of being sent to HF/Groq blindly.
+    """
+    text_lower = text.lower()
+    if any(
+        _matches(text_lower, keyword)
+        for category, keywords in ALL_KEYWORD_LISTS.items()
+        if category != "urgent"
+        for keyword in keywords
+    ):
+        return True
+    return any(
+        _matches(text_lower, phrase)
+        for phrase in (
+            "municipal", "municipality", "municipal corporation", "civic service",
+            "ward office", "public service", "government office", "government service",
+            "civic issue", "public facility", "public infrastructure",
+        )
+    )
+
+
+_CLEARLY_OUT_OF_SCOPE_PATTERNS = tuple(re.compile(pattern) for pattern in (
+    r"\b(?:what is|calculate|solve|answer of)\b[^\n]{0,80}\d\s*[+*/=-]\s*\d",
+    r"\b(?:tell me|share|write|make|give me)\s+(?:a\s+)?joke\b",
+    r"\bwrit(?:e|ing)\s+(?:(?:a|an)\s+)?(?:poem|essay|story|song)\b",
+    r"\bwho won\b[^\n]{0,100}\b(?:match|game|cricket|football|tournament)\b",
+))
+
+
+_CIVIC_ISSUE_CUES = re.compile(
+    r"\b(?:issue|problem|complaint|not|no|never|broken|damaged|leak\w*|"
+    r"burst|flood\w*|pothol\w*|garbage|rubbish|sewage|blocked|overflow\w*|"
+    r"outage|blackout|cancel\w*|delay\w*|missing|unavailable|failure|failed|"
+    r"shortage|dirty|unsafe|not working|not collected|not responding|"
+    r"nahi|nahin|band|kharab|ruk\w*|toot\w*)\b",
+    re.IGNORECASE,
+)
+_GENERAL_INFORMATION_REQUEST = re.compile(
+    r"\b(?:what(?:'s|\s+is|\s+are|\s+does)|how\s+does|how\s+do|"
+    r"define|explain|definition\s+of|meaning\s+of|tell\s+me\s+about)\b",
+    re.IGNORECASE,
+)
+_PLAIN_GREETING = re.compile(
+    r"^\s*(?:(?:hi|hello|hey)(?:\s+there)?|good\s+morning|good\s+afternoon|"
+    r"good\s+evening|how\s+are\s+you|namaste|नमस्ते|हाय)[.!?,\s]*$",
+    re.IGNORECASE,
+)
+_KEYBOARD_MASH = re.compile(r"^(?:asdfghjkl|qwertyuiop|zxcvbnm)[.!?,\s]*$", re.IGNORECASE)
+
+
+def is_clearly_out_of_scope(text: str) -> bool:
+    """Return true only for locally recognizable, clearly non-civic intent.
+
+    This gate is deliberately asymmetric: strong non-civic request patterns,
+    plain greetings and keyboard walks are rejected; weak or missing civic
+    evidence remains eligible for the existing officer-review path. A civic
+    noun alone does not rescue a generic information request, while problem
+    language such as "water issue" or "what is wrong with the road" does.
+    """
+    normalized = text.strip().lower()
+    if not normalized:
+        return False
+    fragments = [fragment.strip() for fragment in normalized.splitlines() if fragment.strip()]
+    if fragments and all(
+        _PLAIN_GREETING.fullmatch(fragment) or _KEYBOARD_MASH.fullmatch(fragment)
+        for fragment in fragments
+    ):
+        return True
+    if any(_KEYBOARD_MASH.fullmatch(fragment) for fragment in fragments):
+        harmless_title = {"test", "dummy", "sample", "grievance"}
+        if all(
+            _KEYBOARD_MASH.fullmatch(fragment) or fragment in harmless_title
+            for fragment in fragments
+        ):
+            return True
+    if any(pattern.search(normalized) for pattern in _CLEARLY_OUT_OF_SCOPE_PATTERNS):
+        return True
+    return bool(
+        _GENERAL_INFORMATION_REQUEST.search(normalized)
+        and not _CIVIC_ISSUE_CUES.search(normalized)
+    )
+
+
+def _is_clearly_out_of_scope(text: str) -> bool:
+    """Compatibility alias for existing classifier callers and tests."""
+    return is_clearly_out_of_scope(text)
 
 
 def _classify_with_hf(text: str) -> dict | None:
     if not HF_API_TOKEN:
+        logger.info("HF category fallback skipped reason=unconfigured")
         return None
     for model in [CATEGORY_MODEL, "facebook/bart-large-mnli"]:
         try:
             url = f"{HF_BASE_URL}/models/{model}"
             headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
             payload = {"inputs": text, "parameters": {"candidate_labels": CATEGORY_LABELS}}
+            started = time.monotonic()
             response = requests.post(url, headers=headers, json=payload, timeout=5)
+            elapsed_ms = int((time.monotonic() - started) * 1000)
             if response.status_code != 200:
+                logger.warning(
+                    "HF category fallback failed model=%s status=%s latency_ms=%d",
+                    model, response.status_code, elapsed_ms,
+                )
                 continue
             res_data = response.json()
             if not isinstance(res_data, dict):
+                logger.warning(
+                    "HF category fallback invalid response model=%s reason=non_object latency_ms=%d",
+                    model, elapsed_ms,
+                )
                 continue
             labels = res_data.get("labels")
             scores = res_data.get("scores")
@@ -342,13 +498,32 @@ def _classify_with_hf(text: str) -> dict | None:
                 best_score = float(scores[0])
                 if best_score > 0.4 and best_label in CATEGORY_LABELS:
                     idx = CATEGORY_LABELS.index(best_label)
+                    logger.info(
+                        "HF category fallback succeeded model=%s latency_ms=%d",
+                        model, elapsed_ms,
+                    )
                     return {
                         "rawLabel": best_label,
                         "category": CATEGORY_KEYS[idx],
                         "confidence": best_score,
+                        "source": "hf_zero_shot",
                     }
+                logger.warning(
+                    "HF category fallback unusable response model=%s reason=unsupported_label_or_low_score latency_ms=%d",
+                    model, elapsed_ms,
+                )
+            else:
+                logger.warning(
+                    "HF category fallback invalid response model=%s reason=missing_labels_or_scores latency_ms=%d",
+                    model, elapsed_ms,
+                )
         except Exception as exc:
-            logger.error("HF category API call failed for model %s: %s", model, exc)
+            logger.error(
+                "HF category API call failed model=%s latency_ms=%d error_type=%s",
+                model,
+                int((time.monotonic() - started) * 1000),
+                type(exc).__name__,
+            )
     return None
 
 
@@ -372,7 +547,7 @@ def _classify_with_groq_category(text: str) -> dict | None:
         '  "reason": "short explanation"\n}\n'
     )
     try:
-        raw = _groq_complete(prompt, max_tokens=150)
+        raw = _groq_complete(prompt, max_tokens=150, stage="category")
         if raw is None:
             return None
         parsed = _extract_json(raw.strip())
@@ -383,48 +558,133 @@ def _classify_with_groq_category(text: str) -> dict | None:
                 return {
                     "rawLabel": CATEGORY_LABELS[idx],
                     "category": cat_key,
-                    "confidence": 0.95,
+                    # A generative answer is not a calibrated probability.
+                    "confidence": 0.0,
+                    "source": "groq_fallback",
                 }
+            logger.warning("Groq category fallback returned unsupported category")
+        else:
+            logger.warning("Groq category fallback returned malformed or empty JSON")
     except Exception as exc:
-        logger.error("Groq category classification fallback failed: %s", exc)
+        logger.error("Groq category classification fallback failed error_type=%s", type(exc).__name__)
     return None
 
 
-def classify_category(text: str) -> dict:
-    if not text:
-        return {
+def _with_category_metadata(result: dict, outcome: str | None = None) -> dict:
+    """Make category outcome and numeric-score semantics explicit for callers."""
+    source = result.get("source", "unknown")
+    category = result.get("category", "other")
+    if outcome is None:
+        if category != "other":
+            outcome = "categorized"
+        elif source in {"hf_zero_shot", "groq_fallback"}:
+            outcome = "other"
+        else:
+            outcome = "uncertain"
+
+    confidence_semantics = {
+        "ml_model": "uncalibrated_model_probability",
+        "domain_override": "unavailable",
+        "keyword_fallback": "unavailable",
+        "hf_zero_shot": "uncalibrated_zero_shot_score",
+        "groq_fallback": "unavailable",
+    }.get(source, "unavailable")
+    return {
+        **result,
+        "categoryOutcome": outcome,
+        "categoryConfidenceSemantics": confidence_semantics,
+    }
+
+
+def classify_category(
+    text: str, *, model=None, allow_providers: bool = True
+) -> dict:
+    if not isinstance(text, str) or not text.strip():
+        return _with_category_metadata({
             "rawLabel": "Other issues not matching the above categories",
             "category": "other",
             "confidence": 0.0,
-        }
+            "source": "invalid_input",
+            "reason": "empty or invalid complaint text",
+        }, "uncertain")
 
-    # Step 1: ML model (TF-IDF + LogisticRegression) — matches main's cascade order
-    result = _classify_with_ml(text)
+    if is_clearly_out_of_scope(text):
+        logger.info("category classification source=scope_gate category=other")
+        return _with_category_metadata({
+            "rawLabel": "Other issues not matching the above categories",
+            "category": "other",
+            "confidence": 0.0,
+            "source": "scope_gate",
+            "reason": "Request is clearly unrelated to municipal services; category is uncertain.",
+        }, "out_of_scope")
+
+    # Step 1: Existing local TF-IDF + LogisticRegression model.
+    result = _classify_with_ml(text) if model is None else _classify_with_model(text, model)
     if result:
-        return result
+        logger.info("category classification source=%s category=%s", result.get("source", "ml_model"), result.get("category"))
+        return _with_category_metadata(result)
 
-    # Step 2: HuggingFace zero-shot
+    # Do not spend provider calls classifying clearly unsupported or unusable
+    # text. In-scope but uncertain complaints still use the bounded cascade.
+    if not _has_civic_category_signal(text):
+        logger.info("category classification source=scope_gate category=other")
+        return _with_category_metadata({
+            "rawLabel": "Other issues not matching the above categories",
+            "category": "other",
+            "confidence": 0.0,
+            "source": "scope_gate",
+            "reason": "No supported civic-service signal; category is uncertain.",
+        }, "uncertain")
+
+    # A unique, specific local keyword match is a deterministic fallback and
+    # does not need an external classifier. Ties abstain in the helper above.
+    keyword_cat = infer_category_from_keywords(text)
+    if keyword_cat == "water" and not _water_context_supports(text):
+        logger.info("ignoring Water keyword result without contextual Water evidence")
+        keyword_cat = None
+    if keyword_cat and keyword_cat in CATEGORY_KEYS:
+        logger.info("category classification source=keyword_fallback category=%s", keyword_cat)
+        idx = CATEGORY_KEYS.index(keyword_cat)
+        return _with_category_metadata({
+            "rawLabel": CATEGORY_LABELS[idx],
+            "category": keyword_cat,
+            # Deterministic keyword evidence is not a calibrated probability.
+            "confidence": 0.0,
+            "source": "keyword_fallback",
+        })
+
+    if not allow_providers:
+        logger.info("category classification source=uncertain category=other; providers disabled")
+        return _with_category_metadata({
+            "rawLabel": "Other issues not matching the above categories",
+            "category": "other",
+            "confidence": 0.0,
+            "source": "uncertain",
+        }, "uncertain")
+
+    # Step 2: HuggingFace zero-shot, only for in-scope uncertainty.
     result = _classify_with_hf(text)
     if result:
-        return result
+        validated = _validated_candidate(text, result, "hf_zero_shot")
+        if validated:
+            logger.info("category classification source=hf_zero_shot category=%s", result.get("category"))
+            return validated
 
     # Step 3: Groq LLM
     result = _classify_with_groq_category(text)
     if result:
-        return result
+        validated = _validated_candidate(text, result, "groq_fallback")
+        if validated:
+            logger.info("category classification source=groq_fallback category=%s", result.get("category"))
+            return validated
 
-    # Rule/keyword-based final fallback
-    raw_label = "Other issues not matching the above categories"
-    category = "other"
-    confidence = 0.0
-    keyword_cat = infer_category_from_keywords(text)
-    if keyword_cat and keyword_cat in CATEGORY_KEYS:
-        idx = CATEGORY_KEYS.index(keyword_cat)
-        raw_label = CATEGORY_LABELS[idx]
-        category = keyword_cat
-        confidence = 0.5
-
-    return {"rawLabel": raw_label, "category": category, "confidence": confidence}
+    logger.info("category classification source=uncertain category=other")
+    return _with_category_metadata({
+        "rawLabel": "Other issues not matching the above categories",
+        "category": "other",
+        "confidence": 0.0,
+        "source": "uncertain",
+    }, "uncertain")
 
 
 def contains_high_risk_issue(text: str) -> bool:
@@ -472,7 +732,7 @@ def _analyse_sentiment(text: str) -> tuple[str, float]:
                     float(best_item.get("score", 0.0)),
                 )
     except Exception as exc:
-        logger.error("HF priority sentiment API call failed: %s", exc)
+        logger.error("HF priority sentiment API call failed error_type=%s", type(exc).__name__)
     return "neutral", 0.0
 
 
@@ -490,7 +750,7 @@ def _classify_priority_with_groq(text: str) -> str | None:
         '{\n  "priority": "high|medium|low",\n  "reason": "short explanation"\n}\n'
     )
     try:
-        raw = _groq_complete(prompt, max_tokens=150)
+        raw = _groq_complete(prompt, max_tokens=150, stage="priority")
         if raw is None:
             return None
         parsed = _extract_json(raw.strip())
@@ -499,7 +759,7 @@ def _classify_priority_with_groq(text: str) -> str | None:
             if p in ("high", "medium", "low"):
                 return p
     except Exception as exc:
-        logger.error("Groq priority classification failed: %s", exc)
+        logger.error("Groq priority classification failed error_type=%s", type(exc).__name__)
     return None
 
 
@@ -507,6 +767,7 @@ def classify_priority(text: str) -> dict:
     sentiment, sentiment_score = _analyse_sentiment(text)
 
     priority: str | None = None
+    source = "keyword_rules"
     if contains_high_risk_issue(text):
         priority = "high"
     elif affects_many_people(text):
@@ -515,13 +776,17 @@ def classify_priority(text: str) -> dict:
         priority = "medium"
     else:
         priority = _classify_priority_with_groq(text)
-        if not priority:
+        if priority:
+            source = "groq_fallback"
+        else:
             priority = "medium" if (sentiment == "negative" and sentiment_score > 0.35) else "low"
+            source = "sentiment_fallback"
 
     return {
         "priority": priority,
         "sentiment": sentiment,
         "sentimentScore": sentiment_score,
+        "source": source,
     }
 
 
@@ -549,7 +814,7 @@ def refine_with_groq(
     )
 
     try:
-        raw = _groq_complete(prompt, max_tokens=300)
+        raw = _groq_complete(prompt, max_tokens=300, stage="refinement")
         if raw is None:
             return None
         parsed = _extract_json(raw.strip())

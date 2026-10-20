@@ -332,7 +332,7 @@ For a one-off data fix, use `tools/recategorize.py --dry-run` first, then drop
 | Command | Description |
 |---|---|
 | `npm run dev` | Start dev server |
-| `npm run build` | Build for production |
+| `npm run build` | Build for production with Next.js Webpack (the configured production build path) |
 | `npm run start` | Start production build |
 | `npm run test` | Run tests |
 | `npm run lint` | ESLint |

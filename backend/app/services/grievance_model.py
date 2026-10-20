@@ -68,8 +68,11 @@ _NORM_PATTERN = re.compile(r'\b(' + '|'.join(re.escape(k) for k in _NORM_KEYS_SO
 
 DOMAIN_KEYWORDS = {
     'Electricity': ['electricity', 'meter reading', 'load shedding', 'fuse', 'wire', 'streetlight', 'street light', 'power', 'voltage', 'transformer', 'sparking', 'cable', 'blackout', 'current', 'electrical'],
+    # Domain counts provide candidate evidence, but a Water decision requires
+    # an explicit service problem phrase. Generic terms such as water, pipe,
+    # pipeline, or tap can appear incidentally in another complaint.
     'Water': ['water', 'pipeline', 'pipe', 'tap', 'tanker', 'leakage', 'leak',
-              'contaminated', 'drinking water', 'borewell', 'supply', 'pressure'],
+              'contaminated', 'drinking water', 'borewell', 'pressure'],
     'Road': ['road', 'pothole', 'highway', 'flyover', 'bridge', 'traffic',
              'speedbreaker', 'signage', 'overbridge', 'footpath', 'divider'],
     'Sanitation': ['garbage', 'sanitation', 'dirty', 'sewage', 'drain', 'dustbin',
@@ -79,6 +82,23 @@ DOMAIN_KEYWORDS = {
     'Transport': ['bus', 'transport', 'route', 'auto', 'rickshaw', 'train',
                   'station', 'conductor', 'bus stop', 'taxi'],
 }
+
+_WATER_OVERRIDE_PHRASES = tuple(re.compile(pattern) for pattern in (
+    r'\bwater supply\b', r'\bno water\b', r'\bwater pressure\b',
+    r'\bdrinking water\b',
+    r'\bwater pipe\s+(?:leak(?:age|ing)?|burst|broken|contaminat\w*)\b',
+    r'\bwater pipeline\s+(?:leak(?:age|ing)?|burst|broken|contaminat\w*)\b',
+    r'\b(?:burst(?:ed)?|broken|leaking|leak(?:age)?|damaged)\s+water main\b',
+    r'\bwater main\s+(?:is\s+)?(?:burst|broken|leaking|leak(?:age)?|damaged)\b',
+    r'\bwater\s+(?:ki|ka|ke)\s+supply\b',
+    r'\bwater\s+(?:is\s+)?leaking\s+(?:from|out of)\s+(?:the\s+)?(?:pipe|pipeline)\b',
+    r'\bwater tanker\b',
+    r'\bwater leak(?:age|ing)?\b', r'\bwater contamination\b',
+    r'\bwater is not (?:coming|available)\b',
+    r'\bwater nahi (?:aa|a) raha\b', r'\bpaani nahi (?:aa|a) raha\b',
+    r'\bwater nahi mil\b', r'पानी\s+सप्लाई', r'पानी\s+की\s+आपूर्ति',
+    r'पाणी\s+पुरवठा', r'पाणीपुरवठा',
+))
 
 _DOMAIN_PATTERNS = {
     domain: [re.compile(r'\b' + re.escape(w) + r'\b') for w in words]
@@ -102,11 +122,29 @@ def detect_domain(clean_txt):
     scores = {domain: sum(1 for p in patterns if p.search(clean_txt))
               for domain, patterns in _DOMAIN_PATTERNS.items()}
     max_hits = max(scores.values())
+    explicit_water_issue = any(
+        pattern.search(clean_txt) for pattern in _WATER_OVERRIDE_PHRASES
+    )
     if max_hits == 0:
+        if explicit_water_issue:
+            return 'Water', 1, scores
         return None, 0, scores
     top_domains = [d for d, s in scores.items() if s == max_hits]
     if len(top_domains) > 1:
         return None, max_hits, scores
+    # Multiple Water terms can still be incidental (for example, "water pipe
+    # installed"). Require an explicit Water service problem. When another
+    # civic domain also has evidence, abstain unless the Water evidence is
+    # clearly stronger; borderline multi-issue text is left for review.
+    if top_domains[0] == 'Water' and not explicit_water_issue:
+        return None, max_hits, scores
+    if top_domains[0] == 'Water':
+        strongest_other = max(
+            (score for domain, score in scores.items() if domain != 'Water'),
+            default=0,
+        )
+        if strongest_other and scores['Water'] < strongest_other + 2:
+            return None, max_hits, scores
     return top_domains[0], max_hits, scores
 
 
@@ -124,10 +162,8 @@ def vectorize(texts, word_vec, char_vec):
 
 def leak_free_split(df, test_size=0.2, seed=42):
     """
-    Group-based split to prevent data leakage.
-    With only 30 unique texts repeated 40x, a naive row split puts same sentence
-    in train AND test. This splits on unique clean_text groups, stratified by category,
-    then expands back to all duplicate rows.
+    Group-based split to prevent exact-text leakage. Training callers pass one
+    row per normalized complaint after conflicting labels have been excluded.
     """
     if 'clean_text' not in df.columns:
         df = df.copy()
@@ -146,7 +182,9 @@ def leak_free_split(df, test_size=0.2, seed=42):
 
 class GrievanceModel:
     """
-    TF-IDF + LogisticRegression + Domain Override grievance model matching pipeline v5.
+    Existing word/character TF-IDF + LogisticRegression model and domain gate.
+    It is trained lazily from the research CSV; no serialized model artifact is
+    loaded or written by this module.
     """
 
     def __init__(self, confidence_threshold=DEFAULT_CONFIDENCE_THRESHOLD,
@@ -158,6 +196,7 @@ class GrievanceModel:
         self.clf = None
         self.train_rows_ = None
         self.test_rows_ = None
+        self.conflicting_labels_ = {}
         self.is_trained = False
 
     def train(self, train_path=None, test_size=0.2, seed=42, verbose=False):
@@ -206,6 +245,22 @@ class GrievanceModel:
             train_df['category'] = train_df['category'].astype(str).str.strip().map(CATEGORY_RENAME).fillna(train_df['category'])
             train_df['clean_text'] = train_df['text'].apply(clean_text)
 
+            # Identical normalized complaints with different labels are
+            # ambiguous data. Record and exclude them instead of arbitrarily
+            # selecting whichever label happened to occur first.
+            label_counts = train_df.groupby('clean_text')['category'].nunique()
+            conflicting_texts = set(label_counts[label_counts > 1].index)
+            self.conflicting_labels_ = {
+                text: sorted(train_df.loc[train_df['clean_text'] == text, 'category'].unique().tolist())
+                for text in conflicting_texts
+            }
+            if conflicting_texts:
+                train_df = train_df[~train_df['clean_text'].isin(conflicting_texts)]
+            # Repeated rows are not independent examples. Train and evaluate
+            # once per normalized complaint so repetition counts do not weight
+            # individual templates or inflate reported support.
+            train_df = train_df.drop_duplicates(subset=['clean_text']).copy()
+
             # Leak-free split: group by clean_text to avoid duplicate leakage
             if test_size and test_size > 0:
                 train_rows, test_rows = leak_free_split(train_df, test_size=test_size, seed=seed)
@@ -246,22 +301,17 @@ class GrievanceModel:
         domain, hits, _ = detect_domain(clean)
 
         if not self.is_trained:
-            if domain:
-                return {'category': canonical_category(domain), 'confidence': round(min(0.95, 0.6 + 0.1 * (hits - 1)), 3),
-                        'reason': f'domain override match ({hits} keyword hit(s))'}
             return {'category': 'other', 'confidence': 0.35, 'reason': 'Untrained model fallback'}
 
         vec = vectorize([clean], self.word_vec, self.char_vec)
         proba = self.clf.predict_proba(vec)[0]
 
         if domain is not None:
-            if domain in self.clf.classes_:
-                model_conf = float(proba[list(self.clf.classes_).index(domain)])
-            else:
-                model_conf = None
-            keyword_conf = min(0.95, 0.6 + 0.1 * (hits - 1))
-            confidence = max(keyword_conf, model_conf) if model_conf is not None else keyword_conf
-            return {'category': canonical_category(domain), 'confidence': round(confidence, 3),
+            # This is a deterministic domain rule, not a model probability.
+            # Keep confidence at zero and label the source so the cascade can
+            # accept a decisive rule without claiming calibrated confidence.
+            return {'category': canonical_category(domain), 'confidence': 0.0,
+                    'source': 'domain_override',
                     'reason': f'domain override match ({hits} keyword hit(s))'}
 
         order = np.argsort(proba)[::-1]

@@ -53,7 +53,9 @@ def check_quality(title: str, description: str) -> dict:
     """
     text = f"{title}\n{description}".strip()[:2000]
     try:
-        raw = _groq_complete(_PROMPT.format(text=text), max_tokens=120)
+        raw = _groq_complete(
+            _PROMPT.format(text=text), max_tokens=120, stage="quality_check"
+        )
         if raw is None:
             return {"is_genuine": True, "reason": "quality check skipped (LLM unavailable)"}
         parsed = _extract_json(raw.strip())
@@ -62,7 +64,7 @@ def check_quality(title: str, description: str) -> dict:
                 "is_genuine": bool(parsed.get("is_genuine", True)),
                 "reason": str(parsed.get("reason", "")),
             }
-        logger.warning("quality_check: unexpected LLM response shape: %r", raw[:200])
+        logger.warning("quality_check: unexpected LLM response type=%s", type(parsed).__name__)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("quality_check failed (%s): %s", type(exc).__name__, exc)
+        logger.warning("quality_check failed error_type=%s", type(exc).__name__)
     return {"is_genuine": True, "reason": "quality check failed (fallback: accepted)"}

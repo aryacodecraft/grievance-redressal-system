@@ -1,8 +1,18 @@
 import os
 import re
 import json
+import logging
+import time
 from dotenv import load_dotenv
 from groq import Groq
+
+logger = logging.getLogger("grievance-api")
+_LLM_TOTAL_BUDGET_SECONDS = 20.0
+_LLM_CALL_TIMEOUT_SECONDS = 8.0
+_ALLOWED_CATEGORIES = {
+    "water", "roads", "electricity", "sanitation", "health",
+    "transport", "governance", "other",
+}
 
 # Auto-load environment variables from backend/.env or .env
 _env_paths = [
@@ -96,15 +106,23 @@ Return ONLY valid JSON with lowercase values:
     models_to_try = [m for m in models_to_try if not (m in seen or seen.add(m))]
 
     last_exception = None
+    started = time.monotonic()
+    bounded_client = client.with_options(max_retries=0)
     for target_model in models_to_try:
+        remaining = _LLM_TOTAL_BUDGET_SECONDS - (time.monotonic() - started)
+        if remaining <= 1.0:
+            logger.warning("Legacy Groq fallback budget exhausted; skipping remaining models")
+            break
         try:
-            response = client.chat.completions.create(
+            call_started = time.monotonic()
+            response = bounded_client.chat.completions.create(
                 model=target_model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0,
-                max_tokens=300
+                max_tokens=300,
+                timeout=min(_LLM_CALL_TIMEOUT_SECONDS, remaining),
             )
 
             content = response.choices[0].message.content.strip()
@@ -128,9 +146,16 @@ Return ONLY valid JSON with lowercase values:
                 content = content[start_idx:end_idx + 1]
 
             parsed = json.loads(content)
-            # Normalize to canonical lowercase
-            if "category" in parsed:
-                parsed["category"] = canonicalize_category(parsed["category"])
+            if not isinstance(parsed, dict):
+                raise ValueError("Groq returned a non-object response")
+            # Normalize, then validate against the actual taxonomy. Never
+            # propagate an unsupported provider label into the application.
+            category = canonicalize_category(parsed.get("category", "other"))
+            if category not in _ALLOWED_CATEGORIES:
+                logger.warning("Legacy Groq fallback returned unsupported category")
+                category = "other"
+                parsed["reason"] = "Unsupported model category; left as Other for human review."
+            parsed["category"] = category
             if "priority" in parsed:
                 # keep capitalized for backward compat but also allow lower
                 p = str(parsed["priority"]).strip().lower()
@@ -138,9 +163,21 @@ Return ONLY valid JSON with lowercase values:
                     parsed["priority"] = p.capitalize()  # High/Medium/Low
                 else:
                     parsed["priority"] = "Medium"
+            usage = getattr(response, "usage", None)
+            total_tokens = getattr(usage, "total_tokens", None) if usage else None
+            logger.info(
+                "Legacy Groq fallback succeeded model=%s latency_ms=%d total_tokens=%s",
+                target_model, int((time.monotonic() - call_started) * 1000), total_tokens,
+            )
             return parsed
         except Exception as err:
             last_exception = err
+            logger.warning(
+                "Legacy Groq fallback failed model=%s latency_ms=%d error_type=%s",
+                target_model,
+                int((time.monotonic() - call_started) * 1000) if "call_started" in locals() else 0,
+                type(err).__name__,
+            )
             continue
 
     raise last_exception if last_exception else RuntimeError("All Groq models failed")
@@ -177,48 +214,24 @@ def derive_priority_from_text(text: str) -> str:
 
 def predict_with_fallback(model, text: str) -> dict:
     """
-    Predicts grievance category and details using the ML model first.
-    Falls back to Groq LLM if confidence < 0.5 or category is 'other'.
-    Returns dict with canonical lowercase category and capitalized priority.
+    Backwards-compatible adapter around the shared category cascade.
+
+    New serving code should call ``classification.classify_category`` directly.
+    This adapter preserves the historical return shape while ensuring older
+    callers use the same scope, Water-context, and provider-failure policy.
     """
-    # Step 1: Call existing ML model
-    result = model.predict(text)
-    raw_cat = result.get("category", "other")
-    # Normalize ML category to canonical lowercase
-    ml_cat = canonicalize_category(raw_cat)
-    confidence = float(result.get("confidence", 0.0))
+    from .classification import classification_budget, classify_category
 
-    # Step 2: Check fallback condition: confidence < 0.5 OR category == "other"
-    is_low_conf = confidence < 0.5
-    is_other = ml_cat.lower() == "other"
-    if is_low_conf or is_other:
-        # Step 3: Trigger LLM Fallback
-        llm_result = llm_classify(text)
-
-        llm_cat = canonicalize_category(llm_result.get("category", "other"))
-        llm_priority = llm_result.get("priority", "Medium")
-        # Normalize priority capitalization
-        if isinstance(llm_priority, str):
-            llm_priority = llm_priority.strip().capitalize()
-            if llm_priority.lower() not in ["high", "medium", "low"]:
-                llm_priority = "Medium"
-        else:
-            llm_priority = "Medium"
-
-        # Step 4: Return LLM result with proper confidence (LLM is high confidence)
-        return {
-            "category": llm_cat,
-            "priority": llm_priority,
-            "confidence": 0.95,
-            "source": "llm_fallback",
-            "reason": llm_result.get("reason", "LLM classification")
-        }
-
-    # Step 4: Return ML result format with canonical category
+    with classification_budget(seconds=_LLM_TOTAL_BUDGET_SECONDS):
+        result = classify_category(text, model=model)
     return {
-        "category": ml_cat,
+        "category": result.get("category", "other"),
         "priority": derive_priority_from_text(text),
-        "confidence": confidence,
-        "source": "ml_model",
-        "reason": result.get("reason", "")
+        "confidence": float(result.get("confidence", 0.0)),
+        "source": result.get("source", "uncertain"),
+        "reason": result.get("reason", ""),
+        "categoryOutcome": result.get("categoryOutcome", "uncertain"),
+        "categoryConfidenceSemantics": result.get(
+            "categoryConfidenceSemantics", "unavailable"
+        ),
     }

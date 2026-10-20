@@ -178,6 +178,7 @@ def get_optional_user(
             "user_id": payload["sub"],
             "role": payload.get("role", "USER"),
             "email": payload.get("email", ""),
+            "departmentId": payload.get("departmentId"),
         }
     except HTTPException:
         return None

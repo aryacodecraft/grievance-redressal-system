@@ -7,6 +7,120 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-20 — Reject clearly non-civic submissions before workflow creation (DEC-057)
+
+- Added a deterministic local intent gate for clear arithmetic, joke/creative,
+  general-information, greeting, keyboard-row and sports-result requests.
+  Rejections return HTTP 422 before image/provider work, reference IDs,
+  persistence or notifications; punctuation-only input keeps its HTTP 400.
+  Ambiguous, short, misspelled and plausible multilingual complaints remain in
+  the classifier/officer-review path. The optional quality LLM now runs only
+  when local category classification abstains.
+- Focused route/classifier/quality/endpoint run: 124 passed, 9 legacy status
+  tests deselected. Frontend contract and TypeScript checks passed. Webpack
+  production build verification in progress at log entry time.
+
+## 2026-10-20 — Demo stabilization: scoped access and valid state actions (DEC-055/056)
+
+- Preserved department scope in optional-auth routes, denied resolver history
+  access to non-assignees, checked department on internal progress, and limited
+  initial assignment to the initial queue; later changes use reassignment.
+  Added a contextual Water main phrase and restricted admin UI actions to valid
+  state transitions. Focused offline suite: 142 passed, 10 legacy status tests
+  deselected. Full-suite rerun was interrupted after progress stalled without a
+  result summary.
+- Configured Next.js production builds to use Webpack. `npm run build` passed
+  compilation, TypeScript and 20 static pages. Deployment smoke was unavailable:
+  deployment tokens and production URLs are not configured.
+
+---
+
+## 2026-10-20 — Shared contextual category validation and final verification (DEC-053/054)
+
+- Water candidates from the local model, keywords, Hugging Face and Groq now
+  share a context gate; legacy and Mongo bulk callers use the shared cascade.
+  Provider logs include stage, elapsed time, failure type and available token
+  totals without grievance text. Submissions with no Unicode letters in title
+  or description stop before classification; short/misspelled inputs remain
+  accepted for human review.
+- The updated local policy returns uncertain Other for the lone Water item in
+  the 24/6 unique-text split (5/6 accuracy, macro F1 0.714); it scores 200/200
+  on the already-used template holdout. This is not independent validation.
+- Focused offline backend tests: 137 passed, 9 deselected. Full suite: 588
+  passed, 24 failed, 5 skipped; failures remain in status/state, Render
+  config-drift, image validation and assignment/RBAC areas. Evaluator,
+  frontend contract, `tsc --noEmit` and `git diff --check` passed.
+
+## 2026-10-20 — Propagated classifier metadata through bulk recategorization
+
+- The Mongo recategorization helper now preserves the same outcome and score
+  semantics as submission, including an explicit out-of-scope explanation.
+- Re-ran final focused backend verification: 45 passed, 45 deselected;
+  compilation and `git diff --check` passed. Frontend contract parsing and
+  TypeScript checks passed earlier in this follow-up.
+
+## 2026-10-20 — Classification outcome and score semantics (DEC-052)
+
+- Submission `hfEngine.modelInfo` now distinguishes categorized, model-selected
+  Other, uncertain, and explicit out-of-scope outcomes. It also labels numeric
+  confidence as an uncalibrated model/zero-shot score or unavailable.
+- `other` remains the routing fallback and submissions remain stored for human
+  review; no classifier outcome silently rejects or drops a grievance.
+- Added backend persistence and frontend schema regressions; focused checks:
+  45 passed. Full backend suite was not rerun for this additive metadata change.
+
+## 2026-10-20 — Classification audit follow-up: bulk path and final suite
+
+- `tools/recategorize.py` now uses the shared bounded category/priority cascade;
+  it no longer overwrites the result with a second keyword inference or runs
+  unconditional Groq refinement. Added a mocked regression without touching
+  MongoDB.
+- Final focused tests: 38 passed. Final full pytest: 568 passed, 24 failed,
+  5 skipped; collection found 596 while run totals 597. The failures remain in
+  unrelated status, Render config, image, and assignment/RBAC tests.
+- Updated the audit report and current state; see
+  `docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md`.
+
+## 2026-10-20 — Independent classification audit verification (DEC-051)
+
+- Reproduced the 1,200-row / 30-cleaned-text data audit, 24/6 split, and
+  reported 200-row holdout scores. Clarified that the 0.860 raw score is an
+  all-row ablation; the exact prior serving fit used 958 repeated training rows
+  and scored 0.855 raw. The prior domain policy still scored 1.000 on this
+  template-style holdout, which has been used during Water-rule development.
+- Fixed a production/evaluation mismatch: serving now fits all 30 distinct
+  unconflicted texts (`test_size=0`); evaluation splits remain evaluation-only.
+- Narrowed Water overrides for a completed pipeline/incidental-pipe Road case
+  and added a Hinglish “paani ki supply” phrase. Added a submit persistence
+  regression. No model algorithm, feature settings, or thresholds changed.
+- Added `docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md`; corrected the existing
+  evaluation and AI-system docs. Full suite: 567 passed / 24 failed / 5 skipped;
+  separate collection found 595 items, while the full-run result totals 596.
+  The one-item discrepancy is recorded; no classification test failed.
+
+## 2026-10-20 — Classification pipeline reliability and Water precision (DEC-050)
+
+- Audited `GrievanceModel`: kept word + character TF-IDF and balanced
+  LogisticRegression; training now excludes conflicting cleaned texts and uses
+  one row per distinct complaint. Evaluation reports unique-text splits and
+  keeps out-of-taxonomy holdout rows out of category accuracy.
+- Tightened Water domain evidence, made keyword ties abstain, added a local
+  no-signal gate and decisive keyword path, removed submit-time category
+  overwrite and unconditional Groq refinement, and stopped assigning
+  uncalibrated 0.95 confidence to Groq categories.
+- Added provider source/latency/failure/token logging and bounded/validated the
+  dormant legacy Groq fallback. Added uncertainty explanation while preserving
+  the existing category/API schema.
+- Dataset audit: 1,200 rows, 30 unique cleaned texts (97.5% duplicates), five
+  distinct examples per each of six categories, no exact-text label conflicts.
+  On the 200-example known-category holdout, prior raw Water P/R was 0.606/1.000;
+  updated local policy was 1.000/1.000. Both prior domain policy and updated
+  policy scored 1.000 overall on this template-style holdout; see
+  `docs/ML_EVALUATION.md` for limits and full metrics.
+- Verification: classification suites + direct submit regressions + quality
+  check unit tests: 69 passed, 5 integration tests deselected; evaluation script
+  and compile checks passed. No provider calls or alternate model benchmark.
+
 ---
 
 ## 2026-10-20 — Executive Analytics Dashboard Reliability & In-Memory Feeds (DEC-054 follow-up)

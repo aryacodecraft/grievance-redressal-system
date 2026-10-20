@@ -66,7 +66,7 @@ neutrally and identify the core issues without adding interpretation.
 
 ## AI-02 — Category Classification
 
-**Status:** PLANNED
+**Status:** IMPLEMENTED — EXPERIMENTAL; not VALIDATED (2026-10-20 audit)
 **Purpose:** Classify the grievance into a predefined category from `grievance_categories`.
 
 **Input:**
@@ -86,13 +86,79 @@ neutrally and identify the core issues without adding interpretation.
 }
 ```
 
-**Approach:**
-- Primary: LLM API with category list in prompt (zero-shot classification)
-- Candidate: Sentence Transformer + cosine similarity against category descriptions
+**Serving implementation:** `backend/app/services/classification.py` calls the existing
+`backend/app/services/grievance_model.py` first: word TF-IDF (1–2 grams) plus
+character `char_wb` TF-IDF (3–5 grams, at most 1,500 features), horizontally
+combined and fitted with `LogisticRegression(max_iter=2000,
+class_weight="balanced")`. Text is lowercased, Hinglish terms are normalized,
+and punctuation outside Latin/Devanagari text is removed. Vectorizers are fit
+only on the training groups. The current dataset is
+`backend/data/Citizen (1).csv`; exact cleaned-text duplicates and conflicting
+label groups are audited before fitting. There is no serialized model artifact:
+the model is trained lazily in each server process, using all distinct,
+unconflicted training texts. The stratified 24/6 split is for evaluation only;
+the serving model does not reserve a test subset.
 
-**Evaluation Metrics:** Accuracy, macro-F1 across categories (labeled dataset required).
+The local confidence policy keeps the existing 0.50 LogisticRegression score
+and 0.25 top-two-margin thresholds; these scores have not been calibrated on
+independent data. HF's zero-shot score is also not treated as a calibrated
+probability. Explicit domain overrides, keyword decisions, and Groq outputs
+are tagged by source and report confidence `0.0` because they do not produce a
+calibrated probability. `hfEngine.modelInfo` records `categorySource`, a
+`categoryOutcome` (`categorized`, `other`, or `uncertain`), and
+`categoryConfidenceSemantics`. The persisted routing category `other` does not
+by itself mean rejection: the outcome says whether the classifier selected
+Other or abstained. Explicitly out-of-scope text is rejected before local
+classification and before submission side effects. Uncertain outcomes are not
+discarded: they remain available for officer review. Local model and decisive keyword results avoid HF/Groq
+category calls. Explicitly unrelated requests are stopped before local model
+classification; after the local model, no-signal text returns `other` with zero
+confidence and an uncertainty explanation. Uncertain text with a civic signal
+may use the existing bounded HF/Groq cascade. Groq categories are validated
+against `CATEGORY_KEYS`; a generative answer does not receive an invented 0.95
+confidence. The submit route no longer overwrites a model category with a
+second generic keyword pass or performs unconditional Groq refinement.
 
-**Fallback:** Leave `category_id` as NULL — admin must manually categorize.
+Thresholds and model hyperparameters were not tuned: the labeled file contains
+only 30 distinct cleaned examples (five per category), too few to establish a
+reliable winner or calibrate confidence. See [ML evaluation audit](ML_EVALUATION.md)
+and the [independent pipeline verification](ML_CLASSIFICATION_AUDIT_2026-10-20.md).
+The production algorithm remains the existing LogisticRegression model.
+
+### Civic relevance gate
+
+Before image validation, classifier/provider calls, reference generation or
+persistence, a local deterministic gate rejects only recognizable,
+clearly non-civic intent (for example arithmetic, joke/creative requests,
+plain greetings, keyboard-row gibberish, sports results and generic definition
+requests without civic-problem language). Punctuation-only input remains a
+separate basic validation error. The gate checks request intent, not just
+whether civic nouns such as "road", "water" or "hospital" appear. Ambiguous,
+short, misspelled and multilingual complaints are not rejected on category
+uncertainty; the existing `other` queue remains the human-review path. The
+optional quality classifier runs only after local category abstention and is
+fail-open. This is an explainable baseline with false-positive and
+false-negative risk, not a validated relevance model.
+
+Water is accepted only when the shared local policy finds an explicit Water
+service issue phrase and no comparably strong competing civic-domain signal.
+Supported examples include a burst, broken, leaking, or damaged water main;
+these phrases are evidence only when the complaint describes a water service
+issue and no stronger competing category signal.
+The same contextual check is applied to local model, keyword, Hugging Face,
+and Groq Water candidates. Unsupported Water candidates are discarded and the
+cascade continues to another allowed fallback or returns `other`/uncertain.
+This conservative rule can miss valid Water wording outside its supported
+phrases; the tiny training set and absence of an independent labeled test set
+do not justify a broader rule. The offline evaluator injects its split model
+into this same production policy with external providers disabled.
+
+**Evaluation Metrics:** Accuracy, macro-F1, per-category precision/recall/F1,
+confusion matrix, Water precision/recall, and rejection rate. Formal validation
+still needs a larger, independently labeled dataset.
+
+**Fallback:** Preserve the existing API/taxonomy with `category="other"`,
+`categoryConfidence=0`, and an uncertainty explanation; do not force Water.
 
 **Human Review:** Low-confidence classifications surfaced to admin for confirmation.
 

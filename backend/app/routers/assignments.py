@@ -72,9 +72,17 @@ def assign_grievance(
         worker_department = canonical_department((worker or {}).get("departmentId")) if (worker or {}).get("departmentId") else ""
         if not worker or worker.get("role") != "RESOLVER" or worker.get("isActive") is False or worker_department != department_id:
             return JSONResponse(status_code=400, content={"error": "Assigned employee must belong to the selected department"})
-    assignable_states = {"PENDING_ASSIGNMENT", "SUBMITTED", "ASSIGNED", "ACCEPTED", "IN_PROGRESS", "BLOCKED", "ESCALATED"}
+    assignable_states = {"PENDING_ASSIGNMENT", "SUBMITTED"}
     if state not in assignable_states:
-        return JSONResponse(status_code=422, content={"error": f"Cannot change department in terminal/review state {state}."})
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": (
+                    f"Cannot make an initial assignment in state {state}; "
+                    "use the reassignment workflow for an assigned grievance."
+                )
+            },
+        )
     
     # Calculate dueDate from SLA config
     category = doc.get("category", "other")
@@ -94,9 +102,8 @@ def assign_grievance(
         "at": now,
     }
     
-    # Department reassignment must not erase an active worker assignment or
-    # reset work already in progress. Initial review still moves the ticket to
-    # ASSIGNED, while later department changes preserve its current state.
+    # This route records the initial department assignment only. Later changes
+    # use /reassign so the assignment workflow and audit entry stay explicit.
     is_initial_assignment = state in ("PENDING_ASSIGNMENT", "SUBMITTED")
     patch = {
         "departmentId": department_id,

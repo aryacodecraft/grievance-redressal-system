@@ -34,55 +34,67 @@ from backend.app.services.classification import (  # noqa: E402
     CATEGORY_MODEL,
     GROQ_MODEL,
     PRIORITY_MODEL,
+    classification_budget,
     classify_category,
     classify_priority,
     extract_keywords,
     find_urgent_matches,
-    infer_category_from_keywords,
-    refine_with_groq,
 )
 
 
 def classify(text: str) -> dict:
-    """One classification pass — mirrors the /submit-grievance cascade."""
-    try:
-        cat_res = classify_category(text)
-    except Exception:
-        logger.exception("category classification failed")
-        cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
-    try:
-        pri_res = classify_priority(text)
-    except Exception:
-        logger.exception("priority classification failed")
-        pri_res = {"sentiment": "neutral", "sentimentScore": 0.0, "priority": "low"}
+    """One bounded pass using the same category result as submission."""
+    with classification_budget():
+        try:
+            cat_res = classify_category(text)
+        except Exception:
+            logger.exception("category classification failed")
+            cat_res = {
+                "rawLabel": "",
+                "category": "other",
+                "confidence": 0.0,
+                "source": "uncertain",
+            }
+        try:
+            pri_res = classify_priority(text)
+        except Exception:
+            logger.exception("priority classification failed")
+            pri_res = {
+                "sentiment": "neutral",
+                "sentimentScore": 0.0,
+                "priority": "low",
+                "source": "sentiment_fallback",
+            }
 
-    hf_priority = pri_res.get("priority", "low")
+    priority = pri_res.get("priority", "low")
     sentiment_raw = pri_res.get("sentiment", "neutral")
     sentiment_score = pri_res.get("sentimentScore", 0.0)
     urgent_matches = find_urgent_matches(text)
 
-    hf_category = cat_res.get("category", "other")
-    keyword_category = infer_category_from_keywords(text)
-    if keyword_category:
-        hf_category = keyword_category
-    if hf_category == "sanitation" and hf_priority == "low":
-        hf_priority = "medium"
+    category = cat_res.get("category", "other")
+    if category == "sanitation" and priority == "low":
+        priority = "medium"
 
     hf_raw_label = cat_res.get("rawLabel", "")
     keywords = extract_keywords(text)
-
-    try:
-        groq_res = refine_with_groq(text, hf_category, hf_priority, hf_raw_label)
-    except Exception:
-        groq_res = None
-
-    if groq_res:
-        priority = groq_res.get("priority", hf_priority)
-        category = groq_res.get("category", hf_category)
-        explanation = groq_res.get("explanation", "Refined by Groq LLM.")
+    category_source = cat_res.get("source", "unknown")
+    priority_source = pri_res.get("source", "unknown")
+    category_outcome = cat_res.get(
+        "categoryOutcome",
+        "categorized" if category != "other" else "uncertain",
+    )
+    confidence_semantics = cat_res.get("categoryConfidenceSemantics", "unavailable")
+    if category_outcome == "out_of_scope":
+        explanation = (
+            "The classifier marked this text as apparently outside civic services. "
+            "It remains submitted under Other for officer review."
+        )
+    elif category_source in {"scope_gate", "uncertain", "invalid_input"}:
+        explanation = (
+            "Category is uncertain. Please add details about the municipal service "
+            "or issue, or have an officer review the category."
+        )
     else:
-        priority = hf_priority
-        category = hf_category
         explanation = (
             f"Category '{category}' predicted from '{hf_raw_label}' "
             f"(score: {float(cat_res.get('confidence', 0.0)):.2f}), "
@@ -104,9 +116,16 @@ def classify(text: str) -> dict:
             "priorityModel": PRIORITY_MODEL,
             "sentimentLabel": sentiment_raw,
             "sentimentScore": float(sentiment_score),
-            "groqModel": GROQ_MODEL if groq_res else "None",
-            "hfCategory": hf_category,
-            "hfPriority": hf_priority,
+            "groqModel": GROQ_MODEL if (
+                category_source == "groq_fallback"
+                or priority_source == "groq_fallback"
+            ) else "None",
+            "categorySource": category_source,
+            "categoryOutcome": category_outcome,
+            "categoryConfidenceSemantics": confidence_semantics,
+            "prioritySource": priority_source,
+            "hfCategory": category,
+            "hfPriority": priority,
         },
     }
 

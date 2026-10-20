@@ -44,8 +44,15 @@ def add_progress(
         if doc.get("ownerId") != actor_id:
             return JSONResponse(status_code=403, content={"error": "You are not the assignee of this grievance"})
     elif role == "ADMIN":
-        if doc.get("departmentId") and doc.get("managerId") != actor_id:
-            pass  # ADMIN sees all dept grievances
+        manager_department = canonical_department(current.get("departmentId"))
+        grievance_department = canonical_department(
+            doc.get("departmentId") or doc.get("category")
+        )
+        if not current.get("departmentId") or manager_department != grievance_department:
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Can only update grievances in your department"},
+            )
     
     visibility = payload.visibility
     if visibility not in ("internal", "manager", "customer", "system"):
@@ -100,6 +107,13 @@ def get_history(
     
     role = current["role"] if current else "PUBLIC"
     actor_id = current["user_id"] if current else None
+    if (
+        current
+        and role in ("RESOLVER", "EMPLOYEE")
+        and doc.get("ownerId") != actor_id
+    ):
+        raise HTTPException(status_code=403, detail="Not your assigned grievance")
+
     is_department_staff_out_of_scope = bool(
         current
         and role in ("ADMIN", "MANAGER")
@@ -112,7 +126,6 @@ def get_history(
     if (
         role == "PUBLIC"
         or (role == "USER" and doc.get("userId") != actor_id)
-        or (role in ("RESOLVER", "EMPLOYEE") and doc.get("ownerId") != actor_id)
         or is_department_staff_out_of_scope
         or role not in ("PUBLIC", "USER", "RESOLVER", "EMPLOYEE", "ADMIN", "SUPERADMIN")
     ):

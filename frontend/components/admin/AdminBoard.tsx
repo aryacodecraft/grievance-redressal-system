@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
 import { Spinner } from "@/components/ui/Feedback";
-import { assignGrievance, listUsers, reassignGrievance, transitionGrievanceState, updateGrievanceStatus } from "@/lib/api";
+import { assignGrievance, listUsers, reassignGrievance, transitionGrievanceState } from "@/lib/api";
 import { getSlaInfo } from "@/lib/sla";
 import type { Grievance } from "@/lib/types";
 import { GrievanceReviewModal } from "./GrievanceReviewModal";
@@ -219,15 +219,24 @@ export function AdminBoard() {
     if (live) {
       if (status === "assigned" && assignedDept) {
         await assignGrievance(selected.id, { departmentId: assignedDept, reason: "Department assignment reviewed by admin" });
-      } else if (status === "in_progress") {
-        await transitionGrievanceState(selected.id, { to_state: "IN_PROGRESS", reason: "Officer started work" });
-      } else if (status === "resolved") {
-        await transitionGrievanceState(selected.id, { to_state: "RESOLVED", reason: "Officer marked resolved" });
       } else {
-        await updateGrievanceStatus(selected.id, patch);
+        const reasons: Record<string, string> = {
+          in_progress: "Officer started work",
+          resolved: "Officer approved the submitted resolution",
+          rejected: "Officer rejected the grievance",
+        };
+        await transitionGrievanceState(selected.id, {
+          to_state: status.toUpperCase(),
+          reason: reasons[status] || "Officer updated grievance state",
+        });
       }
     }
-    patchLocal(selected.id, patch);
+    patchLocal(selected.id, {
+      ...patch,
+      state: status.toUpperCase(),
+      status,
+      ...(assignedDept ? { departmentId: assignedDept } : {}),
+    });
     notify(status === "assigned" ? "Department assignment saved" : "Grievance updated", `${selected.id} status: ${status.replaceAll("_", " ")}.`);
   }
 

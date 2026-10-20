@@ -13,7 +13,7 @@ humans retain final control over assignment, escalation, resolution, and closure
 
 | Path | What it is | Status |
 |---|---|---|
-| `backend/app/` | **Serving backend** — FastAPI + ML classifiers (HF zero-shot → Groq → keyword fallback), image validation, Cloudinary signing, JWT Auth & RBAC (DEC-010, DEC-017) | Working |
+| `backend/app/` | **Serving backend** — FastAPI + local-first category classifier (deduplicated TF-IDF + Logistic Regression, contextual Water rules, then gated HF/Groq fallback), separate suspicious-submission check, image validation, Cloudinary signing, JWT Auth & RBAC (DEC-010, DEC-017, DEC-050) | Working; classification remains experimental |
 | `tools/recategorize.py` | Batch re-classification over MongoDB | Working |
 | `frontend/` | Next.js 16 + TypeScript + Tailwind CSS v4 — REST client, auth flows, admin + citizen portals | Working (wired to `backend/app`) |
 | `docs/` | Technical specs and architecture references | Reference |
