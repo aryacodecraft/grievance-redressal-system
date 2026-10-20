@@ -1,17 +1,26 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Clock, Download, FileText, Layers, MapPin, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  Download,
+  FileText,
+  Layers,
+  MapPin,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Feedback";
 import { AdminCharts } from "@/components/charts/AdminCharts";
 import {
-  AgingChart,
+  ComplaintAgingChart,
   ComplaintTrendsChart,
-  DepartmentChart,
-  PriorityChart,
-  ResolutionStatsPanel,
+  DepartmentPerformanceChart,
+  PriorityDistributionChart,
+  ResolutionSlaPanel,
 } from "@/components/charts/AnalyticsCharts";
 import { groupSimilarComplaints } from "@/lib/tfidf";
 import { getSlaInfo } from "@/lib/sla";
@@ -52,20 +61,11 @@ function MetricCard({
   );
 }
 
-type Tab = "overview" | "trends" | "departments" | "resolution" | "location";
-
-const TABS: { id: Tab; label: string; Icon: typeof Layers }[] = [
-  { id: "overview",     label: "Overview",          Icon: BarChart3    },
-  { id: "trends",       label: "Trends",            Icon: TrendingUp   },
-  { id: "departments",  label: "Departments",       Icon: Layers       },
-  { id: "resolution",   label: "Resolution & SLA",  Icon: Clock        },
-  { id: "location",     label: "Location (Map)",    Icon: MapPin       },
-];
-
 /**
  * Executive analytics & oversight dashboard (`/admin/analytics`).
- * Houses macro metrics, distribution charts, similar-complaint groups,
- * the spatial grievance map, and CSV report export.
+ * Houses macro metrics, trend charts, department performance comparisons,
+ * resolution & SLA adherence metrics, complaint aging, priority distribution,
+ * similar-complaint groups, spatial grievance maps, and CSV exports.
  */
 export function AdminAnalytics() {
   const { items: feedItems, loading, error, user } = useAdminGrievanceFeed();
@@ -73,6 +73,7 @@ export function AdminAnalytics() {
   const departmentId = user?.departmentId;
   const scopedDepartmentId = canonicalDepartmentId(departmentId);
   const isDepartmentManager = userRole === "ADMIN" && Boolean(scopedDepartmentId);
+
   const items = useMemo(() => {
     if (!isDepartmentManager || !scopedDepartmentId) return feedItems;
     return feedItems.filter((g) => {
@@ -80,7 +81,8 @@ export function AdminAnalytics() {
       return department === scopedDepartmentId.toLowerCase();
     });
   }, [feedItems, isDepartmentManager, scopedDepartmentId]);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+
+  const [activeTab, setActiveTab] = useState<"overview" | "location">("overview");
   const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
@@ -133,7 +135,9 @@ export function AdminAnalytics() {
             Analytics &amp; oversight
           </h2>
           <p className="text-xs text-ink-500">
-            {isDepartmentManager ? `Complaint patterns and workload for ${user?.departmentId ?? "your department"}.` : "Macro metrics, complaint patterns, and where problems are happening — across all areas."}
+            {isDepartmentManager
+              ? `Complaint patterns and workload for ${user?.departmentId ?? "your department"}.`
+              : "Macro metrics, complaint trends, department performance, and spatial hotspots — across all areas."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -162,32 +166,43 @@ export function AdminAnalytics() {
       {loading && <Spinner label="Gathering complaint numbers…" />}
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      {/* Tab bar */}
+      {/* Tabs */}
       <div
-        className="flex flex-wrap gap-1 rounded-lg border border-ink-200 bg-ink-50 p-1"
+        className="flex gap-1 rounded-lg border border-ink-200 bg-ink-50 p-1 w-fit"
         role="tablist"
         aria-label="Analytics view"
       >
-        {TABS.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
-              activeTab === id
-                ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
-                : "text-ink-600 hover:text-ink-950"
-            }`}
-          >
-            <Icon size={16} />
-            {label}
-          </button>
-        ))}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "overview"}
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
+            activeTab === "overview"
+              ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
+              : "text-ink-600 hover:text-ink-950"
+          }`}
+        >
+          <BarChart3 size={16} />
+          Overview &amp; Trends
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "location"}
+          onClick={() => setActiveTab("location")}
+          className={`flex items-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors ${
+            activeTab === "location"
+              ? "bg-white text-primary-700 shadow-xs border border-ink-200/50"
+              : "text-ink-600 hover:text-ink-950"
+          }`}
+        >
+          <MapPin size={16} />
+          Location Analysis (Map)
+        </button>
       </div>
 
-      {/* ── Overview tab ──────────────────────────────────────────────────── */}
+      {/* ── Overview & Trends Tab ─────────────────────────────────────────── */}
       {activeTab === "overview" && (
         <div className="space-y-6">
           {/* Macro metrics */}
@@ -222,8 +237,23 @@ export function AdminAnalytics() {
             />
           </div>
 
-          {/* Distribution charts */}
-          <AdminCharts items={items} />
+          {/* 1. Complaint Trends (Time-series) */}
+          <ComplaintTrendsChart items={items} />
+
+          {/* 2. Department Performance & Stage Distribution */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DepartmentPerformanceChart items={items} />
+            <AdminCharts items={items} />
+          </div>
+
+          {/* 3. Resolution Time / SLA & Aging Backlog */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ResolutionSlaPanel items={items} />
+            <ComplaintAgingChart items={items} />
+          </div>
+
+          {/* 4. Priority Distribution Matrix */}
+          <PriorityDistributionChart items={items} />
 
           {/* Similarity is a cross-queue analysis; department managers only need
               their operational metrics, map, and hotspot view. */}
@@ -239,32 +269,7 @@ export function AdminAnalytics() {
         </div>
       )}
 
-      {/* ── Trends tab ────────────────────────────────────────────────────── */}
-      {activeTab === "trends" && (
-        <div className="space-y-6">
-          <ComplaintTrendsChart />
-          <div className="grid gap-6 lg:grid-cols-2">
-            <AgingChart />
-            <PriorityChart />
-          </div>
-        </div>
-      )}
-
-      {/* ── Departments tab ───────────────────────────────────────────────── */}
-      {activeTab === "departments" && (
-        <div className="space-y-6">
-          <DepartmentChart />
-        </div>
-      )}
-
-      {/* ── Resolution & SLA tab ──────────────────────────────────────────── */}
-      {activeTab === "resolution" && (
-        <div className="space-y-6">
-          <ResolutionStatsPanel />
-        </div>
-      )}
-
-      {/* ── Location tab ──────────────────────────────────────────────────── */}
+      {/* ── Location Analysis Tab ─────────────────────────────────────────── */}
       {activeTab === "location" && (
         <div className="space-y-6">
           <div>

@@ -9,6 +9,13 @@
 
 ---
 
+## 2026-10-20 — Executive Analytics Dashboard Reliability & In-Memory Feeds (DEC-054 follow-up)
+
+- Refactored `frontend/components/charts/AnalyticsCharts.tsx` to compute all metrics directly from the live `items` grievance feed (`items: Grievance[]` prop), removing all external network dependencies and eliminating loading stalls, 401 token refresh pauses, and blank charts.
+- Restored the cohesive 2-tab layout in `frontend/components/admin/AdminAnalytics.tsx` (`Overview & Trends` and `Location Analysis (Map)`), rendering macro metric cards, complaint trends AreaChart, department performance BarChart, stage distribution PieChart, resolution times & SLA adherence metrics, complaint aging backlog, and priority matrix all in one unified, responsive view.
+- Handled React purity rules: moved `Date.now()` calls into external helper utilities to satisfy `react-hooks/purity` ESLint requirements.
+- Verification: `npx tsc --noEmit` clean, ESLint clean (0 errors, 0 warnings), contract checks 21/21 passed, Next.js build 20/20 static pages compiled.
+
 ## 2026-10-20 — Voice Intake Subsequent Recording Capture Fix (DEC-053)
 
 - `VoiceCapture.ts`: Added explicit `await context.resume()` check right after connecting the audio graph (`source -> worklet -> mute -> destination`) and before posting `"start"`. Resolves the issue where asynchronous operations (`getUserMedia`, `addModule`) caused browsers to leave the audio context in `"suspended"` state, preventing the worklet from receiving audio samples.

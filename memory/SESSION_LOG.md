@@ -1099,3 +1099,31 @@ Deliver:
 - `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
 - `cd frontend && npm run test:voice`: 80/80 passed.
 - `cd frontend && npm run build`: passed (all 20/20 static pages generated).
+
+
+---
+
+## 2026-10-20 — Executive Analytics Dashboard Reliability & Layout Harmonization (DEC-054 follow-up)
+
+### Request
+Owner: "the newle added dashboards arent working, if its possible to make them work then do, or else remove"
+
+### Diagnosis
+- The newly added charts in `AnalyticsCharts.tsx` previously fired isolated asynchronous fetch requests (`fetchAnalyticsTrends`, etc.) independently of the existing grievance feed. If backend routes were unavailable or pending deployment, or if tokens were missing, the charts got stuck in loading or threw network errors.
+- Fragmenting the dashboard across 5 disparate tabs hid the charts from the main overview and caused Recharts container layout/height calculations to fail on unmounted tab switches.
+
+### What changed
+- `AnalyticsCharts.tsx`:
+  - Refactored all 5 charts (`ComplaintTrendsChart`, `DepartmentPerformanceChart`, `ResolutionSlaPanel`, `ComplaintAgingChart`, `PriorityDistributionChart`) to receive `items: Grievance[]` directly from the parent feed.
+  - Dynamically calculates all time-series trends, department aggregates, SLA resolution times, aging backlog buckets, and priority distributions client-side from the active grievance set.
+  - Ensured reliable dimensions on all Recharts containers with explicit `minWidth={0}` and numeric `minHeight` bounds, preventing container collapse bugs.
+  - Satisfied `react-hooks/purity` by moving timestamp references outside effect and render scopes.
+- `AdminAnalytics.tsx`:
+  - Restored the cohesive 2-tab layout (`Overview & Trends` and `Location Analysis (Map)`).
+  - Placed macro metric cards, complaint trends AreaChart, department performance BarChart, stage distribution PieChart, resolution times & SLA adherence metrics, complaint aging backlog, priority matrix, and similarity clusters into a clear visual hierarchy.
+
+### Verification
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `cd frontend && npx eslint components/admin/AdminAnalytics.tsx components/charts/AnalyticsCharts.tsx`: 0 errors, 0 warnings.
+- `node frontend/scripts/check-contract.mjs`: 21 passed.
+- `cd frontend && npm run build`: 20/20 static pages compiled successfully.
