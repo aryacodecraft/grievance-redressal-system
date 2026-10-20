@@ -245,6 +245,50 @@ class TestLifecycle:
         res = client.get(f"/grievances/{gid}/history", headers=_bearer(reso["access_token"]))
         assert res.status_code == 403
 
+    def test_department_manager_gets_limited_view_outside_department(self, client):
+        citizen = register_citizen(client, "scope-citizen@x.com", "Pass1234!", "Citizen").json()
+        gid = _submit_as(client, citizen["access_token"])
+        global_admin = _make_user(client, "scope-global-admin@x.com", "ADMIN")
+        road_worker = _make_user(client, "scope-road-worker@x.com", "RESOLVER", "roads")
+        water_manager = _make_user(client, "scope-water-manager@x.com", "ADMIN", "water")
+
+        assigned = client.post(
+            f"/grievances/{gid}/assign",
+            json={"departmentId": "roads", "ownerId": road_worker["user"]["id"], "reason": "Route to roads"},
+            headers=_bearer(global_admin["access_token"]),
+        )
+        assert assigned.status_code == 200, assigned.json()
+        private_update = client.post(
+            f"/grievances/{gid}/progress",
+            json={"bodyInternal": "Private repair access details", "visibility": "internal"},
+            headers=_bearer(road_worker["access_token"]),
+        )
+        assert private_update.status_code == 201, private_update.json()
+        customer_update = client.post(
+            f"/grievances/{gid}/progress",
+            json={"bodyInternal": "", "bodyCustomer": "A road crew is reviewing the pothole.", "visibility": "customer"},
+            headers=_bearer(road_worker["access_token"]),
+        )
+        assert customer_update.status_code == 201, customer_update.json()
+
+        headers = _bearer(water_manager["access_token"])
+        detail = client.get(f"/grievances/{gid}", headers=headers)
+        assert detail.status_code == 200
+        assert detail.json()["description"] == ""
+        assert "ownerId" not in detail.json()
+
+        history = client.get(f"/grievances/{gid}/history", headers=headers)
+        assert history.status_code == 200
+        assert any(row.get("bodyCustomer") == "A road crew is reviewing the pothole." for row in history.json())
+        assert all("Private repair access details" not in str(row) for row in history.json())
+
+        denied_progress = client.post(
+            f"/grievances/{gid}/progress",
+            json={"bodyInternal": "Cross-department write", "visibility": "internal"},
+            headers=headers,
+        )
+        assert denied_progress.status_code == 403
+
     def test_citizen_cannot_escalate_others(self, client):
         a = register_citizen(client, "e1@x.com", "Pass1234!", "E1").json()
         b = register_citizen(client, "e2@x.com", "Pass1234!", "E2").json()

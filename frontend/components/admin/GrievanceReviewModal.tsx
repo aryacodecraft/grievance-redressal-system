@@ -118,6 +118,11 @@ export function GrievanceReviewModal({
 
   const g = grievance;
   const hasLocation = g.latitude != null && g.longitude != null;
+  const currentState = String(g.state ?? g.status ?? "").toUpperCase();
+  const canInitialAssign = ["SUBMITTED", "PENDING_ASSIGNMENT"].includes(currentState);
+  const canStartWork = ["ASSIGNED", "ACCEPTED", "BLOCKED", "REOPENED"].includes(currentState);
+  const canApproveResolution = ["RESOLUTION_SUBMITTED", "UNDER_REVIEW"].includes(currentState);
+  const canReject = ["SUBMITTED", "PENDING_ASSIGNMENT", "ASSIGNED", "IN_PROGRESS"].includes(currentState);
 
   async function transition(status: string, assignedDept?: string) {
     setSubmitting(true);
@@ -373,7 +378,7 @@ Attached Photo
               {error && <Alert tone="error">{error}</Alert>}
 
               <div className="grid grid-cols-2 gap-2">
-                {!departmentManager && <Button
+                {!departmentManager && canInitialAssign && <Button
                   type="button"
                   onClick={() => void transition("assigned", assignee)}
                   disabled={submitting}
@@ -385,38 +390,38 @@ Attached Photo
 
                 {departmentManager && <Button type="button" onClick={() => void assignEmployee()} disabled={submitting || !employeeId || !onEmployeeAssign} className="flex items-center justify-center gap-1.5"><Building2 size={14} />Assign to this employee</Button>}
 
-                <Button
+                {canStartWork && <Button
                   type="button"
                   variant="outline"
                   onClick={() => void transition("in_progress")}
-                  disabled={submitting || g.status === "in_progress"}
+                  disabled={submitting}
                   className="flex items-center justify-center gap-1.5"
                 >
                   <Wrench size={14} />
                   Mark in progress
-                </Button>
+                </Button>}
 
-                <Button
+                {canApproveResolution && <Button
                   type="button"
                   variant="primary"
                   onClick={() => void transition("resolved")}
-                  disabled={submitting || g.status === "resolved"}
+                  disabled={submitting}
                   className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700"
                 >
                   <CheckCircle2 size={14} />
                   Mark Resolved
-                </Button>
+                </Button>}
 
-                <Button
+                {canReject && <Button
                   type="button"
                   variant="outline"
                   onClick={() => void transition("rejected")}
-                  disabled={submitting || g.status === "rejected"}
+                  disabled={submitting}
                   className="flex items-center justify-center gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
                 >
                   <X size={14} />
-                  Reject / Close
-                </Button>
+                  Reject grievance
+                </Button>}
               </div>
             </div>
           </div>

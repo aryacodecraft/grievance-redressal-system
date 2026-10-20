@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test:voice": "node --test scripts/voice-audio.test.mjs scripts/voice-capture.test.mjs scripts/voice-api.test.mjs scripts/voice-speech.test.mjs scripts/voice-intake.test.mjs scripts/voice-intake-ui.test.mjs"
