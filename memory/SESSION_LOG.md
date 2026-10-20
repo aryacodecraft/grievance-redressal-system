@@ -1000,4 +1000,23 @@ Owner: Pick location map button is too big, make it same as the button next to i
 - `cd frontend && npm run build`: 20/20 static routes generated successfully.
 - Memory updated: CHANGELOG.md, this log.
 
+---
+
+## 2026-10-20 — Superadmin 2FA Exemption (DEC-052)
+
+### Request
+Owner: remove 2fa from superadmin.
+
+### What changed
+- `backend/app/routers/auth.py`: In `_face_step_required`, added an explicit exemption for `SUPERADMIN` accounts (`if user.get("role") == "SUPERADMIN": return False`), ensuring superadmin logins never pause for 2FA verification on password or Google login.
+- `backend/app/routers/face_auth.py`: Updated `enroll_face` and `update_template` to disallow enabling `requireLogin2fa` on `SUPERADMIN` accounts.
+- Database: Updated stored face template for `superadmin@grievance.local` to `requireLogin2fa: False`.
+
+### Verification
+- Tested login via TestClient on `/auth/login` for `superadmin@grievance.local`: status 200, returned `access_token` and `refresh_token` directly (no 2FA pause).
+- `.venv/bin/pytest tests/test_face_auth.py`: all 121 tests passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- Memory updated: DEC-052, CURRENT_STATE.md, CHANGELOG.md, this log.
+
+
 

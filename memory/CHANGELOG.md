@@ -9,6 +9,14 @@
 
 ---
 
+## 2026-10-20 — Superadmin 2FA Exemption (DEC-052)
+
+- `backend/app/routers/auth.py`: In `_face_step_required`, added an explicit exemption for `SUPERADMIN` accounts (`if user.get("role") == "SUPERADMIN": return False`), ensuring superadmin logins never pause for 2FA verification.
+- `backend/app/routers/face_auth.py`: Updated `enroll_face` and `update_template` to disallow enabling `requireLogin2fa` on `SUPERADMIN` accounts.
+- Database: Updated face template for `superadmin@grievance.local` to `requireLogin2fa: False`.
+- Verification: Tested direct token issue on `/auth/login` for superadmin (status 200, access/refresh tokens returned immediately); all 121 pytest face auth tests passed.
+
+
 ## 2026-10-20 — Location Picker Button Harmonization & Modal Map Loading Fix (DEC-050 follow-up)
 
 - `LocationCapture.tsx`:

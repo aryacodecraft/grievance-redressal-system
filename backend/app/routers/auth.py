@@ -177,11 +177,14 @@ def _face_step_required(user: dict) -> bool:
 
     Face is never mandatory (DEC-024): the step only appears when face auth
     is enabled, the account is privileged AND enrolled with `requireLogin2fa`.
+    Superadmin is always exempt from 2FA (DEC-052).
     The decision reads only the verify-second-factor counter
     (`face:fail:user:<id>`) — a public /auth/face/login lockout can never
     influence password/Google login, and vice versa.
     """
     if not config.FACE_AUTH_ENABLED:
+        return False
+    if user.get("role") == "SUPERADMIN":
         return False
     if user.get("role") not in PRIVILEGED_ROLES:
         return False

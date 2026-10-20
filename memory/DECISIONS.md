@@ -2417,4 +2417,31 @@ The project owner requested:
 
 **Reversible:** Revert the tab filter in `filtered` useMemo to display unified table.
 
+---
+
+## DEC-052 — Superadmin 2FA Exemption (2026-10-20)
+
+**Context:**
+The system previously permitted 2FA (`requireLogin2fa`) on all privileged accounts (`ADMIN` and `SUPERADMIN`). The system `superadmin@grievance.local` test/demo account had `requireLogin2fa: True` stored in its face template, which halted superadmin password and Google login at the face step-up verification stage (`pending_token`).
+The project owner requested:
+"remove 2fa from superadmin"
+
+**Decision:**
+1. **Exempt SUPERADMIN in Login Gate (`backend/app/routers/auth.py`)**:
+   - In `_face_step_required(user: dict)`, added an explicit early return `if user.get("role") == "SUPERADMIN": return False`.
+   - Ensures superadmin accounts always receive direct access & refresh tokens on password login or Google OAuth without pausing for 2FA.
+2. **Prevent 2FA Enrollment/Toggling for SUPERADMIN (`backend/app/routers/face_auth.py`)**:
+   - In `enroll_face`, sets `"requireLogin2fa": False` if `current["role"] == "SUPERADMIN"`.
+   - In `update_template`, returns HTTP 400 if a `SUPERADMIN` attempts to toggle `require_login_2fa`.
+3. **Database Template Updated**:
+   - Updated the stored face template for `superadmin@grievance.local` via `face_repository.upsert_template` to ensure `requireLogin2fa: False`.
+
+**Verification:**
+- `TestClient(app).post("/auth/login", json={"email": "superadmin@grievance.local", ...})`: status 200, returned `access_token` and `refresh_token` directly (no 2FA pause).
+- `.venv/bin/pytest tests/test_face_auth.py`: all 121 tests passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+
+**Reversible:** Remove the `user.get("role") == "SUPERADMIN"` check to re-enable optional 2FA for superadmin.
+
+
 

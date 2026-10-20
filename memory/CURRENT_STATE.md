@@ -62,7 +62,7 @@ only — humans retain assignment, escalation, resolution and closure authority
   owner verification. Full citizen delivery is blocked on Twilio upgrade + DLT
   (§4/§5). OTP text rebranded to SAMARTH (DEC-046).
 - **Face auth (flag-gated, default off)** — enrollment, 1:1 login, recovery
-  phrase, liveness challenges, lockout counters, `requireLogin2fa`; in-memory
+  phrase, liveness challenges, lockout counters, `requireLogin2fa` (ADMIN only; SUPERADMIN exempt — DEC-052); in-memory
   stores (DEC-024). IMPLEMENTED, TESTED (face/drift suites); real-webcam
   validation pending (§5). Production packaging (DEC-046) now installs
   `insightface==2.1` + a pruned `buffalo_s` at Render build time; live Render
