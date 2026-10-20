@@ -9,6 +9,19 @@
 
 ---
 
+## 2026-10-20 — Quality gate & suspicious grievance flagging (DEC-049)
+
+- Added `backend/app/services/quality_check.py` with `check_quality()` using Groq bounded completion within `classification_budget()`; detects non-civic/fake submissions (e.g. arithmetic, riddles, spam) and fails safe to accepted (`is_genuine=True`) on any error or timeout.
+- `backend/app/routers/grievances.py`: Integrates `check_quality` into `submit_grievance`; sets `qualityFlag="suspicious"` and `qualityReason` on the document record and returns `flagged: bool` and `flagReason` to the frontend without silently dropping or rejecting submissions.
+- `backend/app/db.py`: Forwards `qualityFlag` and `qualityReason` in `to_api()`.
+- `frontend/components/grievance/SubmitForm.tsx`: Added genuine complaint guidance banner with listen button; on submission flagged as suspicious, displays an amber warning card with reference ID and explanation, and speaks the warning aloud via `speakWarning` (Web Speech API).
+- Added `frontend/lib/voice/speakWarning.ts` for browser speech synthesis guidance.
+- Updated all 11 i18n dictionaries (`en`, `hi`, `mr`, and 8 fallback packs) with `formGenuineHint`, `resultFlaggedTitle`, `resultFlaggedSubtitle`, `resultFlaggedWarning`.
+- `frontend/components/admin/AdminBoard.tsx`: Added 6th metrics card for "Flagged" grievances with direct filter toggle, added "Flagged for Review" to the status dropdown, and tagged flagged complaints with an amber `Flagged` badge in the table.
+- `frontend/components/admin/GrievanceReviewModal.tsx`: Added "Flagged Submission" badge and detailed AI quality alert banner for officers reviewing flagged complaints.
+- Added `tests/test_quality_check.py` (5 tests covering genuine, fake/math, fail-safe, and end-to-end admin retrieval). All passed.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node scripts/check-contract.mjs` passed.
+
 ## 2026-10-20 — SAMARTH Official Logo & Favicon Integration (DEC-048)
 
 - Converted `Samarth Logo.png` into web assets: `frontend/public/logo.png`, `frontend/app/favicon.ico`, `frontend/public/favicon.ico`, `frontend/app/icon.png` (32x32), and `frontend/app/apple-icon.png` (180x180).

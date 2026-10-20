@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   Building2,
   CheckCircle2,
   Clock,
@@ -169,6 +170,12 @@ export function GrievanceReviewModal({
               <StatusBadge status={g.status} />
               <PriorityBadge priority={g.priority} />
               <SlaBadge grievance={g} />
+              {g.qualityFlag === "suspicious" && (
+                <span className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                  <AlertTriangle size={12} className="text-amber-600" />
+                  Flagged Submission
+                </span>
+              )}
             </div>
             <h2 className="mt-2 text-lg font-bold tracking-tight text-ink-950 leading-snug">
               {g.title}
@@ -188,6 +195,18 @@ export function GrievanceReviewModal({
         <div className="grid gap-6 px-6 py-5 lg:grid-cols-2">
           {/* Left: details, location, evidence */}
           <div className="space-y-5">
+            {g.qualityFlag === "suspicious" && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-bold text-amber-950">AI Quality Alert: Flagged for Officer Review</p>
+                  <p className="mt-1 text-amber-800 leading-relaxed">
+                    {g.qualityReason || "This submission was flagged by AI as potentially non-civic, spam, or irrelevant content. Please verify before assigning to a department."}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
                 Description

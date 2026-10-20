@@ -388,6 +388,9 @@ def to_api(doc: dict[str, Any]) -> dict[str, Any]:
         "departmentId", "ownerId", "managerId", "dueDate", "resolvedAt", "closedAt",
         "stateHistory", "assignmentHistory", "priorityHistory", "deadlineHistory",
         "resolution",
+        # Quality gate (DEC-049) — forwarded when present so admin surfaces can
+        # surface flagged grievances without extra DB queries.
+        "qualityFlag", "qualityReason",
     ):
         value = doc.get(key)
         if value is not None:

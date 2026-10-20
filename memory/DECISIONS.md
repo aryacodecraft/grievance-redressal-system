@@ -2294,3 +2294,40 @@ face templates are untouched unless re-enrolled.
 
 **Reversible:** Revert the icon and image elements to previous text-based marks; delete generated files in `frontend/public/` and `frontend/app/`.
 
+---
+
+## DEC-049 — Quality Gate Flagging for Non-Civic / Suspicious Grievances (2026-10-20)
+
+**Context:** Citizens occasionally submit non-civic questions (e.g. arithmetic like "what is the answer of 1+2?"), tests, or irrelevant queries. Previously, the backend accepted and persisted these records under the `other` category without explicit quality feedback. The citizen received a standard success confirmation, but officers had no clear way to filter, detect, or review suspicious submissions across department queues. The user required that:
+1. Citizens are warned both in text and voice not to submit fake or irrelevant grievances.
+2. Submissions are not blindly processed as valid; non-civic content is flagged.
+3. If registered, suspicious grievances must remain visible to officers in the admin dashboard for human review (never silently dropped).
+
+**Decision:**
+1. **Backend Service (`backend/app/services/quality_check.py`)**:
+   - Implemented `check_quality(title, description)` using Groq completion bounded by the existing `classification_budget()`.
+   - Prompt instructs LLM to determine if the complaint is a genuine civic issue vs. math queries, tests, personal matters, or spam.
+   - Fail-safe design: on any LLM failure, timeout, or parsing error, returns `is_genuine=True` so legitimate grievances are never falsely blocked or dropped.
+2. **Submit Pipeline (`backend/app/routers/grievances.py` & `backend/app/db.py`)**:
+   - `submit_grievance` runs `check_quality` inside the classification budget.
+   - If non-genuine, sets `qualityFlag="suspicious"` and `qualityReason` on the document record before saving.
+   - Submit response returns `flagged: bool` and `flagReason: str | null`.
+   - `to_api()` forwards `qualityFlag` and `qualityReason` to all API consumers.
+3. **Citizen Interface Warning (`SubmitForm.tsx` & `speakWarning.ts`)**:
+   - Added `formGenuineHint` warning banner above the submission form with an audible audio button.
+   - When a submission returns `flagged: true`, an amber warning card replaces the green confirmation, showing the reference ID, warning the citizen that the submission was flagged for officer review, and offering text-to-speech audio via Web Speech API (`speakWarning`).
+   - Added i18n keys across all 11 locale files (`en`, `hi`, `mr`, `bn`, `gu`, `kn`, `ml`, `or`, `pa`, `ta`, `te`).
+4. **Admin Queue & Human Review (`AdminBoard.tsx` & `GrievanceReviewModal.tsx`)**:
+   - Added a 6th executive metric card in `AdminBoard` for "Flagged" complaints with a direct toggle filter.
+   - Added "Flagged for Review" to the status filter dropdown.
+   - Tagged flagged complaints with an amber `Flagged` badge in the grievance table.
+   - In `GrievanceReviewModal`, added a "Flagged Submission" badge and an alert banner detailing the AI reasoning for the officer before any department assignment or action.
+
+**Verification:**
+- `tests/test_quality_check.py`: 5 unit and integration tests covering genuine detection, math question flagging, fail-safe timeouts, malformed JSON, and end-to-end admin retrieval.
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed.
+
+**Reversible:** Remove quality check invocation from `submit_grievance` and hide the flagged UI filters.
+

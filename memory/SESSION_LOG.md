@@ -899,3 +899,32 @@ Owner: Use the provided `Samarth Logo.png` from root folder as the favicon and p
 - `node scripts/check-contract.mjs`: passed.
 - ESLint clean on all modified files.
 - Memory updated: DEC-048, CHANGELOG.md, CURRENT_STATE.md, this log.
+
+---
+
+## 2026-10-20 — Quality gate & suspicious grievance handling (DEC-049)
+
+### Request
+Owner: When registering a fake/non-acceptable grievance (e.g. arithmetic question "what is the answer of 1+2?"), it registered on citizen UI but didn't show up for admin review. For such grievances:
+1. Admin should be able to review these (never silently dropped).
+2. Citizen should be warned both in text and voice to enter a valid grievance.
+3. System should not blindly accept anything; if registered, admin must review.
+
+### What changed
+- `backend/app/services/quality_check.py`: Created fast Groq-powered `check_quality(title, description)` bounded inside `classification_budget()`; returns `{"is_genuine": bool, "reason": str}`; fail-safe defaults to `is_genuine=True` on any error/timeout.
+- `backend/app/routers/grievances.py`: In `submit_grievance`, runs `check_quality` within budget; persists `qualityFlag="suspicious"` and `qualityReason` on the record; returns `flagged: bool` and `flagReason` to the client.
+- `backend/app/db.py`: Forwards `qualityFlag` and `qualityReason` in `to_api()`.
+- `frontend/lib/types.ts`: Added `qualityFlag` & `qualityReason` to `Grievance`, and `flagged` & `flagReason` to `SubmitResult`.
+- `frontend/lib/voice/speakWarning.ts`: Utility using Web Speech API (`speechSynthesis`) to speak audible warnings in citizen's selected language.
+- `frontend/lib/i18n/*.ts`: Added `formGenuineHint`, `resultFlaggedTitle`, `resultFlaggedSubtitle`, `resultFlaggedWarning` across all 11 locale dictionaries.
+- `frontend/components/grievance/SubmitForm.tsx`: Added form guidance banner with listen button; on flagged submission, displays an amber warning card with reference ID and explanation, and automatically speaks the audible warning aloud.
+- `frontend/components/admin/AdminBoard.tsx`: Added 6th metric card for "Flagged" complaints with direct filter toggle, added "Flagged for Review" to status dropdown, and added an amber `Flagged` badge in the grievance table.
+- `frontend/components/admin/GrievanceReviewModal.tsx`: Added "Flagged Submission" header badge and AI quality alert banner explaining why it was flagged.
+- `tests/test_quality_check.py`: 5 tests verifying genuine complaint acceptance, fake/math question flagging, LLM unavailable fail-safe, malformed JSON fail-safe, and end-to-end admin retrieval.
+
+### Verification
+- `.venv/bin/pytest tests/test_quality_check.py`: 5 passed in 1.04s.
+- `npx tsc --noEmit`: 0 errors.
+- `node scripts/check-contract.mjs`: passed (18 checks green).
+- `npm run test:voice`: 79 passed.
+- Memory updated: DEC-049, CHANGELOG.md, CURRENT_STATE.md, this log.

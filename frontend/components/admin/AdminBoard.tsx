@@ -134,6 +134,8 @@ export function AdminBoard() {
       if (selectedDeptTab !== "all" && c !== selectedDeptTab) return false;
       if (priorityFilter !== "all" && p !== priorityFilter) return false;
       if (statusFilter !== "all") {
+        // "flagged" is a quality-gate filter, not a status value (DEC-049)
+        if (statusFilter === "flagged") return g.qualityFlag === "suspicious";
         if (statusFilter === "open" && s !== "open" && s !== "submitted") return false;
         if (statusFilter !== "open" && s !== statusFilter) return false;
       }
@@ -175,9 +177,11 @@ export function AdminBoard() {
     let unassigned = 0;
     let inProgress = 0;
     let resolved = 0;
+    let flaggedCount = 0;
 
     items.forEach((g) => {
       const s = (g.status || "open").toLowerCase();
+      if (g.qualityFlag === "suspicious") flaggedCount++;
       if (s === "resolved" || s === "closed") {
         resolved++;
       } else {
@@ -188,7 +192,7 @@ export function AdminBoard() {
     });
 
     const resolutionRate = items.length > 0 ? Math.round((resolved / items.length) * 100) : 0;
-    return { total: items.length, urgentCount, unassigned, inProgress, resolved, resolutionRate };
+    return { total: items.length, urgentCount, unassigned, inProgress, resolved, resolutionRate, flaggedCount };
   }, [items]);
 
   function patchLocal(id: string, patch: Partial<Grievance>) {
@@ -227,7 +231,7 @@ export function AdminBoard() {
   return (
     <div className="space-y-6">
       {/* ── Executive Command Metrics Bar ─────────────────────────────── */}
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card className="border-ink-200/80 shadow-2xs">
           <CardBody className="p-4">
             <div className="flex items-center justify-between">
@@ -303,6 +307,34 @@ export function AdminBoard() {
             </p>
           </CardBody>
         </Card>
+
+        {/* Flagged / suspicious (DEC-049) — clicking the card sets the filter */}
+        <button
+          type="button"
+          onClick={() => { setStatusFilter(statusFilter === "flagged" ? "all" : "flagged"); setPage(1); }}
+          className="text-left w-full"
+          title="Click to filter by flagged complaints"
+        >
+          <Card className={`border-orange-300/80 bg-orange-50/30 shadow-2xs transition hover:bg-orange-50/60 ${statusFilter === "flagged" ? "ring-2 ring-orange-400" : ""}`}>
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-800">
+                  Flagged
+                </span>
+                <AlertTriangle size={16} className="text-orange-600" />
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-2xl font-bold tracking-tight text-orange-950">{stats.flaggedCount}</p>
+                {stats.flaggedCount > 0 && (
+                  <span className="rounded-sm bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                    Review
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11px] text-orange-700">Needs officer verification</p>
+            </CardBody>
+          </Card>
+        </button>
       </div>
 
       {/* ── Search, Filters, and Sort Strip ───────────────────────────── */}
@@ -370,6 +402,7 @@ export function AdminBoard() {
                 <option value="assigned">Assigned</option>
                 <option value="in_progress">In Progress</option>
                 <option value="resolved">Resolved</option>
+                <option value="flagged">Flagged for Review</option>
               </Select>
             </div>
 
@@ -489,7 +522,18 @@ export function AdminBoard() {
                       <PriorityBadge priority={g.priority} />
                     </td>
                     <td className="px-4 py-3.5">
-                      <StatusBadge status={g.status} />
+                      <div className="flex flex-col gap-1">
+                        <StatusBadge status={g.status} />
+                        {g.qualityFlag === "suspicious" && (
+                          <span
+                            title={g.qualityReason ? `AI Flag: ${g.qualityReason}` : "Flagged for review (potential non-civic complaint)"}
+                            className="inline-flex w-fit items-center gap-1 rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                          >
+                            <AlertTriangle size={10} className="text-amber-600" />
+                            Flagged
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="hidden max-w-[180px] truncate px-4 py-3.5 text-xs text-ink-600 lg:table-cell">
                       {g.assignee || <span className="text-ink-400">Unassigned</span>}

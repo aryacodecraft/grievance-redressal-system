@@ -38,6 +38,8 @@ from ..services.classification import (
 from ..services.image import llm_image_confidence
 from ..repositories.notifications import notif_repository
 from ..services.departments import canonical_department
+from ..services.quality_check import check_quality
+from ..services.quality_check import check_quality
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter()
@@ -133,6 +135,12 @@ def submit_grievance(
         except Exception:
             groq_res = None
 
+        # Quality gate: detect non-civic content
+        try:
+            quality_result = check_quality(title, description)
+        except Exception:
+            quality_result = {"is_genuine": True, "reason": "quality check error"}
+
     if groq_res:
         priority = groq_res.get("priority", hf_priority)
         category = groq_res.get("category", hf_category)
@@ -180,6 +188,10 @@ def submit_grievance(
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "hfEngine": hf_engine,
     }
+    is_genuine = quality_result.get("is_genuine", True)
+    if not is_genuine:
+        record["qualityFlag"] = "suspicious"
+        record["qualityReason"] = quality_result.get("reason", "")
     if image_url:
         record["imageUrl"] = image_url
         if image_validation_result:
@@ -212,6 +224,8 @@ def submit_grievance(
         "message": "Grievance submitted successfully",
         "grievanceId": doc_id,
         "hfEngine": hf_engine,
+        "flagged": not is_genuine,
+        "flagReason": quality_result.get("reason", "") if not is_genuine else None,
     }
 
 

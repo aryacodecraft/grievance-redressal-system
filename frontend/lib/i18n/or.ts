@@ -139,6 +139,13 @@ const or: Messages = {
   resultTitle: "ଅଭିଯୋଗ ସଫଳତାର ସହ ପଞ୍ଜୀକୃତ ହେଲା",
   resultSubtitle: "ଆପଣଙ୍କ ଅଭିଯୋଗ ଟ୍ରାକ୍ କରିବାକୁ ଏହି ରେଫରେନ୍ସ ID ସୁରକ୍ଷିତ ରଖନ୍ତୁ।",
   refIdLabel: "ରେଫରେନ୍ସ ଟିକେଟ୍ ID",
+  // Quality gate citizen messages (DEC-049)
+  formGenuineHint:
+    "Please describe a real public issue (e.g. broken road, water leak, garbage, power outage). Submissions that are not genuine civic complaints will be flagged for review.",
+  resultFlaggedTitle: "Complaint Registered — Pending Review",
+  resultFlaggedSubtitle: "Your complaint has been registered. Save this reference ID.",
+  resultFlaggedWarning:
+    "Our system detected that this submission may not describe a public civic issue. An officer will review it before further action. Repeatedly submitting irrelevant or false complaints may affect your account standing.",
 
   // ── Image upload ──
   imgLabel: "ପ୍ରମାଣ ଫଟୋ",

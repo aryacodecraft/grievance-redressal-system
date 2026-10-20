@@ -17,6 +17,8 @@ import { useDemoUser } from "@/lib/session";
 import type { SubmitResult } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/ToastProvider";
+import { AlertTriangle, Volume2 } from "lucide-react";
+import { speakWarning } from "@/lib/voice/speakWarning";
 
 const makeSchema = (t: ReturnType<typeof useI18n>["t"]) =>
   z.object({
@@ -29,7 +31,7 @@ type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 export function SubmitForm() {
   const { user } = useDemoUser();
   const { notify } = useToast();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const schema = useMemo(() => makeSchema(t), [t]);
   const [image, setImage] = useState<UploadedImage | null>(null);
   const [coords, setCoords] = useState<Coords | null>(null);
@@ -39,11 +41,15 @@ export function SubmitForm() {
   const resultRef = useRef<HTMLDivElement>(null);
 
   // Bring the confirmation into view — users missed it below the fold.
+  // When a submission is flagged as suspicious, speak the audible warning (DEC-049).
   useEffect(() => {
     if (result) {
       resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (result.flagged) {
+        speakWarning(t("resultFlaggedWarning"), language);
+      }
     }
-  }, [result]);
+  }, [result, t, language]);
 
   const {
     register,
@@ -149,6 +155,22 @@ export function SubmitForm() {
             }}
             className="space-y-6 sm:space-y-5"
           >
+            {/* Quality gate hint (DEC-049): nudge citizens before they type. */}
+            <div className="flex items-start justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" aria-hidden />
+                <span>{t("formGenuineHint")}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => speakWarning(t("formGenuineHint"), language)}
+                className="shrink-0 rounded-sm p-1 text-amber-700 transition-colors hover:bg-amber-100/70 hover:text-amber-950"
+                title="Listen to audio guidance"
+                aria-label="Listen to audio guidance"
+              >
+                <Volume2 size={16} />
+              </button>
+            </div>
             <IntakeModeToggle value={mode} onChange={setMode} disabled={submitting} />
             {mode === "voice" ? (
               <>
@@ -273,23 +295,59 @@ export function SubmitForm() {
 
       {result && (
         <div ref={resultRef} className="scroll-mt-20">
-        <Card className="border-emerald-200/80 bg-white shadow-sm">
-          <CardHeader
-            title={t("resultTitle")}
-            subtitle={t("resultSubtitle")}
-          />
-          <CardBody className="space-y-4">
-            <div className="rounded-md bg-ink-900 px-4 py-3 dark:bg-white">
-              <p className="text-xs uppercase tracking-wider text-ink-400 dark:text-ink-500">
-                {t("refIdLabel")}
-              </p>
-              <p className="font-mono text-lg font-bold text-white dark:text-ink-900">
-                {result.grievanceId}
-              </p>
-            </div>
-            <Alert tone="info">{result.message}</Alert>
-          </CardBody>
-        </Card>
+        {result.flagged ? (
+          /* Flagged / suspicious submission — amber warning card (DEC-049) */
+          <Card className="border-amber-300/80 bg-white shadow-sm">
+            <CardHeader
+              title={t("resultFlaggedTitle")}
+              subtitle={t("resultFlaggedSubtitle")}
+            />
+            <CardBody className="space-y-4">
+              <div className="rounded-md bg-ink-900 px-4 py-3 dark:bg-white">
+                <p className="text-xs uppercase tracking-wider text-ink-400 dark:text-ink-500">
+                  {t("refIdLabel")}
+                </p>
+                <p className="font-mono text-lg font-bold text-white dark:text-ink-900">
+                  {result.grievanceId}
+                </p>
+              </div>
+              <div className="flex items-start justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm leading-5 text-amber-900">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle size={17} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
+                  <span>{t("resultFlaggedWarning")}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => speakWarning(t("resultFlaggedWarning"), language)}
+                  className="shrink-0 rounded-sm p-1 text-amber-700 transition-colors hover:bg-amber-100/70 hover:text-amber-950"
+                  title="Listen to warning"
+                  aria-label="Listen to warning"
+                >
+                  <Volume2 size={18} />
+                </button>
+              </div>
+            </CardBody>
+          </Card>
+        ) : (
+          /* Normal success card */
+          <Card className="border-emerald-200/80 bg-white shadow-sm">
+            <CardHeader
+              title={t("resultTitle")}
+              subtitle={t("resultSubtitle")}
+            />
+            <CardBody className="space-y-4">
+              <div className="rounded-md bg-ink-900 px-4 py-3 dark:bg-white">
+                <p className="text-xs uppercase tracking-wider text-ink-400 dark:text-ink-500">
+                  {t("refIdLabel")}
+                </p>
+                <p className="font-mono text-lg font-bold text-white dark:text-ink-900">
+                  {result.grievanceId}
+                </p>
+              </div>
+              <Alert tone="info">{result.message}</Alert>
+            </CardBody>
+          </Card>
+        )}
         </div>
       )}
     </div>

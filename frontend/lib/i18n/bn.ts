@@ -139,6 +139,13 @@ const bn: Messages = {
   resultTitle: "অভিযোগ সফলভাবে নিবন্ধিত হয়েছে",
   resultSubtitle: "অভিযোগ ট্র্যাক করতে এই রেফারেন্স ID সংরক্ষণ করুন।",
   refIdLabel: "রেফারেন্স টিকিট ID",
+  // Quality gate citizen messages (DEC-049)
+  formGenuineHint:
+    "Please describe a real public issue (e.g. broken road, water leak, garbage, power outage). Submissions that are not genuine civic complaints will be flagged for review.",
+  resultFlaggedTitle: "Complaint Registered — Pending Review",
+  resultFlaggedSubtitle: "Your complaint has been registered. Save this reference ID.",
+  resultFlaggedWarning:
+    "Our system detected that this submission may not describe a public civic issue. An officer will review it before further action. Repeatedly submitting irrelevant or false complaints may affect your account standing.",
 
   // ── Image upload ──
   imgLabel: "প্রমাণ ছবি",

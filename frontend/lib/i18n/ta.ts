@@ -139,6 +139,13 @@ const ta: Messages = {
   resultTitle: "புகார் வெற்றிகரமாக பதிவு செய்யப்பட்டது",
   resultSubtitle: "உங்கள் புகாரைக் கண்காணிக்க இந்த குறிப்பு ID யைச் சேமியுங்கள்.",
   refIdLabel: "குறிப்பு சீட்டு ID",
+  // Quality gate citizen messages (DEC-049)
+  formGenuineHint:
+    "Please describe a real public issue (e.g. broken road, water leak, garbage, power outage). Submissions that are not genuine civic complaints will be flagged for review.",
+  resultFlaggedTitle: "Complaint Registered — Pending Review",
+  resultFlaggedSubtitle: "Your complaint has been registered. Save this reference ID.",
+  resultFlaggedWarning:
+    "Our system detected that this submission may not describe a public civic issue. An officer will review it before further action. Repeatedly submitting irrelevant or false complaints may affect your account standing.",
 
   // ── Image upload ──
   imgLabel: "சான்று புகைப்படம்",

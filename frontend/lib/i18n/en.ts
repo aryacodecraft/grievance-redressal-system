@@ -313,6 +313,14 @@ const en = {
   resultTitle: "Grievance Successfully Registered",
   resultSubtitle: "Save this reference ID to track your complaint.",
   refIdLabel: "Reference ID",
+  // Quality gate citizen messages (DEC-049)
+  formGenuineHint:
+    "Please describe a real public issue (e.g. broken road, water leak, garbage, power outage). Submissions that are not genuine civic complaints will be flagged for review.",
+  resultFlaggedTitle: "Complaint Registered — Pending Review",
+  resultFlaggedSubtitle:
+    "Your complaint has been registered. Save this reference ID.",
+  resultFlaggedWarning:
+    "Our system detected that this submission may not describe a public civic issue. An officer will review it before further action. Repeatedly submitting irrelevant or false complaints may affect your account standing.",
 
   // ── Image upload ──
   imgLabel: "Photo of the issue",

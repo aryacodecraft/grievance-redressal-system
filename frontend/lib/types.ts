@@ -41,6 +41,9 @@ export interface Grievance {
     completionPhotoUrl?: string | null;
     supportingDocumentUrl?: string | null;
   } | null;
+  /** Quality gate (DEC-049): "suspicious" when AI flagged as non-civic content. */
+  qualityFlag?: string | null;
+  qualityReason?: string | null;
 }
 
 export interface StateHistoryEntry {
@@ -72,6 +75,9 @@ export interface SubmitResult {
   message: string;
   grievanceId: string;
   hfEngine: HfEngine;
+  /** Quality gate (DEC-049): true when backend flagged as non-civic content. */
+  flagged?: boolean;
+  flagReason?: string | null;
 }
 
 export type VoiceLanguage = "en-IN" | "hi-IN" | "mr-IN";

@@ -41,6 +41,12 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047), track
   (master-detail, sign-in required; department/priority not shown to citizens —
   DEC-028/029/030/044), notifications inbox v1, profile. IMPLEMENTED, TESTED.
+- **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
+  quality gate in the submit pipeline; non-civic or fake complaints (e.g. math queries,
+  riddles, gibberish, spam) are flagged with `qualityFlag="suspicious"` and reason,
+  warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
+  board under a dedicated "Flagged" filter and review badge without ever silently dropping
+  submissions. IMPLEMENTED, TESTED.
 - **Staff experience** — admin queue/board + detail modal, analytics (charts,
   map, TF-IDF clusters, CSV), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
