@@ -19,13 +19,15 @@ services:
       # onnxruntime/opencv/scikit-image pins all have cp314 wheels.
       - key: PYTHON_VERSION
         value: "3.14.3"
-      # Voice transcription stays OFF. Operator key is a secret, never a value here.
+      # Voice transcription is temporarily ON for the production demo/debug
+      # pass; restore the previous "false" after the check. The operator key is
+      # a secret, never a value here.
       - key: SARVAM_API_KEY
         sync: false
       - key: SARVAM_STT_MODEL
         value: "saaras:v4"
       - key: TRANSCRIPTION_ENABLED
-        value: "false"
+        value: "true"
       - key: TRANSCRIPTION_MAX_FILE_BYTES
         value: "1048576"
       - key: TRANSCRIPTION_MAX_REQUEST_BYTES
@@ -126,3 +128,8 @@ services:
         value: "320"
       - key: FACE_ORT_THREADS
         value: "1"
+      # Temporary production diagnostics. FACE_DEBUG logs aggregate metrics and
+      # the first failing check (never frames or embeddings); restore "false"
+      # after the face-login investigation.
+      - key: FACE_DEBUG
+        value: "true"
