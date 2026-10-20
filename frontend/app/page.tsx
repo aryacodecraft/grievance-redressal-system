@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   CheckCircle2,
@@ -285,6 +286,16 @@ export default function Home() {
         <div className="relative mx-auto max-w-3xl px-4 py-12 text-center sm:px-6 sm:py-16 lg:px-8 lg:py-20">
           {/* Hero: Direct Public-Service Messaging & Actions */}
           <div className="mx-auto max-w-2xl">
+            <div className="animate-fade-up mb-5 flex justify-center">
+              <Image
+                src="/logo.png"
+                alt="SAMARTH Emblem"
+                width={80}
+                height={80}
+                className="h-16 w-16 sm:h-20 sm:w-20 object-contain drop-shadow-xs"
+                priority
+              />
+            </div>
             <h1 className="animate-fade-up text-3xl font-extrabold tracking-tight text-ink-950 sm:text-5xl sm:leading-[1.12]">
               {t("heroTitle")}
             </h1>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select, Textarea } from "@/components/ui/Field";
@@ -183,13 +184,23 @@ export default function RegisterPage() {
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-3 py-4 sm:px-6 sm:py-8">
       <div className={`w-full ${accountReady ? "max-w-md" : "max-w-4xl"} rounded-lg border border-ink-200 bg-white p-5 shadow-sm sm:p-8 transition-all duration-200`}>
           <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-ink-100 pb-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-ink-950">
-                {t("createAccount")}
-              </h1>
-              <p className="mt-0.5 text-xs text-ink-500">
-                {liveMode ? t("regSubLive") : t("regSubDemo")}
-              </p>
+            <div className="flex items-center gap-3">
+              <Image
+                src="/logo.png"
+                alt="SAMARTH Logo"
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain shrink-0"
+                priority
+              />
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-ink-950">
+                  {t("createAccount")}
+                </h1>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  {liveMode ? t("regSubLive") : t("regSubDemo")}
+                </p>
+              </div>
             </div>
             {!accountReady && (
               <div className="hidden sm:block text-xs sm:text-sm text-ink-500">

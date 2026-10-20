@@ -3,6 +3,7 @@
 import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Eye,
   EyeOff,
@@ -336,11 +337,21 @@ function LoginForm() {
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-ink-50/40 px-3 py-4 sm:px-6 sm:py-8">
       <div className="w-full max-w-4xl rounded-lg border border-ink-200 bg-white p-5 shadow-sm sm:p-8">
           <div className="mb-6">
-            <span className="inline-flex items-center gap-1.5 rounded-sm bg-primary-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-700 ring-1 ring-primary-200">
-              <ShieldCheck size={12} strokeWidth={2} />
-              {t("securePortal")}
-            </span>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-ink-950">
+            <div className="flex items-center gap-3 mb-3">
+              <Image
+                src="/logo.png"
+                alt="SAMARTH Logo"
+                width={40}
+                height={40}
+                className="h-10 w-10 object-contain shrink-0"
+                priority
+              />
+              <span className="inline-flex items-center gap-1.5 rounded-sm bg-primary-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary-700 ring-1 ring-primary-200">
+                <ShieldCheck size={12} strokeWidth={2} />
+                {t("securePortal")}
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-ink-950">
               {pending ? t("faceTwoFactorTitle") : t("signIn")}
             </h1>
             <p className="mt-1 text-sm text-ink-500">

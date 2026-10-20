@@ -2263,3 +2263,34 @@ face templates are untouched unless re-enrolled.
 - No changes to functional logic, form state, API payloads, or desktop sizing/spacing (base mobile classes are paired with `sm:` overrides).
 
 **Reversible:** Remove base-level responsive class overrides to restore uniform spacing.
+
+---
+
+## DEC-048 — SAMARTH Official Logo & Favicon Integration (2026-10-20)
+
+**Context:** The official SAMARTH circular seal/emblem (`Samarth Logo.png`, 1254x1254 RGBA) was provided by the project owner in the root directory. The application previously used placeholder text marks (`S` in colored squares) and default Next.js favicons.
+
+**Decision:**
+1. Processed `Samarth Logo.png` via Pillow into optimized web assets:
+   - `frontend/public/logo.png`: High-resolution web-optimized PNG.
+   - `frontend/app/favicon.ico` & `frontend/public/favicon.ico`: Multi-resolution ICOs (16x16, 32x32, 48x48).
+   - `frontend/app/icon.png`: 32x32 standard web icon.
+   - `frontend/app/apple-icon.png`: 180x180 Apple touch icon.
+2. Updated Next.js metadata in `frontend/app/layout.tsx` to explicitly reference `icon` and `apple` icons.
+3. Integrated the logo image into prominent frontend touchpoints:
+   - `SiteHeader.tsx`: Navbar brand icon (32x32) alongside SAMARTH title.
+   - `StaffSidebar.tsx`: Sidebar header icon (32x32) replacing the placeholder `S` badge.
+   - `SiteFooter.tsx`: Footer brand icon (24x24) replacing the placeholder `S` badge.
+   - `app/page.tsx`: Hero section emblem (80x80) centered above the main title.
+   - `app/login/page.tsx`: Login card header icon (40x40) alongside the security badge.
+   - `app/register/page.tsx`: Registration card header icon (40x40).
+
+**Verification:**
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed.
+- ESLint clean across all updated files.
+- Assets verified on disk with proper formats and dimensions.
+
+**Reversible:** Revert the icon and image elements to previous text-based marks; delete generated files in `frontend/public/` and `frontend/app/`.
+

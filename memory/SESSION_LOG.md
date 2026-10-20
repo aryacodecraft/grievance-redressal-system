@@ -876,3 +876,26 @@ Owner: Selection of manual vs voice should be side by side (not above and below)
 - ESLint clean on all modified files.
 - `npm run build`: passed; 18/18 static pages generated.
 - Memory updated: DEC-047, CHANGELOG.md, CURRENT_STATE.md, this log.
+
+---
+
+## 2026-10-20 — SAMARTH logo and favicon integration (DEC-048)
+
+### Request
+Owner: Use the provided `Samarth Logo.png` from root folder as the favicon and place the logo everywhere needed in the frontend.
+
+### What changed
+- Processed `Samarth Logo.png` (1254x1254 RGBA) into web assets: `frontend/public/logo.png`, `frontend/app/favicon.ico`, `frontend/public/favicon.ico`, `frontend/app/icon.png` (32x32), and `frontend/app/apple-icon.png` (180x180).
+- `frontend/app/layout.tsx`: Configured metadata icons for standard and Apple touch icons.
+- `SiteHeader.tsx`: Added official SAMARTH logo (32x32) to the navbar brand link.
+- `StaffSidebar.tsx`: Replaced placeholder `S` badge with the logo (32x32) in staff navigation.
+- `SiteFooter.tsx`: Replaced placeholder `S` badge with the logo (24x24) in the footer.
+- `app/page.tsx`: Embedded emblem (80x80) centered in the hero section above the main headline.
+- `app/login/page.tsx` & `app/register/page.tsx`: Added logo (40x40) to authentication card headers.
+
+### Verification
+- `npx tsc --noEmit`: 0 errors.
+- `npm run test:voice`: 79 passed.
+- `node scripts/check-contract.mjs`: passed.
+- ESLint clean on all modified files.
+- Memory updated: DEC-048, CHANGELOG.md, CURRENT_STATE.md, this log.

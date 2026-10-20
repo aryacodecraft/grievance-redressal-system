@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useDemoUser } from "@/lib/session";
 import { LANGUAGES, useI18n } from "@/lib/i18n";
@@ -30,7 +31,15 @@ export function SiteHeader() {
     <header className="relative sticky top-0 z-40 border-b border-ink-200/80 bg-white/95 backdrop-blur-md">
       <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center flex-1 min-w-0">
-          <Link href="/" className="flex items-center gap-2 group truncate">
+          <Link href="/" className="flex items-center gap-2.5 group truncate">
+            <Image
+              src="/logo.png"
+              alt="SAMARTH Logo"
+              width={32}
+              height={32}
+              className="h-8 w-8 object-contain shrink-0"
+              priority
+            />
             <span className="text-base font-extrabold tracking-tight text-ink-950">
               SAMARTH
             </span>

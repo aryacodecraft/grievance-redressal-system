@@ -23,6 +23,15 @@ export const metadata: Metadata = {
   },
   description:
     "Official portal for accessible management, action, resolution, and tracking of public grievances and hearings.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png" },
+    ],
+  },
 };
 
 export default function RootLayout({

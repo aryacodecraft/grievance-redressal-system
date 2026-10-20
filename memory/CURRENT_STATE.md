@@ -25,7 +25,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 |---|---|
 | Backend | FastAPI under `backend/app/` (serving path, DEC-010); `uvicorn backend.app.main:app`, port 10000 |
 | Database | MongoDB Atlas via `MongoRepository` when `MONGODB_URI` is set; `InMemoryRepository` fallback otherwise (`/health` reports which) |
-| Frontend | Next.js 16 + TypeScript + Tailwind v4 in `frontend/`; REST client `lib/api.ts`, session `lib/session.tsx` |
+| Frontend | Next.js 16 + TypeScript + Tailwind v4 in `frontend/`; REST client `lib/api.ts`, session `lib/session.tsx`; SAMARTH official emblem & favicon (DEC-048) |
 | Auth | JWT access/refresh + Google OAuth + RBAC (DEC-017); optional face login + phone OTP binding behind flags |
 | AI/NLP | Keyword → HF Transformers → Groq cascade (`backend/app/services/classification.py`); Sarvam STT for voice; pre-recorded Sarvam question clips (DEC-039); client-side TF-IDF similarity |
 | Tests | `tests/` pytest (Mongo tests need `TEST_MONGODB_URI`); `frontend/scripts/check-contract.mjs` + `e2e.mjs`; voice node suites |

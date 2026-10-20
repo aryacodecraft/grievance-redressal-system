@@ -9,6 +9,17 @@
 
 ---
 
+## 2026-10-20 — SAMARTH Official Logo & Favicon Integration (DEC-048)
+
+- Converted `Samarth Logo.png` into web assets: `frontend/public/logo.png`, `frontend/app/favicon.ico`, `frontend/public/favicon.ico`, `frontend/app/icon.png` (32x32), and `frontend/app/apple-icon.png` (180x180).
+- `frontend/app/layout.tsx`: Configured metadata icons for standard and Apple touch icons.
+- `SiteHeader.tsx`: Added official SAMARTH logo (32x32) to the navbar brand link.
+- `StaffSidebar.tsx`: Replaced placeholder `S` badge with the logo (32x32) in staff navigation.
+- `SiteFooter.tsx`: Replaced placeholder `S` badge with the logo (24x24) in the footer.
+- `app/page.tsx`: Embedded emblem (80x80) centered in the hero section above the main headline.
+- `app/login/page.tsx` & `app/register/page.tsx`: Added logo (40x40) to authentication card headers.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node scripts/check-contract.mjs` passed, ESLint clean.
+
 ## 2026-10-20 — Mobile UI: side-by-side mode toggle, spacious fields & centered buttons (DEC-047)
 
 - `VoiceIntake.tsx`: `IntakeModeToggle` enforces `grid-cols-2` on mobile so manual vs voice options sit side-by-side; titles/hints wrap on mobile (`break-words`) instead of clipping, with desktop sizing/alignment restored via `sm:` overrides; centered voice recorder action buttons (Start/Stop/Cancel/Type instead/Skip), language/mute row, and bottom switch actions on mobile (`justify-center sm:justify-start`).

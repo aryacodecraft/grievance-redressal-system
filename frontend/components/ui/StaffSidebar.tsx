@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Briefcase,
@@ -91,12 +92,14 @@ export function StaffSidebar({
         href="/"
         className="flex h-14 items-center gap-3 border-b border-ink-100 px-3 sm:px-4"
       >
-        <span
-          aria-hidden
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-primary-600 font-bold text-white shadow-xs"
-        >
-          S
-        </span>
+        <Image
+          src="/logo.png"
+          alt="SAMARTH Logo"
+          width={32}
+          height={32}
+          className="h-8 w-8 object-contain shrink-0"
+          priority
+        />
         <span className="hidden text-sm font-bold tracking-tight text-ink-950 sm:block">
           SAMARTH
         </span>

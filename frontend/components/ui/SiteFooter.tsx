@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { MapPin, Mail } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useI18n, type MessageKey } from "@/lib/i18n";
@@ -32,9 +33,13 @@ export function SiteFooter() {
         {/* Brand */}
         <div className="lg:col-span-4">
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary-600 text-xs font-bold text-white">
-              S
-            </span>
+            <Image
+              src="/logo.png"
+              alt="SAMARTH Logo"
+              width={24}
+              height={24}
+              className="h-6 w-6 object-contain shrink-0"
+            />
             <p className="text-sm font-bold text-ink-900">
               SAMARTH
             </p>
