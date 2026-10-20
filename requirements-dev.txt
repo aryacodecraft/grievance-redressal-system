@@ -1,5 +1,5 @@
 # Development / test dependencies — not installed on deploy.
-# Render's buildCommand uses the root requirements.txt instead.
+# Render's buildCommand uses backend/requirements.txt (plus the optional face stack).
 -r requirements.txt
 
 pytest

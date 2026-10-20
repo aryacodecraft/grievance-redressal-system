@@ -2138,3 +2138,98 @@ Live submit latency after the change not re-measured.
 - `npx eslint`: 0 errors, 0 warnings across all modified components, pages, and i18n files.
 
 **Reversible:** Revert the CSS palette hex codes and restore previous string constants in i18n dictionaries.
+
+---
+
+## DEC-046 — Twilio Trial Demo, SAMARTH OTP Text, and Free-First Render Face Auth (2026-10-20)
+
+**Context:** Production is Vercel (`https://samarth-griev-ai.vercel.app`) + Render
+(`https://grievance-ai-backend.onrender.com`). Twilio is a Trial account using a
+US long code in the "GreiveAI Test" Messaging Service; only the owner's Indian
+number ending `7009` is verified. Indian domestic SMS needs DLT registration,
+which is not ready. Face auth works locally, but Render only installed
+`backend/requirements.txt`, so `insightface`/`onnxruntime`/OpenCV were absent.
+The free instance is 512 MB / 0.1 CPU. Existing face templates were encrypted
+with the local 44-character `FACE_EMBED_KEY`; re-enrollment is avoidable if that
+key is copied to Render. The owner selected: demo now / DLT later; free tier
+first; reuse the local key; change OTP branding to SAMARTH before DLT.
+
+**Decision:**
+- **Twilio demo:** keep the Trial US long code and Messaging Service for the
+  demo. The international route does not need DLT, but Trial delivers only to
+  verified numbers; full Indian citizen delivery remains on the DLT path.
+  `DLT_ENTITY_ID` / `DLT_TEMPLATE_ID_*` are traceability fields only; Twilio
+  console/DLT registration controls domestic delivery. Set
+  `SMS_PROVIDER=twilio` plus the three `TWILIO_*` values in the Render dashboard;
+  leave the DLT variables empty. `OTP_DEBUG_RETURN_CODE` stays false.
+- **OTP text:** `Your SAMARTH verification code is {code}. Valid for 5 minutes.`
+  Register this exact text when DLT starts. The stage template is unchanged.
+- **Face packaging:** install `insightface==2.1` with `--no-deps` (pure Python,
+  Python >=3.10; avoids its `opencv-python` GUI dependency), then install
+  `backend/requirements-face.txt` with `onnxruntime==1.31.0`,
+  `opencv-python-headless==4.14.0.94`, `scikit-image`, `onnx` and `tqdm`.
+  The remaining insightface runtime dependencies (numpy, pillow, scipy,
+  requests) are already in `backend/requirements.txt`.
+- **Model prep:** `backend/scripts/prepare_face_model.py` downloads
+  `buffalo_s.zip` at build time and extracts only `det_500m.onnx`,
+  `2d106det.onnx` and `w600k_mbf.onnx` into
+  `/opt/render/project/src/.insightface/models/buffalo_s`. It deletes unused
+  `.onnx` files in that directory because the legacy loader opens every model
+  before applying `allowed_modules`. `FACE_MODEL_ROOT` points at the root;
+  `FACE_ORT_THREADS=1`; `FACE_DET_SIZE=320`.
+- **Key reuse:** copy the local `FACE_EMBED_KEY` to Render as a dashboard secret.
+  Existing templates then remain valid; otherwise re-enroll. Set
+  `FACE_AUTH_ENABLED=true` in Render; the repository default remains false.
+- **Capacity:** keep Render `plan: free` initially. Upgrade to Starter
+  (0.5 CPU / 512 MB) or Standard (1 CPU / 2 GB) only if the model preload OOMs
+  or liveness is too slow; no code change is required.
+
+**Alternatives rejected:**
+- Waiting for a Twilio upgrade + DLT before any live SMS: blocks the demo; the
+  international Trial route is sufficient for the one verified owner number.
+- Re-enrolling all faces or generating a new key: unnecessary when the existing
+  key is available.
+- Installing `insightface` with normal dependencies: pulls `opencv-python`
+  (GUI/libGL) and conflicts with the headless server build.
+- Keeping the full `buffalo_s` pack: the unused 143 MB `1k3d68.onnx` (and
+  `genderage.onnx`) is opened before filtering, unacceptable on 512 MB.
+- Upgrading Render proactively: free tier may suffice; upgrade only after
+  measured OOM or excessive latency.
+
+**Consequences / risks:**
+- Trial US sender: Indian recipients other than the verified number will not
+  receive messages, and the sender ID is not preserved on the international
+  route. This is not production-complete; DLT remains required.
+- Free-tier CPU may make liveness slow. The pretrained models are
+  non-commercial research only (academic prototype).
+- The build downloads ~122 MB per deploy; the script is idempotent and skips
+  the download when the three files already exist.
+- `pip check` reports `opencv-python` missing because insightface's metadata
+  names it; the headless distribution provides `cv2` and the real model load
+  confirms the runtime works. This is expected with `--no-deps`.
+- If Render's `FACE_EMBED_KEY` differs from the enrollment key, templates fail
+  to decrypt; rollback is `FACE_AUTH_ENABLED=false`.
+
+**Verification (2026-10-20):**
+- Target pytest set (`test_phone_sms`, `test_face_auth`,
+  `test_face_login_recovery`, `test_face_signup`, `test_face_ratelimit_mongo`,
+  `test_config_drift`): 162 passed, 3 skipped (Mongo URL absent), one existing
+  Starlette/httpx deprecation warning.
+- Full pytest: 516 passed, 32 skipped, 22 failed; the 22 are the documented
+  stale status-vocabulary/endpoint baseline, with no new failure categories.
+- New `tests/test_prepare_face_model.py`: 3 passed (required-only extraction,
+  stale-model pruning, idempotence, missing archive).
+- `prepare_face_model.py` against the real `buffalo_s.zip`: only the three
+  required ONNX files; stale `1k3d68.onnx` removed; second run made no changes.
+- Clean Python 3.14 venv with the pinned wheels: `insightface 2.1` +
+  `FaceAnalysis` loaded the pruned model and detected 6 faces in the bundled
+  `t1.jpg` (106-point landmarks and 512-D embeddings present); ~0.12 s
+  inference with one ORT thread and ~193 MB peak RSS on the development
+  machine (not Render).
+- `render.yaml` parsed successfully (43 env entries, no duplicate keys).
+- Live Render Twilio OTP and face 2FA/citizen login: pending owner/dashboard
+  verification; not claimed working.
+
+**Reversible:** Set `FACE_AUTH_ENABLED=false` and/or remove the face build step
+to disable; restore `SMS_PROVIDER=dry-run`; revert the OTP string. Existing
+face templates are untouched unless re-enrolled.

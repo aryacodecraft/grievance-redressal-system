@@ -33,7 +33,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 ---
 
-## 2. Implemented and working (as of 2026-10-18)
+## 2. Implemented and working (as of 2026-10-20)
 
 - **Grievance lifecycle** — 15-state machine (`backend/app/services/state_machine.py`),
   role-gated transitions, assignment/history arrays; status PATCH restricted to
@@ -50,11 +50,17 @@ only — humans retain assignment, escalation, resolution and closure authority
   Brute-force rate limiting NOT implemented (§4).
 - **Phone/SMS** — India-normalized phone identity, OTP binding, SMS template set
   + Twilio provider code; `SMS_PROVIDER=dry-run` by default (DEC-025/027).
-  IMPLEMENTED, TESTED in dry-run; live delivery blocked on DLT/credentials (§4).
+  IMPLEMENTED, TESTED in dry-run. The production demo uses the Twilio Trial US
+  sender/international route (verified number only); setting `SMS_PROVIDER=twilio`
+  plus the three `TWILIO_*` values in Render and receiving a live OTP is pending
+  owner verification. Full citizen delivery is blocked on Twilio upgrade + DLT
+  (§4/§5). OTP text rebranded to SAMARTH (DEC-046).
 - **Face auth (flag-gated, default off)** — enrollment, 1:1 login, recovery
   phrase, liveness challenges, lockout counters, `requireLogin2fa`; in-memory
   stores (DEC-024). IMPLEMENTED, TESTED (face/drift suites); real-webcam
-  validation pending (§5).
+  validation pending (§5). Production packaging (DEC-046) now installs
+  `insightface==2.1` + a pruned `buffalo_s` at Render build time; live Render
+  2FA/citizen login pending (§5).
 - **Voice-assisted lodging (flag-gated, default off)** — consent gate,
   AudioWorklet 16 kHz WAV capture, `/transcribe` → Sarvam. **Conversational
   two-mode intake (DEC-038):** "Tell us your problem" guides listen →
@@ -92,12 +98,22 @@ only — humans retain assignment, escalation, resolution and closure authority
   de-emphasized across hero, how-it-works, trust section (replaced BrainCircuit with Layers)
   and admin review; primary orange palette enhanced with brighter vibrant tones
   (`--color-primary-600: #ff5500;` on buttons and accents).
+- **Production deployment packaging (DEC-046, 2026-10-20)** — Render build now
+  installs the optional face stack (`insightface==2.1` with `--no-deps`,
+  pinned `onnxruntime`/headless OpenCV/scikit-image/onnx/tqdm) and
+  pre-downloads a pruned `buffalo_s` (detector, 106-point landmarks,
+  recognition only) into `FACE_MODEL_ROOT`; `FACE_ORT_THREADS=1` for the free
+  instance. Twilio demo uses the Trial US sender/international route
+  (verified number only) and the OTP text is rebranded to SAMARTH. Code,
+  config, docs and tests IMPLEMENTED; live Render Twilio OTP + face 2FA/citizen
+  login pending owner verification (§5).
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — full pytest (2026-10-19, post-Stage-14): 511 passed / 32
-  skipped / 23 failed = the documented pre-existing baseline (§5); the extra
-  skip is the opt-in cross-stack voice E2E (`VOICE_E2E=1`); contract suite 18
-  checks; voice node suites 79 tests (DEC-041/043/044); intake backend suite 28 tests;
+- **Test suites** — full pytest (2026-10-20): 516 passed / 32 skipped / 22
+  failed = the documented pre-existing baseline (2026-10-19 was 511/32/23; the
+  23rd was the local `.env` face-challenge leak, now pinned in conftest).
+  Includes 3 new prepare-model tests; contract suite 18 checks; voice node
+  suites 79 tests (DEC-041/043/044); intake backend suite 28 tests;
   classification latency tests added (DEC-042).
 
 ---
@@ -158,8 +174,11 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 ### SMS / phone
 
-- TRAI DLT registration (entity + template set from archived TODO §13.6) and
-  Twilio with India SMS enabled (prefer Messaging Service SID) — CREDENTIALS REQUIRED.
+- Twilio production demo: set `SMS_PROVIDER=twilio` plus the three
+  `TWILIO_*` values in the Render dashboard and verify a live OTP to the one
+  verified number (Trial restriction). Then complete TRAI DLT registration
+  (entity + template set from archived TODO §13.6) and enable the Indian
+  domestic route for full citizen delivery — CREDENTIALS REQUIRED.
 - Durable dedup + rate-limit counters shared across workers.
 - Update face-auth test expectations for the verified-phone login gate; add
   endpoint tests for phone flows.
@@ -194,10 +213,11 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 ### Ops & environment
 
-- Render: set `MONGODB_URI` / `MONGODB_DB` environment variables.
+- Render: apply the DEC-046 dashboard settings — `SMS_PROVIDER=twilio` + the
+  three `TWILIO_*` secrets; `FACE_AUTH_ENABLED=true` + the existing local
+  `FACE_EMBED_KEY`; keep `OTP_DEBUG_RETURN_CODE=false`. The face model path,
+  model name, detection size and ORT thread count are already in `render.yaml`.
 - Run `tools/backfill_departments.py` against Atlas (legacy grievances missing `departmentId`).
-- Owner run: `SEED_TEST_ACCOUNTS=true` + `NEXT_PUBLIC_SHOW_DEV_CREDS=true`,
-  restart both, verify seeded logins.
 - Optional cleanup: rename `components/admin/AdminNav.tsx` (now only exports `AdminHeader`).
 
 ### Testing infrastructure
@@ -218,10 +238,13 @@ only — humans retain assignment, escalation, resolution and closure authority
   review). The 2026-10-18 conversational E2E also exercised the typed path live
   (real LLM extraction + real submission `GRV-2026-0015`). 2026-10-19 verified
   live en/hi question-clip playback, but not live hi/mr speech-to-text.
-- Live SMS delivery — blocked on DLT + Twilio credentials.
+- Live SMS delivery — Twilio demo path ready (Trial US sender, verified number
+  only); set the Render dashboard values and confirm a live receipt. Full
+  citizen delivery is blocked on Twilio upgrade + DLT.
 - Real-webcam face enroll/login; tune `FACE_TURN_MIN_DEGREES`,
   `FACE_BLINK_EAR_DROP`, `FACE_SMILE_MOUTH_WIDEN`, `FACE_MIN_BLUR_VARIANCE`,
-  `FACE_MIN_FACE_PX` via env (no code change needed).
+  `FACE_MIN_FACE_PX` via env (no code change needed). **Render production face
+  stack** (DEC-046, pruned `buffalo_s`) live 2FA/citizen login pending.
 - Voice provider checks: workspace retention, auto-recharge disabled, concurrency
   limits (separately authorized).
 - Production-level HTTPS/CORS/load checks.
@@ -244,11 +267,17 @@ only — humans retain assignment, escalation, resolution and closure authority
   is the opt-in voice cross-stack E2E) — same failure set: mostly stale DEC-006
   status-vocabulary and i18n expectations. The +5 in 2026-10-19 are the updated
   conversational-intake tests, then +2 classification latency tests (DEC-042).
+  2026-10-20 full run: 516 passed / 32 skipped / 22 failed; the 22 are the same
+  status-vocabulary/endpoint baseline with no new failure categories. The
+  previously noted env-specific face failure is gone after the conftest pin,
+  and the 3 new prepare-model tests pass.
   Exact failure names are in `memory/archive/TODO-until-2026-10-18.md` §11.
   Decide fix vs retire per test.
-- Env-specific: `test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned`
-  fails only with the developer's local `backend/.env` `FACE_CHALLENGES` override
-  (passes with the stock `.env.example`).
+- `test_face_auth.py::TestFaceService::test_tunable_defaults_are_pinned` is now
+  hermetic: `tests/conftest.py` pins `FACE_CHALLENGES` (2026-10-20); previously
+  the developer's local `.env` override failed it. Targeted DEC-046 suites:
+  162 passed / 3 skipped (SMS, face, face recovery/signup, config drift) plus
+  3 new `prepare_face_model` tests; full suite not rerun.
 - Frontend lint baseline: 4 pre-existing `FaceCapture` errors + 4 warnings —
   keep at or below; fix when touching that component.
 
@@ -267,6 +296,12 @@ only — humans retain assignment, escalation, resolution and closure authority
 - In-memory fallback is non-persistent when `MONGODB_URI` is absent.
 - `imageValidation` not persisted → no image audit trail.
 - Voice/SMS quota counters are process-local (reset on restart).
+- Twilio Trial US sender: only verified numbers receive messages and the sender
+  ID is not preserved; full Indian delivery needs an account upgrade + DLT.
+- Render free face inference (512 MB / 0.1 CPU) may be slow or OOM. The pruned
+  model loaded at ~193 MB peak RSS on the development machine (not Render);
+  production latency/memory is unmeasured. Upgrade if the preload or liveness
+  is too slow.
 - Local stack is environment-dependent: it was down at the Stage 11 handoff,
   but backend + Mongo + citizen login were verified working locally on 2026-10-18.
 - `frontend/AGENTS.md` and `CLAUDE.md` are create-next-app artifacts, not project rules.
@@ -281,11 +316,23 @@ only — humans retain assignment, escalation, resolution and closure authority
 - Flags default **OFF**: `TRANSCRIPTION_ENABLED`, `FACE_AUTH_ENABLED`.
   `DIAGNOSTIC_SKIP_INITIALIZATION_WRITES` is a diagnostic-only guard — keep false.
   The developer's local gitignored `backend/.env` currently sets
-  `TRANSCRIPTION_ENABLED=true` for voice testing — repo/production defaults
-  remain `false`.
-- SMS: `SMS_PROVIDER=dry-run` default; `OTP_DEBUG_RETURN_CODE` returns codes for
-  local debugging only.
+  `TRANSCRIPTION_ENABLED=true` for voice testing and `FACE_AUTH_ENABLED=true`
+  with the enrollment key — repo/production defaults remain `false`; DEC-046
+  calls for the production dashboard to set `FACE_AUTH_ENABLED=true`.
+- SMS: `SMS_PROVIDER=dry-run` default; the production demo requires setting
+  `twilio` in Render (Trial US sender, verified number only).
+  `OTP_DEBUG_RETURN_CODE` is false in production and returns codes for local
+  debugging only.
 - Ports: backend `10000`, frontend dev `3000`.
+- Render (verified 2026-10-20): `MONGODB_URI`/`MONGODB_DB` set and `/health`
+  reports `storage: mongodb`; `CORS_ORIGINS` locked to
+  `https://samarth-griev-ai.vercel.app`; `FRONTEND_URL` the same origin.
+  Face model defaults: `FACE_MODEL_NAME=buffalo_s`,
+  `FACE_MODEL_ROOT=/opt/render/project/src/.insightface`, `FACE_DET_SIZE=320`,
+  `FACE_ORT_THREADS=1`.
+- Seeded test accounts live on Render (verified 2026-10-20): superadmin + 8
+  departments × 2; password login verified for the citizen/admin/manager/resolver
+  test users. `SEED_TEST_ACCOUNTS` remains available for future environments.
 - Seeded logins: `SEED_TEST_ACCOUNTS` (backend `.env`) +
   `NEXT_PUBLIC_SHOW_DEV_CREDS` (frontend `.env.local`); account list in
   `frontend/lib/testAccounts.ts`.
@@ -299,8 +346,10 @@ only — humans retain assignment, escalation, resolution and closure authority
 ## 8. Suggested next steps
 
 1. Fresh full pytest run; triage the baseline failures (§5).
-2. Security hardening batch: rate limits, SSRF, Cloudinary auth, key rotations (§4).
-3. Restore local Mongo login + set the Render env vars (§4 Ops).
+2. Verify the DEC-046 Render release: Twilio OTP to the verified number, then
+   superadmin password + face 2FA and citizen face login; start DLT registration
+   for full citizen SMS.
+3. Security hardening batch: rate limits, SSRF, Cloudinary auth, key rotations (§4).
 4. Pick the next AI module (AI-01, AI-07 or AI-10) and persist analysis results
    with module id/model version.
 5. Work the manual/live validation queue (§5) as credentials/hardware become available.

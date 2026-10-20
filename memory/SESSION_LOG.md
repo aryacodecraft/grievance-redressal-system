@@ -808,5 +808,50 @@ Owner:
 - `node scripts/check-contract.mjs`: all contract checks passed.
 - `npx eslint` on all touched files: 0 errors, 0 warnings.
 
+---
+
+## 2026-10-20 — Twilio demo config + Render face packaging (DEC-046)
+
+### Request
+Owner: implement the agreed production plan after Plan mode — keep the live
+backend (`NEXT_PUBLIC_USE_MOCKS=false`, CORS locked to Vercel), use the Twilio
+Trial/international route for the demo with DLT later, rebrand the OTP to
+SAMARTH, deploy face auth on Render free first, and reuse the local
+`FACE_EMBED_KEY` so existing templates stay valid.
+
+### What changed
+- `render.yaml`: build installs `backend/requirements.txt`, then
+  `insightface==2.1 --no-deps`, `backend/requirements-face.txt`, and runs the
+  pruned model prep; pinned `PYTHON_VERSION=3.14.3`; added `FACE_MODEL_NAME`/
+  `FACE_MODEL_ROOT`/`FACE_DET_SIZE`/`FACE_ORT_THREADS`, dashboard-owned
+  `FACE_AUTH_ENABLED`/`FACE_EMBED_KEY`, `TRUST_PROXY=true`, and
+  `OTP_DEBUG_RETURN_CODE=false`.
+- New `backend/scripts/prepare_face_model.py` + `tests/test_prepare_face_model.py`;
+  pinned `backend/requirements-face.txt`; added `FACE_MODEL_ROOT`/
+  `FACE_ORT_THREADS` config; `face_service` passes the root and one-thread ORT
+  session options; updated `.env.example`/`.gitignore`.
+- OTP body changed from `GrievAI` to `SAMARTH`; updated `docs/DEVELOPMENT.md`
+  (Trial demo path, DLT follow-up, Render face build/upgrade path).
+- Pinned `FACE_CHALLENGES` in `tests/conftest.py` to keep the tunable-defaults
+  test hermetic against the local `.env`.
+- Memory: DEC-046, CURRENT_STATE §2/§4/§5/§6/§7/§8, CHANGELOG.
+
+### Verification
+- Targeted pytest: SMS, face auth, face login recovery, face signup, face
+  Mongo rate-limit (skipped without `MONGODB_URI_TEST`), config drift — 162
+  passed / 3 skipped; new prepare-model tests 3 passed.
+- Full pytest: 516 passed / 32 skipped / 22 failed; the 22 are the documented
+  stale status-vocabulary/endpoint baseline, with no new failure categories.
+- Real `buffalo_s.zip`: only `det_500m`, `2d106det`, `w600k_mbf` extracted;
+  stale `1k3d68.onnx` removed; second run idempotent.
+- Clean Python 3.14 venv with the pinned stack: `FaceAnalysis` loaded the
+  pruned model and detected 6 faces in a real image, with 106-point landmarks
+  and 512-D embeddings; ~0.12 s inference with one ORT thread, ~193 MB peak
+  RSS on the development machine.
+- `render.yaml` parsed successfully (43 env keys, no duplicates); Python
+  compile checks passed.
+- Not verified: live Render Twilio OTP delivery; Render face 2FA/citizen
+  login; free-tier latency; DLT domestic SMS. See CURRENT_STATE §5.
+
 
 

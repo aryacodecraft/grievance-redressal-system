@@ -60,6 +60,7 @@ os.environ["FACE_BLINK_EAR_DROP"] = "0.7"
 os.environ["FACE_SMILE_MOUTH_WIDEN"] = "1.08"
 os.environ["FACE_MIN_BLUR_VARIANCE"] = "30.0"
 os.environ["FACE_MIN_FACE_PX"] = "80"
+os.environ["FACE_CHALLENGES"] = "turn_left,turn_right,blink,smile"
 os.environ.setdefault("TRUST_PROXY", "false")
 try:
     from cryptography.fernet import Fernet as _Fernet

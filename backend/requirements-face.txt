@@ -1,8 +1,18 @@
 # Optional face-authentication stack (FACE_AUTH_ENABLED, DEC-024).
-# Install only when face login is enabled:
+# Install only when face login is enabled. insightface is installed separately
+# without dependencies so this file can keep the server-safe headless OpenCV
+# instead of insightface's default GUI build (opencv-python, which needs libGL):
+#
+#   pip install --no-deps insightface==2.1
 #   pip install -r backend/requirements-face.txt
-# numpy and pillow (frame decode) are already in requirements.txt; the app
-# boots and tests pass without this file as long as FACE_AUTH_ENABLED=false.
-insightface>=0.7.3
-onnxruntime>=1.17
-opencv-python-headless>=4.9
+#
+# The remaining insightface runtime dependencies (numpy, pillow, scipy,
+# requests) are already in backend/requirements.txt. insightface 2.1 is a
+# pure-Python wheel (Python >=3.10, including 3.14); the pins below have
+# cp314-compatible wheels. See backend/scripts/prepare_face_model.py for the
+# production model download/prune step.
+onnx>=1.13
+onnxruntime==1.31.0
+opencv-python-headless==4.14.0.94
+scikit-image>=0.22
+tqdm>=4.66

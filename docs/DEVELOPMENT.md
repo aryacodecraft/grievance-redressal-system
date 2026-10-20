@@ -86,11 +86,12 @@ python -m venv venv
 # (Skip venv creation if using Conda, Docker, or system Python)
 
 # 2. Install dependencies
-pip install -r requirements.txt          # runtime — what Render installs
+pip install -r backend/requirements.txt  # runtime — what Render installs
 pip install -r requirements-dev.txt      # runtime + pytest (local dev/tests)
 
 # 2b. (Optional) face-auth stack — only needed to run with FACE_AUTH_ENABLED=true
-pip install -r requirements-face.txt     # insightface, onnxruntime, opencv-python-headless
+pip install --no-deps insightface==2.1
+pip install -r backend/requirements-face.txt   # onnxruntime, headless OpenCV, scikit-image
 
 # 3. Configure environment
 cp backend/.env.example backend/.env    # Windows PowerShell: Copy-Item backend\.env.example backend\.env
@@ -129,6 +130,15 @@ Service. Operator checklist (all dashboard-side; nothing secret goes in git):
    the provider refuses to send rather than erroring.
 4. Trial accounts only reach verified numbers — upgrade and verify
    end-to-end ( dry-run log → live receipt) before opening to citizens.
+
+**Demo route (2026-10-20):** set the Render service to use the Trial account's
+US long code through Twilio's **international** gateway. That route does not
+require DLT, but Trial can only deliver to the verified number ending `7009`. For full citizen delivery, upgrade the account and move to the domestic
+DLT route: register the Principal Entity, 6-character sender header, and the
+stage/OTP templates, then add the Indian sender to the Messaging Service. The
+`DLT_*` variables are traceability only; Twilio's console registration is what
+enables domestic delivery. The OTP body now says **SAMARTH** — register that
+exact text when DLT starts.
 
 Watch the 160 GSM-7 character cap: over-long stage bodies are skipped, and
 each segment is billed. Keep `FRONTEND_URL` short or drop the track link
@@ -265,9 +275,10 @@ PORT=10000
 # Face auth (optional, DEC-024 — off by default; see backend/.env.example)
 FACE_AUTH_ENABLED=false
 # FACE_EMBED_KEY (required when the flag is on), FACE_MODEL_NAME,
-# FACE_MATCH_THRESHOLD, and the tunable liveness thresholds
-# (FACE_TURN_MIN_DEGREES, FACE_BLINK_EAR_DROP, FACE_SMILE_MOUTH_WIDEN,
-#  FACE_MIN_BLUR_VARIANCE, FACE_MIN_FACE_PX) are documented in .env.example
+# FACE_MODEL_ROOT, FACE_ORT_THREADS, FACE_MATCH_THRESHOLD, and the tunable
+# liveness thresholds (FACE_TURN_MIN_DEGREES, FACE_BLINK_EAR_DROP,
+# FACE_SMILE_MOUTH_WIDEN, FACE_MIN_BLUR_VARIANCE, FACE_MIN_FACE_PX) are
+# documented in .env.example
 ```
 
 > JWT auth (DEC-017) reads `JWT_SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`,
@@ -412,9 +423,12 @@ Deploy the **backend first** — the frontend build needs its public URL.
 
 ### 1. Backend → Render
 
-1. New Web Service from the repo; Render reads `render.yaml` (build:
-   `pip install -r backend/requirements.txt`, start:
-   `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`).
+1. New Web Service from the repo; Render reads `render.yaml` (build installs
+   `backend/requirements.txt`, then the optional face stack and the pruned
+   `buffalo_s` model — see `buildCommand`; start:
+   `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`). The first build
+   downloads the 122 MB model archive but extracts only the three ONNX files
+   the app uses.
 2. Fill the `sync: false` vars in the dashboard: `MONGODB_URI` (Atlas —
    allow Render to reach the cluster), `CORS_ORIGINS` (leave unset until the
    Vercel URL exists; the `*` fallback works but is wide open, so tighten it
@@ -424,9 +438,30 @@ Deploy the **backend first** — the frontend build needs its public URL.
 3. `JWT_SECRET_KEY` generates itself. Set `SEED_ADMIN_EMAIL` +
    `SEED_ADMIN_PASSWORD`, then **restart** the service (seeding runs at
    startup; it is a no-op if the admin already exists).
-4. Leave Twilio/DLT vars empty unless going live (safe `dry-run` default).
-   Keep `SEED_TEST_ACCOUNTS`, `OTP_DEBUG_RETURN_CODE`, and face-auth off.
+4. Twilio: for the international demo set `SMS_PROVIDER=twilio` and the three
+   `TWILIO_*` values; leave the `DLT_*` fields empty. Trial delivers only to
+   the verified number. `OTP_DEBUG_RETURN_CODE` must stay false. Face auth:
+   set `FACE_AUTH_ENABLED=true` and `FACE_EMBED_KEY` (the key that encrypted
+   the existing templates, or re-enroll); keep `FACE_MODEL_ROOT` at the build
+   path and `FACE_ORT_THREADS=1` on the free instance. Free (512 MB / 0.1 CPU)
+   is tight — upgrade if the model preload OOMs or liveness is too slow.
 5. Verify `GET /health` → `{"status":"ok","storage":"mongodb"}`.
+
+**Face auth on Render (free-first).** The build installs `insightface==2.1`
+without dependencies (so the headless OpenCV wheel in
+`backend/requirements-face.txt` wins), then
+`backend/scripts/prepare_face_model.py` extracts only `det_500m.onnx`,
+`2d106det.onnx`, and `w600k_mbf.onnx` into
+`/opt/render/project/src/.insightface/models/buffalo_s`. The full pack's
+143 MB `1k3d68.onnx` is deliberately skipped because the legacy loader opens
+every ONNX file before filtering. Keep the dashboard `FACE_MODEL_ROOT` at that
+path, `FACE_ORT_THREADS=1`, and `FACE_DET_SIZE=320`. Free instances are
+512 MB / 0.1 CPU: if the `Face model background preload complete` line never
+appears or liveness takes too long, upgrade to Starter (0.5 CPU / 512 MB) or
+Standard (1 CPU / 2 GB) — no code change. Existing templates stay valid only
+when the dashboard `FACE_EMBED_KEY` is the same key used at enrollment;
+otherwise re-enroll. The model pack is non-commercial research only (academic
+prototype).
 
 ### 2. Frontend → Vercel
 

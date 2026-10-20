@@ -5,13 +5,20 @@ services:
     runtime: python
     region: oregon
     plan: free
-    # Install from the pinned backend file, not the sparse root file.
-    # The root requirements.txt is missing PyJWT, passlib/bcrypt, python-multipart,
-    # email-validator, httpx, authlib and twilio — the app crashes on startup
-    # without them (auth.py: import jwt; main.py: import bcrypt).
-    buildCommand: "pip install -r backend/requirements.txt"
+    # Install from the pinned backend file. The root requirements.txt is an
+    # unpinned compatibility set; backend/requirements.txt is the tested list.
+    # The optional face stack is installed next (DEC-024). insightface is
+    # installed without dependencies so requirements-face.txt can keep the
+    # server-safe headless OpenCV build. prepare_face_model.py extracts only the
+    # three ONNX models the app uses; the full buffalo_s pack includes a 143 MB
+    # model that the legacy loader would otherwise open before filtering.
+    buildCommand: "pip install -r backend/requirements.txt && pip install --no-deps insightface==2.1 && pip install -r backend/requirements-face.txt && python backend/scripts/prepare_face_model.py --root /opt/render/project/src/.insightface"
     startCommand: "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     envVars:
+      # Fully qualified Python version: the insightface 2.1 wheel and the
+      # onnxruntime/opencv/scikit-image pins all have cp314 wheels.
+      - key: PYTHON_VERSION
+        value: "3.14.3"
       # Voice transcription stays OFF. Operator key is a secret, never a value here.
       - key: SARVAM_API_KEY
         sync: false
@@ -86,6 +93,8 @@ services:
       # the provider refuses to send until SID + token + service SID are set.
       - key: SMS_PROVIDER
         sync: false
+      - key: OTP_DEBUG_RETURN_CODE
+        value: "false"
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
@@ -98,3 +107,22 @@ services:
         sync: false
       - key: DLT_TEMPLATE_ID_OTP
         sync: false
+      # Face auth (DEC-024). The dashboard owns the flag + Fernet key so a
+      # rollback can disable the feature without a code change. The model
+      # files are downloaded at build time into the repo and loaded from the
+      # same path at runtime. Free instances have 0.1 CPU; one ONNX Runtime
+      # thread avoids contention (upgrade the instance if inference is slow).
+      - key: TRUST_PROXY
+        value: "true"
+      - key: FACE_AUTH_ENABLED
+        sync: false
+      - key: FACE_EMBED_KEY
+        sync: false
+      - key: FACE_MODEL_NAME
+        value: "buffalo_s"
+      - key: FACE_MODEL_ROOT
+        value: "/opt/render/project/src/.insightface"
+      - key: FACE_DET_SIZE
+        value: "320"
+      - key: FACE_ORT_THREADS
+        value: "1"

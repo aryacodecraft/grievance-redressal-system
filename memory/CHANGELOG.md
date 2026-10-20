@@ -9,6 +9,17 @@
 
 ---
 
+## 2026-10-20 — Twilio demo + free-first Render face packaging (DEC-046)
+
+- Added `backend/scripts/prepare_face_model.py` (downloads `buffalo_s.zip`, extracts only detector/landmark/recognition ONNX files, removes unused models) and `tests/test_prepare_face_model.py`.
+- Updated `render.yaml`: pinned `PYTHON_VERSION=3.14.3`, installed `insightface==2.1 --no-deps` + `backend/requirements-face.txt` + pruned model prep; `FACE_MODEL_ROOT`, `FACE_DET_SIZE=320`, `FACE_ORT_THREADS=1`, `TRUST_PROXY=true`, dashboard-owned `FACE_AUTH_ENABLED`/`FACE_EMBED_KEY`, `OTP_DEBUG_RETURN_CODE=false`.
+- Added `FACE_MODEL_ROOT`/`FACE_ORT_THREADS` config + `.env.example` parity; `face_service` passes the root and one-thread ORT session options; `.gitignore` ignores `.insightface/`.
+- Replaced the remaining OTP branding with `Your SAMARTH verification code ...`; pinned face dependencies (onnxruntime 1.31.0, headless OpenCV 4.14.0.94, scikit-image, onnx, tqdm) and documented the two-step install.
+- Documented the Trial international Twilio demo, DLT follow-up, and Render free-tier face build/upgrade path in `docs/DEVELOPMENT.md`.
+- Tests: targeted SMS/face/face-recovery/signup/config-drift suites 162 passed / 3 skipped; new prepare-model tests 3 passed. Full suite 516 passed / 32 skipped / 22 failed — the documented stale status-vocabulary/endpoint baseline, no new failure categories. Clean Python 3.14 venv loaded the pruned model and detected 6 faces in a real image (~193 MB peak RSS, one ORT thread). `render.yaml` parsed with no duplicate env keys.
+- Pinned `FACE_CHALLENGES` in `tests/conftest.py` so the tunable-defaults test is hermetic against a local `.env` override.
+- Live Render Twilio OTP and face 2FA/citizen login remain pending owner/dashboard verification; no live success is claimed.
+
 ## 2026-10-20 — Brand redesign to SAMARTH, de-AI copy, vibrant orange palette & navbar centering (DEC-045)
 
 - Rebranded application from "GrievAI" to **SAMARTH — System for Accessible Management, Action, Resolution and Tracking of Hearings**.

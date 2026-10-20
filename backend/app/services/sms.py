@@ -41,7 +41,7 @@ def render_stage_message(grievance_id: str, stage: str) -> str:
 def render_otp_message(code: str) -> str:
     """OTP body. Keep in sync with the registered DLT template verbatim —
     carriers drop messages that drift from it."""
-    return f"Your GrievAI verification code is {code}. Valid for 5 minutes."
+    return f"Your SAMARTH verification code is {code}. Valid for 5 minutes."
 
 
 def _twilio_client():

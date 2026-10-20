@@ -98,6 +98,16 @@ FACE_EMBED_KEY = os.getenv("FACE_EMBED_KEY", "")
 # insightface model pack (buffalo_s ships 2d106det landmarks required for
 # liveness). Stored per template; a mismatch forces re-enrollment.
 FACE_MODEL_NAME = os.getenv("FACE_MODEL_NAME", "buffalo_s")
+# Root directory for InsightFace model packs. Empty -> ~/.insightface.
+# Render sets this to a path inside the repo so the build-time download in
+# backend/scripts/prepare_face_model.py survives into the runtime.
+FACE_MODEL_ROOT = os.getenv("FACE_MODEL_ROOT") or os.path.expanduser("~/.insightface")
+# ONNX Runtime intra-op threads for face inference. Empty -> min(4, CPU count).
+# Render free (0.1 CPU) should set 1; more threads only add contention.
+FACE_ORT_THREADS = max(
+    1,
+    int(os.getenv("FACE_ORT_THREADS") or min(4, os.cpu_count() or 1)),
+)
 # Cosine similarity threshold for 1:1 template matching.
 FACE_MATCH_THRESHOLD = float(os.getenv("FACE_MATCH_THRESHOLD", "0.45"))
 # Pairwise cosine similarity threshold across frontal frames.

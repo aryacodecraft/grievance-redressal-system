@@ -488,14 +488,14 @@ def _get_analyzer():
             logger.error("insightface unavailable: %s", exc)
             raise FaceAuthError("SERVICE_UNAVAILABLE", "face model is not installed") from exc
         try:
-            import os
             import onnxruntime as ort
 
             opts = ort.SessionOptions()
-            opts.intra_op_num_threads = min(4, os.cpu_count() or 1)
+            opts.intra_op_num_threads = config.FACE_ORT_THREADS
 
             analyzer = FaceAnalysis(
                 name=name,
+                root=config.FACE_MODEL_ROOT,
                 allowed_modules=["detection", "landmark_2d_106", "recognition"],
                 providers=["CPUExecutionProvider"],
                 sess_options=opts,
@@ -506,7 +506,14 @@ def _get_analyzer():
             logger.exception("failed to load face model %r", name)
             raise FaceAuthError("SERVICE_UNAVAILABLE", "face model failed to load") from exc
         _ANALYZERS[name] = analyzer
-        logger.info("Face model loaded: %s (det_size=%d, allowed_modules=detection,landmark_2d_106,recognition)", name, det_size)
+        logger.info(
+            "Face model loaded: %s (root=%s, det_size=%d, threads=%d, "
+            "allowed_modules=detection,landmark_2d_106,recognition)",
+            name,
+            config.FACE_MODEL_ROOT,
+            det_size,
+            config.FACE_ORT_THREADS,
+        )
         return analyzer
 
 
