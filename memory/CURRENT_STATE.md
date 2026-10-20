@@ -98,7 +98,25 @@ only — humans retain assignment, escalation, resolution and closure authority
   distinct cleaned training complaints (five/category), so model selection and
   confidence thresholds are not validated (DEC-005/050). Exact duplicates are
   excluded from fitting/evaluation; exact-text conflicts are rejected rather
-  than silently labeled. Similarity is client-side TF-IDF only. Citizen
+  than silently labeled. The serving model now fits all 30 unique examples;
+  evaluation-only splits do not reduce production training data (DEC-051).
+  Submission metadata distinguishes categorized, Other, uncertain, and
+  explicit out-of-scope outcomes, with confidence semantics separate from the
+  numeric score (DEC-052). The local civic intent gate rejects clearly
+  non-civic submissions before any grievance write; uncertain text remains
+  reviewable (DEC-057).
+  All local model, keyword, HF and Groq Water candidates now pass the same
+  contextual evidence gate (DEC-053); the legacy fallback adapter and Mongo
+  bulk recategorization use the shared cascade. Title+description containing
+  no Unicode letters return 400 before provider work, while short/misspelled
+  plausible complaints stay accepted for human review. Clearly unrelated
+  requests return 422 locally before image/provider work (DEC-057). The current local policy
+  abstains on the one Water item in the six-item split; do not tune from this
+  tiny split. On the template holdout, the current policy scores 200/200 and
+  has zero Water FP, but it is reused development evidence, not validation.
+  The separate 614-row template holdout is not an untouched or representative
+  production test; see `docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md`. Similarity
+  is client-side TF-IDF only. Citizen
   surfaces never display classification outputs or confidence (DEC-044); the
   triage panel is staff-only.
 - **Branding & UI refresh (DEC-045, 2026-10-20)** — project rebranded to
@@ -119,9 +137,22 @@ only — humans retain assignment, escalation, resolution and closure authority
   + face 2FA/citizen login pending owner verification (§5).
 - **Homepage entrance animation** (DEC-036, 2026-10-18) — reveal-only, verified
   in headless Chrome, reduced-motion and no-JS safe.
-- **Test suites** — full pytest (2026-10-20): 516 passed / 32 skipped / 22
-  failed = the documented pre-existing baseline (2026-10-19 was 511/32/23; the
-  23rd was the local `.env` face-challenge leak, now pinned in conftest).
+- **Test suites** — after classification reliability changes (2026-10-20),
+  the earlier full pytest run reported 588 passed / 24 failed / 5 skipped;
+  separate collection reported 616 tests while run totals 617, an unexplained
+  one-test difference. On 2026-10-20, focused classification/auth/RBAC/seed/
+  endpoint stabilization checks passed (142 passed, 10 legacy status cases
+  deselected). A subsequent full-suite attempt produced no completion summary
+  and was interrupted after progress stalled; do not treat it as a completed
+  result. Previously observed status vocabulary/state, Render transcription
+  configuration, and image validation issues remain unverified in this pass.
+  `npm run build` succeeded with Webpack, TypeScript and all 20 static pages.
+  Earlier frontend contract and `tsc --noEmit` checks passed. Provider keys
+  were blank; no live AI calls or grievance writes were made.
+  Civic relevance validation (2026-10-20): focused route/classifier/quality
+  checks passed (124 passed, 9 legacy status tests deselected); the full
+  endpoint subset additionally confirms the deselected failures are legacy
+  status expectations. API contract, TypeScript and production build verified.
   Includes 3 new prepare-model tests; contract suite 18 checks; voice node
   suites 79 tests (DEC-041/043/044); intake backend suite 28 tests;
   classification latency tests added (DEC-042).

@@ -969,3 +969,144 @@ pipeline while retaining its production model absent clear evaluation evidence.
 Collect more independent, label-audited complaint texts and scope labels before
 tuning thresholds or considering an alternative model. `docs/ML_EVALUATION.md`
 records the current recommendation: retain LogisticRegression.
+
+## 2026-10-20 — Independent classification pipeline verification (DEC-051)
+
+### Request
+Owner requested an evidence-based audit of the 2026-10-20 classification
+report, including dataset counts, metrics, production path, Water edge cases,
+provider behavior, and the complete test suite. Preserve TF-IDF +
+LogisticRegression and make only confirmed minimal fixes.
+
+### What changed
+- Created `docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md`; updated
+  `docs/ML_EVALUATION.md` and `docs/AI_SYSTEM.md` with corrected comparisons
+  and limitations.
+- Found that lazy production initialization inherited the 80/20 evaluation
+  split and fit only 24/30 cleaned texts. Serving now passes `test_size=0`;
+  stratified splits remain evaluation-only (DEC-051).
+- Fixed two reproducible Water gaps: common Hinglish “paani ki supply” now
+  triggers the explicit Water phrase rule, and a nearby/completed pipe mention
+  does not force Water against a competing Road signal. Added tests for each.
+- Added a submit endpoint regression asserting that the classified response
+  category matches the persisted grievance category.
+- Reproduced the reported full-data raw ablation (0.860), but the historical
+  production split uses 958 duplicate-weighted rows and scores 0.855 raw;
+  both prior domain policy and current local policy score 1.000 on the
+  template holdout. The current known-category score is not independent
+  validation because the Water rule was changed after inspecting holdout
+  errors.
+
+### Verification
+- `.venv\\Scripts\\python.exe backend/evaluate.py`: reproduced 1,200 rows,
+  30 cleaned unique texts, 97.50% duplication, zero conflicts, 24/6 split,
+  614-row holdout, 200 known-category and 414 out-of-taxonomy rows, zero exact
+  overlap, and combined-fit char-TFIDF max 0.492. Train-only fit max is 0.665.
+- Full pytest with HF/Groq/Sarvam keys blank and temp under workspace:
+  567 passed / 24 failed / 5 skipped. Separate collection says 595 items but
+  full-run summary totals 596; discrepancy unexplained. No classification
+  tests failed; failures are unrelated status/config/image/RBAC checks.
+- Focused new fit-size, Water, and persisted-category tests: 5 passed.
+- `git diff --check` and `py_compile` passed. No serialized backend model
+  artifact found.
+- An early standalone probe attempted HF and Groq before environment keys were
+  cleared; requests failed DNS/connection before returning provider results.
+  Billing cannot be verified. No later evaluation/test made live provider calls.
+
+### Remaining
+Collect independent human-labeled complaints and labeled out-of-scope and
+multi-issue samples. Treat the template holdout as development evidence, not a
+production accuracy estimate. See `docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md`.
+
+## 2026-10-20 — Classification audit follow-up: bulk recategorization
+
+### What changed
+- Repository-wide search found `tools/recategorize.py` still performing a
+  second keyword overwrite and unconditional Groq refinement after the shared
+  classifier. Replaced those steps with the shared bounded category/priority
+  cascade; category and source are preserved in modelInfo.
+- Added `tests/test_recategorize.py` to verify the classifier result survives
+  and refinement is not called. No MongoDB operation was run.
+
+### Verification
+- Focused classification/recategorization suite: 38 passed.
+- Full pytest with provider keys blank: 568 passed, 24 failed, 5 skipped.
+  The 24 failures concern status vocabulary/state expectations, Render
+  transcription configuration, image validation, and assignment/RBAC. A
+  separate collection reports 596 items while run totals 597; discrepancy
+  remains unexplained. The 5 skips are optional Mongo and voice E2E cases.
+- `py_compile` and `git diff --check` passed. Evaluation metrics were unchanged.
+
+See `docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md` for the full audit, test list,
+and provider-call disclosure.
+
+## 2026-10-20 — Clarified classifier outcome metadata (DEC-052)
+
+### What changed
+- Added `categoryOutcome` to distinguish a categorized result, a model-selected
+  `other`, uncertainty, and explicit out-of-scope text. Added
+  `categoryConfidenceSemantics` so uncalibrated LogisticRegression and
+  zero-shot scores are not confused with rule/Groq results where confidence is
+  unavailable.
+- Preserved the existing `other` routing category and submission behavior.
+  Out-of-scope classification is recorded and explained as pending officer
+  review; it is not a rejection. `qualityFlag` remains a separate signal.
+- Updated API/AI documentation, frontend types and Zod parsing, backend
+  persistence tests, contract fixture, DEC-052, and current state.
+
+### Verification
+- Focused backend classifier/submit/recategorization tests: 45 passed,
+  45 deselected. `py_compile` passed.
+- `node frontend/scripts/check-contract.mjs` passed, including assertions that
+  outcome and confidence semantics survive Zod parsing. `npx tsc --noEmit`
+  passed. A full suite was not rerun after this additive metadata change; the
+  preceding full run is documented in the audit report.
+- No real provider calls or token usage were measured; provider behavior
+  remains mocked/offline.
+
+## 2026-10-20 — Propagated outcome metadata to recategorization
+
+- Updated `tools/recategorize.py` to persist the classifier's outcome and
+  confidence semantics in the same `hfEngine.modelInfo` shape as submission;
+  explicit out-of-scope text receives the same officer-review explanation.
+- Final focused backend run: 45 passed, 45 deselected. `py_compile` and
+  `git diff --check` passed. Frontend contract check passed with metadata
+  assertions, and `npx tsc --noEmit` passed.
+- Did not rerun the full backend suite after this additive metadata update;
+  the previous full run's 24 unrelated failures remain documented in the audit.
+
+## 2026-10-20 — Emergency demo stabilization
+
+- Kept work on `codex/ml-pipeline-reliability`; no branch switch or commit.
+- Fixed optional-auth department context, cross-department progress checks,
+  resolver history authorization, initial assignment scope, legal admin state
+  actions, and Water main phrase coverage. Updated API, workflow, AI and
+  development docs; added DEC-055/056.
+- Focused offline backend suite: 142 passed, 10 legacy status tests excluded.
+  Frontend production build passed with Webpack (20 static pages). Full-suite
+  rerun was interrupted after progress stalled without a summary. Mongo read
+  ping and in-memory local `/health` + `/` smoke succeeded; no live writes or
+  provider calls. Deployed smoke was unavailable because deployment tokens and
+  production URLs were not configured.
+- Demo setup note: ignored local frontend config targets port 10001 while
+  backend env/docs default to 10000. Start the backend explicitly on 10001 or
+  set `NEXT_PUBLIC_API_URL` to the backend's actual port.
+
+## 2026-10-20 — Contextual classifier reliability follow-up (DEC-053/054)
+
+- Applied Water context validation to model, keyword, HF and Groq candidates;
+  routed the legacy adapter and Mongo bulk recategorization through the shared
+  category cascade. Added staged Groq latency/failure/token telemetry without
+  complaint content. Added a pre-provider submit guard for title+description
+  with no Unicode letters; short and misspelled inputs remain accepted.
+- Focused offline classifier, endpoint, recategorization, quality and evaluator
+  suite: 137 passed, 9 deselected. Python compile checks passed. Offline
+  `backend/evaluate.py`: current local policy 5/6 on the 24/6 split (Water
+  support 1, P/R/F1 0/0/0, FP 0, FN 1); 200/200 on the already reused template
+  holdout with zero Water FP. The raw all-row holdout model has 28 Water FP
+  (27 Road, one Sanitation). Metrics and caveats documented in the ML reports.
+- Full suite: 588 passed, 24 failed, 5 skipped. The 24 failures are in older
+  status vocabulary/state, Render transcription config-drift, image validation
+  and assignment/RBAC tests. Collect-only found 616 tests vs 617 counted by
+  run summary; discrepancy remains unexplained. Frontend contract, `tsc
+  --noEmit`, and `git diff --check` passed. Provider keys blank; no live calls.

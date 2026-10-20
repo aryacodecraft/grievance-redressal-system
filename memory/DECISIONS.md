@@ -2298,6 +2298,10 @@ face templates are untouched unless re-enrolled.
 
 ## DEC-049 — Quality Gate Flagging for Non-Civic / Suspicious Grievances (2026-10-20)
 
+**Scope update:** Superseded by DEC-057 for clearly non-civic text, which is
+rejected before persistence; uncertain submissions remain available for
+officer review.
+
 **Context:** Citizens occasionally submit non-civic questions (e.g. arithmetic like "what is the answer of 1+2?"), tests, or irrelevant queries. Previously, the backend accepted and persisted these records under the `other` category without explicit quality feedback. The citizen received a standard success confirmation, but officers had no clear way to filter, detect, or review suspicious submissions across department queues. The user required that:
 1. Citizens are warned both in text and voice not to submit fake or irrelevant grievances.
 2. Submissions are not blindly processed as valid; non-civic content is flagged.
@@ -2378,4 +2382,187 @@ winner. Replacing the model is not justified.
 cascade remain separated in `grievance_model.py` and `classification.py`; the
 refinement call was removed from the submit router and can be restored only if
 later evaluation supports its added cost.
+
+---
+
+## DEC-051 — Fit Every Available Unique Text in the Serving Classifier (2026-10-20)
+
+**Context:** Independent verification found that the process-local model
+singleton called `GrievanceModel.train()` with its default 80/20 evaluation
+split. It therefore fit 24 of the 30 distinct cleaned complaints, while the
+updated holdout evaluation used `train(test_size=0)` and fit all 30. The two
+fits happened to produce the same policy score on the template holdout because
+local domain rules decided its records, but they were not the same production
+model.
+
+**Decision:** The serving singleton passes `test_size=0` and fits all distinct,
+unconflicted training texts. Stratified 24/6 splits remain evaluation-only.
+No feature configuration, LogisticRegression hyperparameter, or confidence
+threshold changed.
+
+**Verification:** `test_serving_model_trains_on_all_available_examples`
+asserts the serving call requests `test_size=0`; the classification evaluator
+and audit report use the same 30-text fit as serving.
+
+**Reversible:** Restore the default train call only if the serving purpose for
+reserving evaluation examples is documented; otherwise keep test splits in the
+evaluation script.
+
+---
+
+## DEC-052 — Distinguish Classification Outcome from Routing Category (2026-10-20)
+
+**Scope update:** DEC-057 supersedes the fail-open rule only for requests
+recognized by the deterministic clear non-civic gate. `other` and `uncertain`
+classification outcomes still remain reviewable.
+
+**Context:** Review of the classifier found that explicit out-of-scope text,
+uncertain/no-signal text, and a model-selected `other` label all persisted as
+`category="other"`. Numeric confidence is also zero for rules and generative
+outputs, where zero means unavailable rather than a measured probability.
+
+**Decision:** Keep the existing taxonomy and fail-open submission behavior.
+Expose `hfEngine.modelInfo.categoryOutcome` (`categorized`, `other`,
+`uncertain`, or `out_of_scope`) and
+`categoryConfidenceSemantics` (`uncalibrated_model_probability`,
+`uncalibrated_zero_shot_score`, or `unavailable`) separately from the routing
+category and numeric score. `other` remains a persisted general routing
+category; these metadata do not reject or discard complaints. The separate
+quality flag remains responsible for suspicious-content review.
+
+**Reason:** Officers and downstream consumers need to distinguish a selected
+fallback category from abstention and explicit non-civic input without treating
+an uncalibrated score as a probability or changing the established human-review
+workflow.
+
+**Verification:** Classifier and submit regressions assert the distinctions
+survive persistence; frontend contract checks assert the fields survive Zod
+parsing. See `docs/API.md` and `docs/AI_SYSTEM.md`.
+
+**Reversible:** Remove the two metadata fields without changing `category`,
+`departmentId`, or the submission decision.
+
+---
+
+## DEC-053 — Validate Water Candidates Across the Shared Category Cascade (2026-10-20)
+
+**Context:** Review found Water could be selected from generic token overlap by
+the local classifier or a remote candidate, even when the text described
+another civic issue. Submission, the legacy fallback adapter, and bulk
+recategorization also needed to preserve the same category decision.
+
+**Decision:** Apply one contextual Water evidence check to local model,
+deterministic keyword, Hugging Face, and Groq candidates. Require an explicit
+Water service issue or sufficiently corroborated Water evidence; reject a
+Water candidate when competing Road/Sanitation evidence is stronger, then
+continue the shared cascade or return an uncertain `other` result. Keep
+TF-IDF + LogisticRegression and all threshold/model choices unchanged. Route
+legacy and bulk callers through the shared classifier. Preserve human review;
+classification never rejects a grievance.
+
+**Reason:** A conservative shared check reduces incidental Water false
+positives and prevents entry-point-specific behavior. The data has only 30
+unique complaints, so the policy is a reversible prototype rule, not a
+validated accuracy claim. The six-item split includes one Water example and
+the current local policy abstains on it; the template holdout has already
+informed rule development.
+
+**Verification:** Contextual Water tests cover model, keyword, HF/Groq,
+competing domains, and legitimate explicit service wording. Offline focused
+tests and the evaluator are documented in
+`docs/ML_CLASSIFICATION_AUDIT_2026-10-20.md`.
+
+**Reversible:** Adjust the contextual phrases or competition margin if a
+larger independently labeled set supports a change; keep one validation path
+across all candidate sources.
+
+---
+
+## DEC-054 — Reject Only Text Without Any Letters at Submission (2026-10-20)
+
+**Context:** Punctuation-only or numeric-only payloads do not convey a
+classifiable grievance and waste provider calls, while short or misspelled
+complaints can still be meaningful.
+
+**Decision:** Return HTTP 400 before classification when both submitted title
+and description contain no Unicode letters. Do not impose a minimum length or
+reject merely uncertain, short, misspelled, or out-of-scope wording. Preserve
+the existing fail-open human-review behavior for submitted text.
+
+**Verification:** Endpoint regressions assert symbol-only input is rejected
+before classifier/provider calls and short/misspelled text remains accepted.
+See `docs/API.md` and the classification audit report.
+
+**Reversible:** Remove this narrow input guard without changing category
+outcome handling or provider fallback behavior.
+
+**Scope update:** DEC-057 adds a separate clear non-civic intent gate; this
+decision still protects punctuation-only and numeric-only input.
+
+## DEC-055 — Enforce Department Scope and Initial Assignment Boundaries (2026-10-20)
+
+**Context:** Optional-user routes and progress routes must preserve the same
+server-side department boundary as required-auth routes. A department manager
+must not gain global access when a token's department is missing, and a
+resolver must not read another resolver's internal history. Repeated initial
+assignment also bypassed the intended reassignment workflow.
+
+**Decision:** Preserve `departmentId` in optional-auth principals; enforce the
+admin department match for internal progress; deny resolver history access
+when the resolver is not the assignee; keep non-owner citizen history limited;
+and allow initial assignment only from SUBMITTED/PENDING_ASSIGNMENT. Later
+changes use the existing audited reassignment endpoint.
+
+**Verification:** Regression coverage includes department-scoped detail,
+history and progress; resolver history denial; invalid repeated assignment;
+and seeded staff workflows. See the 2026-10-20 stabilization session entry.
+
+**Reversible:** Adjust these guards if the documented role and assignment
+model changes; do not remove server-side department authorization.
+
+## DEC-056 — Use Webpack for the Next.js Production Build (2026-10-20)
+
+**Context:** The installed Next.js 16 Turbopack build crashed in this Windows
+environment; its supported Webpack build completed TypeScript and static page
+generation successfully.
+
+**Decision:** Set the frontend `build` script to `next build --webpack` so
+local and Vercel production builds use the verified bundler path. This does
+not change the framework or app behavior.
+
+**Verification:** `npm run build` completed compilation, type checking, and
+generation of all 20 static pages.
+
+**Reversible:** Restore Turbopack in the script after it builds reliably in
+the supported environment.
+
+## DEC-057 — Reject Clearly Non-Civic Submissions Before Side Effects (2026-10-20)
+
+**Context:** The existing classifier already identified several explicit
+out-of-scope requests, but submission still created a grievance under `other`
+and ran notification/quality processing. DEC-049's flag-for-review behavior
+was too permissive for clear arithmetic, joke, greeting, gibberish and general
+knowledge requests.
+
+**Decision:** Reuse a deterministic local intent gate before image validation,
+classification/provider calls, ID generation, persistence and notifications.
+Reject only recognizable, clearly non-civic intent with HTTP 422 and a concise
+correction prompt. Keep punctuation-only validation at HTTP 400. Do not infer
+irrelevance from category `other`, low confidence, short text or a civic noun
+alone; ambiguous and plausible multilingual/misspelled complaints continue to
+the existing human-review workflow. Invoke the optional quality LLM only when
+the local category classifier abstains; provider failure remains fail-open.
+
+**Reason:** Prefer a locally explainable, no-cost check for explicit
+non-civic intent and preserve human review where intent is uncertain. This
+does not claim complete language coverage or validated detection accuracy.
+
+**Verification:** Offline route regressions assert the requested irrelevant
+examples create no record, notification, reference ID, image/classifier call,
+or quality-provider call; civic and ambiguous examples remain accepted or
+reviewable. See `docs/API.md`, `docs/AI_SYSTEM.md`, and
+`tests/test_civic_relevance.py`.
+
+**Reversible:** Remove the 422 prefilter and restore DEC-049 flagging for all
+submissions if product policy changes; retain a local review fallback.
 
