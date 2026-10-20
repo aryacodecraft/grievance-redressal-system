@@ -9,6 +9,15 @@
 
 ---
 
+## 2026-10-20 — Location Picker Button Harmonization & Modal Map Loading Fix (DEC-050 follow-up)
+
+- `LocationCapture.tsx`:
+  - Harmonized "Pick on map" button sizing to be identical to its sibling GPS button: both use `h-10 px-3 text-xs sm:text-sm font-medium`, `variant="outline"`, and `text-ink-800`.
+  - Removed emoji (`📍`) from the button label, replaced with clean `<MapPin size={15} />` icon.
+  - Fixed popup map loading issue: attached `modalMapRef` directly to a container with guaranteed explicit height (`h-[55vh] sm:h-[420px] min-h-[320px] relative z-0 overflow-hidden bg-ink-100`), preventing height collapse from nested flex `h-full` without explicit ancestor height.
+  - Bulletproofed Leaflet initialization: cleans up stale `_leaflet_id` on the DOM node, handles ESM/CommonJS module interop (`(mod as any).default || mod`), catches initialization errors, and triggers staggered `invalidateSize()` (rAF, 100ms, 300ms, 600ms) alongside a `ResizeObserver`.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node frontend/scripts/check-contract.mjs` passed, `npm run build` passed (20/20 static routes).
+
 ## 2026-10-20 — Admin Active Queue & Resolved Archive Separation (DEC-051)
 
 - `AdminBoard.tsx`: Separated active/pending complaints from completed complaints with a dedicated tabbed interface (`Active & Priority Queue` vs `Resolved Archive`). Active view hides resolved/closed tickets and automatically surfaces urgent and high-priority tickets first; Resolved view acts as a historical archive sorted chronologically by resolution date.

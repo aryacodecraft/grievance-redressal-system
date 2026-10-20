@@ -233,95 +233,164 @@ export function LocationCapture({
 
   // Initialize Leaflet map whenever modal opens
   useEffect(() => {
-    if (!mapModalOpen || !modalMapRef.current) return;
+    if (!mapModalOpen) return;
     let cancelled = false;
-    let invalidateTimer: ReturnType<typeof setTimeout> | undefined;
+    let t1: ReturnType<typeof setTimeout> | undefined;
+    let t2: ReturnType<typeof setTimeout> | undefined;
+    let t3: ReturnType<typeof setTimeout> | undefined;
+    let resizeObserver: ResizeObserver | null = null;
 
-    void import("leaflet").then(({ default: L }) => {
-      if (cancelled || !modalMapRef.current) return;
-
-      const initialCenter: [number, number] = modalCoords
-        ? [modalCoords.latitude, modalCoords.longitude]
-        : [20.5937, 78.9629]; // India center
-      const initialZoom = modalCoords ? 15 : 5;
-
-      const map = L.map(modalMapRef.current, {
-        zoomControl: true,
-        maxBounds: INDIA_BOUNDS,
-        maxBoundsViscosity: 1.0,
-        minZoom: 4,
-        maxZoom: 19,
-      }).setView(initialCenter, initialZoom);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        minZoom: 4,
-        attribution: "© OpenStreetMap",
-      }).addTo(map);
-
-      const pinIcon = L.divIcon({
-        className: "",
-        html: '<span style="display:block;width:24px;height:24px;border-radius:50% 50% 50% 0;background:#ff5500;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);transform:rotate(-45deg)"></span>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 22],
-      });
-
-      let marker: import("leaflet").Marker | undefined;
-
-      function placePin(lat: number, lng: number) {
-        if (lat < 6.0 || lat > 38.0 || lng < 68.0 || lng > 98.0) {
-          setModalError("Please choose a location within India.");
+    void import("leaflet")
+      .then((leafletModule) => {
+        if (cancelled || !modalMapRef.current) return;
+        const L = (leafletModule as any).default || leafletModule;
+        if (!L || typeof L.map !== "function") {
+          console.error("Leaflet failed to load properly", leafletModule);
           return;
         }
-        setModalError(null);
-        const next: Coords = { latitude: lat, longitude: lng };
-        setModalCoords(next);
-        void reverseGeocode(lat, lng).then((p) => {
-          if (p?.name) setModalPlace(p.name);
+
+        // Clean up any stale leaflet state on the DOM node to prevent
+        // "Map container is already initialized" errors
+        if ((modalMapRef.current as any)._leaflet_id) {
+          delete (modalMapRef.current as any)._leaflet_id;
+        }
+        if (leafletRef.current?.map) {
+          try {
+            leafletRef.current.map.remove();
+          } catch {
+            /* ignore */
+          }
+          leafletRef.current = null;
+        }
+
+        const validCoords =
+          modalCoords &&
+          !isNaN(modalCoords.latitude) &&
+          !isNaN(modalCoords.longitude);
+        const initialCenter: [number, number] = validCoords
+          ? [modalCoords.latitude, modalCoords.longitude]
+          : [22.0, 79.0]; // Center of India
+        const initialZoom = validCoords ? 15 : 5;
+
+        const map = L.map(modalMapRef.current, {
+          zoomControl: true,
+          attributionControl: true,
+          maxBounds: INDIA_BOUNDS,
+          maxBoundsViscosity: 1.0,
+          minZoom: 4,
+          maxZoom: 19,
+        }).setView(initialCenter, initialZoom);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          minZoom: 4,
+          attribution: "© OpenStreetMap contributors",
+        }).addTo(map);
+
+        const pinIcon = L.divIcon({
+          className: "",
+          html: '<span style="display:block;width:24px;height:24px;border-radius:50% 50% 50% 0;background:#ff5500;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);transform:rotate(-45deg)"></span>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 22],
         });
 
-        if (marker) {
-          marker.setLatLng([lat, lng]);
-        } else {
-          marker = L.marker([lat, lng], {
-            icon: pinIcon,
-            draggable: true,
-          }).addTo(map);
+        let marker: import("leaflet").Marker | undefined;
 
-          marker.on("dragend", () => {
-            const pt = marker!.getLatLng();
-            placePin(pt.lat, pt.lng);
+        function placePin(lat: number, lng: number) {
+          if (lat < 6.0 || lat > 38.0 || lng < 68.0 || lng > 98.0) {
+            setModalError("Please choose a location within India.");
+            return;
+          }
+          setModalError(null);
+          const next: Coords = { latitude: lat, longitude: lng };
+          setModalCoords(next);
+          void reverseGeocode(lat, lng).then((p) => {
+            if (p?.name) setModalPlace(p.name);
           });
-        }
-      }
 
-      if (modalCoords) {
-        placePin(modalCoords.latitude, modalCoords.longitude);
-      }
+          if (marker) {
+            marker.setLatLng([lat, lng]);
+          } else {
+            const m = L.marker([lat, lng], {
+              icon: pinIcon,
+              draggable: true,
+            }).addTo(map);
 
-      map.on("click", (e) => {
-        placePin(e.latlng.lat, e.latlng.lng);
-      });
-
-      leafletRef.current = { map, marker };
-
-      // Invalidate size once modal transition finishes
-      invalidateTimer = setTimeout(() => {
-        if (!cancelled && map) {
-          try {
-            map.invalidateSize();
-          } catch {
-            /* map unmounted */
+            m.on("dragend", () => {
+              const pt = m.getLatLng();
+              placePin(pt.lat, pt.lng);
+            });
+            marker = m;
           }
         }
-      }, 150);
-    });
+
+        if (validCoords) {
+          placePin(modalCoords.latitude, modalCoords.longitude);
+        }
+
+        map.on("click", (e: import("leaflet").LeafletMouseEvent) => {
+          placePin(e.latlng.lat, e.latlng.lng);
+        });
+
+        leafletRef.current = { map, marker };
+
+        // Guarantee tile rendering: multiple staggered invalidations + ResizeObserver
+        requestAnimationFrame(() => {
+          if (!cancelled && map) {
+            try {
+              map.invalidateSize();
+            } catch {}
+          }
+        });
+        t1 = setTimeout(() => {
+          if (!cancelled && map) {
+            try {
+              map.invalidateSize();
+            } catch {}
+          }
+        }, 100);
+        t2 = setTimeout(() => {
+          if (!cancelled && map) {
+            try {
+              map.invalidateSize();
+            } catch {}
+          }
+        }, 300);
+        t3 = setTimeout(() => {
+          if (!cancelled && map) {
+            try {
+              map.invalidateSize();
+            } catch {}
+          }
+        }, 600);
+
+        if (typeof ResizeObserver !== "undefined" && modalMapRef.current) {
+          resizeObserver = new ResizeObserver(() => {
+            if (!cancelled && map) {
+              try {
+                map.invalidateSize();
+              } catch {}
+            }
+          });
+          resizeObserver.observe(modalMapRef.current);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to initialize Leaflet map in modal:", err);
+      });
 
     return () => {
       cancelled = true;
-      if (invalidateTimer) clearTimeout(invalidateTimer);
-      leafletRef.current?.map.remove();
-      leafletRef.current = null;
+      if (t1) clearTimeout(t1);
+      if (t2) clearTimeout(t2);
+      if (t3) clearTimeout(t3);
+      if (resizeObserver) resizeObserver.disconnect();
+      if (leafletRef.current?.map) {
+        try {
+          leafletRef.current.map.remove();
+        } catch {}
+        leafletRef.current = null;
+      }
     };
   }, [mapModalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -375,28 +444,28 @@ export function LocationCapture({
           </div>
         ) : null}
 
-        {/* Action Buttons: Responsive & Overflow-Safe (DEC-050) */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-2">
+        {/* Action Buttons: Responsive, equal size, no emojis */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {/* Pick on Map Button - Opens Popout Modal */}
           <Button
             type="button"
-            variant={selectedCoords ? "outline" : "primary"}
-            size="md"
+            variant="outline"
+            size="sm"
             onClick={openMapModal}
-            className="w-full sm:flex-1 h-auto min-h-[44px] py-2.5 px-3.5 text-xs sm:text-sm font-semibold justify-center gap-2 whitespace-normal break-words text-center"
+            className="w-full sm:flex-1 h-10 px-3 text-xs sm:text-sm font-medium justify-center items-center gap-2 text-ink-800"
           >
-            <Crosshair size={16} className="shrink-0 text-primary-400 sm:text-inherit" />
-            <span>{selectedCoords ? "Adjust Pin on Map" : "📍 Pick Location on Map"}</span>
+            <MapPin size={15} className="text-primary-700 shrink-0" />
+            <span>{selectedCoords ? "Adjust pin on map" : "Pick on map"}</span>
           </Button>
 
           {/* GPS Quick Capture Button */}
           <Button
             type="button"
             variant="outline"
-            size="md"
+            size="sm"
             onClick={() => captureGps(false)}
             disabled={gpsState === "busy"}
-            className="w-full sm:flex-1 h-auto min-h-[44px] py-2.5 px-3.5 text-xs sm:text-sm justify-center gap-2 whitespace-normal break-words text-center text-ink-800"
+            className="w-full sm:flex-1 h-10 px-3 text-xs sm:text-sm font-medium justify-center items-center gap-2 text-ink-800"
           >
             {gpsState === "busy" ? (
               <>
@@ -601,15 +670,13 @@ export function LocationCapture({
               )}
             </div>
 
-            {/* Map Canvas (Spacious & Touch-Friendly) */}
-            <div className="relative flex-1 bg-ink-100 min-h-[300px] h-[55vh] sm:h-[420px]">
-              <div
-                ref={modalMapRef}
-                className="w-full h-full cursor-crosshair relative z-0"
-                role="application"
-                aria-label="Interactive map picker"
-              />
-            </div>
+            {/* Map Canvas (Spacious, Touch-Friendly, Direct Explicit Height) */}
+            <div
+              ref={modalMapRef}
+              className="w-full h-[55vh] sm:h-[420px] min-h-[320px] cursor-crosshair relative z-0 overflow-hidden bg-ink-100"
+              role="application"
+              aria-label="Interactive map picker"
+            />
 
             {/* Modal Footer with Selection Preview & Confirm Button */}
             <div className="border-t border-ink-100 bg-ink-50/70 p-3 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

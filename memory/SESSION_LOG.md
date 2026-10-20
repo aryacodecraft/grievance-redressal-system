@@ -979,3 +979,25 @@ Owner: In admin view, only active and priority problems should be at the top; re
 - `cd frontend && npm run build`: 20/20 static routes generated successfully.
 - Memory updated: DEC-051, CHANGELOG.md, CURRENT_STATE.md, this log.
 
+---
+
+## 2026-10-20 — Location Picker Button Harmonization & Modal Map Loading Fix (DEC-050 follow-up)
+
+### Request
+Owner: Pick location map button is too big, make it same as the button next to it, don't use the emoji, and fix the map not loading in the popup.
+
+### What changed
+- `LocationCapture.tsx`:
+  - Harmonized "Pick on map" and "Use my location" button sizing: both use `h-10 px-3 text-xs sm:text-sm font-medium`, `variant="outline"`, and `text-ink-800`, fitting side-by-side cleanly without expanding or wrapping.
+  - Removed emoji (`📍`) from the button label, replaced with clean `<MapPin size={15} />` icon.
+  - Fixed popup map loading issue: attached `modalMapRef` directly to a container with guaranteed explicit height (`h-[55vh] sm:h-[420px] min-h-[320px] relative z-0 overflow-hidden bg-ink-100`), eliminating the nested flex `h-full` height collapse bug where Leaflet computed container height as 0px.
+  - Bulletproofed Leaflet initialization: cleans up stale `_leaflet_id` on DOM nodes, handles ESM/CJS interop (`(mod as any).default || mod`), catches errors, and triggers staggered `invalidateSize()` (rAF, 100ms, 300ms, 600ms) with a `ResizeObserver`.
+
+### Verification
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `cd frontend && npm run test:voice`: 79/79 passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run build`: 20/20 static routes generated successfully.
+- Memory updated: CHANGELOG.md, this log.
+
+
