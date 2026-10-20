@@ -213,6 +213,84 @@ def test_submit_assigns_ai_fields(client, sample_payload):
     assert body["hfEngine"]["priority"] in {"low", "medium", "high"}
 
 
+def test_submit_persists_classifier_category(client, sample_payload, monkeypatch):
+    from backend.app.routers import grievances as router
+
+    monkeypatch.setattr(router, "classify_category", lambda _text: {
+        "rawLabel": "Issues related to roads, potholes, footpaths, traffic, or road damage",
+        "category": "roads",
+        "confidence": 0.88,
+        "source": "ml_model",
+    })
+
+    response = client.post(
+        "/submit-grievance", json=sample_payload, headers=_auth_headers()
+    )
+    assert response.status_code == 200, response.text
+    category = response.json()["hfEngine"]["category"]
+    stored = client.get(
+        f"/grievances/{response.json()['grievanceId']}",
+        headers=_admin_headers(),
+    )
+
+    assert stored.status_code == 200, stored.text
+    assert category == "roads"
+    assert stored.json()["category"] == category
+
+
+def test_submit_rejects_symbols_only_before_classifier_or_providers(
+    client, sample_payload, monkeypatch
+):
+    from backend.app.routers import grievances as router
+
+    def unexpected_call(_text):
+        raise AssertionError("classifier must not run for symbols-only input")
+
+    monkeypatch.setattr(router, "classify_category", unexpected_call)
+    monkeypatch.setattr(router, "classify_priority", unexpected_call)
+    monkeypatch.setattr(router, "check_quality", unexpected_call)
+    payload = {**sample_payload, "title": "!!! ???", "description": "%%%% !!!"}
+
+    response = client.post(
+        "/submit-grievance", json=payload, headers=_auth_headers()
+    )
+
+    assert response.status_code == 400
+    assert "using words" in response.json()["error"]
+
+
+@pytest.mark.parametrize("title,description", [
+    ("No water", "No water"),
+    ("No watter since yesterdy", "No watter since yesterdy"),
+])
+def test_submit_keeps_short_or_misspelled_complaint_path_open(
+    client, sample_payload, monkeypatch, title, description
+):
+    from backend.app.routers import grievances as router
+
+    monkeypatch.setattr(router, "classify_category", lambda _text: {
+        "rawLabel": "Other issues not matching the above categories",
+        "category": "other", "confidence": 0.0, "source": "uncertain",
+        "categoryOutcome": "uncertain",
+        "categoryConfidenceSemantics": "unavailable",
+    })
+    monkeypatch.setattr(router, "classify_priority", lambda _text: {
+        "priority": "low", "sentiment": "neutral", "sentimentScore": 0.0,
+        "source": "sentiment_fallback",
+    })
+    monkeypatch.setattr(router, "check_quality", lambda *_args: {
+        "is_genuine": True, "reason": "",
+    })
+    payload = {**sample_payload, "title": title, "description": description}
+
+    response = client.post(
+        "/submit-grievance", json=payload, headers=_auth_headers()
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["hfEngine"]["modelInfo"]["categoryOutcome"] == "uncertain"
+
+
 def test_submit_without_llm_keys_still_succeeds(client):
     """No GROQ/HF keys configured → keyword fallback, not a 500."""
     res = client.post(
@@ -270,6 +348,8 @@ def test_submit_returns_explicit_uncertainty_without_forcing_water(monkeypatch):
     monkeypatch.setattr(router, "classify_category", lambda text: {
         "rawLabel": "Other issues not matching the above categories",
         "category": "other", "confidence": 0.0, "source": "scope_gate",
+        "categoryOutcome": "uncertain",
+        "categoryConfidenceSemantics": "unavailable",
     })
     monkeypatch.setattr(router, "classify_priority", lambda text: {
         "priority": "low", "sentiment": "neutral", "sentimentScore": 0.0,
@@ -282,14 +362,34 @@ def test_submit_returns_explicit_uncertainty_without_forcing_water(monkeypatch):
     result = router.submit_grievance(
         SubmitGrievanceRequest(
             title="Water was mentioned in conversation",
-            description="What is the answer of 1+2?",
+            description="The municipal office is not responding about my application.",
         ),
         BackgroundTasks(),
         {"user_id": "citizen-test-1"},
     )
     assert result["hfEngine"]["category"] == "other"
     assert result["hfEngine"]["categoryConfidence"] == 0.0
+    assert result["hfEngine"]["modelInfo"]["categoryOutcome"] == "uncertain"
+    assert result["hfEngine"]["modelInfo"]["categoryConfidenceSemantics"] == "unavailable"
     assert "Category is uncertain" in result["hfEngine"]["explanation"]
+
+
+def test_submit_rejects_explicit_out_of_scope_before_persistence(monkeypatch):
+    from fastapi import BackgroundTasks
+    from backend.app import db
+    from backend.app.models import SubmitGrievanceRequest
+    from backend.app.routers import grievances as router
+
+    monkeypatch.setattr(router, "repository", db.InMemoryRepository())
+    response = router.submit_grievance(
+        SubmitGrievanceRequest(title="A joke", description="Tell me a joke"),
+        BackgroundTasks(),
+        {"user_id": "citizen-test-1"},
+    )
+
+    assert response.status_code == 422
+    assert "public service or civic issue" in response.body.decode()
+    assert router.repository.list() == []
 
 
 def test_submit_notification_hides_the_classification(client, sample_payload):

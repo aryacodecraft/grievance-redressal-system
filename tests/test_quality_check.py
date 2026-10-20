@@ -36,35 +36,19 @@ def test_quality_check_malformed_json_fails_safe():
         assert "failed" in res["reason"] or "fallback" in res["reason"]
 
 
-def test_submit_flags_suspicious_grievance_and_stores_in_admin(client):
-    """When a grievance is detected as non-civic/fake (DEC-049):
-    1. Returns status 200 with reference ID (never rejected/dropped silently)
-    2. Response includes flagged=True and flagReason
-    3. Stored document has qualityFlag='suspicious' and appears in admin view
-    """
-    from tests.test_endpoints import _admin_headers, _auth_headers
+def test_submit_rejects_clear_non_civic_text_before_quality_provider(client, monkeypatch):
+    """A local clear-relevance rejection must not reach the optional Groq check."""
+    from tests.test_endpoints import _auth_headers
 
-    fake_json = '{"is_genuine": false, "reason": "Query is a math question, not a civic grievance."}'
-    with patch("backend.app.services.quality_check._groq_complete", return_value=fake_json):
-        res = client.post(
-            "/submit-grievance",
-            json={"title": "Math query", "description": "what is the answer of 1+2?"},
-            headers=_auth_headers("citizen-101"),
-        )
-        assert res.status_code == 200
-        body = res.json()
-        assert body["flagged"] is True
-        assert "math question" in body["flagReason"]
-        gid = body["grievanceId"]
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("quality provider must not run for clear rejection")
 
-        # Admin must see this grievance with the qualityFlag attached
-        stored = client.get(f"/grievances/{gid}", headers=_admin_headers()).json()
-        assert stored["qualityFlag"] == "suspicious"
-        assert stored["qualityReason"] == "Query is a math question, not a civic grievance."
-
-        # Admin listing must also include it
-        admin_list = client.get("/grievances", headers=_admin_headers()).json()
-        match = next((item for item in admin_list if item["id"] == gid), None)
-        assert match is not None
-        assert match["qualityFlag"] == "suspicious"
-
+    monkeypatch.setattr("backend.app.services.quality_check._groq_complete", unexpected)
+    res = client.post(
+        "/submit-grievance",
+        json={"title": "Math query", "description": "what is the answer of 1+2?"},
+        headers=_auth_headers("citizen-101"),
+    )
+    assert res.status_code == 422
+    assert "public service or civic issue" in res.json()["error"]
+    assert client.get("/grievances", headers=_auth_headers("citizen-101")).json() == []

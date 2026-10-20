@@ -32,6 +32,7 @@ from ..services.classification import (
     classification_budget,
     extract_keywords,
     find_urgent_matches,
+    is_clearly_out_of_scope,
 )
 from ..services.image import llm_image_confidence
 from ..repositories.notifications import notif_repository
@@ -61,6 +62,33 @@ def submit_grievance(
             status_code=400,
             content={
                 "error": "Missing required fields (title, description)"
+            },
+        )
+
+    full_text = f"{title}\n{description}"
+    if not any(character.isalpha() for character in full_text):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": (
+                    "Please describe the issue using words; punctuation or "
+                    "symbols alone are not enough."
+                )
+            },
+        )
+
+    # Reject only locally recognizable, clearly non-civic intent. Keep this
+    # before image/provider validation, classification, reference generation,
+    # persistence, notifications and SMS; uncertain text stays reviewable.
+    if is_clearly_out_of_scope(full_text):
+        logger.info("grievance submission rejected reason=clearly_out_of_scope")
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": (
+                    "Please describe a problem related to a public service or "
+                    "civic issue. Add what happened and where it is affecting you."
+                )
             },
         )
 
@@ -99,13 +127,16 @@ def submit_grievance(
 
     # 2. Classification cascade (local model → local scope/keyword policy →
     # scoped provider fallback). The budget bounds provider time.
-    full_text = f"{title}\n{description}"
     with classification_budget():
         try:
             cat_res = classify_category(full_text)
         except Exception:
             logger.exception("category classification failed")
-            cat_res = {"rawLabel": "", "category": "other", "confidence": 0.0}
+            cat_res = {
+                "rawLabel": "", "category": "other", "confidence": 0.0,
+                "source": "classifier_error", "categoryOutcome": "uncertain",
+                "categoryConfidenceSemantics": "unavailable",
+            }
         try:
             pri_res = classify_priority(full_text)
         except Exception:
@@ -124,11 +155,15 @@ def submit_grievance(
         hf_raw_label = cat_res.get("rawLabel", "")
         keywords = extract_keywords(full_text)
 
-        # Quality gate: detect non-civic content
-        try:
-            quality_result = check_quality(title, description)
-        except Exception:
-            quality_result = {"is_genuine": True, "reason": "quality check error"}
+        # The optional quality classifier is useful only when the local
+        # category cascade abstains. Avoid an external call on every submission;
+        # provider failures remain fail-open for uncertain civic complaints.
+        quality_result = {"is_genuine": True, "reason": "quality check skipped"}
+        if cat_res.get("categoryOutcome") == "uncertain":
+            try:
+                quality_result = check_quality(title, description)
+            except Exception:
+                quality_result = {"is_genuine": True, "reason": "quality check error"}
 
     priority = hf_priority
     category = hf_category
@@ -138,7 +173,12 @@ def submit_grievance(
         f"Priority '{priority}' determined using sentiment ('{sentiment_raw}', "
         f"score: {float(sentiment_score):.2f}) and urgency keywords."
     )
-    if cat_res.get("source") in {"scope_gate", "uncertain", "invalid_input"}:
+    if cat_res.get("categoryOutcome") == "out_of_scope":
+        ai_explanation = (
+            "The classifier marked this text as apparently outside civic services. "
+            "It remains submitted under Other for officer review."
+        )
+    elif cat_res.get("source") in {"scope_gate", "uncertain", "invalid_input"}:
         ai_explanation = (
             "Category is uncertain. Please add details about the municipal service "
             "or issue, or have an officer review the category."
@@ -163,6 +203,13 @@ def submit_grievance(
                 or pri_res.get("source") == "groq_fallback"
             ) else "None",
             "categorySource": cat_res.get("source", "unknown"),
+            "categoryOutcome": cat_res.get(
+                "categoryOutcome",
+                "categorized" if hf_category != "other" else "uncertain",
+            ),
+            "categoryConfidenceSemantics": cat_res.get(
+                "categoryConfidenceSemantics", "unavailable"
+            ),
             "prioritySource": pri_res.get("source", "unknown"),
             "hfCategory": hf_category,
             "hfPriority": hf_priority,

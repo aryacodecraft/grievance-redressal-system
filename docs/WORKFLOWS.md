@@ -80,7 +80,7 @@ text and submit normally. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPL
 |---|---|---|
 | 1 | User | Authenticates and navigates to grievance submission form |
 | 2 | User | Fills in: title, description, category (optional), attachments (optional) |
-| 3 | **[SYSTEM]** | Validates input; assigns reference number; records `submitted_at` |
+| 3 | **[SYSTEM]** | Validates input and runs the local relevance gate; clearly unrelated text receives HTTP 422 before a reference, record, notification, or downstream processing is created |
 | 4 | **[SYSTEM]** | Status → SUBMITTED; creates `grievance_status_history` entry |
 | 5 | **[SYSTEM]** | Sends acknowledgement to user (in-app notification) |
 | 6 | **[SYSTEM]** | Triggers AI analysis pipeline asynchronously |
@@ -123,6 +123,12 @@ text and submit normally. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPL
 | 5 | **[SYSTEM]** | Sets `due_date` from SLA configuration based on category + severity |
 | 6 | **[SYSTEM]** | Status → ASSIGNED |
 | 7 | **[SYSTEM]** | Notifies assigned resolver |
+
+The initial `POST /grievances/{id}/assign` is limited to grievances awaiting
+their first assignment. Later department or resolver changes use the audited
+`POST /grievances/{id}/reassign` workflow. Administrative state changes must
+follow the allowed transition map; the admin review UI only offers actions
+valid for the grievance's current state.
 
 ---
 
