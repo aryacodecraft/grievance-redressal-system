@@ -36,44 +36,42 @@ export function AdminCharts({ items = MOCK_GRIEVANCES }: { items?: Grievance[] }
   ).map(([name, value]) => ({ name: name.replace("_", " "), value }));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <Card className="border-ink-200/80 shadow-xs">
-        <CardHeader
-          title="Complaints by Current Stage"
-          subtitle="How many are active vs resolved right now"
-          action={
-            <div className="w-56 shrink-0">
-              <label className="sr-only" htmlFor="stage-department-filter">Filter by department</label>
-              <Select id="stage-department-filter" value={department} onChange={(event) => setDepartment(event.target.value)}>
-                <option value="all">All departments</option>
-                {departments.map((key) => <option key={key} value={key}>{getDepartmentLabel(key)}</option>)}
-              </Select>
-            </div>
-          }
-        />
-        <CardBody className="p-5">
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={byStatus}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={85}
-                  innerRadius={45}
-                  paddingAngle={2}
-                  label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
-                >
-                  {byStatus.map((_, i) => (
-                    <Cell key={i} fill={GREYS[i % GREYS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e4e4e7', fontSize: '12px' }} />
-              </PieChart>
-            </ResponsiveContainer>
+    <Card className="w-full border-ink-200/80 shadow-xs">
+      <CardHeader
+        title="Complaints by Current Stage"
+        subtitle="How many are active vs resolved right now"
+        action={
+          <div className="w-52 shrink-0">
+            <label className="sr-only" htmlFor="stage-department-filter">Filter by department</label>
+            <Select id="stage-department-filter" value={department} onChange={(event) => setDepartment(event.target.value)}>
+              <option value="all">All departments</option>
+              {departments.map((key) => <option key={key} value={key}>{getDepartmentLabel(key)}</option>)}
+            </Select>
           </div>
-        </CardBody>
-      </Card>
-    </div>
+        }
+      />
+      <CardBody className="p-4 sm:p-5">
+        <div className="h-72 w-full">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+            <PieChart>
+              <Pie
+                data={byStatus}
+                dataKey="value"
+                nameKey="name"
+                outerRadius={95}
+                innerRadius={50}
+                paddingAngle={3}
+                label={({ name, percent }) => `${name} (${((percent || 0) * 100).toFixed(0)}%)`}
+              >
+                {byStatus.map((_, i) => (
+                  <Cell key={i} fill={GREYS[i % GREYS.length]} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e4e4e7', fontSize: '12px' }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </CardBody>
+    </Card>
   );
 }
