@@ -1,12 +1,20 @@
 # Classification Pipeline Audit — 2026-10-20
 
+> Independent verification and corrections: see
+> [ML classification audit](ML_CLASSIFICATION_AUDIT_2026-10-20.md). That report
+> distinguishes the reported full-data ablation from the exact historical
+> serving fit and records the production training-size fix.
+
 ## Production model and pipeline
 
 The existing serving model is `GrievanceModel` in
 `backend/app/services/grievance_model.py`: word TF-IDF (1–2 grams) plus
 character `char_wb` TF-IDF (3–5 grams, max 1,500 features), combined with
 `LogisticRegression(max_iter=2000, class_weight="balanced")`. It is trained
-lazily from `backend/data/Citizen (1).csv` in each process. There is no saved
+is trained lazily from `backend/data/Citizen (1).csv` in each process, using all
+distinct unconflicted examples in the serving fit. Before the 2026-10-20 audit
+correction, the lazy call inherited the evaluation split and fitted 24/30
+distinct texts. There is no saved
 or serialized production model artifact. `backend/app/services/classification.py`
 then applies the confidence/domain policy, deterministic category fallback,
 HF zero-shot fallback, and Groq fallback. The submit router previously replaced
@@ -14,7 +22,7 @@ the result with a separate keyword inference and always ran Groq refinement.
 
 ## Data audit
 
-Running `python backend/evaluate.py` found:
+Running `.venv\Scripts\python.exe backend/evaluate.py` found:
 
 | Measure | Result |
 |---|---:|
@@ -31,7 +39,9 @@ belong to the five categories represented in the training set; 414 belong to
 unrepresented categories and are excluded from category metrics, not counted as
 correct `Other` predictions. Exact cross-dataset overlap was zero. A character
 TF-IDF audit found no train/holdout pairs at cosine similarity ≥0.85 (maximum
-0.492); this is a heuristic and cannot rule out every paraphrased template.
+0.492 when TF-IDF is fitted jointly on train and holdout). Fitting only on
+training text gives a maximum nearest-neighbor similarity of 0.665. This is a
+heuristic and cannot establish semantic independence or rule out templates.
 
 ## Evaluation results
 
@@ -42,38 +52,52 @@ the same raw test metrics: accuracy **0.833**, macro F1 **0.778**, weighted F1
 **0.778**. Raw-model Water precision/recall were **0.000 / 0.000** on that one
 Water test example. A single example per class is not a reliable estimate.
 
+The shared current local serving policy was also run on this same six-item
+split: accuracy **0.833**, macro F1 **0.714**, weighted F1 **0.833**. It
+classified five items correctly and abstained to `Other` on the single Water
+example (Water support 1, precision/recall/F1 **0/0/0**, FP 0, FN 1). This
+policy is intentionally conservative around Water evidence; the six-item
+split is too small to justify loosening that rule or estimate Water recall.
+
 On the separate 200-row known-category holdout:
 
 | Evaluation | Accuracy | Macro F1 | Weighted F1 | Water P / R / F1 | Rejection |
 |---|---:|---:|---:|---:|---:|
-| Prior duplicate-weighted raw model, before domain policy | 0.860 | 0.828 | 0.837 | 0.606 / 1.000 / 0.754 | n/a |
+| Full-data duplicate-weighted raw ablation (not the old serving fit) | 0.860 | 0.828 | 0.837 | 0.606 / 1.000 / 0.754 | 0% |
+| Exact old serving raw fit (958 repeated rows / 24 distinct train texts) | 0.855 | 0.824 | 0.833 | 0.597 / 1.000 / 0.748 | 0% |
 | Prior production domain-override policy | 1.000 | 1.000 | 1.000 | 1.000 / 1.000 / 1.000 | 0.00% |
 | Updated deduplicated local policy + deterministic fallback | 1.000 | 1.000 | 1.000 | 1.000 / 1.000 / 1.000 | 0.00% |
 
-The raw model made 27 Water predictions on Road examples in this holdout; the
-prior domain policy corrected those predictions. The updated policy preserves
-100% Water precision/recall on this holdout while requiring explicit or
-corroborated Water evidence for a Water domain override. These results come
+The full-data raw ablation made 28 Water false positives on this holdout (27
+Road and one Sanitation); the exact historical serving raw fit made 27 Road
+and two Sanitation false positives. The prior domain policy and current local
+policy produced no Water false positives on this template holdout. The current
+policy also classified its 43 Water examples correctly here while abstaining
+on the lone Water sample in the six-item training split. These results come
 from a template-style holdout and do not establish real-world generalization.
 The training set has only 30 independent texts, so the model remains
 **EXPERIMENTAL** and the reported 100% policy scores must not be presented as
 validated accuracy.
 
-The evaluator reports class-wise metrics and confusion matrices in full when
-run. The 0% holdout rejection rate applies only to the known-category rows; the
+The evaluator reports class-wise metrics, confusion matrices, and explicit
+Water false-positive/false-negative counts in full when run. The 0% holdout
+rejection rate applies only to the known-category rows; the
 files do not label out-of-scope submissions or uncertain-but-in-scope
 complaints, so scope-gate accuracy and expected rejection rate on real traffic
-are not computable. No threshold was tuned on the test set.
+are not computable. The numeric confidence thresholds were not tuned on this
+file; the Water policy was revised after inspecting this holdout's errors, so
+the current 100% policy score is not an untouched final evaluation.
 
 ## Changes and evidence
 
 - Training and evaluation now exclude conflicting cleaned-text groups and use
   one row per distinct cleaned complaint. The fitting feature setup and
   LogisticRegression algorithm/hyperparameters remain unchanged.
-- The Water domain rule no longer uses generic `supply` alone; a bare Water
-  mention is not enough to override the model. Explicit phrases and corroborated
-  evidence still preserve legitimate Water complaints, including Hindi supply
-  wording.
+- Water predictions from the local model, keyword rules, Hugging Face, and
+  Groq are all checked against contextual Water-service evidence. An incidental
+  water/pipe mention cannot override stronger Road or Sanitation evidence;
+  explicit Water service problems, including tested Hinglish forms, remain
+  eligible. This conservative gate can abstain on valid short Water reports.
 - Domain overrides, keyword matches and Groq output carry confidence `0.0`
   because they have no calibrated probability. Existing LogisticRegression
   thresholds are preserved and are not claimed to be calibrated.
@@ -86,10 +110,12 @@ are not computable. No threshold was tuned on the test set.
   keyword predictions do not call the category providers. Groq-generated
   category output has confidence `0.0` (uncalibrated), and provider source,
   latency, failures, and available token counts are logged.
-- Regression tests cover water incidental mentions, legitimate water phrases,
+- Regression tests cover Water evidence at every category source, incidental
+  mentions, legitimate Water phrases,
   empty/gibberish/unrelated input, provider bypass, ambiguous keyword ties,
   conflicting labels, split deduplication, and submit-path duplicate-refinement
-  removal. Tests mock provider calls.
+  removal. The endpoint suite also checks that the response category matches
+  the persisted category. Tests mock provider calls.
 
 There is no production telemetry baseline for category-fallback counts or token
 cost, so cost reduction is verified structurally and in mocked tests, not as a

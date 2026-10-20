@@ -36,7 +36,7 @@ from backend.app.services.grievance_model import (  # noqa: E402
     clean_text,
     vectorize,
 )
-from backend.app.services.classification import infer_category_from_keywords  # noqa: E402
+from backend.app.services.classification import classify_category  # noqa: E402
 
 ROOT = pathlib.Path(__file__).parent
 TRAIN_PATH = ROOT / "data" / "Citizen (1).csv"
@@ -88,15 +88,9 @@ def legacy_predict(text: str, word_vec, char_vec, clf) -> str:
 
 
 def updated_offline_predict(text: str, model: GrievanceModel) -> str:
-    """Run the local model and deterministic fallback, without providers."""
-    result = model.predict(text)
-    category = result["category"]
-    if result.get("source") == "domain_override":
-        return LABEL_FROM_KEY.get(category, "Other")
-    if category != "other" and float(result.get("confidence", 0.0)) >= model.confidence_threshold:
-        return LABEL_FROM_KEY.get(category, "Other")
-    keyword_category = infer_category_from_keywords(text)
-    return LABEL_FROM_KEY.get(keyword_category, "Other")
+    """Use the shared production policy with an injected local model only."""
+    result = classify_category(text, model=model, allow_providers=False)
+    return LABEL_FROM_KEY.get(result["category"], "Other")
 
 
 def load_training_rows() -> pd.DataFrame:
@@ -157,7 +151,21 @@ def report_metrics(title: str, truth: list[str], predictions: list[str], labels:
         p, r, f, _ = precision_recall_fscore_support(
             truth, predictions, labels=["Water"], average=None, zero_division=0
         )
-        print(f"  Water precision={p[0]:.3f} recall={r[0]:.3f} F1={f[0]:.3f}")
+        tp, fp, fn = class_error_counts(truth, predictions, "Water")
+        print(
+            f"  Water support={tp + fn} precision={p[0]:.3f} recall={r[0]:.3f} "
+            f"F1={f[0]:.3f} false_positives={fp} false_negatives={fn}"
+        )
+
+
+def class_error_counts(
+    truth: list[str], predictions: list[str], label: str
+) -> tuple[int, int, int]:
+    """Return one-vs-rest (true positives, false positives, false negatives)."""
+    tp = sum(actual == label and predicted == label for actual, predicted in zip(truth, predictions))
+    fp = sum(actual != label and predicted == label for actual, predicted in zip(truth, predictions))
+    fn = sum(actual == label and predicted != label for actual, predicted in zip(truth, predictions))
+    return tp, fp, fn
 
 
 def main() -> None:

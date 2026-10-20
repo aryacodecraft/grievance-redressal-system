@@ -68,9 +68,9 @@ _NORM_PATTERN = re.compile(r'\b(' + '|'.join(re.escape(k) for k in _NORM_KEYS_SO
 
 DOMAIN_KEYWORDS = {
     'Electricity': ['electricity', 'meter reading', 'load shedding', 'fuse', 'wire', 'streetlight', 'street light', 'power', 'voltage', 'transformer', 'sparking', 'cable', 'blackout', 'current', 'electrical'],
-    # Avoid treating the generic word "supply" or a bare incidental mention
-    # of water as a category decision. A water override needs corroborating
-    # evidence (two hits) or one of the explicit service phrases below.
+    # Domain counts provide candidate evidence, but a Water decision requires
+    # an explicit service problem phrase. Generic terms such as water, pipe,
+    # pipeline, or tap can appear incidentally in another complaint.
     'Water': ['water', 'pipeline', 'pipe', 'tap', 'tanker', 'leakage', 'leak',
               'contaminated', 'drinking water', 'borewell', 'pressure'],
     'Road': ['road', 'pothole', 'highway', 'flyover', 'bridge', 'traffic',
@@ -85,7 +85,14 @@ DOMAIN_KEYWORDS = {
 
 _WATER_OVERRIDE_PHRASES = tuple(re.compile(pattern) for pattern in (
     r'\bwater supply\b', r'\bno water\b', r'\bwater pressure\b',
-    r'\bdrinking water\b', r'\bwater pipeline\b', r'\bwater tanker\b',
+    r'\bdrinking water\b',
+    r'\bwater pipe\s+(?:leak(?:age|ing)?|burst|broken|contaminat\w*)\b',
+    r'\bwater pipeline\s+(?:leak(?:age|ing)?|burst|broken|contaminat\w*)\b',
+    r'\b(?:burst(?:ed)?|broken|leaking|leak(?:age)?|damaged)\s+water main\b',
+    r'\bwater main\s+(?:is\s+)?(?:burst|broken|leaking|leak(?:age)?|damaged)\b',
+    r'\bwater\s+(?:ki|ka|ke)\s+supply\b',
+    r'\bwater\s+(?:is\s+)?leaking\s+(?:from|out of)\s+(?:the\s+)?(?:pipe|pipeline)\b',
+    r'\bwater tanker\b',
     r'\bwater leak(?:age|ing)?\b', r'\bwater contamination\b',
     r'\bwater is not (?:coming|available)\b',
     r'\bwater nahi (?:aa|a) raha\b', r'\bpaani nahi (?:aa|a) raha\b',
@@ -125,8 +132,19 @@ def detect_domain(clean_txt):
     top_domains = [d for d, s in scores.items() if s == max_hits]
     if len(top_domains) > 1:
         return None, max_hits, scores
-    if top_domains[0] == 'Water' and max_hits < 2 and not explicit_water_issue:
+    # Multiple Water terms can still be incidental (for example, "water pipe
+    # installed"). Require an explicit Water service problem. When another
+    # civic domain also has evidence, abstain unless the Water evidence is
+    # clearly stronger; borderline multi-issue text is left for review.
+    if top_domains[0] == 'Water' and not explicit_water_issue:
         return None, max_hits, scores
+    if top_domains[0] == 'Water':
+        strongest_other = max(
+            (score for domain, score in scores.items() if domain != 'Water'),
+            default=0,
+        )
+        if strongest_other and scores['Water'] < strongest_other + 2:
+            return None, max_hits, scores
     return top_domains[0], max_hits, scores
 
 
