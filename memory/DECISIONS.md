@@ -2244,14 +2244,14 @@ face templates are untouched unless re-enrolled.
 **Decision:**
 1. Apply responsive design at the base Tailwind level, preserving exact desktop styling using `sm:` and `md:` prefixes.
 2. In `IntakeModeToggle`: Enforce `grid-cols-2` (`grid grid-cols-2 gap-2.5 sm:gap-3`) so voice and manual options remain side-by-side on mobile screens, with responsive padding (`p-3 sm:p-4`); titles/hints wrap (`break-words`) instead of clipping, and desktop sizing/alignment is restored with `sm:` overrides.
-3. In `Field.tsx`: Increase base touch height for `Input` and `Select` (`h-11 sm:h-10`) with `px-3.5 py-2.5 sm:py-2`; use mobile label/hint spacing (`mb-2 sm:mb-1.5`, `mt-2 sm:mt-1.5`).
+3. In `Field.tsx`: Increase base touch height for `Input` and `Select` (`h-12 sm:h-10`) with 16px mobile text (`text-base sm:text-sm`) to avoid iOS focus zoom; use mobile label/hint spacing (`mb-2 sm:mb-1.5`, `mt-2 sm:mt-1.5`).
 4. In `SubmitForm.tsx`: Increase mobile form spacing (`space-y-6 sm:space-y-5`), provide a taller mobile description area (`rows={4}` plus `min-h-32 sm:min-h-0`; desktop remains 4 rows), space the manual grid (`gap-6 sm:gap-5`), and center submit buttons on mobile (`flex items-center justify-center sm:justify-end`; desktop keeps `sm:min-w-40`).
 5. In `VoiceIntake.tsx`:
    - Center progress steps, language/mute row, voice action controls (Start speaking, Stop, Cancel, Type instead, Skip), and bottom actions (`justify-center sm:justify-start` / `justify-center sm:justify-between`).
    - Limit transcript conversation log height on small devices (`max-h-52 sm:max-h-72`).
    - Reduce message bubble padding and text size (`px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm`).
    - Preserve desktop spacing/typography via paired `sm:` overrides; long titles/hints wrap on mobile.
-6. In `LocationCapture.tsx`: Enforce comfortable touch height for search input & buttons (`h-10 sm:h-9`), center quick action buttons (`justify-center sm:justify-start`), adjust Leaflet map container height on mobile (`h-48 sm:h-64`), and wrap suggestions on mobile while retaining desktop truncation (`break-words sm:truncate`).
+6. In `LocationCapture.tsx`: Enforce comfortable touch height for search input & buttons (`h-10 sm:h-9`), use 16px mobile search text (`text-base sm:text-xs`) to avoid iOS focus zoom, center quick action buttons (`justify-center sm:justify-start`), adjust Leaflet map container height on mobile (`h-48 sm:h-64`), and wrap suggestions on mobile while retaining desktop truncation (`break-words sm:truncate`).
 7. In `Card.tsx`: Set responsive header/body padding (`px-4 py-3.5 sm:px-6 sm:py-4.5` and `px-4 py-4 sm:px-6 sm:py-5`).
 
 **Verification:**

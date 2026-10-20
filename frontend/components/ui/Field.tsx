@@ -6,7 +6,7 @@ import type {
 import { clsx } from "clsx";
 
 const controlClass =
-  "w-full rounded-md border border-ink-200 bg-white px-3.5 py-2.5 sm:py-2 text-sm text-ink-900 placeholder:text-ink-400 " +
+  "w-full rounded-md border border-ink-200 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-ink-900 placeholder:text-ink-400 " +
   "shadow-2xs transition-all duration-150 " +
   "hover:border-ink-300 " +
   "focus:border-primary-700 focus:outline-none focus:ring-3 focus:ring-primary-700/20 " +
@@ -50,7 +50,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={clsx("h-11 sm:h-10", controlClass, props.className)}
+      className={clsx("h-12 sm:h-10", controlClass, props.className)}
     />
   );
 }
@@ -63,7 +63,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={clsx("h-11 sm:h-10", controlClass, props.className)}
+      className={clsx("h-12 sm:h-10", controlClass, props.className)}
     />
   );
 }

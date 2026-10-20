@@ -258,7 +258,8 @@ only — humans retain assignment, escalation, resolution and closure authority
   `/admin`, `/admin/analytics`, `/resolver`; department dropdown at ~1024px;
   face tabs (`/login` face tab, `2FA` step, `/signup/face`, `/re-enroll`, `/profile`).
 - Mobile `/submit` layout at 320/375/430 px: intake modes side-by-side, labels
-  wrap, actions centered; desktop ≥640 px unchanged (DEC-047).
+  wrap, actions centered, 16px field text (avoids iOS focus zoom); desktop ≥640 px
+  unchanged (DEC-047).
 
 **Suite health:**
 

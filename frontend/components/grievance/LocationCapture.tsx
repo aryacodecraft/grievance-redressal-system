@@ -306,7 +306,7 @@ export function LocationCapture({
                   if (!searchBusy && searchQuery.trim()) void handleSearch();
                 }}
                 placeholder="Type area, city, or landmark (e.g. Connaught Place, Delhi)"
-                className="pl-8 text-xs h-10 sm:h-9"
+                className="pl-8 text-base sm:text-xs h-10 sm:h-9"
               />
             </div>
             <Button
