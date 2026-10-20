@@ -9,6 +9,15 @@
 
 ---
 
+## 2026-10-20 — Admin Active Queue & Resolved Archive Separation (DEC-051)
+
+- `AdminBoard.tsx`: Separated active/pending complaints from completed complaints with a dedicated tabbed interface (`Active & Priority Queue` vs `Resolved Archive`). Active view hides resolved/closed tickets and automatically surfaces urgent and high-priority tickets first; Resolved view acts as a historical archive sorted chronologically by resolution date.
+- Added segmented navigation tab bar above the queue table displaying dynamic counts for active complaints and archived resolutions.
+- Converted all 6 Executive Command metric cards into interactive triage switches (Urgent, Unassigned, In-progress, and Flagged cards switch to filtered Active views; Resolved card toggles to Resolved Archive with ring highlight).
+- Adapted the Status dropdown options contextually based on the active tab (Active: All Active, Open, Assigned, In Progress, Flagged; Resolved: All in Archive, Resolved, Closed). Contextual empty states and subtitles updated.
+- Verification: `npx tsc --noEmit` 0 errors, `npm run test:voice` 79 passed, `node frontend/scripts/check-contract.mjs` passed, `npm run build` passed (20/20 static routes).
+
+
 ## 2026-10-20 — Citizen Privacy Shield, Auth Hardening, and Pop-out Map UX (DEC-050)
 
 - `GrievanceDetailModal.tsx`: When `citizenView` is true, hides "Recent Officer & Field Updates" activity logs, resolver names ("Assigned Officer / Team"), and completion/resolution photos. Citizens see only status, lifecycle timeline, title, description, and location pin. Staff/admin surfaces (`!citizenView`) retain complete details.

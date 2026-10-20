@@ -954,3 +954,28 @@ Owner:
 - `npm run build`: passed (20/20 static routes generated).
 - Pytest quality and lifecycle test suites passed.
 - Memory updated: DEC-050, CHANGELOG.md, CURRENT_STATE.md, this log.
+
+---
+
+## 2026-10-20 — Admin Active Queue & Resolved Archive Separation (DEC-051)
+
+### Request
+Owner: In admin view, only active and priority problems should be at the top; resolved problems should go to a separated tab, like an archive, while preserving all historical data.
+
+### What changed
+- `AdminBoard.tsx`:
+  - Added `queueTab: "active" | "resolved"` state; filters out resolved/closed items in "active" queue, and non-resolved in "resolved" archive.
+  - Active queue pins high-urgency and high-priority tickets to the top using the existing urgency weight comparator without resolved tickets cluttering triage.
+  - Resolved archive sorts historical records by newest resolution timestamp (`resolvedAt || createdAt`).
+  - Added segmented tab navigation bar above the table (`Active & Priority Queue` and `Resolved Archive`) with dynamic count pills.
+  - Made all 6 Executive Command metric cards interactive 1-click triage filters with visual active indicators.
+  - Dynamically altered Status dropdown options to show Active statuses on the Active tab and Archive statuses on the Resolved tab.
+  - Contextualized table subtitles and empty states for active vs archive modes.
+
+### Verification
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `cd frontend && npm run test:voice`: 79/79 passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run build`: 20/20 static routes generated successfully.
+- Memory updated: DEC-051, CHANGELOG.md, CURRENT_STATE.md, this log.
+

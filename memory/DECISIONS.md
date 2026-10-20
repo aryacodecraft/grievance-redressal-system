@@ -2373,3 +2373,48 @@ face templates are untouched unless re-enrolled.
 
 **Reversible:** Revert `LocationCapture.tsx` to inline rendering; restore employee update block in `GrievanceDetailModal.tsx`.
 
+---
+
+## DEC-051 — Admin Active & Resolved Archive Tabbed Queue Architecture (2026-10-20)
+
+**Context:**
+In the Admin View (`AdminBoard.tsx`), active, pending, urgent, and resolved complaints previously shared a single mixed table. As complaints are resolved, having resolved/closed tickets mixed into the primary operational view caused visual clutter and distracted officers from high-urgency, active issues needing immediate triage.
+The project owner requested:
+1. In the admin view, only active and priority problems should appear at the top of the queue.
+2. Resolved problems should go to a separated tab, like an archive.
+3. All historical data must remain preserved, searchable, and reviewable.
+
+**Decision:**
+1. **Queue Tab State (`AdminBoard.tsx`)**:
+   - Added `queueTab: "active" | "resolved"` state defaulting to `"active"`.
+   - When `queueTab === "active"`, complaints with status `"resolved"` or `"closed"` are filtered out.
+   - When `queueTab === "resolved"`, only complaints with status `"resolved"` or `"closed"` are shown.
+   - High priority and urgent tickets naturally float to the top of the Active queue via the default `sortBy === "urgency"` comparator without being diluted by completed historical tickets.
+   - In the "Resolved Archive" tab, records are ordered chronologically by newest resolution timestamp (`resolvedAt || createdAt`).
+2. **Dedicated Segmented Tab Bar**:
+   - Prominent tabs placed above the grievance table:
+     - `Active & Priority Queue` with live count badge (`stats.activeCount`).
+     - `Resolved Archive` with live count badge (`stats.resolved`).
+3. **Interactive Executive Metrics Cards**:
+   - Made all metric cards one-click triage switches:
+     - "Total Grievances": resets filters to Active queue.
+     - "Urgent Attention": switches to Active queue filtered to high priority.
+     - "Unassigned": switches to Active queue filtered to open/unassigned tickets.
+     - "Work Underway": switches to Active queue filtered to in-progress tickets.
+     - "Resolved": directly opens the "Resolved Archive" tab with active ring indicator.
+     - "Flagged": switches to Active queue filtered to flagged suspicious complaints.
+4. **Adaptive Status Filter**:
+   - When on Active queue: options are `All Active Statuses`, `Open / Unassigned`, `Assigned`, `In Progress`, `Flagged for Review`.
+   - When on Resolved Archive: options are `All in Archive`, `Resolved`, `Closed`.
+5. **Contextual Headers & Empty States**:
+   - Title/subtitle and zero-state copy adapt dynamically between active triage and historical archive modes.
+
+**Verification:**
+- `cd frontend && npx tsc --noEmit`: 0 errors.
+- `cd frontend && npm run test:voice`: 79/79 passed.
+- `node frontend/scripts/check-contract.mjs`: passed (21 checks green).
+- `cd frontend && npm run build`: 20/20 static pages compiled successfully.
+
+**Reversible:** Revert the tab filter in `filtered` useMemo to display unified table.
+
+
