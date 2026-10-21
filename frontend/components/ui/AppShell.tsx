@@ -17,9 +17,20 @@ import { useDemoUser } from "@/lib/session";
  * Layout only — no gating; each page keeps its own AdminGate/ResolverGate.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { user, signOut } = useDemoUser();
+  const { user, signOut, isLoading } = useDemoUser();
   const role = user?.role?.toUpperCase();
   const isStaff = role === "ADMIN" || role === "SUPERADMIN" || role === "RESOLVER";
+
+  // The server cannot read the browser's saved session. Keep the initial shell
+  // role-neutral until the provider restores it after hydration.
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-white" aria-busy="true">
+        <div className="h-14 shrink-0 border-b border-ink-200/80" aria-hidden="true" />
+        <main className="flex-1 bg-white">{children}</main>
+      </div>
+    );
+  }
 
   if (isStaff) {
     return (

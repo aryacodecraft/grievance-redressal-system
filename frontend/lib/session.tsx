@@ -56,28 +56,31 @@ interface Session {
 const DemoUserContext = createContext<Session | null>(null);
 
 export function DemoUserProvider({ children }: { children: ReactNode }) {
-  // Synchronous initialization from localStorage so the client never flickers
-  // to an unauthenticated "Sign in" state on reload or navigation (DEC-050).
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-    return null;
-  });
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return !localStorage.getItem(STORAGE_KEY);
-  });
+  // Keep the server render and the first browser render identical. Browser
+  // storage is restored in the effect below, after React hydrates the page.
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const liveMode = !useMocks();
 
   useEffect(() => {
     let isMounted = true;
 
     async function initSession() {
+      let cachedUser: AuthUser | null = null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) cachedUser = JSON.parse(raw) as AuthUser;
+      } catch {
+        /* ignore corrupt or unavailable browser storage */
+      }
+
+      if (isMounted && cachedUser) {
+        setUser(cachedUser);
+        // Match the prior cached-session behavior: show the restored session
+        // while the live backend refresh runs in the background.
+        setIsLoading(false);
+      }
+
       if (liveMode) {
         const token = getStoredAccessToken();
         if (token) {
@@ -121,20 +124,16 @@ export function DemoUserProvider({ children }: { children: ReactNode }) {
           }
         } else {
           // If no token, check if there's any stale user object
-          localStorage.removeItem(STORAGE_KEY);
-          if (isMounted) setUser(null);
-        }
-      } else {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (raw && isMounted) {
-            setUser(JSON.parse(raw) as AuthUser);
+          try {
+            localStorage.removeItem(STORAGE_KEY);
+          } catch {
+            /* ignore unavailable browser storage */
           }
-        } catch {
-          /* ignore corrupt storage */
+          if (isMounted) setUser(null);
         }
       }
       if (isMounted) {
+        if (!liveMode && cachedUser) setUser(cachedUser);
         setIsLoading(false);
       }
     }

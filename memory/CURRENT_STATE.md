@@ -40,7 +40,10 @@ only — humans retain assignment, escalation, resolution and closure authority
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
 - **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal — DEC-050), track
   (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
-  DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.
+  DEC-028/029/030/044/050), notifications inbox v1, profile. Session and
+  language preferences restore after hydration to keep SSR/client markup aligned
+  (DEC-065); session persistence remains hardened against network glitches.
+  IMPLEMENTED, TESTED.
 - **Quality check & non-genuine submission rejection (DEC-064)** — deterministic
   prefilter rejects clear non-civic/educational requests and long random Latin text;
   existing Groq quality check now runs on every submission that passes the local gate,

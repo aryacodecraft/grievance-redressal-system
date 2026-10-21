@@ -7,6 +7,12 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-21 — Fix client/server hydration mismatch (DEC-065)
+
+- Session and language providers now start from deterministic SSR-safe defaults and restore localStorage in effects; AppShell holds a neutral shell until the cached role is restored.
+- Prevents browser-only profile navigation and translated labels from differing from server-rendered HTML on initial load.
+- TypeScript and the Webpack production build passed (20 static routes); no automated browser hydration run was available.
+
 ## 2026-10-21 — DEC-064 verification
 
 - Focused civic, quality, audio, voice, transcription and WAV suites: 150 passed.

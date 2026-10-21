@@ -55,15 +55,21 @@ function interpolate(template: string, vars?: Record<string, string | number>): 
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<LanguageCode>(() => {
-    if (typeof window === "undefined") return "en";
-    const saved = localStorage.getItem("grievai-language");
-    // Only picker-offered languages are valid at runtime; a saved code for a
-    // hidden language (e.g. from before DEC-026) falls back to English.
-    return saved && LANGUAGES.some(([code]) => code === saved)
-      ? (saved as LanguageCode)
-      : "en";
-  });
+  // Use the same default for SSR and the first client render; restore browser
+  // preferences only after hydration to avoid locale-dependent HTML mismatch.
+  const [language, setLanguage] = useState<LanguageCode>("en");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("grievai-language");
+      // Only picker-offered languages are valid at runtime; a saved code for a
+      // hidden language (e.g. from before DEC-026) falls back to English.
+      if (saved && LANGUAGES.some(([code]) => code === saved)) {
+        setLanguage(saved as LanguageCode);
+      }
+    } catch {
+      /* ignore unavailable browser storage */
+    }
+  }, []);
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);

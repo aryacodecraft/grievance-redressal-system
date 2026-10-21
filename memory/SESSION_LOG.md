@@ -1379,3 +1379,16 @@ Owner: Apply civic relevance validation to audio complaints so manual and audio 
 - Focused civic, quality, audio, voice, transcription, limits and WAV suites: 150 passed.
 - Focused endpoint submission tests: 16 passed; frontend voice suite: 82 passed.
 - Contract check and TypeScript passed; production build generated all 20 static pages; `git diff --check` passed.
+
+## 2026-10-21 — Fix SSR/client hydration mismatch (DEC-065)
+
+### What changed
+- Replaced synchronous `localStorage` initializers in `DemoUserProvider` and `I18nProvider` with deterministic defaults and post-hydration restoration.
+- Added a neutral loading shell in `AppShell` while cached session state is restored, preventing a signed-in Profile link or staff navigation from appearing only in the first client render.
+- Recorded DEC-065 and updated current state and changelog.
+
+### Verification
+- Frontend TypeScript check passed.
+- Webpack production build compiled and generated all 20 static routes.
+- Browser hydration was not separately exercised; the screenshot's server/client state divergence is removed by matching the initial state on both renders.
+- `git diff --check` passed.

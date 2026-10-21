@@ -2825,3 +2825,30 @@ are rejected rather than stored.
 **Verification:** Regression tests cover the screenshot's Python-learning
 request, random-string example, explicit quality negatives, no-record/no-
 notification behavior, and civic/Hinglish acceptance.
+
+---
+
+## DEC-065 — Restore Browser Preferences After Hydration (2026-10-21)
+
+**Context:** `DemoUserProvider` and `I18nProvider` synchronously read
+`localStorage` in their state initializers. A server render cannot access that
+storage, so the first browser render could include a signed-in Profile link or
+saved-language text that was absent from the server HTML. Next.js reported a
+hydration mismatch in `SiteHeader`.
+
+**Decision:** Initialize session and language state with deterministic defaults
+that match server rendering, then restore saved values in client effects. Keep
+`AppShell` role-neutral while session restoration is pending so staff navigation
+does not flash as citizen navigation before the cached role is known. Continue
+using the cached session immediately after hydration and retain the existing
+live-profile refresh and 401 handling.
+
+This supersedes only DEC-050's synchronous localStorage initialization detail;
+the session persistence and transient-network-error behavior remain in force.
+
+**Verification:** TypeScript and the Next.js production build passed; browser
+hydration was not separately exercised in an automated browser test.
+
+**Reversible:** Restore the providers' previous synchronous initializers and
+remove the neutral AppShell loading state if the app moves authentication and
+locale preferences to server-readable cookies.
