@@ -1308,3 +1308,38 @@ Owner: "the newle added dashboards arent working, if its possible to make them w
 - `cd frontend && npx eslint components/admin/AdminAnalytics.tsx components/charts/AnalyticsCharts.tsx`: 0 errors, 0 warnings.
 - `node frontend/scripts/check-contract.mjs`: 21 passed.
 - `cd frontend && npm run build`: 20/20 static pages compiled successfully.
+
+---
+
+## 2026-10-21 — Citizen-side test suite (documentation only, DEC-063)
+
+### Request
+Create a comprehensive, scenario-driven Markdown test-case suite for the
+citizen/user-facing experience. Explicitly documentation only — no test code.
+
+### What changed
+- Inspected the citizen frontend pages/components, auth/session/API client,
+  voice intake, tracking, notifications, profile, relevant backend routers,
+  state machine, persistence/projection, captcha/image validation, and
+  existing pytest/voice/contract suites.
+- Added `docs/USER_SIDE_TEST_CASES.md`: test plan, **170 module cases**,
+  **12 E2E journeys**, 70-row requirements traceability matrix, 30-item gap
+  register, and automation recommendations. All items are `Not Run`.
+- Aligned submission cases with DEC-059 (letterless 400) and DEC-062 (clear
+  non-civic 422 before side effects); ambiguous text remains reviewable.
+- Added a pointer in `docs/DEVELOPMENT.md`.
+- Recorded DEC-063; updated `CURRENT_STATE.md`, `CHANGELOG.md`, and this log.
+- No application code or test code was changed.
+
+### Verification
+- Structural/documentation checks only: 170 unique module rows (14 fields
+  each), 12 unique E2E journeys, valid P0–P3 priorities and `Not Run` status,
+  no dangling USR/G references, no placeholder markers.
+- No app, pytest, or frontend test run was needed for this documentation task;
+  no feature status was upgraded.
+
+### Not done / next
+- Execute the smoke set (`USR-AUTH-010/001`, `USR-GRV-001`, `USR-TRACK-001`,
+  `E2E-01`) and then P0 security/integrity cases. Confirm and fix the highest
+  risks first: G-04/G-05 (cross-user/public lookup), G-01/G-02 (outcome/
+  history visibility), G-08 (retry duplicates), G-10 (image-AI blocking).

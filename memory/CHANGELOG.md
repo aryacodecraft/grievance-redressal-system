@@ -7,6 +7,27 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+---
+
+## 2026-10-21 — Citizen-side test plan, 170 cases, 12 E2E journeys, and gap register (DEC-063)
+
+- Added `docs/USER_SIDE_TEST_CASES.md`: test plan, 170 module cases, 12 E2E
+  journeys, 70-row requirements traceability matrix, 30-item gap register, and
+  automation recommendations. All cases are `Not Run`; documentation only.
+- Aligned submission expectations with DEC-059 (letterless text returns 400)
+  and DEC-062 (clear non-civic text returns 422 before image/provider work,
+  IDs, persistence, or notifications). Ambiguous/plausible text remains
+  reviewable; USR-AI-008 is the false-positive guard.
+- Recorded the highest-risk inspection findings: public/non-owner grievance
+  lookup exposes a projection for sequential IDs (G-04/G-05), citizens cannot
+  see resolution/closure/rejection text or real history (G-01/G-02), lost
+  submit responses can duplicate (G-08), and image-AI failure can block a photo
+  submission with a 500 (G-10).
+- Added a discoverability pointer in `docs/DEVELOPMENT.md`.
+- No application code or test code changed. Verification was structural only:
+  170 unique module rows, 12 journeys, valid priorities/status fields, no
+  dangling USR/G references.
+
 ## 2026-10-20 — Reject clearly non-civic submissions before workflow creation (DEC-057)
 
 - Added a deterministic local intent gate for clear arithmetic, joke/creative,

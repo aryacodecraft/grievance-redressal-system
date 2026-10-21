@@ -227,6 +227,16 @@ failing: a field the backend sends but the schema omits parses cleanly and
 then simply never reaches the UI. `hfEngine.categoryConfidence` shipped that
 way for a while — live data lost the confidence display that mock data kept.
 
+### Citizen-side test plan and manual cases
+
+[`docs/USER_SIDE_TEST_CASES.md`](USER_SIDE_TEST_CASES.md) is the user-facing
+test plan, case suite, E2E journey set, traceability matrix, and gap register.
+It contains **170 module cases and 12 journeys that have not been executed**;
+it is documentation, not test code. Use it for manual release validation and
+as the specification for new Playwright/API tests. Do not cite it as evidence
+that a feature passes. The existing pytest, contract, and voice suites above
+remain the only automated coverage.
+
 ---
 
 ## Frontend Setup

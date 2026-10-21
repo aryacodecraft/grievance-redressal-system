@@ -2763,3 +2763,53 @@ reviewable. See `docs/API.md`, `docs/AI_SYSTEM.md`, and
 
 **Reversible:** Remove the 422 prefilter and restore DEC-049 flagging for all
 submissions if product policy changes; retain a local review fallback.
+
+---
+
+## DEC-063 — Citizen-Side Test Documentation Is a Single Unexecuted Baseline (2026-10-21)
+
+**ID:** DEC-063
+**Date:** 2026-10-21
+**Status:** ACCEPTED (task-directed; documentation convention)
+
+**Context:**
+There was no consolidated, scenario-driven test suite for the citizen-facing
+experience. Automated coverage is strong at the API/unit/contract level
+(`tests/`, voice node suites), but there was no single traceable document for
+manual execution, E2E journeys, requirements coverage, or known user-facing
+gaps. Older documentation conflicts with the implementation (async AI,
+PDF/DOCX attachments, profile update, public tracking), so testers could encode
+the wrong expectations. DEC-055 through DEC-062 were already used by the
+incoming ML/RBAC work, so this decision is recorded as DEC-063.
+
+**Decision:**
+1. `docs/USER_SIDE_TEST_CASES.md` is the canonical citizen-side test plan. It
+   contains the plan, module cases, E2E journeys, RTM, gap register, and
+   automation recommendations in one file.
+2. Case IDs use `USR-<MODULE>-NNN`, priorities use P0–P3, and every module case
+   carries the 14 required fields. `E2E-NN` journeys are cross-layer scenarios.
+3. The suite is **documentation only**. No test code was added and no
+   application behavior changed. Every case starts as `Not Run`; only executed
+   evidence may change that.
+4. Findings in the gap register come from static inspection and are **not**
+   defects until reproduced. G-04/G-05 (public/non-owner lookup), G-01/G-02
+   (outcome/history visibility), G-08 (retry duplicates), and G-10 (image-AI
+   blocking) are release gates for calling the citizen experience `VALIDATED`.
+5. The suite tracks the current submission contract: letterless text returns
+   400 (DEC-059), clearly non-civic text returns 422 before side effects
+   (DEC-062), and uncertain/ambiguous civic text remains reviewable.
+6. Existing pytest/voice/contract suites remain the automated coverage of
+   record. The document must not be cited as evidence that they pass or that
+   the citizen cases pass.
+7. If cases are added/removed, update the coverage summary and execution record
+   together; keep the RTM coverage status about test coverage, not pass/fail.
+
+**Consequences:**
+- Future agents can execute the suite and append results without re-deriving
+  the scenarios.
+- The project has an explicit, reviewable list of user-side risks and
+  documentation drift.
+- No status in `CURRENT_STATE.md` is upgraded by this decision.
+
+**Reversible:** Yes — revise or replace the document; the decision records the
+convention, not an irreversible architecture change.

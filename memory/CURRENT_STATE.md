@@ -9,7 +9,7 @@
 > Decisions: `DECISIONS.md` (grep by topic). Status vocabulary: AGENTS.md
 > (PLANNED / IN PROGRESS / IMPLEMENTED / TESTED / VALIDATED / DEFERRED / OPTIONAL).
 >
-> **Last updated: 2026-10-20.** Keep this file current after every task — edit
+> **Last updated: 2026-10-21.** Keep this file current after every task — edit
 > it in place when implementation state or the backlog changes.
 
 ---
@@ -28,7 +28,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 | Frontend | Next.js 16 + TypeScript + Tailwind v4 in `frontend/`; REST client `lib/api.ts`, session `lib/session.tsx`; SAMARTH official emblem & favicon (DEC-048) |
 | Auth | JWT access/refresh + Google OAuth + RBAC (DEC-017); optional face login + phone OTP binding behind flags |
 | AI/NLP | Local word+character TF-IDF + LogisticRegression → civic-scope gate → deterministic keyword fallback → HF/Groq only for remaining in-scope uncertainty (`backend/app/services/classification.py`); Sarvam STT for voice; client-side TF-IDF similarity |
-| Tests | `tests/` pytest (Mongo tests need `TEST_MONGODB_URI`); `frontend/scripts/check-contract.mjs` + `e2e.mjs`; voice node suites |
+| Tests | `tests/` pytest (Mongo tests need `TEST_MONGODB_URI`); `frontend/scripts/check-contract.mjs` + `e2e.mjs`; voice node suites. Citizen-side manual suite documented in `docs/USER_SIDE_TEST_CASES.md` (170 cases + 12 E2E, **not executed**) |
 | Docs | `docs/*` (ARCHITECTURE, API, DATABASE, SECURITY, DEVELOPMENT, AI_SYSTEM, WORKFLOWS, VOICE_ASSISTED_COMPLAINT) + `memory/rbac/` (docs-only RBAC spec suite) |
 
 ---
@@ -138,6 +138,13 @@ only — humans retain assignment, escalation, resolution and closure authority
   in headless Chrome, reduced-motion and no-JS safe.
 - **Test suites** — baseline pytest on main reported 516 passed / 32 skipped / 22 failed (2026-10-20; 23rd was the local `.env` face-challenge leak, pinned in conftest). On the classification reliability & civic relevance branch, focused test passes succeeded (124-142 passed, legacy status cases deselected). `npm run build` succeeded with Webpack, TypeScript and all 20 static pages. Includes 3 new prepare-model tests; contract suite 21 checks; voice node suites 80 tests (DEC-041/043/044/053); intake backend suite 28 tests; admin analytics suite 11 tests (DEC-054);
   classification latency tests added (DEC-042).
+- **Citizen-side test documentation (2026-10-21, DEC-063)** —
+  `docs/USER_SIDE_TEST_CASES.md` is the canonical user-side test plan,
+  suite (170 cases), 12 E2E journeys, 70-row RTM, 30-item gap register, and
+  automation plan. It is aligned with the DEC-059 letterless 400 and DEC-062
+  clear non-civic 422 gates. **Documentation only: all 182 items are `Not
+  Run`.** Existing pytest/voice suites are unchanged; findings are static
+  inspection, not execution.
 
 ---
 
@@ -306,6 +313,12 @@ only — humans retain assignment, escalation, resolution and closure authority
   3 new `prepare_face_model` tests; full suite not rerun.
 - Frontend lint baseline: 4 pre-existing `FaceCapture` errors + 4 warnings —
   keep at or below; fix when touching that component.
+- **Citizen-side suite (DEC-063):** 0/182 executed. Start with the smoke set
+  (`USR-AUTH-010`, `USR-AUTH-001`, `USR-GRV-001`, `USR-TRACK-001`, `E2E-01`),
+  then the P0 privacy/integrity cases (`USR-SEC-001…007`, `USR-ERR-007/008`,
+  `USR-API-005/007`). Record Pass/Fail/Blocked and evidence in
+  `docs/USER_SIDE_TEST_CASES.md` §20; do not mark anything TESTED/VALIDATED
+  until that record contains real results.
 
 **AI evaluation (DATASET REQUIRED, DEC-005):**
 
@@ -316,6 +329,14 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 ## 6. Known issues / risks
 
+- **Citizen-side audit findings (2026-10-21, static/unexecuted):** the full
+  30-item register is `docs/USER_SIDE_TEST_CASES.md` §18. Highest-risk items
+  to confirm first: public/non-owner grievance lookup returns title/status/
+  category/priority/departmentId for sequential IDs (G-04/G-05), citizens
+  cannot see resolution/closure/rejection text or real transition history
+  (G-01/G-02), retries after a lost submit response can duplicate (G-08), and
+  an image-LLM failure can return 500 and block a photo submission (G-10).
+  These are inspection findings, not executed defects.
 - Firebase API key compromised in git history (rotation pending); Atlas
   credentials weak + allowlist unset.
 - `/health` reports configuration, not DB reachability (by design; `/readyz` missing).
@@ -371,11 +392,16 @@ only — humans retain assignment, escalation, resolution and closure authority
 
 ## 8. Suggested next steps
 
-1. Fresh full pytest run; triage the baseline failures (§5).
-2. Verify the DEC-046 Render release: Twilio OTP to the verified number, then
+1. Execute the citizen-side P0 suite and record results in
+   `docs/USER_SIDE_TEST_CASES.md` §20; confirm and fix G-04/G-05 (cross-user/
+   public read), G-01/G-02 (outcome/history visibility), G-08 (retry
+   duplicates) and G-10 (image-AI blocking) before claiming the citizen
+   experience is VALIDATED.
+2. Fresh full pytest run; triage the baseline failures (§5).
+3. Verify the DEC-046 Render release: Twilio OTP to the verified number, then
    superadmin password + face 2FA and citizen face login; start DLT registration
    for full citizen SMS.
-3. Security hardening batch: rate limits, SSRF, Cloudinary auth, key rotations (§4).
-4. Pick the next AI module (AI-01, AI-07 or AI-10) and persist analysis results
+4. Security hardening batch: rate limits, SSRF, Cloudinary auth, key rotations (§4).
+5. Pick the next AI module (AI-01, AI-07 or AI-10) and persist analysis results
    with module id/model version.
-5. Work the manual/live validation queue (§5) as credentials/hardware become available.
+6. Work the manual/live validation queue (§5) as credentials/hardware become available.
