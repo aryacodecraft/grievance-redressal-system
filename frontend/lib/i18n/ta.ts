@@ -141,7 +141,7 @@ const ta: Messages = {
   refIdLabel: "குறிப்பு சீட்டு ID",
   // Quality gate citizen messages (DEC-049)
   formGenuineHint:
-    "Please describe a real public issue (e.g. broken road, water leak, garbage, power outage). Submissions that are not genuine civic complaints will be flagged for review.",
+    "Please describe a real public issue (e.g. broken road, water leak, garbage, power outage). Clearly unrelated or non-genuine submissions will be rejected before registration.",
   resultFlaggedTitle: "Complaint Registered — Pending Review",
   resultFlaggedSubtitle: "Your complaint has been registered. Save this reference ID.",
   resultFlaggedWarning:

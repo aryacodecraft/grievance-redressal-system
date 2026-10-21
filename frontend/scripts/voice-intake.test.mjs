@@ -160,6 +160,12 @@ test("reducer suppresses redundant questions, supports failures and resets", () 
   state = intakeReducer(state, { type: "RETRY" });
   assert.equal(state.phase, "processing", "extract retries re-run the extraction");
 
+  state = base({ phase: "processing", utterances: ["tell me a joke"] });
+  state = intakeReducer(state, { type: "FAILED", step: "extract", errorKey: "voiceIrrelevant" });
+  assert.equal(state.phase, "error");
+  assert.equal(state.errorKey, "voiceIrrelevant");
+  assert.deepEqual(state.utterances, [], "irrelevant utterance is pruned so it does not poison subsequent input");
+
   state = intakeReducer(state, { type: "RESET" });
   assert.deepEqual(state, initialIntakeState);
 
@@ -298,7 +304,7 @@ test("missing token never calls the network", async () => {
   await assert.rejects(api.extractVoiceIntake({ utterances: ["x"], language: "en-IN" }), (error) => error.status === 401);
 });
 
-for (const status of [400, 502, 503, 504]) {
+for (const status of [400, 422, 502, 503, 504]) {
   test(`HTTP ${status} is surfaced once without automatic retries`, async () => {
     tokens.delete("grievai-refresh-token");
     let calls = 0;

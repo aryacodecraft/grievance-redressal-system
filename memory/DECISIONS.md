@@ -2300,7 +2300,8 @@ face templates are untouched unless re-enrolled.
 
 **Scope update:** Superseded by DEC-057 for clearly non-civic text, which is
 rejected before persistence; uncertain submissions remain available for
-officer review.
+officer review. DEC-064 further changes quality-check negatives from flagged
+records to pre-persistence rejection; legacy flagged records remain reviewable.
 
 **Context:** Citizens occasionally submit non-civic questions (e.g. arithmetic like "what is the answer of 1+2?"), tests, or irrelevant queries. Previously, the backend accepted and persisted these records under the `other` category without explicit quality feedback. The citizen received a standard success confirmation, but officers had no clear way to filter, detect, or review suspicious submissions across department queues. The user required that:
 1. Citizens are warned both in text and voice not to submit fake or irrelevant grievances.
@@ -2689,7 +2690,8 @@ See `docs/API.md` and the classification audit report.
 outcome handling or provider fallback behavior.
 
 **Scope update:** DEC-062 adds a separate clear non-civic intent gate; this
-decision still protects punctuation-only and numeric-only input.
+decision still protects punctuation-only and numeric-only input. DEC-064
+broadens the gate and rejects explicit negative quality-check results.
 
 ---
 
@@ -2763,3 +2765,63 @@ reviewable. See `docs/API.md`, `docs/AI_SYSTEM.md`, and
 
 **Reversible:** Remove the 422 prefilter and restore DEC-049 flagging for all
 submissions if product policy changes; retain a local review fallback.
+
+---
+
+## DEC-063 — Apply Civic Relevance Validation to Conversational Audio Complaints (2026-10-20)
+
+**Context:** The manual text grievance form rejected clearly irrelevant submissions
+such as "Tell me a joke" with HTTP 422 under DEC-062. However, conversational
+voice intake (`POST /grievance-intake/extract`) did not enforce the same gate
+on citizen utterances, allowing Groq LLM to paraphrase irrelevant speech into
+formalized draft complaint fields which could then bypass the regex filter or
+confuse citizens.
+
+**Decision:** Reuse the shared backend civic relevance gate (`is_clearly_out_of_scope`
+from `backend/app/services/classification.py`) directly in `extract_fields` before
+calling the LLM and after field extraction. Reject clearly non-civic speech with
+HTTP 422 and the exact same validation message as manual text submission:
+`"Please describe a problem related to a public service or civic issue. Add what happened and where it is affecting you."`.
+Reject punctuation/symbol-only audio input with HTTP 400. Map HTTP 422 in the
+frontend voice intake error handler to `voiceIrrelevant`, prune the failed utterance
+in `intakeReducer` to prevent conversational contamination, and display the
+localized guidance prompt. Preserve the fail-open human-review policy for
+ambiguous or uncertain civic text.
+
+**Verification:** Offline route regressions assert the requested irrelevant audio
+examples ("Tell me a joke", "What is 1+2?") create no record, reference ID,
+notification, or department assignment; civic and ambiguous complaints remain
+accepted into classification and human review. 16 tests in
+`tests/test_audio_civic_relevance.py` and 82 frontend voice tests passed.
+
+**Reversible:** Remove the intake prefilter if voice intake should pass all raw
+utterances to the LLM without pre-extraction relevance gating.
+
+---
+
+## DEC-064 — Reject Explicitly Non-Genuine Submissions Before Creation (2026-10-21)
+
+**Context:** The deterministic gate rejected recognizable irrelevant requests,
+but missed arbitrary random strings. The existing Groq quality check could
+identify non-genuine text yet only added a suspicious flag to a persisted
+grievance, so an explicit rejection result still created an ID and record.
+
+**Decision:** Extend the local gate to cover broad educational requests and
+long random Latin strings while preserving plausible short, misspelled and
+Hindi/Hinglish civic reports. Run the existing quality check for each manual
+submission that passes the local gate. An explicit boolean/string negative
+returns HTTP 422 before classification, image validation, reference generation,
+persistence, assignment or notification. Do not add a provider or require a
+new credential. Preserve the fail-open fallback on provider/parse errors so
+genuine complaints are not blocked by an outage; describe this as a prototype
+gate with residual false-negative risk, not a guarantee of perfect detection.
+The shared deterministic policy also applies to conversational audio intake.
+
+**Consequences:** One additional bounded Groq quality call may run for each
+submission that passes the local gate, with added latency/cost when configured.
+Legacy DEC-049 flagged records remain visible; new explicit negative results
+are rejected rather than stored.
+
+**Verification:** Regression tests cover the screenshot's Python-learning
+request, random-string example, explicit quality negatives, no-record/no-
+notification behavior, and civic/Hinglish acceptance.

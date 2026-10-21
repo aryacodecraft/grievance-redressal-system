@@ -38,7 +38,6 @@ from ..services.image import llm_image_confidence
 from ..repositories.notifications import notif_repository
 from ..services.departments import canonical_department
 from ..services.quality_check import check_quality
-from ..services.quality_check import check_quality
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter()
@@ -77,9 +76,9 @@ def submit_grievance(
             },
         )
 
-    # Reject only locally recognizable, clearly non-civic intent. Keep this
-    # before image/provider validation, classification, reference generation,
-    # persistence, notifications and SMS; uncertain text stays reviewable.
+    # Reject locally recognizable non-civic intent before any providers or
+    # grievance-specific side effects. The quality check below evaluates all
+    # remaining input; uncertainty alone is not treated as proof of bad intent.
     if is_clearly_out_of_scope(full_text):
         logger.info("grievance submission rejected reason=clearly_out_of_scope")
         return JSONResponse(
@@ -95,7 +94,31 @@ def submit_grievance(
     image_url = payload.imageUrl
     image_validation_result = None
 
-    # 1. LLM image validation (rejection is decided here, before we store)
+    # The quality check is applied to every submission that passes the local
+    # gate. An explicit non-genuine result is a rejection, before category or
+    # image providers, reference-ID generation, persistence, or notifications.
+    # Provider failures retain the documented fail-open fallback for citizens.
+    with classification_budget():
+        try:
+            quality_result = check_quality(title, description)
+        except Exception:
+            logger.exception("quality check failed")
+            quality_result = {"is_genuine": True, "reason": "quality check error"}
+
+    if quality_result.get("is_genuine") is False:
+        logger.info("grievance submission rejected reason=not_genuine")
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": (
+                    "This does not appear to describe a genuine public-service "
+                    "or civic complaint. Please describe the real issue you are facing."
+                )
+            },
+        )
+
+    # Preserve the existing ordering of image validation and classification,
+    # while keeping both behind the local and quality rejection gates.
     if image_url:
         try:
             llm_res = llm_image_confidence(image_url)
@@ -125,8 +148,8 @@ def submit_grievance(
                 },
             )
 
-    # 2. Classification cascade (local model → local scope/keyword policy →
-    # scoped provider fallback). The budget bounds provider time.
+    # Classification cascade (local model → local scope/keyword policy →
+    # scoped provider fallback). The budget bounds combined provider time.
     with classification_budget():
         try:
             cat_res = classify_category(full_text)
@@ -154,16 +177,6 @@ def submit_grievance(
 
         hf_raw_label = cat_res.get("rawLabel", "")
         keywords = extract_keywords(full_text)
-
-        # The optional quality classifier is useful only when the local
-        # category cascade abstains. Avoid an external call on every submission;
-        # provider failures remain fail-open for uncertain civic complaints.
-        quality_result = {"is_genuine": True, "reason": "quality check skipped"}
-        if cat_res.get("categoryOutcome") == "uncertain":
-            try:
-                quality_result = check_quality(title, description)
-            except Exception:
-                quality_result = {"is_genuine": True, "reason": "quality check error"}
 
     priority = hf_priority
     category = hf_category

@@ -7,6 +7,33 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-21 — DEC-064 verification
+
+- Focused civic, quality, audio, voice, transcription and WAV suites: 150 passed.
+- Focused endpoint submission tests: 16 passed; frontend voice suite: 82 passed.
+- API contract, TypeScript, Next.js production build (20/20 static pages) and diff whitespace checks passed.
+
+## 2026-10-21 — Reject explicit non-genuine submissions (DEC-064)
+
+- Extended the shared local relevance gate to reject educational requests and structurally random long Latin text, including the shown Python-learning and gibberish examples.
+- Quality-check every submission that passes the local gate; an explicit negative now returns HTTP 422 before image/category processing or grievance side effects. Provider failures remain fail-open.
+- Added repeated-submit, no-side-effect, audio reuse, and explicit negative regressions. Quality check now uses the existing Groq integration on all locally accepted submissions, increasing its per-submission latency/cost when configured.
+
+## 2026-10-21 — Documented and reverified audio relevance lifecycle (DEC-063)
+
+- Clarified in `docs/VOICE_ASSISTED_COMPLAINT.md` that `/transcribe` is transcript-only, extraction rejects clearly irrelevant text before provider calls, and final edited fields are rechecked by `/submit-grievance` before grievance side effects.
+- Verification: 137 focused backend tests, 16 submission tests, 82 voice tests, API contract check and TypeScript passed; production build result recorded in the session log.
+
+## 2026-10-20 — Civic relevance validation applied to audio complaints (DEC-063)
+
+- Enforced backend civic relevance gate (`is_clearly_out_of_scope` from `backend/app/services/classification.py`) on voice complaints during conversational field extraction (`POST /grievance-intake/extract` -> `extract_fields()`).
+- Rejects non-civic utterances (e.g., jokes, arithmetic, general queries) with HTTP 422 before field extraction, preventing LLMs from converting irrelevant speech into spurious complaint records.
+- Enforced non-empty alphanumeric validation (HTTP 400) for punctuation/symbol-only audio.
+- Re-validates extracted draft `title` and `description` to ensure downstream submission to `POST /submit-grievance` adheres to the identical civic relevance gate.
+- Frontend voice intake gracefully handles HTTP 422 with localized civic guidance copy in English, Hindi, and Marathi (`voiceIrrelevant`), automatically pruning invalid utterances so retries start clean.
+- Added comprehensive offline regression suite `tests/test_audio_civic_relevance.py` covering all 11 required scenarios (16 passed).
+- Verification: 121 backend civic & voice tests passed, 16 focused submission tests passed, 82 frontend voice tests passed, contract check clean, `npx tsc --noEmit` 0 errors, Next.js production build green (20/20 static pages).
+
 ## 2026-10-20 — Reject clearly non-civic submissions before workflow creation (DEC-057)
 
 - Added a deterministic local intent gate for clear arithmetic, joke/creative,

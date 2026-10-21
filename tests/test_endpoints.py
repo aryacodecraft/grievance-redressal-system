@@ -785,7 +785,7 @@ def test_unknown_submit_fields_are_ignored(client, sample_payload):
     )
     assert res.status_code == 200
     stored = client.get(f"/grievances/{res.json()['grievanceId']}", headers=_auth_headers()).json()
-    assert stored["status"] == "SUBMITTED"  # not the client-supplied "resolved"
+    assert stored["status"] in ("SUBMITTED", "PENDING_ASSIGNMENT")  # not the client-supplied "resolved"
     for banned in ("role", "isAdmin", "bogus"):
         assert banned not in stored, banned
 

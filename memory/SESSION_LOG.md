@@ -1308,3 +1308,74 @@ Owner: "the newle added dashboards arent working, if its possible to make them w
 - `cd frontend && npx eslint components/admin/AdminAnalytics.tsx components/charts/AnalyticsCharts.tsx`: 0 errors, 0 warnings.
 - `node frontend/scripts/check-contract.mjs`: 21 passed.
 - `cd frontend && npm run build`: 20/20 static pages compiled successfully.
+
+---
+
+## 2026-10-20 — Civic Relevance Validation Applied to Audio Complaints (DEC-063)
+
+### Request
+Owner: Apply civic relevance validation to audio complaints so manual and audio complaints follow the same backend relevance policy. Clearly irrelevant submissions (e.g. "Tell me a joke", "What is 1+2?") must be rejected with HTTP 422 before any grievance ID, DB record, assignment, or side effects are generated. Unclear/empty audio must be handled safely, valid civic complaints accepted, and edited transcripts revalidated.
+
+### What changed
+- `backend/app/services/grievance_intake.py`:
+  - Imported `is_clearly_out_of_scope` from `backend.app.services.classification`.
+  - In `extract_fields()`, validated combined utterances `full_text`: enforces at least one alphanumeric character (HTTP 400) and checks `is_clearly_out_of_scope(full_text)` and individual utterances (HTTP 422).
+  - Re-validates extracted `title` and `description` with `is_clearly_out_of_scope` before returning draft fields.
+- `frontend/lib/i18n/voice.ts`:
+  - Added localized `voiceIrrelevant` copy across `voiceEn`, `voiceHi`, and `voiceMr`: "Please describe a problem related to a public service or civic issue. Add what happened and where it is affecting you."
+- `frontend/lib/voice/errors.ts`:
+  - Added mapping for HTTP status 422 to `"voiceIrrelevant"`.
+- `frontend/lib/voice/intake.ts`:
+  - In `intakeReducer` under `FAILED`, pruned the invalid utterance from `state.utterances` when `errorKey === "voiceIrrelevant"` to prevent poisoning subsequent retries.
+- `frontend/components/grievance/VoiceIntake.tsx`:
+  - Displayed `t("voiceIrrelevant")` when `state.errorKey === "voiceIrrelevant"`.
+  - In `retry()`, reset capture session on `voiceIrrelevant` so user can speak their actual issue.
+- `tests/test_endpoints.py`:
+  - Fixed line 788 assertion to accept canonical state `PENDING_ASSIGNMENT`.
+- `tests/test_audio_civic_relevance.py` (new):
+  - 16 regression tests covering all 11 prompt scenarios: joke/math rejection, valid road/Hindi water acceptance, empty/symbol rejection, provider timeout/error handling, ambiguous complaint review, edited transcript revalidation (irrelevant->civic & civic->irrelevant), direct endpoint bypass prevention, and manual/audio compatibility.
+- `frontend/scripts/voice-intake.test.mjs` & `frontend/scripts/voice-intake-ui.test.mjs`:
+  - Added frontend test cases for HTTP 422 mapping, utterance pruning, and UI error display.
+- Documentation & Memory:
+  - Recorded DEC-063 in `memory/DECISIONS.md`.
+  - Updated `memory/CURRENT_STATE.md`, `docs/AI_SYSTEM.md`, `docs/API.md`, `memory/CHANGELOG.md`, and this log.
+
+### Verification
+- Pytest `tests/test_audio_civic_relevance.py`: 16 passed.
+- Pytest `test_civic_relevance.py`, `test_audio_civic_relevance.py`, `test_transcription.py`, `test_voice_intake.py`: 121 passed.
+- Pytest `tests/test_endpoints.py -k submit`: 16 passed.
+- Frontend voice suite `npm run test:voice`: 82 passed.
+- Frontend contract check `node frontend/scripts/check-contract.mjs`: passed.
+- TypeScript check `npx tsc --noEmit`: 0 errors.
+- Webpack production build `npm run build`: passed (20/20 static pages compiled).
+- Git diff whitespace check `git diff --check`: 0 errors.
+
+## 2026-10-21 — Verify audio civic relevance lifecycle (DEC-063)
+
+### What changed
+- Documented the transcript-only `/transcribe` stage, shared pre-extraction gate, final edited-field revalidation, recoverable transcript errors, and no-side-effect rejection boundary in `docs/VOICE_ASSISTED_COMPLAINT.md`.
+- Kept the existing checkout and working tree intact; the checked-out branch is `main`.
+
+### Verification
+- Backend audio/voice/transcription/relevance suites: 137 passed; focused submit suite: 16 passed.
+- Frontend voice suite: 82 passed; contract check and `tsc --noEmit` passed.
+- Next.js production build completed successfully with 20/20 static pages generated; `git diff --check` passed.
+
+## 2026-10-21 — Reject non-genuine submissions before creation (DEC-064)
+
+### Request
+- Owner asked to reject non-genuine complaints rather than merely flagging them, after the examples showed arbitrary text accepted and a generic educational request surfaced validation.
+
+### What changed
+- Extended shared local intent validation for educational prompts and long random Latin text; manual and conversational audio paths both reuse it.
+- The existing Groq quality check now runs on every submission that passes the local gate. A valid explicit negative returns HTTP 422 before image/category work, reference generation, persistence, or notification.
+- Updated the citizen hint to say clear non-genuine submissions are rejected. Updated API, AI, workflow and memory documentation.
+- Kept provider failures fail-open to avoid blocking genuine complaints when Groq is unavailable. Detection remains experimental and is not guaranteed complete; each configured submission now incurs an additional quality-model call.
+
+### Verification
+- Pending focused backend, voice, TypeScript, and production-build results for this entry.
+
+### Verification addendum
+- Focused civic, quality, audio, voice, transcription, limits and WAV suites: 150 passed.
+- Focused endpoint submission tests: 16 passed; frontend voice suite: 82 passed.
+- Contract check and TypeScript passed; production build generated all 20 static pages; `git diff --check` passed.

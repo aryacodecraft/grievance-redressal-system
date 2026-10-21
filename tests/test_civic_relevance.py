@@ -21,8 +21,12 @@ def _auth_headers():
         ("Joke", "Tell me a joke.", 422),
         ("Cricket", "Who won yesterday's cricket match?", 422),
         ("Science", "Explain photosynthesis.", 422),
+        ("Teach me Python", "Explain Python loops with examples.", 422),
+        ("Python", "Teach me Python.", 422),
+        ("Pothole", "What is a pothole?", 422),
         ("Hello", "Hello", 422),
         ("Test", "asdfghjkl", 422),
+        ("efjbrjsfbjrfbr", "wefu,eafnwoifjrgml.gemreklgmkreag", 422),
         ("!!!", "!!!@@@###", 400),
     ],
 )
@@ -41,21 +45,22 @@ def test_clearly_irrelevant_submission_has_no_side_effects(
     monkeypatch.setattr(router.repository, "create", unexpected)
     monkeypatch.setattr(router.notif_repository, "create", unexpected)
 
-    response = client.post(
-        "/submit-grievance",
-        json={
-            "title": title,
-            "description": description,
-            # Relevance rejection must precede the optional image provider.
-            "imageUrl": "https://example.invalid/irrelevant.jpg",
-        },
-        headers=_auth_headers(),
-    )
+    for _attempt in range(2):
+        response = client.post(
+            "/submit-grievance",
+            json={
+                "title": title,
+                "description": description,
+                # Relevance rejection must precede the optional image provider.
+                "imageUrl": "https://example.invalid/irrelevant.jpg",
+            },
+            headers=_auth_headers(),
+        )
 
-    assert response.status_code == expected_status
-    assert "grievanceId" not in response.json()
-    if expected_status == 422:
-        assert "public service or civic issue" in response.json()["error"]
+        assert response.status_code == expected_status
+        assert "grievanceId" not in response.json()
+        if expected_status == 422:
+            assert "public service or civic issue" in response.json()["error"]
     assert router.repository.list() == []
     assert client.get("/notifications", headers=_auth_headers()).json() == []
 
@@ -115,4 +120,6 @@ def test_civic_words_do_not_turn_general_information_into_a_complaint():
     assert is_clearly_out_of_scope("What is electricity?")
     assert is_clearly_out_of_scope("What does electricity mean?")
     assert is_clearly_out_of_scope("I am writing an essay about roads and buses.")
+    assert is_clearly_out_of_scope("What is a pothole?")
+    assert is_clearly_out_of_scope("Teach me Python. Explain Python loops with examples.")
     assert not is_clearly_out_of_scope("What is the problem with the water supply?")

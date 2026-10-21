@@ -19,7 +19,7 @@ import time
 from fastapi import HTTPException
 
 from .. import config
-from .classification import _extract_json
+from .classification import _extract_json, is_clearly_out_of_scope
 
 logger = logging.getLogger("grievance-api")
 
@@ -288,6 +288,22 @@ def extract_fields(payload) -> dict:
         raise HTTPException(400, "language must be one of en-IN, hi-IN, mr-IN")
     asked = _clean_asked(payload.asked_questions)
 
+    # Reject text without letters (punctuation or numbers only)
+    full_text = " ".join(utterances).strip()
+    if not any(c.isalpha() for c in full_text):
+        raise HTTPException(
+            400,
+            "Please describe the issue using words; punctuation or symbols alone are not enough.",
+        )
+
+    # Civic relevance gate: reuse the existing classifier gate before calling
+    # external LLM providers or formalizing complaint fields.
+    if is_clearly_out_of_scope(full_text) or any(is_clearly_out_of_scope(u) for u in utterances):
+        raise HTTPException(
+            422,
+            "Please describe a problem related to a public service or civic issue. Add what happened and where it is affecting you.",
+        )
+
     prompt = _build_prompt(utterances, language, payload.draft, asked)
     raw = _call_llm(prompt)
     parsed = _extract_json(raw)
@@ -300,4 +316,17 @@ def extract_fields(payload) -> dict:
     # silently dropping them (the transcript is theirs, not an inference).
     if fields["description"] is None:
         fields["description"] = _clean_str(" ".join(utterances), MAX_DESCRIPTION_CHARS)
+
+    # Re-validate the final extracted complaint title/description against the
+    # shared civic relevance gate before returning draft fields to caller.
+    extracted_text = f"{fields.get('title') or ''}\n{fields.get('description') or ''}".strip()
+    if extracted_text and (
+        is_clearly_out_of_scope(extracted_text)
+        or (fields.get("description") and is_clearly_out_of_scope(fields["description"]))
+    ):
+        raise HTTPException(
+            422,
+            "Please describe a problem related to a public service or civic issue. Add what happened and where it is affecting you.",
+        )
+
     return fields

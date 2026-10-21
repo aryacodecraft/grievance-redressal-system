@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
@@ -25,10 +26,21 @@ else:
 
 logger = logging.getLogger("grievance-api")
 
+
+def _clean_origin(raw: str) -> str:
+    raw = raw.strip()
+    if not raw or raw == "*":
+        return raw
+    parsed = urlsplit(raw)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return raw.rstrip("/")
+
+
 # --- Server ---------------------------------------------------------------
 PORT = int(os.getenv("PORT", "10000"))
 CORS_ORIGINS = [
-    origin.strip().rstrip("/")
+    _clean_origin(origin)
     for origin in os.getenv("CORS_ORIGINS", "*").split(",")
     if origin.strip()
 ] or ["*"]
@@ -85,7 +97,7 @@ SEED_TEST_PASSWORD = os.getenv("SEED_TEST_PASSWORD", "")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 # URL where the Next.js frontend is hosted (used for OAuth redirects)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+FRONTEND_URL = _clean_origin(os.getenv("FRONTEND_URL", "http://localhost:3000"))
 
 # --- Face authentication (opt-in; DEC-024) ----------------------------------
 # Master switch. When false every /auth/face route answers 404 and the UI

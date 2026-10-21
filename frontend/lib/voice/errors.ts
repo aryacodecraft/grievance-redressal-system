@@ -17,6 +17,7 @@ export function voiceErrorMessage(error: unknown): MessageKey {
   if (status === 429) return "voiceRateLimit";
   if (status === 409) return "voiceConflict";
   if (status === 408 || status === 504) return "voiceTimeout";
+  if (status === 422) return "voiceIrrelevant";
   return "voiceFailure";
 }
 

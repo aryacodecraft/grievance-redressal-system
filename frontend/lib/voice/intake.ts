@@ -224,7 +224,16 @@ export function intakeReducer(state: IntakeState, action: IntakeAction): IntakeS
     case "QUESTION_SKIPPED":
       return { ...state, pending: null, phase: "ready_for_review" };
     case "FAILED":
-      return { ...state, phase: "error", failedStep: action.step, errorKey: action.errorKey };
+      return {
+        ...state,
+        phase: "error",
+        failedStep: action.step,
+        errorKey: action.errorKey,
+        utterances:
+          action.errorKey === "voiceIrrelevant" && state.utterances.length
+            ? state.utterances.slice(0, -1)
+            : state.utterances,
+      };
     case "RETRY":
       return {
         ...state,

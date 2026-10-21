@@ -409,6 +409,19 @@ test("extraction failure offers a retry and never blocks manual submission", asy
   assert.equal(apiCalls.submit[0][0].title, manualTitle);
 });
 
+test("irrelevant transcription triggers civic relevance validation error", async () => {
+  apiScript.extract = async () => {
+    throw Object.assign(new Error("Please describe a problem related to a public service or civic issue. Add what happened and where it is affecting you."), { status: 422 });
+  };
+  await mount();
+  await click("Tell us your problem");
+  await typedAnswer("Tell me a joke");
+
+  assert.match(container.textContent, /Please describe a problem related to a public service or civic issue/);
+  assert.ok(button("Try again"));
+});
+
+
 test("mode switching preserves the draft and the conversation", async () => {
   await mount();
   await setNativeValue(container.querySelector("input"), "Citizen's manual title");

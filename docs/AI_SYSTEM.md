@@ -128,17 +128,19 @@ The production algorithm remains the existing LogisticRegression model.
 ### Civic relevance gate
 
 Before image validation, classifier/provider calls, reference generation or
-persistence, a local deterministic gate rejects only recognizable,
-clearly non-civic intent (for example arithmetic, joke/creative requests,
-plain greetings, keyboard-row gibberish, sports results and generic definition
-requests without civic-problem language). Punctuation-only input remains a
-separate basic validation error. The gate checks request intent, not just
-whether civic nouns such as "road", "water" or "hospital" appear. Ambiguous,
-short, misspelled and multilingual complaints are not rejected on category
-uncertainty; the existing `other` queue remains the human-review path. The
-optional quality classifier runs only after local category abstention and is
-fail-open. This is an explainable baseline with false-positive and
-false-negative risk, not a validated relevance model.
+persistence, a local deterministic gate rejects clearly non-civic requests
+(for example arithmetic, joke/creative/educational requests, plain greetings,
+keyboard walks and long random Latin strings). Punctuation-only input remains
+a separate basic validation error (HTTP 400). The same gate runs in manual
+submission and conversational voice intake (DEC-063). Remaining manual
+submissions pass through the existing Groq quality check before classification
+and image validation; an explicit `is_genuine=false` result returns HTTP 422
+before a grievance record or reference ID is created. Provider or parse failures
+remain fail-open so a transient outage does not block genuine complaints.
+Uncertain, short, misspelled and multilingual complaints are not rejected solely
+for category uncertainty. The deterministic checks and quality prompt are
+experimental, have false-positive and false-negative risk, and do not guarantee
+that every non-genuine submission will be detected.
 
 Water is accepted only when the shared local policy finds an explicit Water
 service issue phrase and no comparably strong competing civic-domain signal.

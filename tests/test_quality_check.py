@@ -36,6 +36,50 @@ def test_quality_check_malformed_json_fails_safe():
         assert "failed" in res["reason"] or "fallback" in res["reason"]
 
 
+def test_quality_check_parses_string_false_as_false():
+    with patch(
+        "backend.app.services.quality_check._groq_complete",
+        return_value='{"is_genuine": "false", "reason": "Not a civic complaint."}',
+    ):
+        res = check_quality("Title", "Description")
+    assert res["is_genuine"] is False
+
+
+def test_explicit_quality_rejection_prevents_all_grievance_side_effects(client, monkeypatch):
+    from backend.app.routers import grievances as router
+    from tests.test_endpoints import _auth_headers
+
+    def unexpected(*_args, **_kwargs):
+        raise AssertionError("explicitly non-genuine text reached downstream processing")
+
+    monkeypatch.setattr(router, "check_quality", lambda *_args: {
+        "is_genuine": False, "reason": "This is not a real service complaint."
+    })
+    monkeypatch.setattr(router, "classify_category", unexpected)
+    monkeypatch.setattr(router, "classify_priority", unexpected)
+    monkeypatch.setattr(router, "llm_image_confidence", unexpected)
+    monkeypatch.setattr(router.repository, "create", unexpected)
+    monkeypatch.setattr(router.notif_repository, "create", unexpected)
+
+    res = client.post(
+        "/submit-grievance",
+        json={
+            "title": "A fictional issue",
+            "description": "This is not a real complaint.",
+            "imageUrl": "https://example.invalid/photo.jpg",
+        },
+        headers=_auth_headers("quality-reject-citizen"),
+    )
+
+    assert res.status_code == 422
+    assert "genuine" in res.json()["error"].lower()
+    assert "grievanceId" not in res.json()
+    assert router.repository.list() == []
+    assert client.get(
+        "/notifications", headers=_auth_headers("quality-reject-citizen")
+    ).json() == []
+
+
 def test_submit_rejects_clear_non_civic_text_before_quality_provider(client, monkeypatch):
     """A local clear-relevance rejection must not reach the optional Groq check."""
     from tests.test_endpoints import _auth_headers

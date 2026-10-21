@@ -80,10 +80,11 @@ text and submit normally. See [VOICE_ASSISTED_COMPLAINT.md](VOICE_ASSISTED_COMPL
 |---|---|---|
 | 1 | User | Authenticates and navigates to grievance submission form |
 | 2 | User | Fills in: title, description, category (optional), attachments (optional) |
-| 3 | **[SYSTEM]** | Validates input and runs the local relevance gate; clearly unrelated text receives HTTP 422 before a reference, record, notification, or downstream processing is created |
-| 4 | **[SYSTEM]** | Status → SUBMITTED; creates `grievance_status_history` entry |
-| 5 | **[SYSTEM]** | Sends acknowledgement to user (in-app notification) |
-| 6 | **[SYSTEM]** | Triggers AI analysis pipeline asynchronously |
+| 3 | **[SYSTEM]** | Validates input and runs the local relevance gate; clearly unrelated text receives HTTP 422 before provider calls or grievance side effects |
+| 4 | **[AI/SYSTEM]** | Runs the existing quality check; an explicit non-genuine result receives HTTP 422 before image validation, reference generation, persistence, assignment, or notification. Provider failure remains fail-open |
+| 5 | **[SYSTEM]** | Status → SUBMITTED; creates `grievance_status_history` entry |
+| 6 | **[SYSTEM]** | Sends acknowledgement to user (in-app notification) |
+| 7 | **[SYSTEM]** | Triggers AI analysis pipeline asynchronously |
 
 ---
 

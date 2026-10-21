@@ -1017,11 +1017,35 @@ low|medium|high, all fields nullable and all ≤ their field caps.
 The service builds a strict-data prompt (framework-derived instructions, "never
 invent", one-question policy), calls Groq with the configured model then the
 verified fallback list, and deterministically post-validates (never trusts the
-model). Deep validation lives in the service so every rejection is a uniform
-`400`; failures are `503` (not configured), `504` (provider timeout, 25 s) and
-`502` (other provider failure). There are **no database writes and no
+model). Request-shape validation errors are `400`; the DEC-063 civic relevance
+gate returns `422` for clearly non-civic text. Provider failures are `503`
+(not configured), `504` (provider timeout, 25 s) and `502` (other provider
+failure). There are **no database writes and no
 idempotency cache** — the call is a pure transformation; the frontend's submit
 lock and state guards prevent duplicate conversation turns.
+
+### Civic relevance validation (DEC-063)
+
+The transcription endpoint (`POST /transcribe`) only returns speech text; it
+does not create a grievance. Conversational extraction (`POST
+/grievance-intake/extract`) reuses the same deterministic
+`is_clearly_out_of_scope` gate as manual submission before calling Groq and
+checks the extracted title/description again before returning draft fields.
+Clearly unrelated speech receives HTTP 422 with localized guidance. Empty or
+symbol-only speech receives HTTP 400 so the citizen can record again or switch
+to manual entry. Short, misspelled, multilingual and otherwise plausible but
+uncertain civic complaints continue through the existing clarification and
+human-review flow.
+
+The citizen still reviews and explicitly submits the shared draft. The final
+`POST /submit-grievance` request runs the same relevance gate against the
+current title and description, including any edits made after transcription,
+then runs the existing quality check; an explicit non-genuine result is HTTP
+422. Both checks run before image/category processing, reference-ID generation,
+persistence, assignment or notifications. Thus a direct request to either
+extraction or submission cannot use voice intake to bypass the manual policy.
+Transcription provider errors remain controlled failures and never produce a
+successful transcript or grievance.
 
 ### Frontend architecture
 

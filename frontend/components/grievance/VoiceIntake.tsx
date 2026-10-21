@@ -371,7 +371,10 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
     getPlayer().unlock();
     const generation = epoch.current;
     busy.current = true;
-    if (state.failedStep === "extract" && state.utterances.length) {
+    if (state.errorKey === "voiceIrrelevant") {
+      busy.current = false;
+      void start();
+    } else if (state.failedStep === "extract" && state.utterances.length) {
       dispatch({ type: "RETRY" });
       void extract(state.utterances, generation).finally(() => { busy.current = false; });
     } else if (state.failedStep === "transcribe" && audio.current) {
@@ -454,7 +457,7 @@ export function VoiceIntake({ intake, disabled, onSwitchManual }: {
     : state.phase === "processing" ? t("intakeThinking")
     : answering ? t("intakeAnswerHint")
     : state.phase === "ready_for_review" ? t("intakeReady")
-    : state.phase === "error" ? (state.failedStep === "extract" ? t("intakeExtractError") : t(state.errorKey ?? "voiceFailure"))
+    : state.phase === "error" ? (state.errorKey === "voiceIrrelevant" ? t("voiceIrrelevant") : state.failedStep === "extract" ? t("intakeExtractError") : t(state.errorKey ?? "voiceFailure"))
     : t("intakeDescribeHint");
 
   function send() {

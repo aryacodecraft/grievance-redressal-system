@@ -153,8 +153,9 @@ def test_garbage_llm_reply_is_a_502(client, monkeypatch):
 
 def test_overlong_fields_are_truncated_not_rejected(client, monkeypatch):
     stub_llm(monkeypatch, json.dumps({
-        "title": "T" * 400, "description": "D" * 5000,
-        "location_text": "L" * 400,
+        "title": "Broken streetlight " * 30,
+        "description": (GOOD + " ") * 100,
+        "location_text": "Ward 12 " * 50,
     }))
     data = post(client).json()
     assert len(data["title"]) == 120

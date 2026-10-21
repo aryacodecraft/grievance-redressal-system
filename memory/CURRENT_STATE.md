@@ -9,7 +9,7 @@
 > Decisions: `DECISIONS.md` (grep by topic). Status vocabulary: AGENTS.md
 > (PLANNED / IN PROGRESS / IMPLEMENTED / TESTED / VALIDATED / DEFERRED / OPTIONAL).
 >
-> **Last updated: 2026-10-20.** Keep this file current after every task — edit
+> **Last updated: 2026-10-21.** Keep this file current after every task — edit
 > it in place when implementation state or the backlog changes.
 
 ---
@@ -41,12 +41,13 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal — DEC-050), track
   (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
   DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.
-- **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
-  quality gate in the submit pipeline; non-civic or fake complaints (e.g. math queries,
-  riddles, gibberish, spam) are flagged with `qualityFlag="suspicious"` and reason,
-  warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
-  board under a dedicated "Flagged" filter and review badge without ever silently dropping
-  submissions. IMPLEMENTED, TESTED.
+- **Quality check & non-genuine submission rejection (DEC-064)** — deterministic
+  prefilter rejects clear non-civic/educational requests and long random Latin text;
+  existing Groq quality check now runs on every submission that passes the local gate,
+  and an explicit negative returns HTTP 422 before ID generation, record creation,
+  assignment, image validation or notifications. Provider failures remain fail-open;
+  no detector can guarantee perfect coverage. Legacy qualityFlag records remain
+  visible to staff. IMPLEMENTED, focused TESTED.
 - **Staff experience** — tabbed admin queue/board separating active/priority complaints from historical resolved archive with interactive triage metrics (DEC-051) + detail review modal, comprehensive executive analytics (DEC-054: trends area chart, grouped department performance bar chart, resolution times & SLA compliance metrics, complaint aging buckets, priority distribution, Leaflet hotspot density clustering, TF-IDF clusters, CSV export), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
   audit), account-scoped notifications. IMPLEMENTED, TESTED.
@@ -89,6 +90,14 @@ only — humans retain assignment, escalation, resolution and closure authority
   track-detail modal, voice summary, image upload and submit notification never
   show the AI category/department/priority/confidence; the triage diagnostic is
   staff-only and the confidence pill is gone everywhere.
+  **Civic relevance gate on audio complaints (DEC-063):** conversational voice
+  intake (`POST /grievance-intake/extract`) enforces the same pre-extraction
+  relevance gate (`is_clearly_out_of_scope`) as manual text submission; clearly
+  non-civic speech is rejected with HTTP 422 before LLM extraction. The shared
+  `/submit-grievance` route revalidates the final edited title/description before
+  reference generation and all persistence or notification side effects; empty
+  transcripts are recoverable HTTP 400s, and uncertain plausible complaints
+  remain on the existing clarification/human-review path.
   Stages 1–16 IMPLEMENTED; one live English smoke + a full live typed-path browser E2E
   (`GRV-2026-0015`, 2026-10-18) passed; live en/hi question playback verified 2026-10-19;
   live spoken hi/mr STT and a post-Stage-14 browser pass pending (§5).

@@ -23,8 +23,11 @@ grievance is created and no database is written; submission still goes through
 `POST /submit-grievance`. DEC-039 (Stage 13) replaced the free-text `question`
 with `question_kind` (`details` | `location` | `when` | `frequency` |
 `affected` | `danger` | `landmark` | `clarify` | `null`) so every question can
-be pre-recorded; `asked_questions` now carries kinds, not wording. Contract,
-question policy and errors:
+be pre-recorded; `asked_questions` now carries kinds, not wording. DEC-063
+applies the shared backend civic relevance gate (`is_clearly_out_of_scope`):
+clearly non-civic speech (e.g. math questions, joke requests, greetings,
+keyboard-walks) is rejected with HTTP 422 before LLM processing, complaint draft
+extraction, or grievance persistence. Contract, question policy and errors:
 [Voice-assisted complaints](VOICE_ASSISTED_COMPLAINT.md).
 
 Development: `http://localhost:10000`
@@ -55,11 +58,12 @@ Development: `http://localhost:10000`
 `POST /submit-grievance` returns `hfEngine.modelInfo.categoryOutcome` with one
 of `categorized`, `other`, or `uncertain`, alongside `categorySource` and
 `categoryConfidenceSemantics`. These fields describe the classifier result.
-Clearly non-civic text is rejected before classification; uncertain text is
-still accepted for the existing officer-review workflow. The persisted
-category remains the routing value (`other` is the general fallback queue).
-The separate `qualityFlag` marks uncertain content flagged by the optional
-quality check.
+Clearly non-civic text is rejected before provider work. Remaining submissions
+receive the existing quality check; an explicit non-genuine result returns HTTP
+422 before reference-ID generation or persistence. Provider failure remains
+fail-open. The persisted category remains the routing value (`other` is the
+general fallback queue) for submissions that pass validation. Existing
+`qualityFlag` values remain available for legacy records created under DEC-049.
 
 `categoryConfidence` is interpreted together with
 `categoryConfidenceSemantics`: `uncalibrated_model_probability` is the local
@@ -76,17 +80,20 @@ such submissions remain available for officer review.
 
 Before image validation, classifier/provider calls, reference-ID generation or
 any persistence, the submit route locally rejects clear non-civic intent with
-HTTP 422: supported patterns include arithmetic questions, joke/creative
-requests, general-information questions without civic-problem language, plain
-greetings, keyboard-row gibberish and sports-result questions. The response
+HTTP 422: supported patterns include arithmetic questions, joke/creative or
+educational requests, general-information questions without civic-problem
+language, plain greetings, keyboard walks, long random Latin strings and
+sports-result questions. The response
 contains an `error` asking the citizen to describe a public-service problem
 and where it is affecting them. It has no `grievanceId`; no grievance,
 notification, assignment or SMS side effect is created. This is a conservative
 prototype gate, not a complete language-understanding system. Ambiguous,
-short, misspelled and multilingual civic complaints continue to classification
-or the `other` officer-review path; a civic noun by itself does not make a
-generic information request a complaint. The optional quality classifier runs
-only when the local classifier abstains, and its failure remains fail-open.
+short, misspelled and multilingual civic complaints are not rejected solely
+because of category uncertainty; they continue unless the quality check
+explicitly identifies them as non-genuine. A civic noun by itself does not make
+a generic information request a complaint. The quality check runs on every
+submission that passes the local gate; provider and parse failures remain
+fail-open.
 
 Authenticated `RESOLVER` requests to `GET /grievances` are always restricted to
 the caller's `ownerId` assignments. A department filter is optional; omitting

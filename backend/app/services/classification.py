@@ -407,19 +407,20 @@ _CLEARLY_OUT_OF_SCOPE_PATTERNS = tuple(re.compile(pattern) for pattern in (
 ))
 
 
-_CIVIC_ISSUE_CUES = re.compile(
-    r"\b(?:issue|problem|complaint|not|no|never|broken|damaged|leak\w*|"
-    r"burst|flood\w*|pothol\w*|garbage|rubbish|sewage|blocked|overflow\w*|"
-    r"outage|blackout|cancel\w*|delay\w*|missing|unavailable|failure|failed|"
-    r"shortage|dirty|unsafe|not working|not collected|not responding|"
-    r"nahi|nahin|band|kharab|ruk\w*|toot\w*)\b",
+_CIVIC_PROBLEM_CONTEXT = re.compile(
+    r"\b(?:issue|problem|complaint|not|no|never|wrong|broken|damaged|leak\w*|"
+    r"burst|flood\w*|blocked|overflow\w*|outage|blackout|cancel\w*|delay\w*|"
+    r"missing|unavailable|failure|failed|shortage|dirty|unsafe|not working|"
+    r"not collected|not responding|nahi|nahin|band|kharab|ruk\w*|toot\w*)\b",
     re.IGNORECASE,
 )
 _GENERAL_INFORMATION_REQUEST = re.compile(
-    r"\b(?:what(?:'s|\s+is|\s+are|\s+does)|how\s+does|how\s+do|"
+    r"\b(?:what(?:'s|\s+is|\s+are|\s+does)|how\s+(?:does|do|to|can\s+i)|"
+    r"teach\s+me|help\s+me\s+learn|show\s+me\s+how|give\s+me\s+examples|"
     r"define|explain|definition\s+of|meaning\s+of|tell\s+me\s+about)\b",
     re.IGNORECASE,
 )
+_LATIN_WORD = re.compile(r"[a-z]+")
 _PLAIN_GREETING = re.compile(
     r"^\s*(?:(?:hi|hello|hey)(?:\s+there)?|good\s+morning|good\s+afternoon|"
     r"good\s+evening|how\s+are\s+you|namaste|नमस्ते|हाय)[.!?,\s]*$",
@@ -428,11 +429,45 @@ _PLAIN_GREETING = re.compile(
 _KEYBOARD_MASH = re.compile(r"^(?:asdfghjkl|qwertyuiop|zxcvbnm)[.!?,\s]*$", re.IGNORECASE)
 
 
+def _looks_like_random_latin_text(text: str) -> bool:
+    """Catch long random Latin strings without rejecting short/typo-heavy text."""
+    tokens = _LATIN_WORD.findall(text.lower())
+    total_letters = sum(map(len, tokens))
+    if (
+        len(tokens) == 1
+        and len(tokens[0]) >= 16
+        and sum(char in "aeiouy" for char in tokens[0]) / len(tokens[0]) < 0.16
+    ):
+        return True
+    if total_letters < 24:
+        return False
+
+    suspicious_letters = 0
+    suspicious_tokens = 0
+    for token in tokens:
+        if len(token) < 12:
+            continue
+        vowels = sum(char in "aeiouy" for char in token)
+        vowel_ratio = vowels / len(token)
+        longest_consonant_run = max(
+            (len(run) for run in re.findall(r"[^aeiouy]+", token)),
+            default=0,
+        )
+        if vowel_ratio < 0.24 or longest_consonant_run >= 6:
+            suspicious_letters += len(token)
+            suspicious_tokens += 1
+
+    if suspicious_tokens >= 2 and suspicious_letters >= 24:
+        return suspicious_letters / total_letters >= 0.4
+    return False
+
+
 def is_clearly_out_of_scope(text: str) -> bool:
     """Return true only for locally recognizable, clearly non-civic intent.
 
     This gate is deliberately asymmetric: strong non-civic request patterns,
-    plain greetings and keyboard walks are rejected; weak or missing civic
+    plain greetings, keyboard walks and structurally implausible long Latin
+    strings are rejected; weak or missing civic
     evidence remains eligible for the existing officer-review path. A civic
     noun alone does not rescue a generic information request, while problem
     language such as "water issue" or "what is wrong with the road" does.
@@ -440,6 +475,8 @@ def is_clearly_out_of_scope(text: str) -> bool:
     normalized = text.strip().lower()
     if not normalized:
         return False
+    if _looks_like_random_latin_text(normalized):
+        return True
     fragments = [fragment.strip() for fragment in normalized.splitlines() if fragment.strip()]
     if fragments and all(
         _PLAIN_GREETING.fullmatch(fragment) or _KEYBOARD_MASH.fullmatch(fragment)
@@ -457,7 +494,7 @@ def is_clearly_out_of_scope(text: str) -> bool:
         return True
     return bool(
         _GENERAL_INFORMATION_REQUEST.search(normalized)
-        and not _CIVIC_ISSUE_CUES.search(normalized)
+        and not _CIVIC_PROBLEM_CONTEXT.search(normalized)
     )
 
 
