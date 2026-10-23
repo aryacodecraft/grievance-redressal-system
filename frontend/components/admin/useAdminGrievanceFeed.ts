@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { subscribeGrievances } from "@/lib/grievances";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { subscribeGrievances, type GrievanceSubscription } from "@/lib/grievances";
 import { MOCK_GRIEVANCES } from "@/lib/mock";
 import { useDemoUser } from "@/lib/session";
 import type { Grievance } from "@/lib/types";
@@ -19,10 +19,15 @@ export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
 
   const [liveItems, setLiveItems] = useState<Grievance[] | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const subscriptionRef = useRef<GrievanceSubscription | null>(null);
+
+  const refreshGrievances = useCallback(async () => {
+    await subscriptionRef.current?.refresh();
+  }, []);
 
   useEffect(() => {
     if (!live || !user) return;
-    const unsub = subscribeGrievances(
+    const subscription = subscribeGrievances(
       user.id,
       user.email ?? null,
       (data) => {
@@ -35,7 +40,11 @@ export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
       },
       { scopeToUser, departmentId: user.role.toUpperCase() === "ADMIN" ? user.departmentId ?? undefined : undefined }
     );
-    return unsub;
+    subscriptionRef.current = subscription;
+    return () => {
+      subscription();
+      if (subscriptionRef.current === subscription) subscriptionRef.current = null;
+    };
   }, [live, user, scopeToUser]);
 
   const base = live ? liveItems : MOCK_GRIEVANCES;
@@ -47,5 +56,6 @@ export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
     error: liveError,
     live,
     user,
+    refreshGrievances,
   };
 }

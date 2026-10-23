@@ -12,6 +12,8 @@ export interface SubscribeOptions {
   departmentId?: string;
 }
 
+export type GrievanceSubscription = (() => void) & { refresh: () => Promise<void> };
+
 /**
  * Polling replacement for Firestore onSnapshot. Admins receive the
  * global newest-first list; citizens receive only their own grievances.
@@ -23,17 +25,19 @@ export function subscribeGrievances(
   onData: (items: Grievance[]) => void,
   onError: (message: string) => void,
   { intervalMs = 15000, scopeToUser, departmentId }: SubscribeOptions = {}
-): () => void {
+): GrievanceSubscription {
   let cancelled = false;
+  let requestVersion = 0;
 
   const load = async () => {
+    const version = ++requestVersion;
     try {
       const shouldScope =
         scopeToUser !== undefined ? scopeToUser : !isAdminEmail(email);
       const items = await listGrievances(shouldScope ? { userId } : { dept: departmentId });
-      if (!cancelled) onData(items);
+      if (!cancelled && version === requestVersion) onData(items);
     } catch (err) {
-      if (!cancelled) {
+      if (!cancelled && version === requestVersion) {
         onError(
           err instanceof Error ? err.message : "Failed to load grievances."
         );
@@ -44,10 +48,12 @@ export function subscribeGrievances(
   void load();
   const timer = setInterval(() => void load(), intervalMs);
 
-  return () => {
+  const unsubscribe = (() => {
     cancelled = true;
     clearInterval(timer);
-  };
+  }) as GrievanceSubscription;
+  unsubscribe.refresh = load;
+  return unsubscribe;
 }
 
 /** Single-grievance lookup for the Track page. */

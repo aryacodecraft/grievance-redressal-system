@@ -75,7 +75,7 @@ function SlaCell({ grievance }: { grievance: Grievance }) {
 }
 
 export function AdminBoard() {
-  const { items: feedItems, loading, error, live, user } = useAdminGrievanceFeed();
+  const { items: feedItems, loading, error, live, user, refreshGrievances } = useAdminGrievanceFeed();
   const { notify } = useToast();
   const userRole = user?.role?.toUpperCase();
   const departmentId = user?.departmentId;
@@ -266,10 +266,18 @@ export function AdminBoard() {
 
   async function handleEmployeeAssignment(employeeId: string) {
     if (!selected || !scopedDepartmentId) return;
-    if (live) await reassignGrievance(selected.id, { ownerId: employeeId, departmentId: scopedDepartmentId, reason: "Department manager assigned task to employee" });
+    if (!live) throw new Error("Employee assignment requires a live backend connection.");
+    await reassignGrievance(selected.id, { ownerId: employeeId, departmentId: scopedDepartmentId, reason: "Department manager assigned task to employee" });
     const currentState = (selected.state ?? selected.status).toUpperCase();
     const newlyAssigned = currentState === "PENDING_ASSIGNMENT" || currentState === "SUBMITTED";
-    patchLocal(selected.id, { ownerId: employeeId, state: newlyAssigned ? "ASSIGNED" : selected.state, status: newlyAssigned ? "ASSIGNED" : selected.status });
+    patchLocal(selected.id, {
+      ownerId: employeeId,
+      managerId: user?.id,
+      departmentId: scopedDepartmentId,
+      state: newlyAssigned ? "ASSIGNED" : selected.state,
+      status: newlyAssigned ? "ASSIGNED" : selected.status,
+    });
+    await refreshGrievances();
     notify("Task assigned", `${selected.id} was assigned to ${employees.find((employee) => employee.id === employeeId)?.full_name || "the selected employee"}.`);
   }
 
@@ -718,7 +726,9 @@ export function AdminBoard() {
                       </div>
                     </td>
                     <td className="hidden max-w-[180px] truncate px-4 py-3.5 text-xs text-ink-600 lg:table-cell">
-                      {g.assignee || <span className="text-ink-400">Unassigned</span>}
+                      {g.ownerId
+                        ? employees.find((employee) => employee.id === g.ownerId)?.full_name || "Assigned employee"
+                        : g.assignee || <span className="text-ink-400">Unassigned</span>}
                     </td>
                     <td className="px-4 py-3.5">
                       <SlaCell grievance={g} />
