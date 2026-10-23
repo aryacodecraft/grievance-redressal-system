@@ -87,7 +87,8 @@ export function AdminBoard() {
   useEffect(() => { if (isDepartmentManager) void listUsers().then((rows) => setEmployees((rows as DepartmentEmployee[]).filter((row) => row.role === "RESOLVER" && row.isActive !== false))).catch(() => setEmployees([])); }, [isDepartmentManager]);
 
   // Filtering & Sorting
-  const [queueTab, setQueueTab] = useState<"active" | "resolved">("active");
+  const [queueTab, setQueueTab] = useState<"active" | "closed">("active");
+  const [closedSubTab, setClosedSubTab] = useState<"all" | "resolved" | "rejected" | "invalid">("all");
   const [selectedDeptTab, setSelectedDeptTab] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -132,12 +133,18 @@ export function AdminBoard() {
       const p = (g.priority || "low").toLowerCase();
       const c = canonicalDepartmentId(g.departmentId ?? g.category);
       const s = (g.status || "open").toLowerCase();
-      const isResolved = s === "resolved" || s === "closed";
+      const isTerminal = s === "resolved" || s === "closed" || s === "rejected" || s === "invalid";
 
       // Tab separation (DEC-051):
-      // "active" queue hides resolved/closed; "resolved" archive shows only resolved/closed
-      if (queueTab === "active" && isResolved) return false;
-      if (queueTab === "resolved" && !isResolved) return false;
+      // Closed contains all terminal outcomes, with separate outcome sub-tabs.
+      if (queueTab === "active" && isTerminal) return false;
+      if (queueTab === "closed" && !isTerminal) return false;
+      if (queueTab === "closed" && closedSubTab !== "all") {
+        const matchesSubTab = closedSubTab === "resolved"
+          ? s === "resolved" || s === "closed"
+          : s === closedSubTab;
+        if (!matchesSubTab) return false;
+      }
 
       if (selectedDeptTab !== "all" && c !== selectedDeptTab) return false;
       if (priorityFilter !== "all" && p !== priorityFilter) return false;
@@ -158,7 +165,7 @@ export function AdminBoard() {
     });
 
     list = [...list].sort((a, b) => {
-      if (queueTab === "resolved") {
+      if (queueTab === "closed") {
         return asEpoch(b.resolvedAt || b.createdAt) - asEpoch(a.resolvedAt || a.createdAt);
       }
       if (sortBy === "urgency") {
@@ -174,7 +181,7 @@ export function AdminBoard() {
     });
 
     return list;
-  }, [items, queueTab, selectedDeptTab, priorityFilter, statusFilter, search, sortBy]);
+  }, [items, queueTab, closedSubTab, selectedDeptTab, priorityFilter, statusFilter, search, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -187,14 +194,16 @@ export function AdminBoard() {
     let urgentCount = 0;
     let unassigned = 0;
     let inProgress = 0;
+    let closed = 0;
     let resolved = 0;
     let flaggedCount = 0;
 
     items.forEach((g) => {
       const s = (g.status || "open").toLowerCase();
       if (g.qualityFlag === "suspicious") flaggedCount++;
-      if (s === "resolved" || s === "closed") {
-        resolved++;
+      if (s === "resolved" || s === "closed" || s === "rejected" || s === "invalid") {
+        closed++;
+        if (s === "resolved" || s === "closed") resolved++;
       } else {
         if (g.hfEngine?.isUrgent || (g.priority || "").toLowerCase() === "high") urgentCount++;
         if (!g.assignee || s === "open" || s === "submitted") unassigned++;
@@ -202,9 +211,24 @@ export function AdminBoard() {
       }
     });
 
-    const activeCount = items.length - resolved;
+    const activeCount = items.length - closed;
     const resolutionRate = items.length > 0 ? Math.round((resolved / items.length) * 100) : 0;
-    return { total: items.length, activeCount, urgentCount, unassigned, inProgress, resolved, resolutionRate, flaggedCount };
+    return { total: items.length, activeCount, urgentCount, unassigned, inProgress, closed, resolutionRate, flaggedCount };
+  }, [items]);
+
+  const closedCounts = useMemo(() => {
+    const counts = { all: 0, resolved: 0, rejected: 0, invalid: 0 };
+    items.forEach((g) => {
+      const s = (g.status || "").toLowerCase();
+      if (s === "resolved" || s === "closed") {
+        counts.all++;
+        counts.resolved++;
+      } else if (s === "rejected" || s === "invalid") {
+        counts.all++;
+        counts[s]++;
+      }
+    });
+    return counts;
   }, [items]);
 
   function patchLocal(id: string, patch: Partial<Grievance>) {
@@ -273,7 +297,7 @@ export function AdminBoard() {
                 <Layers size={16} className="text-ink-400" />
               </div>
               <p className="mt-2 text-2xl font-bold tracking-tight text-ink-950">{stats.total}</p>
-              <p className="mt-0.5 text-[11px] text-ink-400">{stats.activeCount} active · {stats.resolved} archived</p>
+              <p className="mt-0.5 text-[11px] text-ink-400">{stats.activeCount} active · {stats.closed} closed</p>
             </CardBody>
           </Card>
         </button>
@@ -363,27 +387,28 @@ export function AdminBoard() {
         <button
           type="button"
           onClick={() => {
-            setQueueTab("resolved");
+            setQueueTab("closed");
+            setClosedSubTab("all");
             setPriorityFilter("all");
             setStatusFilter("all");
             setPage(1);
           }}
           className="text-left w-full transition focus:outline-none"
-          title="Open the Resolved Archive tab"
+          title="Open closed complaints"
         >
-          <Card className={`border-emerald-200/80 bg-emerald-50/20 shadow-2xs transition hover:bg-emerald-50/40 ${queueTab === "resolved" ? "ring-2 ring-emerald-500" : ""}`}>
+          <Card className={`border-emerald-200/80 bg-emerald-50/20 shadow-2xs transition hover:bg-emerald-50/40 ${queueTab === "closed" ? "ring-2 ring-emerald-500" : ""}`}>
             <CardBody className="p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">
-                  Resolved
+                  Closed
                 </span>
                 <CheckCircle2 size={16} className="text-emerald-600" />
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <p className="text-2xl font-bold tracking-tight text-emerald-950">{stats.resolved}</p>
+                <p className="text-2xl font-bold tracking-tight text-emerald-950">{stats.closed}</p>
                 <span className="text-xs font-semibold text-emerald-700">({stats.resolutionRate}%)</span>
               </div>
-              <p className="mt-0.5 text-[11px] text-emerald-700">Fixed &amp; archived (Click to view)</p>
+              <p className="mt-0.5 text-[11px] text-emerald-700">Resolved, rejected &amp; invalid (Click to view)</p>
             </CardBody>
           </Card>
         </button>
@@ -425,7 +450,7 @@ export function AdminBoard() {
       {/* ── Search, Filters, and Sort Strip ───────────────────────────── */}
       <Card className="border-ink-200/80 shadow-2xs">
         <CardBody className="p-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={`grid gap-3 sm:grid-cols-2 ${queueTab === "active" ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
                 Search complaints
@@ -471,7 +496,7 @@ export function AdminBoard() {
               </Select>
             </div>
 
-            <div>
+            {queueTab === "active" && <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
                 Status
               </label>
@@ -482,23 +507,13 @@ export function AdminBoard() {
                   setPage(1);
                 }}
               >
-                {queueTab === "active" ? (
-                  <>
-                    <option value="all">All Active Statuses</option>
-                    <option value="open">Open / Unassigned</option>
-                    <option value="assigned">Assigned</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="flagged">Flagged for Review</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="all">All in Archive</option>
-                    <option value="resolved">Resolved</option>
-                    <option value="closed">Closed</option>
-                  </>
-                )}
+                <option value="all">All Active Statuses</option>
+                <option value="open">Open / Unassigned</option>
+                <option value="assigned">Assigned</option>
+                <option value="in_progress">In Progress</option>
+                <option value="flagged">Flagged for Review</option>
               </Select>
-            </div>
+            </div>}
 
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-ink-600">
@@ -550,37 +565,58 @@ export function AdminBoard() {
           <button
             type="button"
             onClick={() => {
-              setQueueTab("resolved");
+              setQueueTab("closed");
+              setClosedSubTab("all");
               setStatusFilter("all");
               setPage(1);
             }}
             className={`inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
-              queueTab === "resolved"
+              queueTab === "closed"
                 ? "border-emerald-600 text-emerald-900 bg-white rounded-t-lg shadow-2xs"
                 : "border-transparent text-ink-600 hover:text-ink-900 hover:border-ink-300"
             }`}
           >
-            <Archive size={16} className={queueTab === "resolved" ? "text-emerald-600" : "text-ink-500"} />
-            <span>Resolved Archive</span>
+            <Archive size={16} className={queueTab === "closed" ? "text-emerald-600" : "text-ink-500"} />
+            <span>Closed</span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                queueTab === "resolved" ? "bg-emerald-100 text-emerald-800" : "bg-ink-200 text-ink-700"
+                queueTab === "closed" ? "bg-emerald-100 text-emerald-800" : "bg-ink-200 text-ink-700"
               }`}
             >
-              {stats.resolved}
+              {stats.closed}
             </span>
           </button>
         </div>
 
+        {queueTab === "closed" && (
+          <div className="flex flex-wrap gap-2 border-b border-ink-100 px-4 py-3 sm:px-6" aria-label="Closed complaint outcomes">
+            {(["all", "resolved", "rejected", "invalid"] as const).map((outcome) => {
+              const labels = { all: "All Closed", resolved: "Resolved", rejected: "Rejected", invalid: "Invalid" };
+              return (
+                <button
+                  key={outcome}
+                  type="button"
+                  onClick={() => { setClosedSubTab(outcome); setPage(1); }}
+                  aria-pressed={closedSubTab === outcome}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${closedSubTab === outcome ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-ink-200 bg-white text-ink-600 hover:bg-ink-50"}`}
+                >
+                  {labels[outcome]}
+                  <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px]">{closedCounts[outcome]}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-6 py-4">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-ink-900">
-              {queueTab === "active" ? "Active Grievance Queue" : "Resolved Grievance Archive"}
+              {queueTab === "active" ? "Active Grievance Queue" : `${closedSubTab === "all" ? "Closed" : closedSubTab[0].toUpperCase() + closedSubTab.slice(1)} Grievances`}
             </h2>
             <p className="mt-0.5 text-xs text-ink-500">
               {selectedDeptTab === "all"
-                ? (queueTab === "active" ? "All active departmental complaints · Urgent & high priority sorted first" : "All resolved and closed departmental records · Preserved for auditing")
-                : `${DEPARTMENT_TABS.find((t) => t.key === selectedDeptTab)?.label} complaints (${queueTab === "active" ? "active" : "archived"})`}
+                ? (queueTab === "active" ? "All active departmental complaints · Urgent & high priority sorted first" : "Resolved, rejected, and invalid complaints · Preserved for auditing")
+                : `${DEPARTMENT_TABS.find((t) => t.key === selectedDeptTab)?.label} complaints (${queueTab === "active" ? "active" : "closed"})`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -701,12 +737,12 @@ export function AdminBoard() {
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center">
                     <p className="text-sm font-semibold text-ink-700">
-                      {queueTab === "active" ? "No active grievances found" : "No resolved grievances in archive"}
+                      {queueTab === "active" ? "No active grievances found" : `No ${closedSubTab === "all" ? "closed" : closedSubTab} grievances found`}
                     </p>
                     <p className="mt-1 text-xs text-ink-400">
                       {queueTab === "active"
                         ? "Try adjusting your filters or department selection."
-                        : "Complaints marked resolved or closed will be safely archived here."}
+                        : "Resolved, rejected, and invalid complaints remain available here for review."}
                     </p>
                   </td>
                 </tr>

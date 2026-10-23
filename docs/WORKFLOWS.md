@@ -13,6 +13,14 @@
 
 ## Grievance State Machine
 
+### Admin queue presentation
+
+The admin board separates active grievances from a **Closed** archive. Closed
+contains four views: All Closed, Resolved, Rejected, and Invalid. The Resolved
+view includes records whose stored outcome is either `resolved` or `closed`;
+Rejected and Invalid remain distinct outcomes. This is a presentation/filtering
+rule only and does not add or change backend lifecycle states.
+
 ### Citizen phone and SMS preferences
 
 Citizens may link a mobile number from Profile after OTP verification. The
