@@ -87,7 +87,20 @@ export function AdminAnalytics() {
 
   const clusters = useMemo(() => groupSimilarComplaints(items), [items]);
   const clusterLocations = useClusterLocations(items, clusters);
-  const areaClusters = useMemo(() => buildAreaClusters(items), [items]);
+  const selectedCluster = useMemo(
+    () => clusters.find((cluster) => cluster.clusterId === activeClusterId) ?? null,
+    [clusters, activeClusterId]
+  );
+  const selectedClusterItems = useMemo(
+    () =>
+      selectedCluster?.ids.flatMap((index) => {
+        const item = items[index];
+        return item ? [item] : [];
+      }) ?? [],
+    [items, selectedCluster]
+  );
+  const locationItems = selectedCluster ? selectedClusterItems : items;
+  const areaClusters = useMemo(() => buildAreaClusters(locationItems), [locationItems]);
 
   const macro = useMemo(() => {
     let resolved = 0;
@@ -261,7 +274,10 @@ export function AdminAnalytics() {
             <AdminClusters
               clusters={clusters}
               activeClusterId={activeClusterId}
-              onSelect={(id) => setActiveClusterId(id)}
+              onSelect={(id) => {
+                setActiveClusterId(id);
+                setActiveTab("location");
+              }}
               onClear={() => setActiveClusterId(null)}
               locations={clusterLocations}
             />
@@ -281,15 +297,46 @@ export function AdminAnalytics() {
             </p>
           </div>
 
+          {selectedCluster && (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary-200 bg-primary-50/60 p-4"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-800">
+                  Similar complaint group
+                </p>
+                <p className="mt-1 text-sm font-semibold text-ink-900">
+                  {selectedCluster.area || clusterLocations[selectedCluster.clusterId] || "Grouped reports"}
+                  <span className="ml-2 font-normal text-ink-600">
+                    {selectedCluster.size} reports
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-ink-600">
+                  Common wording: {selectedCluster.keywords.join(", ") || "No common terms available"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setActiveClusterId(null)}
+              >
+                Show all locations
+              </Button>
+            </div>
+          )}
+
           {/* Map of complaint locations (centered, square-like container) */}
           <Card className="w-full max-w-2xl mx-auto border-ink-200/80 shadow-2xs">
             <CardHeader
               title="Complaint locations"
-              subtitle={`${items.filter((g) => g.latitude != null && g.longitude != null).length} complaints with a pinned spot on the map`}
+              subtitle={`${locationItems.filter((g) => g.latitude != null && g.longitude != null).length} complaints with a pinned spot on the map`}
             />
             <CardBody className="p-3">
               <AdminMap
-                items={items}
+                items={locationItems}
                 focusId={null}
                 onFocusHandled={handleFocusHandled}
                 heightClassName="h-[28rem] sm:h-[32rem]"
