@@ -7,8 +7,7 @@ import type { TfidfCluster } from "@/lib/tfidf";
 
 /**
  * Groups of similar complaints (found automatically by comparing wording).
- * "View" filters the queue to the grievances inside that group — useful to
- * spot a spike of the same problem reported by many people.
+ * "View" opens the location map focused on complaints inside that group.
  */
 export function AdminClusters({
   clusters,
@@ -28,7 +27,7 @@ export function AdminClusters({
     <Card>
       <CardHeader
         title="Similar complaint groups"
-        subtitle="Complaints reported by many people in the same area — a sign of one shared problem"
+        subtitle="Groups with similar wording. View a group on the map to compare its reported locations."
         action={
           activeClusterId ? (
             <Button size="sm" variant="outline" onClick={onClear}>
