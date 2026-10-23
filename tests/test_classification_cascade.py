@@ -368,55 +368,131 @@ def test_legacy_fallback_delegates_to_shared_cascade(monkeypatch):
     assert result["categoryOutcome"] == "uncertain"
 
 
-def test_model_split_keeps_one_row_per_clean_text():
-    from backend.app.services.grievance_model import GrievanceModel
+def test_notebook_uses_grouped_four_model_validation_without_holdout_tuning():
+    import json
+    from pathlib import Path
 
-    model = GrievanceModel().train(test_size=0.2, seed=42)
-    assert model.train_rows_["clean_text"].is_unique
-    assert model.test_rows_["clean_text"].is_unique
-    assert set(model.train_rows_["clean_text"]).isdisjoint(model.test_rows_["clean_text"])
-    assert model.train_rows_["clean_text"].nunique() + model.test_rows_["clean_text"].nunique() == 30
+    notebook = (
+        Path(__file__).resolve().parents[1]
+        / "notebooks"
+        / "grievance_ml_experiments.ipynb"
+    )
+    cells = json.loads(notebook.read_text(encoding="utf-8"))["cells"]
+    code = "\n".join(
+        "".join(cell["source"])
+        for cell in cells
+        if cell["cell_type"] == "code"
+    )
 
+    assert "SEED = 20261023" in code
+    assert "StratifiedGroupKFold" in code
+    assert "similarity_group" in code
+    assert "GridSearchCV" in code
+    assert "SVC(kernel='linear'" in code
+    assert "LogisticRegression" in code
+    assert "MultinomialNB" in code
+    assert "RandomForestClassifier" in code
+    assert "validation_predictions" in code
+    assert "grievance_holdout_test_120.csv" in code
+    assert "holdout = pd.read_csv(HOLDOUT_PATH)" in code
+    assert "Independent final holdout evaluation: PENDING." in code
+    for cell in cells:
+        if cell["cell_type"] == "code":
+            compile("".join(cell["source"]), str(notebook), "exec")
 
-def test_serving_model_trains_on_all_available_examples(monkeypatch):
+def test_serving_model_loads_configured_artifact_without_training(monkeypatch, tmp_path):
     from backend.app.services import classification as classification_service
     from backend.app.services import grievance_model as model_module
 
     calls = {}
+    artifact_path = tmp_path / "model.joblib"
 
     class StubModel:
         is_trained = False
 
-        def train(self, **kwargs):
-            calls.update(kwargs)
-            self.is_trained = True
-            return self
+        @classmethod
+        def load_artifact(cls, path):
+            calls["path"] = path
+            model = cls()
+            model.is_trained = True
+            return model
 
+        def train(self, **kwargs):
+            raise AssertionError("The serving loader must not train")
+
+    monkeypatch.setenv("GRIEVANCE_MODEL_ARTIFACT", str(artifact_path))
     monkeypatch.setattr(model_module, "GrievanceModel", StubModel)
     monkeypatch.setattr(classification_service, "_ml_model", None)
 
     model = classification_service._get_ml_model()
 
     assert isinstance(model, StubModel)
-    assert calls == {"test_size": 0}
+    assert calls == {"path": artifact_path}
 
 
-def test_model_excludes_conflicting_normalized_labels(tmp_path):
+def test_checked_in_candidate_artifact_loads_and_predicts():
+    from pathlib import Path
     from backend.app.services.grievance_model import GrievanceModel
 
-    path = tmp_path / "conflicting.csv"
-    path.write_text(
-        "Column1,Column2\n"
-        "Complaint_Text,Category\n"
-        "Same complaint,Water\n"
-        "Same complaint,Roads\n"
-        "Pothole in lane,Roads\n"
-        "Broken streetlight,Electricity\n",
-        encoding="utf-8",
+    artifact = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "models"
+        / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
     )
-    model = GrievanceModel().train(str(path), test_size=0)
-    assert model.conflicting_labels_ == {"same complaint": ["Road", "Water"]}
-    assert "same complaint" not in set(model.train_rows_["clean_text"])
+    model = GrievanceModel.load_artifact(artifact)
+    result = model.predict("Electricity power outage in the ward")
+
+    assert model.is_trained
+    assert set(model.clf.classes_) == {
+        "Electricity", "Health", "Other", "Road", "Sanitation", "Transport", "Water"
+    }
+    assert result["category"] == "electricity"
+    assert result["source"] == "domain_override"
+    assert result["confidence"] == 0.0
+
+
+def test_loaded_artifact_empty_and_malformed_text_remains_reviewable():
+    from pathlib import Path
+    from backend.app.services.grievance_model import GrievanceModel
+
+    artifact = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "models"
+        / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
+    )
+    model = GrievanceModel.load_artifact(artifact)
+    empty = model.predict("")
+    malformed = model.predict(None)
+
+    assert empty["category"] == "other"
+    assert malformed["category"] == "other"
+    assert 0.0 <= empty["confidence"] <= 1.0
+    assert 0.0 <= malformed["confidence"] <= 1.0
+
+
+def test_new_candidate_is_the_default_serving_artifact(monkeypatch):
+    from pathlib import Path
+    from backend.app.services import classification as classification_service
+
+    expected = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "models"
+        / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
+    )
+    try:
+        monkeypatch.delenv("GRIEVANCE_MODEL_ARTIFACT", raising=False)
+        monkeypatch.setattr(classification_service, "_ml_model", None)
+        model = classification_service._get_ml_model()
+        assert model is not None and model.is_trained
+        assert model.clf.classes_.tolist() == [
+            "Electricity", "Health", "Other", "Road", "Sanitation", "Transport", "Water"
+        ]
+        assert expected.is_file()
+    finally:
+        monkeypatch.setattr(classification_service, "_ml_model", None)
 
 
 def test_domain_gate_ignores_incidental_water_but_keeps_real_supply_issue():

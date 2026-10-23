@@ -1,11 +1,7 @@
-import os
 import re
+from pathlib import Path
 import numpy as np
-import pandas as pd
 from scipy.sparse import hstack
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
 
 CATEGORY_RENAME = {
     'Roads': 'Road',
@@ -148,43 +144,16 @@ def detect_domain(clean_txt):
     return top_domains[0], max_hits, scores
 
 
-def build_vectorizers(train_texts):
-    word_vec = TfidfVectorizer(analyzer='word', ngram_range=(1, 2), min_df=1)
-    char_vec = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), min_df=1, max_features=1500)
-    word_vec.fit(train_texts)
-    char_vec.fit(train_texts)
-    return word_vec, char_vec
-
-
 def vectorize(texts, word_vec, char_vec):
     return hstack([word_vec.transform(texts), char_vec.transform(texts)])
 
 
-def leak_free_split(df, test_size=0.2, seed=42):
-    """
-    Group-based split to prevent exact-text leakage. Training callers pass one
-    row per normalized complaint after conflicting labels have been excluded.
-    """
-    if 'clean_text' not in df.columns:
-        df = df.copy()
-        df['clean_text'] = df['text'].apply(clean_text)
-    unique_df = df.drop_duplicates(subset=['clean_text'])[['clean_text', 'category']].copy()
-    train_groups, test_groups = train_test_split(
-        unique_df, test_size=test_size, stratify=unique_df['category'], random_state=seed
-    )
-    train_texts = set(train_groups['clean_text'])
-    test_texts = set(test_groups['clean_text'])
-    train_rows = df[df['clean_text'].isin(train_texts)].copy()
-    test_rows = df[df['clean_text'].isin(test_texts)].copy()
-    assert len(set(train_rows['clean_text']).intersection(set(test_rows['clean_text']))) == 0, "Leakage detected!"
-    return train_rows, test_rows
-
-
 class GrievanceModel:
     """
-    Existing word/character TF-IDF + LogisticRegression model and domain gate.
-    It is trained lazily from the research CSV; no serialized model artifact is
-    loaded or written by this module.
+    Word/character TF-IDF + LogisticRegression inference and domain gate.
+
+    The API loads a notebook-exported artifact. Model fitting lives in the
+    research notebook and is not available on this serving class.
     """
 
     def __init__(self, confidence_threshold=DEFAULT_CONFIDENCE_THRESHOLD,
@@ -194,114 +163,36 @@ class GrievanceModel:
         self.word_vec = None
         self.char_vec = None
         self.clf = None
-        self.train_rows_ = None
-        self.test_rows_ = None
-        self.conflicting_labels_ = {}
         self.is_trained = False
 
-    def train(self, train_path=None, test_size=0.2, seed=42, verbose=False):
-        if train_path is None:
-            base_dir = os.path.dirname(__file__)
-            possible_paths = [
-                os.path.join(base_dir, 'data', 'Citizen (1).csv'),
-                os.path.join(base_dir, '..', 'backend', 'data', 'Citizen (1).csv'),
-                os.path.join(base_dir, '..', 'data', 'Citizen (1).csv'),
-                # This module lives at backend/app/services/ — the dataset
-                # stays with the research scripts at backend/data/.
-                os.path.join(base_dir, '..', '..', 'data', 'Citizen (1).csv'),
-                os.path.join(base_dir, 'Citizen (1).csv'),
-                os.path.join(base_dir, 'Citizen.csv'),
-            ]
-            for p in possible_paths:
-                if os.path.exists(p):
-                    train_path = p
-                    break
+    @classmethod
+    def load_artifact(cls, artifact_path):
+        """Load a trusted, notebook-exported inference artifact without fitting."""
+        import joblib
 
-        if train_path and os.path.exists(train_path):
-            # Robust CSV handling: file has two header rows (Column1/Column2 + Complaint_Text/Category)
-            try:
-                # Try skiprows=1 for the known double-header format
-                train_df = pd.read_csv(train_path, skiprows=1, encoding='utf-8', engine='python', on_bad_lines='skip')
-                # Validate we got expected columns
-                if list(train_df.columns)[:2] != ['Complaint_Text', 'Category'] and list(train_df.columns)[:2] != ['text', 'category']:
-                    # Fallback: try without skiprows
-                    alt = pd.read_csv(train_path, encoding='utf-8', engine='python', on_bad_lines='skip')
-                    if list(alt.columns) == ['Column1', 'Column2']:
-                        train_df = pd.read_csv(train_path, skiprows=1, encoding='utf-8', engine='python', on_bad_lines='skip')
-                    else:
-                        train_df = alt
-                train_df.columns = ['text', 'category'] if len(train_df.columns) >= 2 else train_df.columns
-            except Exception as e:
-                # Final fallback: try default read without skip
-                try:
-                    train_df = pd.read_csv(train_path, encoding='utf-8', engine='python', on_bad_lines='skip')
-                    if len(train_df.columns) >= 2:
-                        train_df.columns = ['text', 'category'] + list(train_df.columns[2:])
-                except Exception:
-                    raise e
-            # Drop empty rows
-            train_df = train_df.dropna(subset=['text', 'category'])
-            train_df = train_df[train_df['text'].astype(str).str.strip() != '']
-            train_df['category'] = train_df['category'].astype(str).str.strip().map(CATEGORY_RENAME).fillna(train_df['category'])
-            train_df['clean_text'] = train_df['text'].apply(clean_text)
-
-            # Identical normalized complaints with different labels are
-            # ambiguous data. Record and exclude them instead of arbitrarily
-            # selecting whichever label happened to occur first.
-            label_counts = train_df.groupby('clean_text')['category'].nunique()
-            conflicting_texts = set(label_counts[label_counts > 1].index)
-            self.conflicting_labels_ = {
-                text: sorted(train_df.loc[train_df['clean_text'] == text, 'category'].unique().tolist())
-                for text in conflicting_texts
-            }
-            if conflicting_texts:
-                train_df = train_df[~train_df['clean_text'].isin(conflicting_texts)]
-            # Repeated rows are not independent examples. Train and evaluate
-            # once per normalized complaint so repetition counts do not weight
-            # individual templates or inflate reported support.
-            train_df = train_df.drop_duplicates(subset=['clean_text']).copy()
-
-            # Leak-free split: group by clean_text to avoid duplicate leakage
-            if test_size and test_size > 0:
-                train_rows, test_rows = leak_free_split(train_df, test_size=test_size, seed=seed)
-                self.train_rows_ = train_rows
-                self.test_rows_ = test_rows
-                train_texts = train_rows['clean_text']
-                train_cats = train_rows['category']
-                if verbose:
-                    print(f"Leak-free split: {len(train_rows)} train rows ({train_rows['clean_text'].nunique()} unique), {len(test_rows)} test rows ({test_rows['clean_text'].nunique()} unique)")
-            else:
-                train_rows = train_df
-                test_rows = pd.DataFrame(columns=train_df.columns)
-                self.train_rows_ = train_rows
-                self.test_rows_ = test_rows
-                train_texts = train_df['clean_text']
-                train_cats = train_df['category']
-
-            self.word_vec, self.char_vec = build_vectorizers(train_texts)
-            X_train = vectorize(train_texts, self.word_vec, self.char_vec)
-
-            self.clf = LogisticRegression(max_iter=2000, class_weight='balanced')
-            self.clf.fit(X_train, train_cats)
-            self.is_trained = True
-            if verbose and test_size and test_size > 0:
-                print(f"Trained on {X_train.shape[0]} rows ({train_texts.nunique()} unique templates), {len(self.clf.classes_)} categories: {list(self.clf.classes_)}")
-                print(f"Held out {len(test_rows)} rows ({test_rows['clean_text'].nunique()} unique templates) for leak-free evaluation.")
-
-        return self
+        artifact_path = Path(artifact_path)
+        payload = joblib.load(artifact_path)
+        required = {"word_vectorizer", "char_vectorizer", "classifier", "labels"}
+        if not isinstance(payload, dict) or not required.issubset(payload):
+            raise ValueError(f"Invalid grievance model artifact: {artifact_path}")
+        model = cls()
+        model.word_vec = payload["word_vectorizer"]
+        model.char_vec = payload["char_vectorizer"]
+        model.clf = payload["classifier"]
+        if list(model.clf.classes_) != list(payload["labels"]):
+            raise ValueError("Artifact labels do not match classifier classes")
+        if not hasattr(model.clf, "predict_proba"):
+            raise ValueError("Production category artifact must provide probabilities")
+        model.is_trained = True
+        return model
 
     def predict(self, text: str) -> dict:
-        if not self.is_trained:
-            try:
-                self.train()
-            except Exception:
-                pass
+        if not self.is_trained or self.clf is None:
+            return {'category': 'other', 'confidence': 0.0,
+                    'source': 'model_unavailable', 'reason': 'No inference artifact loaded'}
 
         clean = clean_text(text)
         domain, hits, _ = detect_domain(clean)
-
-        if not self.is_trained:
-            return {'category': 'other', 'confidence': 0.35, 'reason': 'Untrained model fallback'}
 
         vec = vectorize([clean], self.word_vec, self.char_vec)
         proba = self.clf.predict_proba(vec)[0]

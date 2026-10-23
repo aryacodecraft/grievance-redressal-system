@@ -11,9 +11,11 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import os
 import re
 import time
 from contextlib import contextmanager
+from pathlib import Path
 
 import requests
 
@@ -89,15 +91,14 @@ def _groq_complete(
 
 
 # ---------------------------------------------------------------------------
-# Lazy ML model singleton (GrievanceModel + predict_with_fallback from main).
-# Loaded on first call; stays None if sklearn/pandas or the training CSV are
-# absent so the cascade degrades gracefully without crashing the server.
+# Lazy model-artifact singleton. The FastAPI process loads a notebook-exported
+# artifact once and performs inference only; it never trains or reads the CSV.
 # ---------------------------------------------------------------------------
 _ml_model = None  # set to the trained GrievanceModel or False (failed) at runtime
 
 
 def _get_ml_model():
-    """Return the trained GrievanceModel, or None if unavailable."""
+    """Load the configured inference artifact once, or return None."""
     global _ml_model
     if _ml_model is False:
         return None          # already tried and failed — don't retry every call
@@ -105,17 +106,25 @@ def _get_ml_model():
         return _ml_model
     try:
         from .grievance_model import GrievanceModel
-        # The stratified holdout split is for local evaluation only. The
-        # serving model must fit every distinct, unconflicted training text.
-        model = GrievanceModel().train(test_size=0)
+        default_path = (
+            Path(__file__).resolve().parents[2]
+            / "models"
+            / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
+        )
+        artifact_path = Path(
+            os.getenv("GRIEVANCE_MODEL_ARTIFACT", str(default_path))
+        ).expanduser()
+        if not artifact_path.is_absolute():
+            artifact_path = Path(__file__).resolve().parents[3] / artifact_path
+        model = GrievanceModel.load_artifact(artifact_path)
         if model.is_trained:
             _ml_model = model
-            logger.info("GrievanceModel trained and ready.")
+            logger.info("GrievanceModel artifact loaded path=%s", artifact_path)
         else:
-            logger.warning("GrievanceModel.train() completed but is_trained=False; ML step disabled.")
+            logger.warning("GrievanceModel artifact is not trained; ML step disabled.")
             _ml_model = False
     except Exception as exc:
-        logger.warning("GrievanceModel unavailable (will skip ML step): %s", exc)
+        logger.warning("GrievanceModel artifact unavailable (will skip ML step): %s", exc)
         _ml_model = False
     return _ml_model if _ml_model is not False else None
 
