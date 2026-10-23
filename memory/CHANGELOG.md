@@ -15,6 +15,14 @@
   group copy to describe text similarity accurately.
 - Focused TypeScript and ESLint checks passed; no tests were added or run.
 
+## 2026-10-23 — Rebuild root README for project evaluation
+
+- Replaced stale setup and architecture claims with current stack, role
+  capabilities, local run instructions, environment options, demo accounts and
+  data, tests, deployment guidance, and research limitations. Removed all
+  emoji and validated local links against the repository.
+- README-only content change plus current-state/log updates; no code changed.
+
 ---
 
 ## 2026-10-23 — Reliable manager employee assignment (DEC-066)

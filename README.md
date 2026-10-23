@@ -1,314 +1,339 @@
-# AI-Enabled Grievance Redressal and Decision Support System
+# SAMARTH
 
-B.Tech academic research prototype. AI acts as a **decision-support mechanism** —
-humans retain final control over assignment, escalation, resolution, and closure.
+**System for Accessible Management, Action, Resolution and Tracking of Hearings**
 
-> **Scope source of truth:** [`PRD.md`](PRD.md), [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md).  
-> **Agent operating rules:** [`AGENTS.md`](AGENTS.md) (mandatory read before contributing).  
-> **Unification source map:** [`INTEGRATION.md`](INTEGRATION.md).
+SAMARTH is a B.Tech academic research prototype for managing civic grievances.
+It combines a citizen-facing complaint portal with role-based staff workflows,
+department analytics, and experimental AI-assisted triage. It is a prototype,
+not an official government service or a national grievance platform.
 
----
+AI outputs are advisory. Authorized people make the final decisions about
+department routing, employee assignment, escalation, resolution approval, and
+closure.
 
-## Repository layout
+## What the system supports
 
-| Path | What it is | Status |
-|---|---|---|
-| `backend/app/` | **Serving backend** — FastAPI + local-first category classifier (deduplicated TF-IDF + Logistic Regression, contextual Water rules, then gated HF/Groq fallback), separate suspicious-submission check, image validation, Cloudinary signing, JWT Auth & RBAC (DEC-010, DEC-017, DEC-050) | Working; classification remains experimental |
-| `tools/recategorize.py` | Batch re-classification over MongoDB | Working |
-| `frontend/` | Next.js 16 + TypeScript + Tailwind CSS v4 — REST client, auth flows, admin + citizen portals | Working (wired to `backend/app`) |
-| `docs/` | Technical specs and architecture references | Reference |
-| `memory/` | AI-agent persistent memory (state, decisions, backlog, logs) | Maintained |
+| Role | Main capabilities |
+|---|---|
+| Citizen (`USER`) | Register and sign in; submit a complaint with a location and optional attachments; track personal complaints; receive in-app updates. |
+| Global administrator (`ADMIN`, without a department) | Review and route grievances, oversee queues, view analytics and maps, and manage platform work. |
+| Department manager (`ADMIN`, with a department) | Work within the assigned department, allocate its grievances to employees, and manage department employee accounts. |
+| Employee (`RESOLVER`) | View assigned work, acknowledge and progress tasks, add updates, raise issues, and submit work for manager review. |
+| System administrator (`SUPERADMIN`) | Manage accounts, roles, departments, and system-level administration. |
 
-**Stack:** Next.js 16 (TypeScript) frontend ↔ FastAPI backend ↔ MongoDB
-(DEC-010, DEC-011). Full specifications are detailed in `docs/` and `AGENTS.md`.
+The grievance workflow includes submission, classification, human department
+review, employee assignment, progress updates, escalation, resolution review,
+and closure. A manager assigns employees; the platform does not assign
+employees autonomously.
 
----
+### Main features
 
-## Voice-assisted complaint lodging (Stages 4-11)
+- Complaint registration requires a signed-in citizen. The form supports a
+  self-location and an optional incident location, a map picker, and optional
+  image evidence.
+- Citizens can see their grievance status, activity timeline, and in-app
+  notifications. Staff receive assignment and workflow notifications.
+- Global and department-scoped staff workspaces provide grievance queues,
+  employee allocation, and department-specific analytics. Administrators also
+  have location maps with complaint clustering.
+- Employee workspaces include assigned-task queues, task progress updates,
+  issue escalation, and resolution submission for manager review.
+- The citizen UI currently offers English, Hindi, and Marathi. Eight additional
+  language packs are present in the source but are not offered in the language
+  picker; native-language review is still needed.
+- Voice-assisted complaint drafting is available behind a backend feature
+  flag. Transcription is disabled by default. Citizens review and edit the
+  transcript before submitting a complaint.
 
-On `/submit`, citizens can record up to 30 seconds, listen, then explicitly
-transcribe in **English, Hindi or Marathi**. An accepted transcript fills the
-complete Description; a frontend-only deterministic extractor suggests an
-original-language Issue Title and fills it only when empty. Both fields remain
-editable. Existing titles require explicit confirmed replacement; existing
-descriptions offer explicit Append, Replace or Cancel before upload, with a new
-choice if edited while waiting. Append retains existing text and adds the full
-transcript; Replace substitutes it. No automatic semantic merging is performed.
-Recording alone changes neither field, and no grievance is submitted by voice
-controls. Weak transcripts may produce no title suggestion.
+## Technology
 
-Transcription is **disabled by default**. The user verified one successful live
-English request from a seven-second real recording, including automatic title
-fill and editable fields, with no grievance submitted; the user confirmed a
-backend restart with `TRANSCRIPTION_ENABLED=false` afterward. English/Hindi/Marathi
-mock tests and hydrated Chrome/Edge checks passed; **live Hindi/Marathi are not
-validated**. The observed title was accurate but conversational and lengthy.
-Broader recognition quality, other browsers and accessibility checks remain
-limited. See [voice setup, field behavior and verification](docs/VOICE_ASSISTED_COMPLAINT.md).
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4 |
+| Backend | Python 3.11+, FastAPI, Pydantic, Uvicorn |
+| Persistence | MongoDB through PyMongo; process-local in-memory fallback when `MONGODB_URI` is empty |
+| Authentication | JWT sessions and server-side role checks; Google OAuth is optional |
+| Mapping and charts | Leaflet and Recharts |
+| AI and text analysis | Local scikit-learn classification and keyword rules; optional Hugging Face and Groq provider fallbacks |
+| Optional services | Cloudinary uploads, Sarvam speech-to-text, face authentication, and Twilio SMS |
 
-## Universal Local Setup Guide
+The frontend calls the FastAPI REST API. AI and classification services run
+inside the backend; there is no separate AI microservice.
 
-Follow these steps to run both the backend and frontend on your machine. This guide covers **Windows (PowerShell / Command Prompt)**, **macOS**, and **Linux (Bash / Zsh / Fish)**.
-
-### Prerequisites
-
-| Requirement | Recommended Version | Notes |
-|---|---|---|
-| **Python** | 3.11 – 3.14 | Ensure Python is added to your system `PATH`. |
-| **Node.js** | 20+ (LTS recommended) | Includes `npm`. |
-| **MongoDB** | Atlas cluster or local (v7+) | *Optional for quick dev*: the backend runs an in-memory database if no URI is supplied. |
-
----
-
-### Step 1: Backend Setup (FastAPI on port `10000`)
-
-> ⚠️ **Important:** Always execute backend and test commands from the **root of the repository** (where this `README.md` is located), so Python can resolve `backend.app` as a package.
-
-#### 1. (Optional but recommended) Set up a Python environment
-
-If you use a virtual environment (`venv`) to keep dependencies isolated:
-
-<details open>
-<summary><b>Choose your operating system & shell</b></summary>
-
-- **Windows (PowerShell)**:
-  ```powershell
-  python -m venv venv
-  .\venv\Scripts\Activate.ps1
-  ```
-  *(If PowerShell displays an execution policy error, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process` first).*
-
-- **Windows (Command Prompt / cmd.exe)**:
-  ```cmd
-  python -m venv venv
-  venv\Scripts\activate.bat
-  ```
-
-- **Linux / macOS (Bash / Zsh)**:
-  ```bash
-  python3 -m venv venv
-  source venv/bin/activate
-  ```
-
-- **Linux (Fish Shell)**:
-  ```fish
-  python3 -m venv venv
-  source venv/bin/activate.fish
-  ```
-
-</details>
-
-> **Note for Conda, Docker, or system-wide Python users:**  
-> If you prefer not to use `venv` (e.g. inside a Conda environment, dev container, or system installation), you can **skip creating a venv** and proceed directly to installing requirements.
-
-#### 2. Install Python dependencies
-
-Install runtime and development packages:
-
-```bash
-# Using pip with your active Python environment:
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# Optional — only needed to run with face login enabled (FACE_AUTH_ENABLED=true):
-pip install -r backend/requirements-face.txt
+```mermaid
+flowchart LR
+    Citizen[Citizens and staff] --> Web[Next.js frontend]
+    Web -->|REST and JWT| API[FastAPI backend]
+    API --> Store[(MongoDB or in-memory store)]
+    API --> NLP[Local classification and rules]
+    API -. optional .-> Providers[Groq, Hugging Face, Sarvam, Cloudinary]
 ```
 
-*(Or explicitly via `python -m pip install -r requirements-dev.txt`)*
+## Repository map
 
-#### 3. Configure backend environment variables
-
-Create your local `.env` file from the provided example template:
-
-- **Linux / macOS / Git Bash**:
-  ```bash
-  cp backend/.env.example backend/.env
-  ```
-- **Windows (PowerShell)**:
-  ```powershell
-  Copy-Item backend\.env.example backend\.env
-  ```
-- **Windows (cmd.exe)**:
-  ```cmd
-  copy backend\.env.example backend\.env
-  ```
-
-**Key environment settings in `backend/.env`:**
-- `MONGODB_URI`: Connection string to MongoDB Atlas or local MongoDB. If left empty, the server automatically boots using an **in-memory mock store** (great for instant local testing).
-- `JWT_SECRET_KEY`: Secret string for signing auth tokens (defaults to a dev fallback if empty).
-- `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`: Default admin credentials seeded automatically on startup:
-  - **Email:** `admin@grievance.local`
-  - **Password:** `Admin@2026!`
-- `FACE_AUTH_ENABLED`: Optional face-recognition login (DEC-024). **Off by default** — leave it `false` unless you installed `backend/requirements-face.txt` and set a `FACE_EMBED_KEY` (see `backend/.env.example`).
-- `TRANSCRIPTION_ENABLED`: Voice STT master switch; leave `false` for ordinary
-  setup. Disabled requests return 503 and citizens can continue typing.
-- `SARVAM_API_KEY`: Backend-only secret required for separately authorized live
-  STT. Never place it in frontend `NEXT_PUBLIC_*` settings. Model default is
-  `SARVAM_STT_MODEL=saaras:v4`. No extra title-generation API/key is required.
-
-#### 4. Start the backend server
-
-Run via the Python module runner so it works universally regardless of shell path:
-
-```bash
-python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 10000 --reload
+```text
+backend/app/       FastAPI application, routers, repositories, and services
+backend/data/      Research and evaluation datasets
+backend/           Demo data seeder, evaluation utilities, and runtime requirements
+frontend/app/      Next.js pages and role workspaces
+frontend/components/ Shared UI, grievance, admin, resolver, and chart components
+frontend/lib/      API client, auth session, types, i18n, and workflow utilities
+frontend/public/   Static assets, including demo grievance images and voice prompts
+tests/             Backend API, RBAC, repository, AI, and feature tests
+tools/             Data maintenance utilities
+docs/              Architecture, API, database, security, workflow, and AI guides
+memory/            Project state, decisions, and agent handoff history
 ```
 
-- **API Base:** `http://127.0.0.1:10000`
-- **Interactive API Docs (Swagger UI):** `http://127.0.0.1:10000/docs`
-- **Health Check:** `http://127.0.0.1:10000/health` (indicates whether storage is `mongodb` or `in-memory`)
+## Requirements
 
-For a separately authorized controlled live STT test, use one worker without
-`--reload`; process-local quotas reset on restart. Restart the backend after
-changing the transcription flag, and stop/restart disabled immediately after
-testing. The normal setup above leaves transcription disabled; no Render or
-production change is required. See the voice guide before any provider call.
+- Python 3.11 or newer
+- Node.js 20 or newer and npm
+- MongoDB 7 or a MongoDB Atlas database for persistent local data (optional for
+  a quick in-memory run)
 
----
+## Run locally
 
-### Step 2: Frontend Setup (Next.js on port `3000`)
+Use two terminals from the repository root.
 
-Open a separate terminal window and navigate into the `frontend` folder:
+### 1. Configure and start the backend
+
+Create a Python environment and install the backend dependencies:
+
+```bash
+python -m venv .venv
+# macOS or Linux
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+
+python -m pip install -r backend/requirements.txt
+```
+
+Create the local backend configuration:
+
+```bash
+cp backend/.env.example backend/.env
+# Windows PowerShell: Copy-Item backend/.env.example backend/.env
+```
+
+Set a private signing key in `backend/.env`. For local development, generate
+one with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Set `JWT_SECRET_KEY` to the generated value. To persist data across backend
+restarts, also set `MONGODB_URI` to a local or sandbox MongoDB connection string
+and keep `MONGODB_DB=grievance`. If `MONGODB_URI` is empty, the API uses
+in-memory repositories and all data is lost when the backend process stops.
+
+For an isolated local demonstration, the following settings seed the default
+admin and the department manager/employee accounts:
+
+```dotenv
+SEED_ADMIN_EMAIL=admin@grievance.local
+SEED_ADMIN_PASSWORD=Admin@2026!
+SEED_TEST_ACCOUNTS=true
+```
+
+`citizen@grievance.local` is seeded automatically. Test accounts are created
+only if missing; existing accounts and their passwords are left unchanged.
+Keep account seeding disabled on public or production deployments.
+
+Start the API from the repository root:
+
+```bash
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 10000
+```
+
+The API runs at `http://127.0.0.1:10000`. Interactive API documentation is at
+`http://127.0.0.1:10000/docs`; the health endpoint is
+`http://127.0.0.1:10000/health`.
+
+### 2. Configure and start the frontend
+
+In the second terminal:
 
 ```bash
 cd frontend
+npm ci
 ```
 
-#### 1. Configure frontend environment variables
-
-- **Linux / macOS / Git Bash**:
-  ```bash
-  cp .env.example .env.local
-  ```
-- **Windows (PowerShell)**:
-  ```powershell
-  Copy-Item .env.example .env.local
-  ```
-- **Windows (cmd.exe)**:
-  ```cmd
-  copy .env.example .env.local
-  ```
-
-> ⚡ **Connecting to the live backend vs. mock mode:**  
-> By default, `NEXT_PUBLIC_USE_MOCKS` in `.env.local` controls data mode:
-> - **Live backend mode (Recommended):** Set `NEXT_PUBLIC_USE_MOCKS=false`. The frontend will make real API calls to `http://localhost:10000`.
-> - **Standalone mock mode:** Set `NEXT_PUBLIC_USE_MOCKS=true`. The frontend will operate in offline demo mode using sample data without contacting the backend.
->
-> *Note:* Next.js reads `NEXT_PUBLIC_*` variables at server startup. Always restart `npm run dev` after changing `.env.local`.
-
-For voice integration, set `NEXT_PUBLIC_API_URL=http://localhost:10000`, use a
-valid signed-in backend session and allow the actual frontend origin in backend
-`CORS_ORIGINS`. Microphone capture requires HTTPS or trustworthy localhost and
-modern AudioWorklet support. `NEXT_PUBLIC_USE_MOCKS` controls existing data/session
-mode; it does **not** mock the transcription endpoint. Automated voice tests
-explicitly intercept/mock transcription instead. The Sarvam flag stays backend-only.
-
-#### 2. Install dependencies & launch dev server
+Create `frontend/.env.local` from the example:
 
 ```bash
-npm install
+cp .env.example .env.local
+# Windows PowerShell: Copy-Item .env.example .env.local
+```
+
+Set these values for the local API and seeded demo accounts:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:10000
+NEXT_PUBLIC_USE_MOCKS=false
+NEXT_PUBLIC_SHOW_DEV_CREDS=true
+```
+
+`NEXT_PUBLIC_USE_MOCKS` defaults to `true` in the example file. Set it to
+`false` to use the FastAPI backend and its database. The development credential
+panel is for isolated evaluation only; never enable it in a public deployment.
+
+Start the frontend:
+
+```bash
 npm run dev
 ```
 
-Open your browser to:
-👉 **`http://localhost:3000`**
+Open `http://localhost:3000`. Restart the frontend after changing any
+`NEXT_PUBLIC_*` setting.
 
-- **Register complaints:** `/submit`
-- **Track grievance status:** `/track`
-- **Admin triage & control center:** `/admin` (strictly restricted to Admin accounts)
-- **Sign in / Sign up:** `/login` & `/register`
+### Useful routes
 
----
+| Route | Purpose |
+|---|---|
+| `/` | Public home and dashboard |
+| `/login` and `/register` | Sign in and citizen account registration |
+| `/submit` | Authenticated citizen complaint form |
+| `/track` | Signed-in citizen grievance tracking |
+| `/notifications` | Account notification inbox |
+| `/admin` | Administrator overview and grievance queue |
+| `/admin/employees` | Department employee accounts and task allocation |
+| `/admin/analytics` | Role-scoped analytics and map |
+| `/resolver` | Employee assigned-task workspace |
+| `/superadmin` | System account and department administration |
+| `/profile` | Citizen account profile |
 
-## Pre-Seeded Test Accounts
+## Demo accounts
 
-The backend seeds ready-to-use testing accounts on startup (existing emails are
-left untouched):
+The following default credentials are for an isolated demo database only.
+Change them and disable development credential display before exposing an
+instance publicly.
 
-| Role | Email | Password | Access Scope |
-|---|---|---|---|
-| **Citizen** (Standard User) | `citizen@grievance.local` | `Citizen@2026!` | Citizen portal access: `/submit` complaint registration, personal complaint tracking sidebar, `/track` lookup. Cannot access `/admin`. |
-| **Admin** (Municipal Officer) | `admin@grievance.local` | `Admin@2026!` | Full administrative access: `/admin` triage board, cluster maps, category/priority review, and officer assignment/status updates. |
-| **Superadmin** (System Owner) | `superadmin@grievance.local` | `SuperAdmin@2026!` | System control: admin/user management, role assignment, department management, audit trail. Seeded when `SEED_TEST_ACCOUNTS=true` (or via `SEED_SUPERADMIN_EMAIL`/`SEED_SUPERADMIN_PASSWORD`). |
-
-Department test accounts are seeded only when `SEED_TEST_ACCOUNTS=true` in
-`backend/.env` (dev/testing only — keep `false` in production):
-
-| Department | Manager (`ADMIN`) | Employee (`RESOLVER`) |
+| Account | Email | Default password |
 |---|---|---|
-| Water | `water.manager@grievance.local` | `water.employee@grievance.local` |
-| Roads | `roads.manager@grievance.local` | `roads.employee@grievance.local` |
-| Transport | `transport.manager@grievance.local` | `transport.employee@grievance.local` |
-| Electricity | `electricity.manager@grievance.local` | `electricity.employee@grievance.local` |
-| Sanitation | `sanitation.manager@grievance.local` | `sanitation.employee@grievance.local` |
-| Health | `health.manager@grievance.local` | `health.employee@grievance.local` |
-| Governance | `governance.manager@grievance.local` | `governance.employee@grievance.local` |
-| Other | `other.manager@grievance.local` | `other.employee@grievance.local` |
+| Citizen | `citizen@grievance.local` | `Citizen@2026!` |
+| Global admin | `admin@grievance.local` | `Admin@2026!` |
+| Superadmin | `superadmin@grievance.local` | `SuperAdmin@2026!` |
+| Department manager | `<department>.manager@grievance.local` | `Manager@2026!` |
+| Department employee | `<department>.employee@grievance.local` | `Resolver@2026!` |
 
-- Manager password: `Manager@2026!` — Employee password: `Resolver@2026!`
-  (unless `SEED_TEST_PASSWORD` overrides both).
-- Managers see their department queue and assign work; employees see only
-  tickets assigned to them (`ownerId`).
+Department account keys are `water`, `roads`, `transport`, `electricity`,
+`sanitation`, `health`, `governance`, and `other`. Roads and transport share a
+department in the user interface; their seeded accounts remain separate test
+identities. `SEED_TEST_PASSWORD`, when configured, overrides manager and
+employee defaults.
 
-> 💡 **Tip:** Set `NEXT_PUBLIC_SHOW_DEV_CREDS=true` in `frontend/.env.local`
-> and open `/login` — the dev box lists every account above with one-click
-> **Autofill**. Never enable that flag in production.
->
-> You can also register any new citizen account on `/register` (minimum 8-character password).
+The current shared evaluation database snapshot (2026-10-23) contains 19
+default demo accounts and 28 plausible civic complaints. These counts can
+change as the demonstration proceeds. The demo seed command below adds up to
+eight curated records; do not run it against the shared evaluation database
+unless those extra records are wanted.
 
----
+## Optional curated demo data
 
-## Running Automated Tests
+`backend/seed_demo_data.py` contains eight geolocated examples across water,
+roads, transport, electricity, sanitation, health, governance, and other civic
+services. Their image files are included in `frontend/public/demo-assets/`.
 
-### Loading demo grievances
-
-The repository includes one realistic, geolocated grievance and one bundled
-image attachment for each of the eight service domains. Start the backend
-environment, then run from the repository root:
+Run the seeder from the repository root against a disposable local MongoDB:
 
 ```bash
 python -m backend.seed_demo_data
 ```
 
-The command is idempotent and uses the configured MongoDB repository (or the
-non-persistent in-memory fallback). Set `DEMO_IMAGE_BASE_URL` if the frontend
-is hosted somewhere other than `http://localhost:3000`.
+The command is idempotent for records it has already seeded. Do not use the
+in-memory fallback with this separate command: its data disappears when the
+seeder process exits. For a hosted frontend, set `DEMO_IMAGE_BASE_URL` to that
+frontend's `/demo-assets` URL before seeding. Do not point the seeder at a
+production or shared evaluation database unless adding these records is
+intentional.
 
-Run backend tests from the **repository root**:
+## Optional integrations
+
+Most core workflows run without external AI services. Configure optional keys
+in `backend/.env` only when testing the corresponding feature:
+
+| Setting | Purpose | Default behavior |
+|---|---|---|
+| `GROQ_API_KEY` | Optional classification and quality-check fallback | Local rules/classifier remain available without it |
+| `HF_API_TOKEN` | Optional Hugging Face classification fallback | Not required for startup |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Image upload and management | Attachments require the configured upload path |
+| `TRANSCRIPTION_ENABLED`, `SARVAM_API_KEY` | Voice transcription | Disabled by default; requires explicit provider configuration |
+| `FACE_AUTH_ENABLED`, `FACE_EMBED_KEY` | Optional face sign-in | Disabled by default; also requires `backend/requirements-face.txt` and model setup |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth | Google sign-in is unavailable until configured |
+| `SMS_PROVIDER` and `TWILIO_*` | SMS notifications | Dry-run/off unless configured |
+
+Never put provider secrets in frontend `NEXT_PUBLIC_*` variables or commit them
+to source control. See [backend/.env.example](backend/.env.example) and
+[frontend/.env.example](frontend/.env.example) for additional settings.
+
+## Tests and quality checks
+
+From the repository root:
 
 ```bash
-# Run the test suite:
+# Backend tests. MongoDB-specific tests skip unless TEST_MONGODB_URI is set.
 python -m pytest
 
-# Run with verbose output:
-python -m pytest -v
-
-# Run only authentication & RBAC tests:
-python -m pytest tests/test_auth.py -v
-```
-
-Verify frontend build integrity:
-
-```bash
+# Frontend lint and production build
+npm --prefix frontend run lint
 npm --prefix frontend run build
+
+# Frontend voice unit and UI tests
+npm --prefix frontend run test:voice
+
+# Frontend/API contract checks
+node frontend/scripts/check-contract.mjs
 ```
 
----
+The backend test fixtures disable external API calls and use fresh in-memory
+repositories. For MongoDB repository tests, set `TEST_MONGODB_URI` and
+`TEST_MONGODB_DB` to a disposable test database. Do not point test fixtures at
+the evaluation or production database.
 
-## Branch strategy
+`docs/USER_SIDE_TEST_CASES.md` is a manual test plan. Its cases are not a
+record of executed tests; check the current status before treating the plan as
+validation evidence.
 
-- `main` — stable. Do not push experiments here.
-- `feature/unified-system` — active development: unification, auth/RBAC, and UI overhaul.
+## AI status and known limitations
 
-## Key decisions
+- Category classification is a prototype cascade using a local
+  word/character model, deterministic rules, and optional provider fallbacks.
+  It is experimental and must not be treated as validated accuracy.
+- Priority and urgency values are advisory. A human reviews department routing
+  and assigns employees.
+- Related-complaint grouping uses client-side TF-IDF; semantic embedding search
+  is not implemented.
+- Several planned research modules, including persisted summarization, entity
+  extraction, delay-risk estimation, AI escalation recommendations, and
+  resolution-quality assessment, are not complete. See
+  [Current project state](memory/CURRENT_STATE.md) for the implementation
+  status and remaining work.
+- The application is an academic prototype. It has not been approved or
+  validated for real government operations or production-scale use.
 
-- **DEC-010** (`memory/DECISIONS.md`): FastAPI `backend/app/` is the active serving backend.
-- **DEC-011**: MongoDB is the primary database.
-- **DEC-017**: Cryptographic JWT authentication, role-based access control (RBAC), and Google OAuth support.
-- **DEC-024**: Optional, feature-flagged face-recognition login (1:1 verification, server-side liveness, encrypted embeddings) — convenience layer on top of JWT, never mandatory.
-- **Human-in-the-loop** (non-negotiable): AI provides advisory triage, human officers make all administrative decisions.
+## Deployment
 
-Voice final handoff: [HANDOFF_SUMMARY.md](HANDOFF_SUMMARY.md). Core drafting is
-implemented and mock-tested; live English only was confirmed. Stage 10 login
-restoration remains blocked. The diagnostic initialization flag defaults off and
-must stay off in normal deployments; transcription remains disabled by default.
+`render.yaml` defines the FastAPI backend service. Deploy the Next.js frontend
+separately and configure its `NEXT_PUBLIC_API_URL` to the deployed backend.
+Configure MongoDB, a strong `JWT_SECRET_KEY`, exact `CORS_ORIGINS`, and
+`FRONTEND_URL` in the hosting provider's secret/environment settings. Keep
+`SEED_TEST_ACCOUNTS=false` and `NEXT_PUBLIC_SHOW_DEV_CREDS=false` for any public
+deployment. Review the deployment-specific flags in `render.yaml`; provider
+credentials must be configured in the hosting dashboard, not committed to the
+repository.
+
+## Further documentation
+
+- [Product requirements](PRD.md)
+- [Project and research context](docs/PROJECT_CONTEXT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [API contracts](docs/API.md)
+- [Database design](docs/DATABASE.md)
+- [Grievance workflows](docs/WORKFLOWS.md)
+- [AI system and limitations](docs/AI_SYSTEM.md)
+- [Security notes](docs/SECURITY.md)
+- [Local development guide](docs/DEVELOPMENT.md)
+- [Voice-assisted complaint guide](docs/VOICE_ASSISTED_COMPLAINT.md)
+- [Current project state and remaining work](memory/CURRENT_STATE.md)

@@ -1406,6 +1406,25 @@ assigned employee did not update consistently in the platform or frontend.
   did not return a result summary and was interrupted.
 - Backend compile, frontend TypeScript, focused ESLint, and diff checks passed.
 
+## 2026-10-23 — Rebuild root README for project evaluation
+
+### Request
+Make the root README evaluation-ready, complete, accurate to the current
+repository, and free of emojis.
+
+### What changed
+- Replaced the stale setup guide with current project identity, roles and
+  workflows, stack/architecture, environment setup, demo accounts and data,
+  optional integrations, routes, test commands, deployment notes, and AI
+  limitations.
+- Added links to the detailed technical documents and current demo database
+  snapshot. Preserved the separate voice and development guides.
+
+### Verification
+- Checked all local Markdown links (14 found, none missing), scanned for
+  emoji codepoints (none), and ran `git diff --check`.
+- No application code or tests changed.
+
 ## 2026-10-23 — Fix Similar complaint groups View action
 
 ### Request

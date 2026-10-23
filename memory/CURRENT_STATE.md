@@ -29,7 +29,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 | Auth | JWT access/refresh + Google OAuth + RBAC (DEC-017); optional face login + phone OTP binding behind flags |
 | AI/NLP | Local word+character TF-IDF + LogisticRegression → civic-scope gate → deterministic keyword fallback → HF/Groq only for remaining in-scope uncertainty (`backend/app/services/classification.py`); Sarvam STT for voice; client-side TF-IDF similarity |
 | Tests | `tests/` pytest (Mongo tests need `TEST_MONGODB_URI`); `frontend/scripts/check-contract.mjs` + `e2e.mjs`; voice node suites. Citizen-side manual suite documented in `docs/USER_SIDE_TEST_CASES.md` (170 cases + 12 E2E, **not executed**) |
-| Docs | `docs/*` (ARCHITECTURE, API, DATABASE, SECURITY, DEVELOPMENT, AI_SYSTEM, WORKFLOWS, VOICE_ASSISTED_COMPLAINT) + `memory/rbac/` (docs-only RBAC spec suite) |
+| Docs | Root `README.md` is the evaluation-ready entry point for setup, roles, features, limits, demo accounts/data, tests and deployment; details live in `docs/*` and `memory/rbac/` |
 
 ---
 
