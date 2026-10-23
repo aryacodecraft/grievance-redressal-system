@@ -1,0 +1,11 @@
+# Research notebook environment; these are not FastAPI runtime additions.
+-r ../requirements-dev.txt
+
+matplotlib>=3.8,<4
+notebook>=7,<8
+nbformat>=5.9,<6
+nbclient>=0.10,<1
+nbconvert>=7,<8
+
+# Optional, paid-service-free embedding experiment (first run downloads weights):
+# sentence-transformers>=3,<6

@@ -77,10 +77,16 @@ out/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-ml/
 venv/
 
 # Downloaded InsightFace model pack (backend/scripts/prepare_face_model.py)
 .insightface/
+
+# Optional local notebook embedding cache (complaint-derived content)
+results/ml_benchmarks/hf_cache/
+results/ml_benchmarks/embedding_cache.npz
+.pytest_tmp_ml/
 
 # Secrets
 serviceAccountKey.json
