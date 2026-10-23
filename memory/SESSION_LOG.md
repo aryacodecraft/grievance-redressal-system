@@ -1406,6 +1406,30 @@ assigned employee did not update consistently in the platform or frontend.
   did not return a result summary and was interrupted.
 - Backend compile, frontend TypeScript, focused ESLint, and diff checks passed.
 
+## 2026-10-23 — Clean shared demo database
+
+### Request
+Remove unnecessary complaints and newly registered real-person accounts from
+the shared database while preserving legitimate complaints and default demo
+accounts for the next demonstration.
+
+### What changed
+- Removed 18 explicit probe/test, math/coding, or gibberish complaints and six
+  user accounts outside the default demo allowlist. Preserved 28 plausible civic
+  complaints, including rejected/ambiguous cases; six records were detached
+  from their deleted user IDs, not assigned to the demo citizen.
+- Deleted account notifications and face templates, redacted phone values from
+  retained phone audit events, and removed audit/progress references to deleted
+  junk complaints. Preserved other audit history.
+- Verified all 19 remaining demo accounts match documented roles, active flags,
+  and default password hashes. Updated `docs/DATABASE.md` and `CURRENT_STATE.md`.
+
+### Verification
+- MongoDB cleanup ran atomically with post-transaction count/reference checks.
+- Read-only verification confirmed 28 complaints, 19 demo accounts, no removed
+  account documents/face templates/inbox notifications, and no phone/email
+  patterns in the six retained complaints from those accounts.
+
 ## 2026-10-23 — Rebuild root README for project evaluation
 
 ### Request

@@ -31,6 +31,19 @@ logs a warning, and reports `"storage": "in-memory"` from `GET /health`.
 That keeps local development working before Atlas is configured, but data is
 lost on restart.
 
+## Shared demo dataset snapshot (2026-10-23)
+
+The configured shared demo database was cleaned for the upcoming demonstration:
+it contains 19 allowlisted default accounts and 28 plausible civic grievance
+records. Eighteen explicit test, gibberish, math, or coding-request records
+were removed. Six remaining complaints formerly linked to deleted personal
+accounts were retained with `userId: null`; their grievance details and staff
+workflow history remain available. Account notifications and face templates
+were removed, phone values were redacted from retained account audit entries,
+and unrelated audit history was preserved. This is a point-in-time data
+operation, not a startup filter or seed process; later demo activity can change
+these counts.
+
 ---
 
 ## Collection: `grievances`

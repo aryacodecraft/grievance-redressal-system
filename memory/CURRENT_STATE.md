@@ -385,6 +385,12 @@ only — humans retain assignment, escalation, resolution and closure authority
 - Seeded test accounts live on Render (verified 2026-10-20): superadmin + 8
   departments × 2; password login verified for the citizen/admin/manager/resolver
   test users. `SEED_TEST_ACCOUNTS` remains available for future environments.
+- Shared demo database cleanup (2026-10-23): 19 default demo accounts remain;
+  all 19 documented credentials, roles, and active flags were verified against
+  their stored hashes. 28 plausible civic grievance records remain after
+  removing 18 explicit test/non-civic entries. Six retained complaints were
+  detached from deleted personal accounts; related notifications and face
+  templates were removed and phone audit values redacted. See `docs/DATABASE.md`.
 - Seeded logins: `SEED_TEST_ACCOUNTS` (backend `.env`) +
   `NEXT_PUBLIC_SHOW_DEV_CREDS` (frontend `.env.local`); account list in
   `frontend/lib/testAccounts.ts`.

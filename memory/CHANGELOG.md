@@ -23,6 +23,18 @@
   emoji and validated local links against the repository.
 - README-only content change plus current-state/log updates; no code changed.
 
+## 2026-10-23 — Clean shared demo database
+
+- Removed 18 explicit test/non-civic complaints and 6 non-demo citizen
+  accounts from the configured shared MongoDB. Kept 28 plausible civic
+  complaints, including ambiguous and rejected cases; detached six retained
+  complaints from removed accounts. Removed account notifications and face
+  templates, redacted phone values in retained account audit events, and kept
+  unrelated audit history.
+- Verified the remaining 19 demo accounts are active and match their documented
+  roles/passwords. Updated `docs/DATABASE.md` and project snapshot. Live-data
+  operation; no application filter or seed behavior changed.
+
 ---
 
 ## 2026-10-23 — Reliable manager employee assignment (DEC-066)
