@@ -56,6 +56,12 @@ after every restart once data existed. See `memory/DECISIONS.md` DEC-014.
 | `createdAt` | **BSON date** | Stored as UTC `Date`, serialised back to ISO-8601 by the API. |
 | `imageUrl` | string | Optional — Cloudinary secure URL. |
 | `imageValidation` | object | Optional — `{llm_score, explanation, raw}`. |
+| `departmentId` | string | Canonical department responsible for the grievance. |
+| `ownerId` | string | Optional — assigned employee/resolver account id. |
+| `managerId` | string | Optional — manager who initiated employee assignment. |
+| `assignmentHistory` | array | Human assignment/reassignment records, including old/new owner and department, actor, reason and timestamp. |
+| `stateHistory` | array | State transitions with actor, reason, timestamp and source. |
+| `dueDate` | ISO-8601 string | Optional — SLA deadline, set on initial employee assignment. |
 | `latitude` | double | Optional. |
 | `longitude` | double | Optional. |
 | `assignee` | string | Optional — department name once an officer acts. |
@@ -100,6 +106,13 @@ implementations:
 
 Routers only depend on the protocol, so the storage backend can change without
 touching any HTTP layer.
+
+Employee assignment updates use `update_with_history`: assignment fields and
+their assignment/state history are written together (a single locked in-memory
+mutation or one MongoDB `find_one_and_update`). This prevents a grievance from
+showing a new owner while losing the audit entry, or retaining the old owner
+when history was already written. Notifications and audit events are emitted
+after persistence succeeds.
 
 ### Shared list contract
 

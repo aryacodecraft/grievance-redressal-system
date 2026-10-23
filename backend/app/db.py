@@ -37,6 +37,10 @@ class GrievanceRepository(Protocol):
         self, grievance_id: str, patch: dict[str, Any]
     ) -> Optional[dict[str, Any]]: ...
 
+    def update_with_history(
+        self, grievance_id: str, patch: dict[str, Any], histories: dict[str, dict[str, Any]]
+    ) -> Optional[dict[str, Any]]: ...
+
     def append_history(self, grievance_id: str, history_key: str, entry: dict[str, Any]) -> None: ...
 
 
@@ -135,6 +139,21 @@ class InMemoryRepository:
             if doc is None:
                 return None
             doc.update({k: v for k, v in patch.items() if v is not None})
+            return dict(doc)
+
+    def update_with_history(
+        self, grievance_id: str, patch: dict[str, Any], histories: dict[str, dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
+        """Persist a workflow change and its audit history as one locked update."""
+        with self._lock:
+            doc = self._docs.get(grievance_id)
+            if doc is None:
+                return None
+            doc.update({key: value for key, value in patch.items() if value is not None})
+            for history_key, entry in histories.items():
+                if not isinstance(doc.get(history_key), list):
+                    doc[history_key] = []
+                doc[history_key].append(dict(entry))
             return dict(doc)
 
     def append_history(self, grievance_id: str, history_key: str, entry: dict[str, Any]) -> None:
@@ -282,6 +301,23 @@ class MongoRepository:
         doc = self._col.find_one_and_update(
             {"id": grievance_id},
             {"$set": {k: v for k, v in patch.items() if v is not None}},
+            projection={"_id": 0},
+            return_document=ReturnDocument.AFTER,
+        )
+        return self._from_storage(doc) if doc else None
+
+    def update_with_history(
+        self, grievance_id: str, patch: dict[str, Any], histories: dict[str, dict[str, Any]]
+    ) -> Optional[dict[str, Any]]:
+        """Atomically store assignment fields and their workflow history."""
+        from pymongo import ReturnDocument
+
+        update: dict[str, Any] = {"$set": {key: value for key, value in patch.items() if value is not None}}
+        if histories:
+            update["$push"] = {key: dict(entry) for key, entry in histories.items()}
+        doc = self._col.find_one_and_update(
+            {"id": grievance_id},
+            update,
             projection={"_id": 0},
             return_document=ReturnDocument.AFTER,
         )

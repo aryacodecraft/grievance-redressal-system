@@ -68,13 +68,13 @@ class AssignRequest(BaseModel):
     departmentId: str
     ownerId: str | None = None
     dueDate: str | None = None
-    reason: str
+    reason: str = Field(min_length=1)
     overrideAi: bool = False
 
 class ReassignRequest(BaseModel):
     ownerId: str
     departmentId: str | None = None
-    reason: str
+    reason: str = Field(min_length=1)
 
 class ProgressUpdateRequest(BaseModel):
     bodyInternal: str

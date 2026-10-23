@@ -425,22 +425,34 @@ List grievances pending assignment. **Auth:** ADMIN.
 
 ### POST /grievances/{grievance_id}/assign
 Make the initial department assignment. **Auth:** `ADMIN` or `SUPERADMIN`.
-Allowed from `SUBMITTED` or `PENDING_ASSIGNMENT`; later changes use
-`/reassign` so they do not reset the active state.
+Allowed from `SUBMITTED` or `PENDING_ASSIGNMENT`; a department manager may
+route only within their own department. Later employee assignment changes use
+`/reassign` so they do not reset active work.
 **Request:**
 ```json
 {
-  "department_id": "UUID",
-  "resolver_id"?: "UUID",
-  "notes"?: "string",
-  "override_ai_recommendation": false
+  "departmentId": "roads",
+  "ownerId": "employee-user-id",
+  "dueDate": "optional ISO-8601 date",
+  "reason": "Required non-blank human explanation"
 }
 ```
-**Side effect:** Status → ASSIGNED, notification sent.
+`ownerId` is optional for department routing, but when supplied must identify
+an active resolver in the selected department. The department, state, deadline,
+assignment history, notification and audit record are updated by the workflow.
 
 ### POST /grievances/{grievance_id}/reassign
-Reassign. **Auth:** ADMIN.
-**Request:** `{ "department_id", "resolver_id"?, "reason": "string" }`
+Assign/reassign an employee. **Auth:** `ADMIN` or `SUPERADMIN`; a department
+manager may act only on a grievance and employee in their own department.
+Allowed only for active, assignable grievances; closed/resolved/rejected and
+withdrawn complaints return `422`. The target must be active and have role
+`RESOLVER`.
+**Request:** `{ "ownerId": "employee-user-id", "departmentId"?: "roads", "reason": "Required non-blank explanation" }`
+
+The current owner, department, manager, updated timestamp, and assignment/state
+history are persisted together before notifications are sent. Reassigning to
+the already-current owner is an idempotent no-op and does not duplicate history
+or notifications. The response includes `grievanceId` and current `state`.
 
 ---
 
