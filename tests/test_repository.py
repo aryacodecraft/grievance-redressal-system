@@ -156,6 +156,30 @@ def test_update_persists_patch(repo):
     assert reloaded["assignee"] == "Zonal Officer"
 
 
+def test_update_with_history_persists_assignment_and_history_together(repo):
+    doc_id = repo.create(_doc(state="PENDING_ASSIGNMENT", ownerId=None))
+    updated = repo.update_with_history(
+        doc_id,
+        {"ownerId": "worker-1", "state": "ASSIGNED", "status": "assigned"},
+        {"assignmentHistory": {"fromOwner": None, "toOwner": "worker-1", "by": "manager-1"}},
+    )
+
+    assert updated["ownerId"] == "worker-1"
+    assert updated["state"] == "ASSIGNED"
+    assert updated["assignmentHistory"] == [
+        {"fromOwner": None, "toOwner": "worker-1", "by": "manager-1"}
+    ]
+    reloaded = repo.get(doc_id)
+    assert reloaded["ownerId"] == "worker-1"
+    assert reloaded["assignmentHistory"] == updated["assignmentHistory"]
+
+
+def test_update_with_history_missing_record_is_noop(repo):
+    assert repo.update_with_history(
+        "GRV-1999-9999", {"ownerId": "worker-1"}, {"assignmentHistory": {"toOwner": "worker-1"}}
+    ) is None
+
+
 def test_update_missing_returns_none(repo):
     assert repo.update("GRV-1999-9999", {"status": "resolved"}) is None
 

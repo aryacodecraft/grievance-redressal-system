@@ -113,8 +113,14 @@ class TestAssignRBAC:
             "hashed_password": password_hash, "role": "RESOLVER",
             "departmentId": "Traffic & Transport Operations", "isActive": True,
         })
+        next_employee_id = users_repository.create({
+            "email": "rt-next-employee@x.com", "full_name": "Roads employee",
+            "hashed_password": password_hash, "role": "RESOLVER",
+            "departmentId": "roads", "isActive": True,
+        })
         manager = _login(client, "rt-manager@x.com")
         employee = _login(client, "rt-employee@x.com")
+        next_employee = _login(client, "rt-next-employee@x.com")
         team = client.get("/users", headers=_bearer(manager["access_token"]))
         assert team.status_code == 200
         assert any(row["id"] == employee_id for row in team.json())
@@ -125,16 +131,50 @@ class TestAssignRBAC:
             headers=_bearer(manager["access_token"]),
         )
         assert assigned.status_code == 200, assigned.json()
+        manager_queue = client.get("/grievances", headers=_bearer(manager["access_token"]))
+        manager_record = next(row for row in manager_queue.json() if row["id"] == grievance_id)
+        assert manager_record["ownerId"] == employee_id
+        assert manager_record["state"] == "ASSIGNED"
+        assert manager_record["assignmentHistory"][-1]["by"] == manager["user"]["id"]
+
+        repeated = client.post(
+            f"/grievances/{grievance_id}/reassign",
+            json={"ownerId": employee_id, "departmentId": "roads", "reason": "Duplicate click"},
+            headers=_bearer(manager["access_token"]),
+        )
+        assert repeated.status_code == 200
+        repeated_record = next(
+            row for row in client.get("/grievances", headers=_bearer(manager["access_token"])).json()
+            if row["id"] == grievance_id
+        )
+        assert len(repeated_record["assignmentHistory"]) == 1
 
         tasks = client.get("/resolver/tasks", headers=_bearer(employee["access_token"]))
         assert tasks.status_code == 200, tasks.json()
         assert [task["id"] for task in tasks.json()] == [grievance_id]
         notices = client.get("/notifications", headers=_bearer(employee["access_token"]))
         assert any(row.get("entityId") == grievance_id for row in notices.json())
+
+        reassigned = client.post(
+            f"/grievances/{grievance_id}/reassign",
+            json={"ownerId": next_employee_id, "departmentId": "roads", "reason": "Balance team workload"},
+            headers=_bearer(manager["access_token"]),
+        )
+        assert reassigned.status_code == 200, reassigned.json()
+        manager_record = next(
+            row for row in client.get("/grievances", headers=_bearer(manager["access_token"])).json()
+            if row["id"] == grievance_id
+        )
+        assert manager_record["ownerId"] == next_employee_id
+        assert manager_record["assignmentHistory"][-1]["by"] == manager["user"]["id"]
+        assert client.get("/resolver/tasks", headers=_bearer(employee["access_token"])).json() == []
+        next_employee_tasks = client.get("/resolver/tasks", headers=_bearer(next_employee["access_token"]))
+        assert [task["id"] for task in next_employee_tasks.json()] == [grievance_id]
+
         started = client.patch(
             f"/grievances/{grievance_id}/state",
             json={"to_state": "IN_PROGRESS", "reason": "Worker started"},
-            headers=_bearer(employee["access_token"]),
+            headers=_bearer(next_employee["access_token"]),
         )
         assert started.status_code == 200, started.json()
 
