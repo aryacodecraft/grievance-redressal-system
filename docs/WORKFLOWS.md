@@ -312,6 +312,13 @@ department, and audits account changes. Assigning a pending grievance moves it
 to `ASSIGNED` and starts its SLA deadline. Employees with active grievances
 must have those tasks reassigned before their account can be removed.
 
+Queue and employee-tab assignment actions use the same server endpoint and
+persist owner, assignment history, and any initial state/deadline change
+atomically. The manager queue refreshes immediately after success; repeated
+assignment to the current employee is idempotent and does not add duplicate
+history or notifications. Reassignment is rejected for terminal or review-only
+states, and a nonblank reason is required for every actual change.
+
 ## Face authentication login (optional, DEC-024)
 
 Face login is opt-in and off by default (`FACE_AUTH_ENABLED=false`). When off,

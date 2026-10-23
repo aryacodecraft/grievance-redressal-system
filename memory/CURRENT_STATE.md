@@ -38,6 +38,11 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Grievance lifecycle** — 15-state machine (`backend/app/services/state_machine.py`),
   role-gated transitions, assignment/history arrays; status PATCH restricted to
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
+- **Manager employee assignment** — queue and employee workspace share a
+  server-validated assignment path; owner and workflow histories persist
+  atomically, manager feed refreshes immediately, duplicate owner assignment is
+  idempotent. Focused repository/RBAC verification is recorded in the latest
+  `CHANGELOG.md` entry (DEC-066).
 - **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal with click/tap pinning and language-aware structured place search — DEC-050/065), track
   (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
   DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.

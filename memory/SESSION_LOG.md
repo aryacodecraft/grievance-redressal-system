@@ -1384,3 +1384,24 @@ improve place-name suggestions from typed and voice-derived locations.
 - `voice-intake.test.mjs` and `voice-intake-ui.test.mjs` passed. The full
   `npm run test:voice` runner did not return a final summary, so its overall
   result is not claimed.
+
+## 2026-10-23 — Reliable manager employee assignment (DEC-066)
+
+### Request
+Fix manager assignment from the grievance queue and employee tab when the
+assigned employee did not update consistently in the platform or frontend.
+
+### What changed
+- Made assignment/reassignment state and audit-history persistence atomic in
+  both repository implementations; removed silent history-write failures.
+- Validated nonblank reason and eligible workflow state; same-owner assignment
+  returns idempotently. Queue assignment now refreshes immediately, prevents
+  stale polls overwriting fresh data, and displays employee ownership.
+- Added repository/RBAC coverage and synchronized API, database, workflow, and
+  project memory docs.
+
+### Verification
+- `tests/test_repository.py`: 22 passed; 22 MongoDB-backed cases skipped
+  because no test database is available. The focused manager RBAC workflow
+  did not return a result summary and was interrupted.
+- Backend compile, frontend TypeScript, focused ESLint, and diff checks passed.

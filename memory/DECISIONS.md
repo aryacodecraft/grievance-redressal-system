@@ -2856,3 +2856,28 @@ violate the existing human-confirmation rule (DEC-038).
 
 **Reversible:** Yes — restore Leaflet's map click event and/or the previous
 display-name formatting without changing grievance data or API contracts.
+
+## DEC-066 — Atomic Employee Assignment and Immediate Queue Refresh (2026-10-23)
+
+**Context:** Manager assignment actions from both the grievance queue and
+employee workspace could succeed on the server while the displayed owner
+remained stale. Assignment fields and history were also written separately,
+with history failures silently ignored.
+
+**Decision:** Persist owner/department/state/deadline changes with assignment
+and state history as one repository operation. Use a single MongoDB update and
+one in-memory lock for equivalent behavior. Reject blank reasons and
+non-reassignable states; treat assigning to the current owner as an idempotent
+success. Refresh the grievance feed immediately after successful assignment,
+and guard the UI against stale in-flight polling responses.
+
+**Reason:** The grievance's current assignee must agree with its audit trail,
+and both manager surfaces must reflect a successful assignment without waiting
+for the polling interval. Human managers remain responsible for assignment.
+
+**Verification:** Focused repository and RBAC workflow tests cover persistence,
+manager queue visibility, reassignment visibility for old/new employees, and
+duplicate assignment idempotency. See current task entry in `CHANGELOG.md`.
+
+**Reversible:** Yes — alter the repository operation or refresh behavior while
+preserving server-side manager scope and assignment auditability.

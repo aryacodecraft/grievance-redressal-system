@@ -9,6 +9,18 @@
 
 ---
 
+## 2026-10-23 — Reliable manager employee assignment (DEC-066)
+
+- Manager assignments from the grievance queue and employee workspace now
+  persist owner/state/deadline and audit history atomically. Assignment
+  eligibility and nonblank reason are enforced; duplicate assignment to the
+  current employee is idempotent. Queue displays employee ownership and
+  refreshes immediately, with stale polling responses ignored.
+- Added repository and RBAC regressions; updated API, database, workflow docs
+  and project memory. Repository tests: 22 passed, 22 MongoDB cases skipped
+  because no test database is available. The focused RBAC workflow did not
+  return a result summary and was interrupted; frontend and syntax checks passed.
+
 ## 2026-10-23 — Location picker taps and place-name search (DEC-065)
 
 - Map click/tap now pins on a short pointer gesture without drag; panning and
