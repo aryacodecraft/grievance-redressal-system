@@ -1343,3 +1343,44 @@ citizen/user-facing experience. Explicitly documentation only — no test code.
   `E2E-01`) and then P0 security/integrity cases. Confirm and fix the highest
   risks first: G-04/G-05 (cross-user/public lookup), G-01/G-02 (outcome/
   history visibility), G-08 (retry duplicates), G-10 (image-AI blocking).
+
+## 2026-10-23 — Closed admin queue outcome tabs (DEC-064)
+
+### Request
+Rename the resolved complaint tab to Closed, with Resolved, Rejected, and
+Invalid complaints separated under it.
+
+### What changed
+- `AdminBoard.tsx`: added Closed as the terminal-complaint queue, with All
+  Closed, Resolved, Rejected, and Invalid sub-tabs and counts. Stored `closed`
+  outcomes remain visible in Resolved. Active filters remain active-only.
+- Updated `docs/WORKFLOWS.md`, `memory/DECISIONS.md` (DEC-064), and
+  `memory/CURRENT_STATE.md`.
+
+### Verification
+- `npx tsc --noEmit` passed.
+- `npx eslint components/admin/AdminBoard.tsx` passed.
+- `node scripts/check-contract.mjs` passed (22 checks).
+- `git diff --check` passed. No browser visual pass was run.
+
+## 2026-10-23 — Location picker tap and place-name improvements (DEC-065)
+
+### Request
+Allow confirming a map-selected location by click/tap without dragging, and
+improve place-name suggestions from typed and voice-derived locations.
+
+### What changed
+- `LocationCapture.tsx`: short pointer gestures place a pin; pans and map
+  controls are ignored. Voice search uses the spoken language, and geocoder
+  choices stay explicit.
+- `lib/location.ts`: request structured Nominatim addresses in the chosen
+  language and compact results to a named place/locality/city/state hierarchy.
+- Added offline label-format contract checks; updated DEC-065, workflow docs,
+  and current state.
+
+### Verification
+- `npx tsc --noEmit`, focused ESLint, `node scripts/check-contract.mjs`
+  (23 checks), and `git diff --check` passed.
+- `voice-intake.test.mjs` and `voice-intake-ui.test.mjs` passed. The full
+  `npm run test:voice` runner did not return a final summary, so its overall
+  result is not claimed.

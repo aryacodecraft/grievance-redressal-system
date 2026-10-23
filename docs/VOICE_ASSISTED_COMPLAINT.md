@@ -1042,8 +1042,12 @@ lock and state guards prevent duplicate conversation turns.
   every new button is `type="button"` and typed-answer Enter is handled
   manually (no nested forms).
 - `LocationCapture.tsx` — `suggestedSearch` prop: a vocally described place
-  seeds the search box and shows matches; choosing one stays explicit. Voice
-  never auto-pins a location and GPS is never used by the conversation.
+  seeds the search box and shows structured locality/city/state matches in the
+  spoken language; choosing one stays explicit. Map taps and short clicks place
+  a pin directly, while map pans and marker drags remain distinct. Voice never
+  auto-pins a location and GPS is never used by the conversation. Search stays
+  explicitly user-triggered rather than per-keystroke autocomplete, per the
+  [public Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 - `lib/api.ts` `extractVoiceIntake` (JSON, 45 s client timeout, Zod-validated);
   `lib/voice/errors.ts` shared error mapping; new i18n keys complete in
   en/hi/mr.

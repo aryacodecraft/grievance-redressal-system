@@ -302,6 +302,23 @@ assert.equal(location.formatCityState({ city: "Panaji", state: null }), "Panaji"
 assert.equal(location.formatCityState(null), null);
 log("parseCityState/formatCityState city-state labels");
 
+assert.deepEqual(
+  location.compactPlaceLabel("Cubbon Park", "Cubbon Park, Bengaluru, Karnataka, India", {
+    city: "Bengaluru",
+    state: "Karnataka",
+  }),
+  { name: "Cubbon Park", displayName: "Cubbon Park, Bengaluru, Karnataka" }
+);
+assert.deepEqual(
+  location.compactPlaceLabel(undefined, "Koramangala, Bengaluru, Karnataka, India", {
+    suburb: "Koramangala",
+    city: "Bengaluru",
+    state: "Karnataka",
+  }),
+  { name: "Koramangala", displayName: "Koramangala, Bengaluru, Karnataka" }
+);
+log("compact geocoding labels prefer named place/locality and city/state");
+
 /* ── 5. Camera track stopping & face request timeout ──────────────────────── */
 const camera = await import("../lib/camera.ts");
 

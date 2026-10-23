@@ -203,13 +203,43 @@ export interface GeocodeSearchResult {
   longitude: number;
 }
 
+export function compactPlaceLabel(
+  name: string | undefined,
+  displayName: string | undefined,
+  address: Record<string, string> | undefined
+): { name: string; displayName: string } {
+  const a = address ?? {};
+  const locality =
+    a.neighbourhood || a.suburb || a.quarter || a.residential || a.village ||
+    a.town || a.city_district || a.city || a.hamlet;
+  const city =
+    a.city || a.town || a.village || a.municipality || a.district ||
+    a.state_district;
+  const road = a.road;
+  const firstDisplayPart = displayName?.split(",")[0]?.trim();
+  const primary = name?.trim() || road || locality || firstDisplayPart || "Location";
+  const hierarchy = [
+    primary,
+    locality,
+    city,
+    a.state,
+  ].filter((part, index, parts): part is string => Boolean(part) && parts.indexOf(part) === index);
+  return {
+    name: primary,
+    displayName: hierarchy.slice(0, 4).join(", ") || displayName || primary,
+  };
+}
+
 const forwardCache = new Map<string, GeocodeSearchResult[]>();
 
 /**
  * Forward geocoding: human-typed address, landmark, or city name → coordinates.
  * Also parses explicit coordinates (e.g. "28.6318, 77.2194").
  */
-export async function forwardGeocode(query: string): Promise<GeocodeSearchResult[]> {
+export async function forwardGeocode(
+  query: string,
+  language = "en"
+): Promise<GeocodeSearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
@@ -230,11 +260,20 @@ export async function forwardGeocode(query: string): Promise<GeocodeSearchResult
     }
   }
 
-  const cacheKey = trimmed.toLowerCase();
+  const cacheKey = `${language.toLowerCase()}:${trimmed.toLowerCase()}`;
   const cached = forwardCache.get(cacheKey);
   if (cached) return cached;
 
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(trimmed)}&countrycodes=in&limit=5`;
+  const preferredLanguage = language.split(/[-_]/, 1)[0] || "en";
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    q: trimmed,
+    countrycodes: "in",
+    addressdetails: "1",
+    limit: "5",
+    "accept-language": `${preferredLanguage}-IN,${preferredLanguage},en`,
+  });
+  const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
   try {
     const res = await fetch(url, {
       headers: { Accept: "application/json" },
@@ -246,11 +285,11 @@ export async function forwardGeocode(query: string): Promise<GeocodeSearchResult
       lon: string;
       name?: string;
       display_name?: string;
+      address?: Record<string, string>;
     }> = await res.json();
 
     const results = data.map((item) => ({
-      name: item.name || (item.display_name ? item.display_name.split(",")[0].trim() : "Location"),
-      displayName: item.display_name || "",
+      ...compactPlaceLabel(item.name, item.display_name, item.address),
       latitude: parseFloat(item.lat),
       longitude: parseFloat(item.lon),
     }));

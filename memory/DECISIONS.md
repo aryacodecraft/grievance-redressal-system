@@ -2813,3 +2813,46 @@ incoming ML/RBAC work, so this decision is recorded as DEC-063.
 
 **Reversible:** Yes — revise or replace the document; the decision records the
 convention, not an irreversible architecture change.
+
+## DEC-064 — Closed Admin Queue with Outcome Sub-Tabs (2026-10-23)
+
+**Context:** The admin board's “Resolved Archive” name implied that only
+resolved work was retained, while rejected and invalid grievances were not
+shown in the historical queue. The owner requested one “Closed” area with
+separate outcome views.
+
+**Decision:** Keep the active queue separate and rename the historical top-level
+tab to “Closed”. Within it, provide All Closed, Resolved, Rejected, and Invalid
+sub-tabs with counts. The Resolved view includes both stored `resolved` and
+`closed` statuses. Rejected and Invalid are separate statuses. This is a
+frontend grouping only; it does not introduce or alter lifecycle states or
+backend transitions. The Closed count includes resolved, closed, rejected, and
+invalid records.
+
+**Verification:** TypeScript, focused ESLint, and frontend contract checks are
+recorded in the 2026-10-23 changelog/session entry.
+
+**Reversible:** Yes — change the queue filters and labels in `AdminBoard.tsx`;
+historical records and backend state remain unchanged.
+
+## DEC-065 — Reliable Map Taps and Structured Place Search (2026-10-23)
+
+**Context:** The incident-location map should let citizens confirm a spot with
+a direct click/tap, without requiring marker dragging. Typed and voice-derived
+place searches should present more useful, language-appropriate names.
+
+**Decision:** Use a short pointer gesture on the map as the location-pick
+action; ignore map controls and pointer movement over 8 pixels so panning does
+not accidentally choose a spot. Keep marker dragging and explicit final
+confirmation. Request Nominatim address details and the selected interface or
+spoken language, then display a compact named-place/locality/city/state label.
+Voice search remains a suggestion only and never auto-pins. Keep remote search
+user-triggered (button/Enter or one voice-derived query); do not add
+per-keystroke autocomplete because the public Nominatim service prohibits it.
+
+**Alternatives rejected:** Browser-side Nominatim autocomplete is disallowed by
+the provider policy; silently committing voice-derived coordinates would
+violate the existing human-confirmation rule (DEC-038).
+
+**Reversible:** Yes — restore Leaflet's map click event and/or the previous
+display-name formatting without changing grievance data or API contracts.

@@ -9,7 +9,7 @@
 > Decisions: `DECISIONS.md` (grep by topic). Status vocabulary: AGENTS.md
 > (PLANNED / IN PROGRESS / IMPLEMENTED / TESTED / VALIDATED / DEFERRED / OPTIONAL).
 >
-> **Last updated: 2026-10-21.** Keep this file current after every task — edit
+> **Last updated: 2026-10-23.** Keep this file current after every task — edit
 > it in place when implementation state or the backlog changes.
 
 ---
@@ -38,7 +38,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 - **Grievance lifecycle** — 15-state machine (`backend/app/services/state_machine.py`),
   role-gated transitions, assignment/history arrays; status PATCH restricted to
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
-- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal — DEC-050), track
+- **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal with click/tap pinning and language-aware structured place search — DEC-050/065), track
   (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
   DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.
 - **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
@@ -47,7 +47,7 @@ only — humans retain assignment, escalation, resolution and closure authority
   warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
   board under a dedicated "Flagged" filter and review badge without ever silently dropping
   submissions. IMPLEMENTED, TESTED.
-- **Staff experience** — tabbed admin queue/board separating active/priority complaints from historical resolved archive with interactive triage metrics (DEC-051) + detail review modal, comprehensive executive analytics (DEC-054: trends area chart, grouped department performance bar chart, resolution times & SLA compliance metrics, complaint aging buckets, priority distribution, Leaflet hotspot density clustering, TF-IDF clusters, CSV export), department-employees workspace, resolver workbench
+- **Staff experience** — tabbed admin queue/board separating active/priority complaints from a Closed archive with All Closed, Resolved, Rejected, and Invalid outcome views (DEC-051/064; stored `closed` status appears in Resolved); interactive triage metrics + detail review modal, comprehensive executive analytics (DEC-054: trends area chart, grouped department performance bar chart, resolution times & SLA compliance metrics, complaint aging buckets, priority distribution, Leaflet hotspot density clustering, TF-IDF clusters, CSV export), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
   audit), account-scoped notifications. IMPLEMENTED, TESTED.
 - **Auth** — email/password + JWT + refresh, Google OAuth, RBAC guards, signup

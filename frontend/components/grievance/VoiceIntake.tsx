@@ -71,7 +71,7 @@ export interface VoiceIntakeOptions {
   getDirty: () => { title: boolean; description: boolean };
   hasCoords: () => boolean;
   applyField: (field: "title" | "description", value: string) => void;
-  onLocationSuggestion: (text: string) => void;
+  onLocationSuggestion: (text: string, language: VoiceLanguage) => void;
   onReadyChange: (ready: boolean) => void;
 }
 
@@ -217,7 +217,7 @@ export function useVoiceIntake(options: VoiceIntakeOptions): VoiceIntakeControll
       setAi(merged.ai);
       if (extraction.locationText && extraction.locationText !== lastSuggestion.current) {
         lastSuggestion.current = extraction.locationText;
-        optionsRef.current.onLocationSuggestion(extraction.locationText);
+        optionsRef.current.onLocationSuggestion(extraction.locationText, language);
       }
       const plan = planNextStep({
         extraction,

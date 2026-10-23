@@ -9,6 +9,25 @@
 
 ---
 
+## 2026-10-23 — Location picker taps and place-name search (DEC-065)
+
+- Map click/tap now pins on a short pointer gesture without drag; panning and
+  map controls do not select a point. Search results use structured place,
+  locality, city, and state labels in the typed or spoken language.
+- Voice-derived place remains an explicit suggestion, not an auto-pin. Search
+  stays user-triggered to comply with public Nominatim's no-autocomplete rule.
+- Updated voice workflow docs and project memory. TypeScript, focused ESLint,
+  contract checks (23), and diff check passed; focused voice-intake and
+  voice-intake UI tests passed. The full voice suite did not return a summary.
+
+## 2026-10-23 — Closed complaint outcome tabs (DEC-064)
+
+- Renamed the admin board's Resolved Archive to Closed and added All Closed,
+  Resolved, Rejected, and Invalid sub-tabs with live counts. `closed` records
+  are included with Resolved; backend lifecycle states are unchanged.
+- Updated workflow docs and project memory. `npx tsc --noEmit`, focused ESLint,
+  frontend contract checks, and `git diff --check` passed.
+
 ## 2026-10-21 — Citizen-side test plan, 170 cases, 12 E2E journeys, and gap register (DEC-063)
 
 - Added `docs/USER_SIDE_TEST_CASES.md`: test plan, 170 module cases, 12 E2E

@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckCircle2,
-  Crosshair,
-  ExternalLink,
   Loader2,
   MapPin,
   Navigation,
@@ -31,14 +29,18 @@ const INDIA_BOUNDS: [[number, number], [number, number]] = [
 export function LocationCapture({
   onChange,
   suggestedSearch,
+  searchLanguage,
 }: {
   onChange: (coords: Coords | null) => void;
   /** Voice-derived search bias (DEC-038): populates the search box and shows
    *  the matching list for an explicit pick — it never auto-pins a result and
    *  never uses the device position as the incident location. */
   suggestedSearch?: { text: string; token: number } | null;
+  /** Search labels should match the citizen's typed or spoken language. */
+  searchLanguage?: string;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const geocodeLanguage = searchLanguage || language;
 
   // Primary selected state passed to parent
   const [selectedCoords, setSelectedCoords] = useState<Coords | null>(null);
@@ -61,9 +63,11 @@ export function LocationCapture({
   const [modalError, setModalError] = useState<string | null>(null);
 
   const modalMapRef = useRef<HTMLDivElement>(null);
+  const modalGeocodeRequestRef = useRef(0);
   const leafletRef = useRef<{
     map: import("leaflet").Map;
     marker?: import("leaflet").Marker;
+    placePin?: (latitude: number, longitude: number, knownLabel?: string) => void;
   } | null>(null);
 
   // GPS capture helper
@@ -86,9 +90,7 @@ export function LocationCapture({
         } else {
           setModalCoords(next);
           setModalError(null);
-          void reverseGeocode(next.latitude, next.longitude).then((p) => {
-            if (p?.name) setModalPlace(p.name);
-          });
+          leafletRef.current?.placePin?.(next.latitude, next.longitude);
           const map = leafletRef.current?.map;
           if (map) {
             map.setView([next.latitude, next.longitude], 16);
@@ -156,7 +158,7 @@ export function LocationCapture({
     }
 
     try {
-      const results = await forwardGeocode(query);
+      const results = await forwardGeocode(query, geocodeLanguage);
       if (results.length === 0) {
         const msg = "No matching location found. Please try a different area or landmark.";
         if (inModal) setModalError(msg);
@@ -169,6 +171,7 @@ export function LocationCapture({
           address: top.displayName || top.name,
         };
         if (inModal) {
+          leafletRef.current?.placePin?.(top.latitude, top.longitude, top.displayName || top.name);
           setModalCoords(next);
           setModalPlace(top.displayName || top.name);
           setModalSearchQuery("");
@@ -239,11 +242,12 @@ export function LocationCapture({
     let t2: ReturnType<typeof setTimeout> | undefined;
     let t3: ReturnType<typeof setTimeout> | undefined;
     let resizeObserver: ResizeObserver | null = null;
+    let pointerCleanup: (() => void) | null = null;
 
     void import("leaflet")
       .then((leafletModule) => {
         if (cancelled || !modalMapRef.current) return;
-        const L = (leafletModule as any).default || leafletModule;
+        const L = leafletModule.default ?? leafletModule;
         if (!L || typeof L.map !== "function") {
           console.error("Leaflet failed to load properly", leafletModule);
           return;
@@ -251,8 +255,9 @@ export function LocationCapture({
 
         // Clean up any stale leaflet state on the DOM node to prevent
         // "Map container is already initialized" errors
-        if ((modalMapRef.current as any)._leaflet_id) {
-          delete (modalMapRef.current as any)._leaflet_id;
+        const mapElement = modalMapRef.current as HTMLDivElement & { _leaflet_id?: number };
+        if (mapElement._leaflet_id) {
+          delete mapElement._leaflet_id;
         }
         if (leafletRef.current?.map) {
           try {
@@ -296,17 +301,23 @@ export function LocationCapture({
 
         let marker: import("leaflet").Marker | undefined;
 
-        function placePin(lat: number, lng: number) {
+        function placePin(lat: number, lng: number, knownLabel?: string) {
           if (lat < 6.0 || lat > 38.0 || lng < 68.0 || lng > 98.0) {
             setModalError("Please choose a location within India.");
             return;
           }
           setModalError(null);
+          const requestId = ++modalGeocodeRequestRef.current;
           const next: Coords = { latitude: lat, longitude: lng };
           setModalCoords(next);
-          void reverseGeocode(lat, lng).then((p) => {
-            if (p?.name) setModalPlace(p.name);
-          });
+          if (knownLabel) {
+            setModalPlace(knownLabel);
+          } else {
+            setModalPlace(null);
+            void reverseGeocode(lat, lng).then((p) => {
+              if (requestId === modalGeocodeRequestRef.current && p?.name) setModalPlace(p.name);
+            });
+          }
 
           if (marker) {
             marker.setLatLng([lat, lng]);
@@ -322,17 +333,48 @@ export function LocationCapture({
             });
             marker = m;
           }
+          if (leafletRef.current?.map === map) {
+            leafletRef.current = { map, marker, placePin };
+          }
         }
 
         if (validCoords) {
-          placePin(modalCoords.latitude, modalCoords.longitude);
+          placePin(modalCoords.latitude, modalCoords.longitude, modalPlace || undefined);
         }
 
-        map.on("click", (e: import("leaflet").LeafletMouseEvent) => {
-          placePin(e.latlng.lat, e.latlng.lng);
-        });
+        // Use a short pointer gesture as the primary map selection path. This
+        // works consistently for mouse clicks and touch taps; pans/drags do not
+        // accidentally select a location. Marker dragging remains supported.
+        const container = map.getContainer();
+        let pointerStart: { x: number; y: number } | null = null;
+        const onPointerDown = (event: PointerEvent) => {
+          if ((event.target as HTMLElement).closest(".leaflet-control")) {
+            pointerStart = null;
+            return;
+          }
+          pointerStart = { x: event.clientX, y: event.clientY };
+        };
+        const onPointerUp = (event: PointerEvent) => {
+          const start = pointerStart;
+          pointerStart = null;
+          if (!start || (event.target as HTMLElement).closest(".leaflet-control")) return;
+          if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 8) return;
+          const rect = container.getBoundingClientRect();
+          const point = L.point(event.clientX - rect.left, event.clientY - rect.top);
+          const latlng = map.containerPointToLatLng(point);
+          placePin(latlng.lat, latlng.lng);
+        };
+        const onPointerCancel = () => { pointerStart = null; };
+        container.addEventListener("pointerdown", onPointerDown);
+        container.addEventListener("pointerup", onPointerUp);
+        container.addEventListener("pointercancel", onPointerCancel);
+        pointerCleanup = () => {
+          container.removeEventListener("pointerdown", onPointerDown);
+          container.removeEventListener("pointerup", onPointerUp);
+          container.removeEventListener("pointercancel", onPointerCancel);
+        };
 
-        leafletRef.current = { map, marker };
+        leafletRef.current = { map, marker, placePin };
 
         // Guarantee tile rendering: multiple staggered invalidations + ResizeObserver
         requestAnimationFrame(() => {
@@ -385,6 +427,7 @@ export function LocationCapture({
       if (t2) clearTimeout(t2);
       if (t3) clearTimeout(t3);
       if (resizeObserver) resizeObserver.disconnect();
+      pointerCleanup?.();
       if (leafletRef.current?.map) {
         try {
           leafletRef.current.map.remove();
@@ -645,6 +688,7 @@ export function LocationCapture({
                           longitude: res.longitude,
                           address: res.displayName || res.name,
                         };
+                        leafletRef.current?.placePin?.(res.latitude, res.longitude, res.displayName || res.name);
                         setModalCoords(next);
                         setModalPlace(res.displayName || res.name);
                         setModalSearchResults([]);

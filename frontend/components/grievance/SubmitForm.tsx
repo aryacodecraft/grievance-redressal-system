@@ -14,7 +14,7 @@ import { IntakeModeToggle, VoiceIntake, useVoiceIntake } from "./VoiceIntake";
 import type { UploadedImage } from "./ImageUpload";
 import { submitGrievance } from "@/lib/api";
 import { useDemoUser } from "@/lib/session";
-import type { SubmitResult } from "@/lib/types";
+import type { SubmitResult, VoiceLanguage } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/ToastProvider";
 import { AlertTriangle, Volume2 } from "lucide-react";
@@ -63,7 +63,7 @@ export function SubmitForm() {
   const currentTitle = useWatch({ control, name: "title" });
   const currentDescription = useWatch({ control, name: "description" });
   const [mode, setMode] = useState<"voice" | "manual">("manual");
-  const [locationSuggestion, setLocationSuggestion] = useState<{ text: string; token: number } | null>(null);
+  const [locationSuggestion, setLocationSuggestion] = useState<{ text: string; token: number; language: VoiceLanguage } | null>(null);
   const [intakeReady, setIntakeReady] = useState(false);
   // Photo step at the end of the voice conversation: optional but explicit.
   const [photoSkipped, setPhotoSkipped] = useState(false);
@@ -78,7 +78,7 @@ export function SubmitForm() {
     getDirty: () => ({ title: Boolean(dirtyFields.title), description: Boolean(dirtyFields.description) }),
     hasCoords: () => coords !== null,
     applyField: (field, value) => setValue(field, value, { shouldValidate: true }),
-    onLocationSuggestion: (text) => setLocationSuggestion((previous) => ({ text, token: (previous?.token ?? 0) + 1 })),
+    onLocationSuggestion: (text, voiceLanguage) => setLocationSuggestion((previous) => ({ text, language: voiceLanguage, token: (previous?.token ?? 0) + 1 })),
     onReadyChange: setIntakeReady,
   });
 
@@ -197,7 +197,7 @@ export function SubmitForm() {
                     </Field>
                     <p className="text-xs leading-5 text-ink-500">{t("intakeClassificationNote")}</p>
                     <div className="pt-2 border-t border-ink-100">
-                      <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} />
+                      <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} searchLanguage={locationSuggestion?.language ?? language} />
                     </div>
                     <section
                       ref={photoRef}
@@ -279,7 +279,7 @@ export function SubmitForm() {
                 </Field>
                 <div className="pt-4 sm:pt-2 border-t border-ink-100 grid gap-6 sm:gap-5 sm:grid-cols-2">
                   <ImageUpload onChange={setImage} />
-                  <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} />
+                  <LocationCapture onChange={setCoords} suggestedSearch={locationSuggestion} searchLanguage={locationSuggestion?.language ?? language} />
                 </div>
                 {error && <Alert tone="error">{error}</Alert>}
                 <div className="pt-4 sm:pt-3 border-t border-ink-100 flex items-center justify-center sm:justify-end">
