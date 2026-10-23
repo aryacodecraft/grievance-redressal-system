@@ -7,6 +7,14 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-23 — Make similar-complaint View open its map results
+
+- The View action now opens Location Analysis, filters the map and area
+  clusters to the selected similar-wording group, and shows its report count
+  and keywords. “Show all locations” clears the group filter. Updated the
+  group copy to describe text similarity accurately.
+- Focused TypeScript and ESLint checks passed; no tests were added or run.
+
 ---
 
 ## 2026-10-23 — Reliable manager employee assignment (DEC-066)

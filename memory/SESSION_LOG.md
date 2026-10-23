@@ -1405,3 +1405,19 @@ assigned employee did not update consistently in the platform or frontend.
   because no test database is available. The focused manager RBAC workflow
   did not return a result summary and was interrupted.
 - Backend compile, frontend TypeScript, focused ESLint, and diff checks passed.
+
+## 2026-10-23 — Fix Similar complaint groups View action
+
+### Request
+Make the View action in the admin Similar complaint groups section work.
+
+### What changed
+- The action now switches to Location Analysis and filters its map and area
+  clusters to the selected TF-IDF wording group. The map summary identifies
+  the selected group and offers a Show all locations action to clear the filter.
+- Updated group help text because similar wording does not establish that
+  reports came from the same area.
+
+### Verification
+- `npx tsc --noEmit`, focused ESLint, and `git diff --check` passed.
+- No tests or browser visual check were run.
