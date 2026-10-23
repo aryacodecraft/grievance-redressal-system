@@ -11,7 +11,7 @@
     "macro_f1": 0.9075168253188535,
     "weighted_f1": 0.9046012193487194
   },
-  "dataset": "backend\\data\\municipal_complaints_synthetic_1100.csv",
+  "dataset": "backend/data/municipal_complaints.csv",
   "dataset_sha256": "b461ac88c3a3b7f4eea19c026122b4cf27e279f1a2f06ea1b88f6461bbf26f2f",
   "feature_configuration": "word (1,2) + char_wb (3,5) TF-IDF",
   "class_labels": [
@@ -25,5 +25,6 @@
   ],
   "random_seed": 20261023,
   "holdout_evaluation": "PENDING; no untouched independent holdout found",
-  "production_replacement": false
+  "production_replacement": true,
+  "serving_default_artifact": true
 }

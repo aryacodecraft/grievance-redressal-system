@@ -109,7 +109,7 @@ def _get_ml_model():
         default_path = (
             Path(__file__).resolve().parents[2]
             / "models"
-            / "grievance_classifier_v2_candidate.joblib"
+            / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
         )
         artifact_path = Path(
             os.getenv("GRIEVANCE_MODEL_ARTIFACT", str(default_path))

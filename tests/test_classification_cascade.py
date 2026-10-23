@@ -438,14 +438,14 @@ def test_checked_in_candidate_artifact_loads_and_predicts():
         Path(__file__).resolve().parents[1]
         / "backend"
         / "models"
-        / "grievance_classifier_v2_candidate.joblib"
+        / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
     )
     model = GrievanceModel.load_artifact(artifact)
     result = model.predict("Electricity power outage in the ward")
 
     assert model.is_trained
     assert set(model.clf.classes_) == {
-        "Electricity", "Health", "Road", "Sanitation", "Transport", "Water"
+        "Electricity", "Health", "Other", "Road", "Sanitation", "Transport", "Water"
     }
     assert result["category"] == "electricity"
     assert result["source"] == "domain_override"
@@ -460,7 +460,7 @@ def test_loaded_artifact_empty_and_malformed_text_remains_reviewable():
         Path(__file__).resolve().parents[1]
         / "backend"
         / "models"
-        / "grievance_classifier_v2_candidate.joblib"
+        / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
     )
     model = GrievanceModel.load_artifact(artifact)
     empty = model.predict("")
@@ -472,21 +472,25 @@ def test_loaded_artifact_empty_and_malformed_text_remains_reviewable():
     assert 0.0 <= malformed["confidence"] <= 1.0
 
 
-def test_model_artifact_version_can_be_rolled_back(monkeypatch):
+def test_new_candidate_is_the_default_serving_artifact(monkeypatch):
     from pathlib import Path
     from backend.app.services import classification as classification_service
 
-    models_dir = Path(__file__).resolve().parents[1] / "backend" / "models"
-    loaded = []
+    expected = (
+        Path(__file__).resolve().parents[1]
+        / "backend"
+        / "models"
+        / "grievance_classifier_synthetic_research_simple_candidate_20261024.joblib"
+    )
     try:
-        for version in ("candidate", "v2_candidate"):
-            artifact = models_dir / f"grievance_classifier_{version}.joblib"
-            monkeypatch.setenv("GRIEVANCE_MODEL_ARTIFACT", str(artifact))
-            monkeypatch.setattr(classification_service, "_ml_model", None)
-            model = classification_service._get_ml_model()
-            loaded.append(model)
-            assert model is not None and model.is_trained
-        assert loaded[0].clf.classes_.tolist() == loaded[1].clf.classes_.tolist()
+        monkeypatch.delenv("GRIEVANCE_MODEL_ARTIFACT", raising=False)
+        monkeypatch.setattr(classification_service, "_ml_model", None)
+        model = classification_service._get_ml_model()
+        assert model is not None and model.is_trained
+        assert model.clf.classes_.tolist() == [
+            "Electricity", "Health", "Other", "Road", "Sanitation", "Transport", "Water"
+        ]
+        assert expected.is_file()
     finally:
         monkeypatch.setattr(classification_service, "_ml_model", None)
 
