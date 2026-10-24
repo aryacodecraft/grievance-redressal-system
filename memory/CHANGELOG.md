@@ -7,6 +7,15 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-24 - Verify deployed Vercel Cloudinary settings
+
+- Live frontend responds HTTP 200 and uses the Render API, but its compiled bundle still contains the previous Cloudinary cloud name and preset. New-account frontend uploads will target the old cloud and fail backend account validation. Production Vercel redeploy with updated environment variables is required.
+
+## 2026-10-24 - Live Render and Cloudinary smoke check
+
+- Render `/health` returned healthy with MongoDB storage. A temporary test image uploaded through the new unsigned Cloudinary preset, reached Render validation as `unverified`, and was deleted through the backend.
+- Vercel live frontend was not checked because its URL is not recorded in the repository; user reports its environment was updated.
+
 ## 2026-10-24 - Pull image validation update and keep fallback unverified (DEC-070)
 
 - Fast-forwarded `main` to `2e2151b`, which persists image validation status and

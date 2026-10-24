@@ -426,10 +426,12 @@ only — humans retain assignment, escalation, resolution and closure authority
    superadmin password + face 2FA and citizen face login; start DLT registration
    for full citizen SMS.
 4. Security hardening batch: rate limits, SSRF, Cloudinary auth, key rotations (§4).
-   Local Cloudinary settings now point to the replacement account. Render and
-   Vercel still need matching dashboard values; old asset URLs remain tied to
-   the old cloud unless migrated (see `docs/DEVELOPMENT.md`). Rotate the API
-   secret shared in chat before using the account for real uploads.
+   Local Cloudinary settings now point to the replacement account. Render
+   upload, validation, and deletion were verified live; the live Vercel bundle
+   still embeds the previous Cloudinary cloud/preset, so redeploy Production
+   with the new frontend variables. Old asset URLs
+   remain tied to the old cloud unless migrated (see `docs/DEVELOPMENT.md`).
+   Rotate the API secret shared in chat before using the account for real uploads.
 5. Pick the next AI module (AI-01, AI-07 or AI-10) and persist analysis results
    with module id/model version.
 6. Work the manual/live validation queue (§5) as credentials/hardware become available.

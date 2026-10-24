@@ -1545,3 +1545,13 @@ Updated the relevance gate so recognized non-civic text is saved in rejected sta
 ## 2026-10-24 — Admin reopening of rejected and closed grievances (DEC-074)
 
 Added admin reopen action for closed/rejected records and allowed the audited `REJECTED → REOPENED` transition (DEC-074). Updated API/workflow docs and current state. Static review only; tests were not run.
+
+
+## 2026-10-24 - Live Render and Cloudinary smoke check
+
+Render health returned `status=ok` with MongoDB storage. A temporary synthetic image uploaded to the replacement Cloudinary cloud, validated against Render as `unverified`, and was removed successfully. Vercel frontend checks remain pending because no deployed frontend URL is available in the repository; user reports the environment was updated. No test files changed.
+
+
+## 2026-10-24 - Verify deployed Vercel Cloudinary settings
+
+The supplied Vercel URL returns HTTP 200, and its bundle contains the Render backend URL and the new unverified-image UI. Bundle inspection found the prior Cloudinary cloud and preset still compiled into Production, despite the user reporting updated settings. Render is verified; Vercel needs a production redeploy with the new environment values.
