@@ -2928,3 +2928,24 @@ reasons and assignment changes remain traceable.
 
 **Reversible:** Yes — the ticket UI and state handling can be changed while
 preserving assignment and state history.
+
+## DEC-070 — Unavailable Vision Must Not Approve Complaint Photos (2026-10-24)
+
+**Context:** The image-quality fallback measured sharpness, resolution, and
+brightness. A clear screenshot can score highly on those measures even though
+the heuristic cannot decide whether the image depicts the reported civic issue.
+
+**Decision:** Only a parseable score from the configured multimodal vision
+model can validate image relevance. The local quality heuristic remains
+diagnostic; when vision is unavailable, fails, or produces an unusable result,
+retain the optional photo as `unverified` for staff review. Show this state to
+citizens during upload and to managers/employees in grievance detail. Keep the
+vision prompt explicit that screenshots and unrelated images are invalid.
+
+**Reason:** Image quality and image relevance are separate properties. Keeping
+optional evidence should not claim that an unverified image is relevant. The
+vision model remains experimental and may still misclassify screenshots;
+human review is required for uncertain cases.
+
+**Reversible:** Yes — change the review/acceptance policy while retaining
+validation status and audit fields.

@@ -164,6 +164,7 @@ const pa: Messages = {
   imgRejected: "ਤਸਵੀਰ ਰੱਦ ਕੀਤੀ: {reason}। ਦੂਜੀ ਫ਼ੋਟੋ ਕੋਸ਼ਿਸ਼ ਕਰੋ।",
   imgRejectedDefault: "ਜਨਤਕ ਸ਼ਿਕਾਤ ਨਾਲ ਸੰਬੰਧਿਤ ਨਹੀਂ",
   imgAccepted: "ਤਸਵੀਰ ਸਵੀਕਾਰੀ ਗਈ।",
+  imgUnverified: "ਫੋਟੋ ਜੋੜ ਦਿੱਤੀ ਗਈ ਹੈ। ਪੁਸ਼ਟੀ ਨਹੀਂ ਹੋ ਸਕੀ ਕਿ ਇਸ ਵਿੱਚ ਦਰਜ ਕੀਤੀ ਸਮੱਸਿਆ ਦਿਖਦੀ ਹੈ; ਕਰਮਚਾਰੀ ਇਸਦੀ ਸਮੀਖਿਆ ਕਰਨਗੇ।",
   imgUploadFailed: "ਅਪਲੋਡ ਅਸਫ਼ਲ: {message}",
   imgUploadUnknown: "ਅਪਲੋਡ ਅਸਫ਼ਲ: ਅਣਪਛਾਤਾ ਗਲਤੀ",
 

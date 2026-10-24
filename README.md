@@ -258,7 +258,8 @@ in `backend/.env` only when testing the corresponding feature:
 |---|---|---|
 | `GROQ_API_KEY` | Optional classification and quality-check fallback | Local rules/classifier remain available without it |
 | `HF_API_TOKEN` | Optional Hugging Face classification fallback | Not required for startup |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Image upload and management | Attachments require the configured upload path |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Backend Cloudinary account for signed URLs and asset deletion | Set on backend only; API secret must remain private |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Frontend direct image uploads | Must use the same cloud name; preset must be unsigned |
 | `TRANSCRIPTION_ENABLED`, `SARVAM_API_KEY` | Voice transcription | Disabled by default; requires explicit provider configuration |
 | `FACE_AUTH_ENABLED`, `FACE_EMBED_KEY` | Optional face sign-in | Disabled by default; also requires `backend/requirements-face.txt` and model setup |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth | Google sign-in is unavailable until configured |

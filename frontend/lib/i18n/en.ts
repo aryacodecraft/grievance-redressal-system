@@ -335,6 +335,7 @@ const en = {
   imgRejected: "Image rejected: {reason}. Try another photo.",
   imgRejectedDefault: "not relevant to a public grievance",
   imgAccepted: "Image accepted.",
+  imgUnverified: "Photo attached. We couldn't verify that it shows the reported issue; staff will review it.",
   imgUploadFailed: "Upload failed: {message}",
   imgUploadUnknown: "Upload failed: unknown error",
 

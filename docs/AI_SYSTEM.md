@@ -513,6 +513,18 @@ AI recommendation is stored alongside final human assignment decision.
 
 ---
 
+### Optional complaint-photo validation
+
+When the configured vision model returns a parseable relevance score, the
+backend compares it with `IMAGE_LLM_THRESHOLD`; scores below threshold reject
+the attachment. The vision model is experimental and can misclassify images.
+The local sharpness/brightness/resolution heuristic is diagnostic only: it
+cannot establish that an image depicts the reported issue. If vision is missing,
+fails, or returns an unusable response, the photo remains attached as
+`unverified` for staff review rather than being approved by the heuristic.
+Staff grievance review and employee task detail surfaces display this state.
+This is not a validated screenshot detector; human review remains necessary.
+
 ## Evaluation Protocol (General)
 
 Before any module is declared VALIDATED:

@@ -7,6 +7,29 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-24 - Pull image validation update and keep fallback unverified (DEC-070)
+
+- Fast-forwarded `main` to `2e2151b`, which persists image validation status and
+  Cloudinary public IDs and restricts validation URLs to the configured cloud.
+- Corrected the quality-only fallback: it now returns unverified rather than
+  using image clarity to approve relevance. Citizen, manager and employee
+  surfaces identify images requiring staff review.
+- Updated AI/API docs and project memory. Static/test verification pending.
+
+## 2026-10-24 — Configure local Cloudinary account
+
+- Updated ignored local backend and frontend environment files to use the new
+  Cloudinary account and unsigned upload preset. Values are not recorded here.
+- Deployment dashboard variables and migration of prior account assets remain
+  pending. The exposed API secret should be rotated.
+
+## 2026-10-24 — Prepare Cloudinary account replacement
+
+- Documented the matching backend and frontend settings for local, Render, and
+  Vercel, including the unsigned upload preset and backend-only API secret.
+- Kept existing local credentials unchanged pending the new account values;
+  recorded that old grievance image URLs are not migrated automatically.
+
 ## 2026-10-24 — Worker ticket reassignment and manager review feedback (DEC-069)
 
 - Worker issue forms now include an explicit reassignment request. Managers see

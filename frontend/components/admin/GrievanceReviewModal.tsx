@@ -290,6 +290,11 @@ export function GrievanceReviewModal({
                   <span className="text-xs font-semibold text-ink-700">
 Attached Photo
                   </span>
+                  {g.imageValidation?.status === "unverified" && (
+                    <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+                      Needs visual review
+                    </span>
+                  )}
                   <a
                     href={g.imageUrl}
                     target="_blank"
@@ -305,6 +310,11 @@ Attached Photo
                   alt="Evidence photo"
                   className="max-h-52 w-full rounded-sm object-cover border border-ink-200"
                 />
+                {g.imageValidation?.status === "unverified" && (
+                  <p className="text-[11px] leading-4 text-amber-900">
+                    {g.imageValidation.explanation || "Automated image relevance validation was unavailable. Review that the photo shows the reported civic issue."}
+                  </p>
+                )}
               </div>
             )}
 

@@ -60,6 +60,11 @@ only — humans retain assignment, escalation, resolution and closure authority
   warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
   board under a dedicated "Flagged" filter and review badge without ever silently dropping
   submissions. IMPLEMENTED, TESTED.
+- **Complaint image validation** — new uploads retain Cloudinary public IDs and
+  validation results. Vision scores below threshold reject the photo; when
+  vision is unavailable, image-quality metrics are diagnostic only and the
+  image is retained as unverified for staff review. The vision model can still
+  misclassify screenshots; this remains experimental and needs evaluation.
 - **Staff experience** — tabbed admin queue/board separating active/priority complaints from a Closed archive with All Closed, Resolved, Rejected, and Invalid outcome views (DEC-051/064; stored `closed` status appears in Resolved); interactive triage metrics + detail review modal, comprehensive executive analytics (DEC-054: trends area chart, grouped department performance bar chart, resolution times & SLA compliance metrics, complaint aging buckets, priority distribution, Leaflet hotspot density clustering, TF-IDF clusters whose View action opens a filtered map, CSV export), department-employees workspace, resolver workbench
   (ack / progress / hold / escalate / complete), superadmin (users, departments,
   audit), account-scoped notifications. IMPLEMENTED, TESTED.
@@ -421,6 +426,10 @@ only — humans retain assignment, escalation, resolution and closure authority
    superadmin password + face 2FA and citizen face login; start DLT registration
    for full citizen SMS.
 4. Security hardening batch: rate limits, SSRF, Cloudinary auth, key rotations (§4).
+   Local Cloudinary settings now point to the replacement account. Render and
+   Vercel still need matching dashboard values; old asset URLs remain tied to
+   the old cloud unless migrated (see `docs/DEVELOPMENT.md`). Rotate the API
+   secret shared in chat before using the account for real uploads.
 5. Pick the next AI module (AI-01, AI-07 or AI-10) and persist analysis results
    with module id/model version.
 6. Work the manual/live validation queue (§5) as credentials/hardware become available.

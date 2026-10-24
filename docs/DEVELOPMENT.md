@@ -486,6 +486,33 @@ prototype).
 3. Deploy, then go back and tighten Render's `CORS_ORIGINS`/`FRONTEND_URL`
    to the Vercel domain.
 
+### Cloudinary account setup
+
+The browser uploads images directly to Cloudinary using an **unsigned upload
+preset**. The backend uses the account API credentials to sign delivery URLs
+and delete rejected uploads. Configure all of these from the same Cloudinary
+account:
+
+| Deployment | Variables |
+|---|---|
+| Render backend | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
+| Vercel frontend | `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` |
+| Local backend | Same three backend variables in `backend/.env` |
+| Local frontend | Same cloud name and preset in `frontend/.env.local` |
+
+Create the preset in Cloudinary Console → **Settings → Upload → Upload
+presets**, and set its signing mode to **Unsigned**. The preset name and cloud
+name are public identifiers; the API secret belongs only in backend settings.
+The two cloud-name values must match exactly. After changing either
+`NEXT_PUBLIC_*` value in Vercel, rebuild/redeploy the frontend because Next.js
+embeds it during the build. Never commit `.env` files or send the API secret in
+chat or source control.
+
+Existing grievance image URLs remain hosted in the old Cloudinary account; a
+new account does not migrate those assets. Keep the old account available if
+those images must remain accessible, or migrate the assets and update their
+stored URLs before closing it.
+
 ### 3. Google OAuth console
 
 - Authorized JavaScript origins: the Vercel domain.

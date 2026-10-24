@@ -80,7 +80,11 @@ export function ImageUpload({
         url: upJson.secure_url as string,
         publicId: upJson.public_id as string,
       });
-      setNote(t("imgAccepted"));
+      setNote(
+        verdict.status === "unverified"
+          ? t("imgUnverified")
+          : t("imgAccepted")
+      );
     } catch (e) {
       onChange(null);
       setNote(

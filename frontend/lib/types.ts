@@ -27,6 +27,13 @@ export interface Grievance {
   priority: string;
   createdAt: string;
   imageUrl?: string | null;
+  imagePublicId?: string | null;
+  imageValidation?: {
+    ok: boolean;
+    status?: "validated" | "unverified";
+    llm_score?: number | null;
+    explanation?: string;
+  } | null;
   latitude?: number | null;
   longitude?: number | null;
   address?: string | null;
@@ -191,7 +198,8 @@ export interface FaceChallenge {
 
 export interface ImageValidation {
   ok: boolean;
-  llm_score?: number;
+  status?: "validated" | "unverified";
+  llm_score?: number | null;
   explanation?: string;
 }
 

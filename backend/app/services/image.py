@@ -1,4 +1,4 @@
-"""Image validation: Groq multimodal scoring with a heuristic fallback."""
+"""Image validation: Groq multimodal scoring with an unverified fallback."""
 
 from __future__ import annotations
 
@@ -82,8 +82,9 @@ def compute_image_quality_score(pil_img: Image.Image) -> dict:
 def llm_image_confidence(image_url: str) -> dict:
     """Score an image 0-100 for "is this a public infrastructure complaint?".
 
-    Uses Groq multimodal when configured, otherwise an image-quality heuristic.
-    Returns a numeric score when available, otherwise score=None for review.
+    Uses Groq multimodal when configured. Local image quality cannot establish
+    that an image is relevant, so unavailable vision returns score=None for
+    human review instead of approving based on sharpness or brightness.
     """
     if not image_url:
         return {"score": 0.0, "explanation": "No image URL provided", "raw": ""}
@@ -103,6 +104,13 @@ def llm_image_confidence(image_url: str) -> dict:
                                 "type": "text",
                                 "text": """
                                 Does this image show a public infrastructure complaint?
+
+                                Be strict. Score only the visible image itself, not
+                                the user's description. A screenshot, app or browser
+                                screen, chat, meme, selfie, document, or unrelated
+                                photograph is invalid even if it contains civic words
+                                or a picture of infrastructure. A valid image must
+                                visibly depict the reported physical public issue.
 
                                 Valid:
                                 - potholes
@@ -168,11 +176,12 @@ def llm_image_confidence(image_url: str) -> dict:
             )
         except Exception as exc:
             logger.info(
-                "Groq vision model unavailable (%s); using calibrated image quality check.",
+                "Groq vision model unavailable (%s); image will require human review.",
                 str(exc).split("\n")[0][:100],
             )
 
-    # Heuristic fallback
+    # Quality metrics can explain whether an image is legible, but cannot
+    # establish relevance. Keep them as diagnostics; never use them to approve.
     try:
         r = requests.get(image_url, timeout=12, allow_redirects=False, stream=True)
         r.raise_for_status()
@@ -183,14 +192,10 @@ def llm_image_confidence(image_url: str) -> dict:
             raise ValueError("Image exceeds 10 MB")
         img = Image.open(BytesIO(data)).convert("RGB")
         q = compute_image_quality_score(img)
-        score = q.get("score", 0.0)
         comps = q.get("components", {})
-        explanation = f"Fallback quality check: score={score}. Components: {comps}."
-        if score < 30:
-            explanation = "Low image clarity/context for a public complaint. " + explanation
         return {
-            "score": float(round(score, 2)),
-            "explanation": explanation[:400],
+            "score": None,
+            "explanation": f"Relevance could not be verified automatically; image quality details: {comps}. Staff review required.",
             "raw": "heuristic:quality-check",
         }
     except Exception as exc:

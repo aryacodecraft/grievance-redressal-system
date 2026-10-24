@@ -48,9 +48,10 @@ Development: `http://localhost:10000`
 
 Image URLs accepted by validation must use HTTPS and belong to the configured
 Cloudinary account (`res.cloudinary.com/<cloud>/image/upload/...`). If the
-vision provider and local quality check are unavailable during submission, the
-photo is retained with `imageValidation.status` set to `unverified` for staff
-review. A measured score below threshold remains rejected. New submissions
+vision provider is unavailable, the photo is retained with
+`imageValidation.status` set to `unverified` for staff review. Local measures
+such as sharpness, brightness and resolution do not approve relevance. A
+measured vision score below threshold remains rejected. New submissions
 include `imagePublicId` alongside the Cloudinary URL.
 
 > **Naming note:** the implemented create route is `POST /submit-grievance`

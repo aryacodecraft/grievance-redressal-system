@@ -158,6 +158,7 @@ const hi: Messages = {
   imgRejected: "छवि अस्वीकृत: {reason}। दूसरी फ़ोटो आज़माएं।",
   imgRejectedDefault: "सार्वजनिक शिकायत से संबंधित नहीं",
   imgAccepted: "छवि स्वीकृत।",
+  imgUnverified: "फ़ोटो संलग्न है। हम पुष्टि नहीं कर सके कि इसमें बताई गई समस्या दिखती है; कर्मचारी इसकी समीक्षा करेंगे।",
   imgUploadFailed: "अपलोड विफल: {message}",
   imgUploadUnknown: "अपलोड विफल: अज्ञात त्रुटि",
 

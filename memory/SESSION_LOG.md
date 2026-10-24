@@ -8,6 +8,21 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/SESSION_LOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-24 — Configure local Cloudinary account
+
+Set the new account identifiers and unsigned preset in ignored local backend
+and frontend env files; secret values suppressed. Render and Vercel dashboard
+configuration remains manual, and existing old-cloud image URLs are not
+migrated. Advised rotating the secret because it was shared in chat.
+
+## 2026-10-24 — Prepare Cloudinary account replacement
+
+Documented the shared Cloudinary cloud name across backend and frontend,
+unsigned preset setup, private API secret placement, and local/Render/Vercel
+configuration. Existing local values were left intact because the new account
+values are not available yet. Noted that existing image URLs stay on the old
+account unless assets are migrated. No application code or tests changed.
+
 ## 2026-10-24 — Citizen resolution feedback and further action (DEC-068)
 
 Implemented citizen-safe resolution details/history, feedback submission, and
@@ -1504,3 +1519,13 @@ Fix image validation reliability and explain/preserve image storage metadata.
 
 ### Verification
 - Not run (no explicit request to run tests).
+
+
+## 2026-10-24 - Pull image validation update and keep fallback unverified (DEC-070)
+
+Fast-forwarded `main` to `2e2151b` after preserving local Cloudinary setup
+documentation. The incoming image-validation change still allowed the local
+clarity heuristic to produce a relevance score, so changed fallback behavior to
+return `unverified` and route the photo to human review. Added citizen copy in
+all 11 locales plus review indicators in manager/employee details. Updated
+AI/API docs and memory. Static/test verification pending.

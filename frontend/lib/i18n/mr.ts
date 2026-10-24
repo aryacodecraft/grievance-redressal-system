@@ -162,6 +162,7 @@ const mr: Messages = {
   imgRejected: "प्रत नाकारली: {reason}. दुसरा फोटो वापरा.",
   imgRejectedDefault: "सार्वजनिक तक्रारशी संबंधित नाही",
   imgAccepted: "प्रत स्वीकारली.",
+  imgUnverified: "फोटो जोडला आहे. त्यात नोंदवलेली समस्या दिसते याची खात्री करता आली नाही; कर्मचारी त्याची तपासणी करतील.",
   imgUploadFailed: "अपलोड अपयशी: {message}",
   imgUploadUnknown: "अपलोड अपयशी: अज्ञात त्रुटी",
 

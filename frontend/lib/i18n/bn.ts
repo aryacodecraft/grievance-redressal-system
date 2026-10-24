@@ -164,6 +164,7 @@ const bn: Messages = {
   imgRejected: "ছবি প্রত্যাখ্যাত: {reason}। অন্য ছবি চেষ্টা করুন।",
   imgRejectedDefault: "সর্বজনীন অভিযোগের সঙ্গে সম্পর্কিত নয়",
   imgAccepted: "ছবি গৃহীত হয়েছে।",
+  imgUnverified: "ছবি সংযুক্ত হয়েছে। এতে জানানো সমস্যাটি দেখা যাচ্ছে কি না নিশ্চিত করা যায়নি; কর্মীরা পর্যালোচনা করবেন।",
   imgUploadFailed: "আপলোড ব্যর্থ: {message}",
   imgUploadUnknown: "আপলোড ব্যর্থ: অজানা ত্রুটি",
 

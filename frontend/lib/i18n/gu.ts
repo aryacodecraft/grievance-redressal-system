@@ -164,6 +164,7 @@ const gu: Messages = {
   imgRejected: "છબી નકારી: {reason}. બીજો ફોટો અજમાવો.",
   imgRejectedDefault: "જાહેર ફરિયાદ સાથે સંબંધિત નથી",
   imgAccepted: "છબી સ્વીકારી.",
+  imgUnverified: "ફોટો જોડાયો છે. તેમાં જણાવેલી સમસ્યા દેખાય છે કે નહીં તેની પુષ્ટિ થઈ નથી; કર્મચારીઓ તેની સમીક્ષા કરશે.",
   imgUploadFailed: "અપલોડ નિષ્ફળ: {message}",
   imgUploadUnknown: "અપલોડ નિષ્ફળ: અજાણી ભૂલ",
 
