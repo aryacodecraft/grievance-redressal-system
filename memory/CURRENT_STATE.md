@@ -9,7 +9,7 @@
 > Decisions: `DECISIONS.md` (grep by topic). Status vocabulary: AGENTS.md
 > (PLANNED / IN PROGRESS / IMPLEMENTED / TESTED / VALIDATED / DEFERRED / OPTIONAL).
 >
-> **Last updated: 2026-10-23.** Keep this file current after every task — edit
+> **Last updated: 2026-10-24.** Keep this file current after every task — edit
 > it in place when implementation state or the backlog changes.
 
 ---
@@ -39,13 +39,19 @@ only — humans retain assignment, escalation, resolution and closure authority
   role-gated transitions, assignment/history arrays; status PATCH restricted to
   ADMIN/RESOLVER. IMPLEMENTED, TESTED (audit-trail completeness still open — §4).
 - **Manager employee assignment** — queue and employee workspace share a
-  server-validated assignment path; owner and workflow histories persist
-  atomically, manager feed refreshes immediately, duplicate owner assignment is
-  idempotent. Focused repository/RBAC verification is recorded in the latest
-  `CHANGELOG.md` entry (DEC-066).
+  server-validated assignment path; department manager feeds use authenticated
+  role and department scope rather than an email allowlist. Owner and workflow
+  histories persist atomically, manager feed refreshes immediately, and
+  duplicate owner assignment is idempotent. The feed scope fix is recorded in
+  the latest `CHANGELOG.md` entry.
 - **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal with click/tap pinning and language-aware structured place search — DEC-050/065), track
   (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
   DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.
+- **Resolution feedback and further-action request** — signed-in complainants can
+  inspect customer-visible status/progress history on a completed grievance,
+  submit a 1–5 rating and comment, or request further action with a required
+  explanation. The latter reopens a resolved/closed record and notifies its
+  manager. IMPLEMENTED; verification pending.
 - **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
   quality gate in the submit pipeline; non-civic or fake complaints (e.g. math queries,
   riddles, gibberish, spam) are flagged with `qualityFlag="suspicious"` and reason,

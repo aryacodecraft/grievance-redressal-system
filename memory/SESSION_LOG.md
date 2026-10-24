@@ -8,6 +8,15 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/SESSION_LOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-24 — Citizen resolution feedback and further action (DEC-068)
+
+Implemented citizen-safe resolution details/history, feedback submission, and
+a reasoned request-further-action flow for owned resolved/closed grievances.
+Reopen is an atomic state/history update, notifies the department manager, and
+leaves employee assignment to the manager. Updated API/workflow docs, gap
+register, locale packs, current state, and DEC-068. TypeScript, Python compile,
+and diff checks passed. No tests or browser review were run.
+
 ---
 
 ## 2026-10-14 — Removed reference-ID search from citizen surfaces (DEC-028)
@@ -1464,3 +1473,12 @@ Make the View action in the admin Similar complaint groups section work.
 ### Verification
 - `npx tsc --noEmit`, focused ESLint, and `git diff --check` passed.
 - No tests or browser visual check were run.
+
+## 2026-10-24 — Department manager grievance feed scope
+
+Traced employee resolution submissions missing from manager dashboards to
+`useAdminGrievanceFeed` relying on an email allowlist to distinguish staff from
+citizens. Department managers were therefore querying their own citizen records
+instead of their department queue. The shared admin feed now explicitly requests
+staff scope and passes the JWT-associated department; server RBAC remains the
+scope authority. TypeScript/ESLint and diff checks passed. No tests/browser run.

@@ -9,9 +9,9 @@ import type { Grievance } from "@/lib/types";
 /**
  * Shared grievance feed for the admin surfaces (triage board + analytics).
  *
- * In live mode it subscribes to the global (unscoped) grievance list; in demo
- * mode it falls back to the bundled mock dataset. Centralised here so the
- * queue and analytics pages use one loading/error contract.
+ * In live mode it subscribes to the authenticated staff scope (department for
+ * department managers, global for superadmins); in demo mode it falls back to
+ * the bundled mock dataset. Centralised so queue and analytics share a feed.
  */
 export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
   const { user, liveMode } = useDemoUser();
@@ -38,7 +38,13 @@ export function useAdminGrievanceFeed(scopeToUser = false, enabled = true) {
         setLiveError(message);
         setLiveItems(null);
       },
-      { scopeToUser, departmentId: user.role.toUpperCase() === "ADMIN" ? user.departmentId ?? undefined : undefined }
+      {
+        // Staff dashboards must not infer permissions from an email allowlist:
+        // department-manager accounts are ADMIN by JWT role but use ordinary
+        // department emails. The server enforces the final department scope.
+        scopeToUser: false,
+        departmentId: user.role.toUpperCase() === "ADMIN" ? user.departmentId ?? undefined : undefined,
+      }
     );
     subscriptionRef.current = subscription;
     return () => {

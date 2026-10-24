@@ -7,6 +7,27 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-24 — Department manager grievance feed scope
+
+- Fixed the shared admin dashboard feed: department managers were classified
+  as citizens by an email allowlist and therefore loaded only grievances they
+  submitted. The feed now explicitly requests staff scope and passes the
+  manager's department; server RBAC remains authoritative.
+- Employee-submitted resolutions now appear in their department's manager
+  queue on refresh, for Electricity and all other departments. Focused
+  TypeScript/ESLint and diff checks passed; no tests or browser review run.
+
+## 2026-10-24 — Citizen resolution feedback and further-action request (DEC-068)
+
+- Completed grievance details now show the resolution summary, real customer-
+  visible activity/status history, a 1–5 feedback form, and **Request further
+  action** with a required explanation. Feedback is saved and audited; a
+  further-action request reopens resolved/closed cases and notifies the manager.
+- Updated API/workflow docs, the citizen gap register, all supported Indian
+  language packs, and current state.
+- `npx tsc --noEmit`, targeted Python compilation, and `git diff --check` passed.
+  Backend/frontend tests and browser review were not run.
+
 ## 2026-10-23 — Make similar-complaint View open its map results
 
 - The View action now opens Location Analysis, filters the map and area
