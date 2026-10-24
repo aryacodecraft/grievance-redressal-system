@@ -1,8 +1,10 @@
 import type { Messages } from "./en";
+import en from "./en";
 
 import { voiceMr } from "./voice";
 
 const mr: Messages = {
+  ...en,
   ...voiceMr,
   // ── Header ──
   home: "मुख्यपृष्ठ",
@@ -197,6 +199,30 @@ const mr: Messages = {
   btnSearching: "शोधत आहे…",
   trackQuerying: "तक्रार डेटाबेस क्वेरी करत आहे…",
   timelineTitle: "निराकरण कालरेखा",
+  activityHistory: "कृतींचा इतिहास",
+  noActivityHistory: "अद्याप नागरिकांना दिसणारे कोणतेही अद्यतन दिलेले नाही.",
+  resolutionSummary: "निराकरणाचा सारांश",
+  resolutionFeedbackTitle: "निराकरण कसे झाले?",
+  feedbackReceived: "तुमचा अभिप्राय",
+  feedbackRating: "निराकरणाला गुण द्या",
+  excellent: "उत्कृष्ट",
+  good: "चांगले",
+  average: "ठीकठाक",
+  poor: "वाईट",
+  veryPoor: "अतिशय वाईट",
+  feedbackComment: "अधिक सांगा",
+  feedbackPlaceholder: "काय चांगले झाले किंवा काय सुधारता येईल?",
+  sendFeedback: "अभिप्राय पाठवा",
+  saving: "जतन होत आहे…",
+  furtherActionTitle: "समस्या अजून सुटली नाही? पुढील कारवाईची विनंती करा",
+  furtherActionHelp: "समस्या अजून सुटली नसल्यास, काय बाकी आहे ते सांगा. विभागीय टीम तुमच्या विनंतीचा आढावा घेईल.",
+  furtherActionPlaceholder: "काय दुरुस्त झाले नाही ते सांगा (किमान १० अक्षरे).",
+  requestFurtherAction: "पुढील कारवाईची विनंती करा",
+  sending: "पाठवत आहे…",
+  furtherActionSent: "तुमची विनंती आढाव्यासाठी विभागाकडे पाठवली आहे.",
+  furtherActionAlreadyRequested: "तुम्ही पुढील कारवाईची विनंती आधीच केली आहे. अद्यतनांसाठी येथे तपासा.",
+  feedbackSaved: "धन्यवाद. तुमचा अभिप्राय जतन केला आहे.",
+  actionFailed: "आत्ता जतन करता आले नाही. कृपया पुन्हा प्रयत्न करा.",
   timelineSubtitle: "अधिकाऱ्यांच्या कृतीसह अपडेट होते",
   trackNotFoundTitle: "या संदर्भ ID वर कोणतीही तक्रार आढळली नाही",
   trackNotFoundHint:

@@ -1,8 +1,12 @@
 import type { Messages } from "./en";
+import en from "./en";
+import { resolutionPa } from "./resolution";
 
 import { voiceEn } from "./voice";
 
 const pa: Messages = {
+  ...en,
+  ...resolutionPa,
   ...voiceEn,
   // ── Header ──
   home: "ਹੋਮ",

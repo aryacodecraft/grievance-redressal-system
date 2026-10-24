@@ -139,6 +139,22 @@ def get_history(
     else:
         updates = progress_repository.list_for_grievance(grievance_id, visibility_filter=["customer", "system"])
     
+    # Include state changes in the citizen activity history, using only the
+    # customer-safe fields recorded by the workflow.
+    if role == "USER" and doc.get("userId") == actor_id:
+        updates.extend(
+            {
+                "kind": "status",
+                "from": entry.get("from"),
+                "to": entry.get("to"),
+                "reason": entry.get("reason") if role == "USER" and entry.get("by") == actor_id else None,
+                "createdAt": entry.get("at"),
+                "visibility": "system",
+            }
+            for entry in doc.get("stateHistory", [])
+            if entry.get("at")
+        )
+
     # Sort updates
     updates = sorted(updates, key=lambda x: x.get("createdAt", ""))
 

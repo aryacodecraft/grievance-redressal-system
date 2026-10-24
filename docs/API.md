@@ -514,8 +514,17 @@ Admin closes grievance (after review or approval). **Auth:** ADMIN.
 ## /feedback
 
 ### POST /grievances/{grievance_id}/feedback
-Submit user feedback on resolution. **Auth:** USER (own grievance, status RESOLVED/CLOSED).
-**Request:** `{ "rating": 1-5, "comment"?: "string", "is_satisfied": true }`
+Submit or update resolution feedback. **Auth:** USER (own grievance, status RESOLVED/CLOSED).
+**Request:** `{ "rating": 1-5, "comment": "string (3-2000 chars)", "is_satisfied": true }`
+The saved rating, comment, satisfaction flag and timestamp are returned with the
+citizen's grievance record. The department manager receives an in-app notice.
+
+### POST /grievances/{grievance_id}/reopen
+Request further action on an unresolved outcome. **Auth:** USER (own grievance,
+status RESOLVED/CLOSED). **Request:** `{ "reason": "string (10-2000 chars)" }`.
+The grievance returns to `REOPENED`, the reason is included in state/audit
+history, and its department manager is notified. This request does not itself
+assign an employee; the department workflow handles follow-up assignment.
 
 ---
 

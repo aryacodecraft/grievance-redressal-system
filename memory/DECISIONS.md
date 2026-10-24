@@ -2881,3 +2881,25 @@ duplicate assignment idempotency. See current task entry in `CHANGELOG.md`.
 
 **Reversible:** Yes — alter the repository operation or refresh behavior while
 preserving server-side manager scope and assignment auditability.
+
+## DEC-068 — Citizen Resolution Feedback and Further-Action Request (2026-10-24)
+
+**Context:** Citizens could see a status-derived lifecycle view but had no
+resolution feedback control. The existing reopen endpoint had no UI and only
+accepted `RESOLVED`, while departments may already have moved completed work to
+`CLOSED`.
+
+**Decision:** On their own resolved or closed grievances, citizens can submit a
+1–5 rating plus a short comment, or request further action with a required
+explanation. Feedback is stored on the grievance and audited; the department
+manager receives an in-app notification. A further-action request changes the
+state to `REOPENED`, records the citizen's reason in state/audit history, and
+notifies the manager. It does not assign an employee automatically. Citizen
+detail history includes customer-visible progress and sanitized state changes.
+
+**Reason:** Citizens need a clear response when a reported fix is incomplete,
+while assignment remains a human manager decision. Restricting both actions to
+the original complainant preserves ownership checks and auditability.
+
+**Reversible:** Yes — remove the citizen actions or narrow eligible states while
+retaining the audit history and server-side ownership checks.

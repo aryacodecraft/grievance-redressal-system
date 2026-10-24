@@ -10,6 +10,7 @@ from ..models import (
     AssignRequest, ReassignRequest, PriorityUpdateRequest, DeadlineUpdateRequest,
     EscalationRequest, ResolutionRequest, CloseRequest, WithdrawRequest,
     ReopenRequest, RejectRequest, ReturnResolutionRequest, StateTransitionRequest,
+    ResolutionFeedbackRequest,
 )
 from ..state_machine import GrievanceState, transition_state, _STATUS_COMPAT
 from ..repositories.audit import audit_repository
@@ -507,23 +508,63 @@ def reopen_grievance(
     role = current["role"]
     actor_id = current["user_id"]
     
-    if role == "USER" and doc.get("userId") != actor_id:
+    if role != "USER" or doc.get("userId") != actor_id:
         return JSONResponse(status_code=403, content={"error": "Can only reopen your own grievance"})
+    if len(payload.reason.strip()) < 10:
+        return JSONResponse(status_code=422, content={"error": "Please explain what remains unresolved (at least 10 characters)"})
     
     state = _canon_state(doc)
-    if state != "RESOLVED":
-        return JSONResponse(status_code=422, content={"error": f"Can only reopen from RESOLVED. Current: {state}"})
+    if state not in ("RESOLVED", "CLOSED"):
+        return JSONResponse(status_code=422, content={"error": f"Can only request further action on a resolved grievance. Current: {state}"})
     
     now = datetime.now(timezone.utc).isoformat()
-    repository.update(grievance_id, {"state": "REOPENED", "status": "reopened", "updatedAt": now})
-    try:
-        repository.append_history(grievance_id, "stateHistory", {"from": state, "to": "REOPENED", "by": actor_id, "byRole": role, "reason": payload.reason, "at": now, "source": "HUMAN"})
-    except Exception:
-        pass
+    history = {"from": state, "to": "REOPENED", "by": actor_id, "byRole": role, "reason": payload.reason.strip(), "at": now, "source": "HUMAN"}
+    repository.update_with_history(
+        grievance_id,
+        {"state": "REOPENED", "status": "reopened", "updatedAt": now},
+        {"stateHistory": history},
+    )
     
     _notify(doc.get("managerId"), "grievance.reopened", grievance_id, f"Grievance {grievance_id} has been reopened")
-    _emit_audit(current, "grievance.reopened", grievance_id, {"state": state}, {"state": "REOPENED"}, payload.reason)
-    return {"message": "Grievance reopened"}
+    _emit_audit(current, "grievance.reopened", grievance_id, {"state": state}, {"state": "REOPENED"}, payload.reason.strip())
+    return {"message": "Further action requested"}
+
+
+@router.post("/grievances/{grievance_id}/feedback")
+def submit_resolution_feedback(
+    grievance_id: str,
+    payload: ResolutionFeedbackRequest,
+    current: Annotated[dict, Depends(get_current_user)],
+):
+    doc = _get_doc_or_404(grievance_id)
+    if current["role"] != "USER" or doc.get("userId") != current["user_id"]:
+        return JSONResponse(status_code=403, content={"error": "Only the citizen who submitted this grievance can leave feedback"})
+    if len(payload.comment.strip()) < 3:
+        return JSONResponse(status_code=422, content={"error": "Feedback comment must contain at least 3 non-space characters"})
+    state = _canon_state(doc)
+    if state not in ("RESOLVED", "CLOSED"):
+        return JSONResponse(status_code=422, content={"error": "Feedback is available after a grievance is resolved"})
+
+    now = datetime.now(timezone.utc).isoformat()
+    feedback = {
+        "rating": payload.rating,
+        "comment": payload.comment.strip(),
+        "isSatisfied": payload.rating >= 4,
+        "submittedAt": now,
+    }
+    repository.update(grievance_id, {"resolutionFeedback": feedback, "updatedAt": now})
+    old_feedback = doc.get("resolutionFeedback")
+    _emit_audit(
+        current,
+        "grievance.resolution_feedback",
+        grievance_id,
+        {"rating": old_feedback.get("rating"), "isSatisfied": old_feedback.get("isSatisfied")} if old_feedback else None,
+        {"rating": feedback["rating"], "isSatisfied": feedback["isSatisfied"]},
+        "Citizen resolution feedback",
+    )
+    if doc.get("managerId"):
+        _notify(doc["managerId"], "grievance.feedback", grievance_id, f"Citizen feedback received for {grievance_id}")
+    return {"message": "Feedback saved", "feedback": feedback}
 
 
 @router.post("/grievances/{grievance_id}/reject")

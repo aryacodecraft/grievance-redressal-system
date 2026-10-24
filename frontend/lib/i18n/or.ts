@@ -1,8 +1,12 @@
 import type { Messages } from "./en";
+import en from "./en";
+import { resolutionOr } from "./resolution";
 
 import { voiceEn } from "./voice";
 
 const or: Messages = {
+  ...en,
+  ...resolutionOr,
   ...voiceEn,
   // ── Header ──
   home: "ମୁଖ୍ୟ ପୃଷ୍ଠା",

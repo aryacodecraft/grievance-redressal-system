@@ -1,8 +1,12 @@
 import type { Messages } from "./en";
+import en from "./en";
+import { resolutionGu } from "./resolution";
 
 import { voiceEn } from "./voice";
 
 const gu: Messages = {
+  ...en,
+  ...resolutionGu,
   ...voiceEn,
   // ── Header ──
   home: "મુખપૃષ્ઠ",

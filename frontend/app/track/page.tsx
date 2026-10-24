@@ -103,6 +103,10 @@ export default function TrackPage() {
             grievance={selectedGrievance}
             citizenView
             onClose={() => setSelectedGrievance(null)}
+            onUpdated={(update) => {
+              setRecent((items) => items.map((item) => item.id === selectedGrievance.id ? { ...item, ...update } : item));
+              setSelectedGrievance((item) => item ? { ...item, ...update } : item);
+            }}
           />
         )}
       </div>

@@ -1,8 +1,10 @@
 import type { Messages } from "./en";
+import en from "./en";
 
 import { voiceHi } from "./voice";
 
 const hi: Messages = {
+  ...en,
   ...voiceHi,
   // ── Header ──
   home: "होम",
@@ -193,6 +195,30 @@ const hi: Messages = {
   btnSearching: "खोजा जा रहा है…",
   trackQuerying: "शिकायत डेटाबेस की क्वेरी हो रही है…",
   timelineTitle: "समाधान समयरेखा",
+  activityHistory: "गतिविधि का इतिहास",
+  noActivityHistory: "अभी तक कोई ग्राहक-दृश्य अपडेट साझा नहीं किया गया है।",
+  resolutionSummary: "समाधान का सारांश",
+  resolutionFeedbackTitle: "समाधान कैसा रहा?",
+  feedbackReceived: "आपकी प्रतिक्रिया",
+  feedbackRating: "समाधान को रेट करें",
+  excellent: "बहुत अच्छा",
+  good: "अच्छा",
+  average: "औसत",
+  poor: "खराब",
+  veryPoor: "बहुत खराब",
+  feedbackComment: "कुछ और बताएं",
+  feedbackPlaceholder: "क्या अच्छा रहा या क्या बेहतर किया जा सकता है?",
+  sendFeedback: "प्रतिक्रिया भेजें",
+  saving: "सहेजा जा रहा है…",
+  furtherActionTitle: "समस्या बाकी है? आगे की कार्रवाई का अनुरोध करें",
+  furtherActionHelp: "यदि समस्या अब भी हल नहीं हुई है, तो बताएं कि क्या बाकी है। विभागीय टीम आपके अनुरोध की समीक्षा करेगी।",
+  furtherActionPlaceholder: "बताएं कि क्या ठीक नहीं हुआ है (कम से कम 10 अक्षर)।",
+  requestFurtherAction: "आगे की कार्रवाई का अनुरोध करें",
+  sending: "भेजा जा रहा है…",
+  furtherActionSent: "आपका अनुरोध समीक्षा के लिए विभाग को भेज दिया गया है।",
+  furtherActionAlreadyRequested: "आपने आगे की कार्रवाई का अनुरोध पहले ही भेज दिया है। अपडेट के लिए यहां देखें।",
+  feedbackSaved: "धन्यवाद। आपकी प्रतिक्रिया सहेज ली गई है।",
+  actionFailed: "अभी सहेजा नहीं जा सका। कृपया फिर से प्रयास करें।",
   timelineSubtitle: "अधिकारियों की कार्रवाई के साथ अपडेट होता है",
   trackNotFoundTitle: "इस संदर्भ ID पर कोई शिकायत नहीं मिली",
   trackNotFoundHint:

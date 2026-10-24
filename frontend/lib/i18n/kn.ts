@@ -1,8 +1,12 @@
 import type { Messages } from "./en";
+import en from "./en";
+import { resolutionKn } from "./resolution";
 
 import { voiceEn } from "./voice";
 
 const kn: Messages = {
+  ...en,
+  ...resolutionKn,
   ...voiceEn,
   // ── Header ──
   home: "ಮುಖಪುಟ",

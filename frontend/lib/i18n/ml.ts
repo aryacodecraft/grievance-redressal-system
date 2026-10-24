@@ -1,8 +1,12 @@
 import type { Messages } from "./en";
+import en from "./en";
+import { resolutionMl } from "./resolution";
 
 import { voiceEn } from "./voice";
 
 const ml: Messages = {
+  ...en,
+  ...resolutionMl,
   ...voiceEn,
   // ── Header ──
   home: "ഹോം",

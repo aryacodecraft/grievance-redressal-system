@@ -1,8 +1,12 @@
 import type { Messages } from "./en";
+import en from "./en";
+import { resolutionTa } from "./resolution";
 
 import { voiceEn } from "./voice";
 
 const ta: Messages = {
+  ...en,
+  ...resolutionTa,
   ...voiceEn,
   // ── Header ──
   home: "முகப்பு",

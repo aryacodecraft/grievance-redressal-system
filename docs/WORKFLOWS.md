@@ -218,6 +218,13 @@ valid for the grievance's current state.
 | 2 | **[SYSTEM]** | User notified of resolution |
 | 3 | User (optional) | Submits satisfaction feedback (rating + comment) |
 | 4 | **[SYSTEM]** | After feedback window or admin approval → status → CLOSED |
+
+After resolution, the citizen can submit a 1–5 rating and comment from the
+grievance detail view. If the reported issue remains unresolved, the citizen can
+choose **Request further action**, explain what remains (minimum 10 characters),
+and return a resolved or closed grievance to `REOPENED`. The manager is notified
+and handles any follow-up assignment. The reason and transition are recorded in
+the grievance history and audit log.
 | 5 | **[SYSTEM]** | Records `closed_at` timestamp |
 
 ---

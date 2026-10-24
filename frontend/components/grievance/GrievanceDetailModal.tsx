@@ -7,13 +7,14 @@ import {
   Clock,
   ExternalLink,
   MapPin,
+  MessageSquareText,
   User,
   X,
 } from "lucide-react";
 import { PriorityBadge, StatusBadge } from "@/components/ui/Badge";
 import { AnalysisPanel, StatusTimeline } from "./GrievanceCard";
 import { SinglePinMap } from "@/components/admin/SinglePinMap";
-import { getGrievanceHistory } from "@/lib/api";
+import { getGrievanceHistory, requestFurtherAction, submitResolutionFeedback } from "@/lib/api";
 import { departmentKey, useI18n } from "@/lib/i18n";
 import type { Grievance } from "@/lib/types";
 
@@ -32,19 +33,28 @@ function formatDate(iso?: string | null): string {
 export function GrievanceDetailModal({
   grievance,
   onClose,
+  onUpdated,
   citizenView = false,
 }: {
   grievance: Grievance | null;
   onClose: () => void;
+  onUpdated?: (update: Partial<Grievance>) => void;
   /** Citizen surfaces hide internal routing: priority + department. */
   citizenView?: boolean;
 }) {
   const { t } = useI18n();
   const [history, setHistory] = useState<Record<string, unknown>[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [rating, setRating] = useState(5);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [furtherActionRequested, setFurtherActionRequested] = useState(false);
 
   useEffect(() => {
-    if (!grievance || citizenView) return;
+    if (!grievance) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -62,7 +72,7 @@ export function GrievanceDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [grievance, citizenView]);
+  }, [grievance]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -73,6 +83,43 @@ export function GrievanceDetailModal({
   }, [onClose]);
 
   if (!grievance) return null;
+  const grievanceId = grievance.id;
+  const state = String(grievance.state ?? grievance.status ?? "").toUpperCase();
+  const resolved = state === "RESOLVED" || state === "CLOSED";
+  const reopened = state === "REOPENED";
+  const feedback = grievance.resolutionFeedback;
+
+  async function saveFeedback() {
+    setActionError("");
+    setActionBusy(true);
+    try {
+      await submitResolutionFeedback(grievanceId, {
+        rating,
+        comment: feedbackComment.trim(),
+        is_satisfied: rating >= 4,
+      });
+      setFeedbackSubmitted(true);
+      onUpdated?.({ resolutionFeedback: { rating, comment: feedbackComment.trim(), isSatisfied: rating >= 4, submittedAt: new Date().toISOString() } });
+    } catch {
+      setActionError(t("actionFailed"));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function requestAction() {
+    setActionError("");
+    setActionBusy(true);
+    try {
+      await requestFurtherAction(grievanceId, actionReason.trim());
+      setFurtherActionRequested(true);
+      onUpdated?.({ state: "REOPENED", status: "reopened" });
+    } catch {
+      setActionError(t("actionFailed"));
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   return (
     <div
@@ -131,6 +178,14 @@ export function GrievanceDetailModal({
             </h3>
             <StatusTimeline status={grievance.state ?? grievance.status} />
           </div>
+
+          {citizenView && grievance.resolution && (
+            <section className="rounded-lg border border-primary-200 bg-primary-50/40 p-4">
+              <h3 className="text-sm font-bold text-ink-950">{t("resolutionSummary")}</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{grievance.resolution.text}</p>
+              {!!grievance.resolution.actions?.length && <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-700">{grievance.resolution.actions.map((action, i) => <li key={i}>{action}</li>)}</ul>}
+            </section>
+          )}
 
           {/* Description & Info Details */}
           <div className="space-y-4">
@@ -247,18 +302,14 @@ export function GrievanceDetailModal({
             </div>
           )}
 
-          {/* Activity / Field Updates History — staff/admin only (DEC-050) */}
-          {!citizenView && (
+          {/* Citizen-safe customer updates and status history; staff see full updates. */}
+          {(
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-ink-600 mb-2">
-                Recent Officer & Field Updates
-              </h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-ink-600 mb-2">{citizenView ? t("activityHistory") : "Recent Officer & Field Updates"}</h3>
               {loadingHistory ? (
                 <p className="text-xs text-ink-500 py-2">Loading updates…</p>
               ) : history.length === 0 ? (
-                <p className="text-xs text-ink-500 italic py-2">
-                  No field updates posted yet.
-                </p>
+                <p className="text-xs text-ink-500 italic py-2">{citizenView ? t("noActivityHistory") : "No field updates posted yet."}</p>
               ) : (
                 <div className="space-y-2.5">
                   {history.map((entry, idx) => (
@@ -267,18 +318,14 @@ export function GrievanceDetailModal({
                       className="rounded-lg border border-ink-100 bg-ink-50/70 p-3 text-xs text-ink-800"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-ink-900">
-                          {String(entry.kind ?? "Update")}
-                        </span>
+                        <span className="font-semibold text-ink-900">{String(entry.kind === "status" ? `${entry.from ?? ""} → ${entry.to ?? ""}` : entry.kind ?? "Update")}</span>
                         <span className="text-[11px] text-ink-500">
                           {formatDate(String(entry.createdAt ?? entry.at ?? ""))}
                         </span>
                       </div>
                       <p className="mt-1 leading-relaxed text-ink-700">
                         {String(
-                          entry.bodyCustomer ??
-                            entry.workCompleted ??
-                            entry.reason ??
+                          entry.bodyCustomer ?? entry.workCompleted ?? entry.reason ??
                             "Status update recorded"
                         )}
                       </p>
@@ -288,6 +335,39 @@ export function GrievanceDetailModal({
               )}
             </div>
           )}
+
+          {citizenView && resolved && (
+            <div className="space-y-4 rounded-lg border border-ink-200 bg-white p-4">
+              <div className="flex items-center gap-2"><MessageSquareText size={17} className="text-primary-700"/><h3 className="text-sm font-bold text-ink-950">{t("resolutionFeedbackTitle")}</h3></div>
+              {feedback || feedbackSubmitted ? (
+                <div className="rounded-md bg-ink-50 p-3 text-sm text-ink-700"><p className="font-semibold">{t("feedbackReceived")}{feedback ? `: ${feedback.rating}/5` : ""}</p>{feedback && <p className="mt-1">{feedback.comment}</p>}</div>
+              ) : (
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-ink-700">{t("feedbackRating")}
+                    <select value={rating} onChange={(e) => setRating(Number(e.target.value))} className="mt-1 block w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm"><option value={5}>5 — {t("excellent")}</option><option value={4}>4 — {t("good")}</option><option value={3}>3 — {t("average")}</option><option value={2}>2 — {t("poor")}</option><option value={1}>1 — {t("veryPoor")}</option></select>
+                  </label>
+                  <label className="block text-xs font-semibold text-ink-700">{t("feedbackComment")}
+                    <textarea value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} rows={3} maxLength={2000} className="mt-1 block w-full rounded-md border border-ink-300 px-3 py-2 text-sm font-normal" placeholder={t("feedbackPlaceholder")} />
+                  </label>
+                  <button disabled={actionBusy || feedbackComment.trim().length < 3} onClick={() => void saveFeedback()} className="rounded-md bg-primary-700 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{actionBusy ? t("saving") : t("sendFeedback")}</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {citizenView && resolved && (
+            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+              <div><h3 className="text-sm font-bold text-ink-950">{t("furtherActionTitle")}</h3><p className="mt-1 text-xs leading-5 text-ink-600">{t("furtherActionHelp")}</p></div>
+              {furtherActionRequested || reopened ? <p role="status" className="text-sm font-medium text-green-800">{t("furtherActionAlreadyRequested")}</p> : (
+                <>
+                  <textarea value={actionReason} onChange={(e) => setActionReason(e.target.value)} rows={3} maxLength={2000} className="block w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm" placeholder={t("furtherActionPlaceholder")} />
+                  <button disabled={actionBusy || actionReason.trim().length < 10} onClick={() => void requestAction()} className="rounded-md border border-amber-700 bg-white px-4 py-2 text-xs font-semibold text-amber-900 disabled:opacity-50">{actionBusy ? t("sending") : t("requestFurtherAction")}</button>
+                </>
+              )}
+            </div>
+          )}
+          {citizenView && furtherActionRequested && <p role="status" className="rounded-md bg-green-50 p-3 text-sm font-medium text-green-800">{t("furtherActionSent")}</p>}
+          {actionError && <p role="alert" className="text-sm text-red-700">{actionError}</p>}
 
           {/* AI Assessment / Triage Diagnostic — staff only; citizens never
               see classification, confidence or keywords (DEC-044). */}

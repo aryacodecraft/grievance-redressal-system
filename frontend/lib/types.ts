@@ -49,6 +49,12 @@ export interface Grievance {
     completionPhotoUrl?: string | null;
     supportingDocumentUrl?: string | null;
   } | null;
+  resolutionFeedback?: {
+    rating: number;
+    comment: string;
+    isSatisfied: boolean;
+    submittedAt: string;
+  } | null;
   /** Quality gate (DEC-049): "suspicious" when AI flagged as non-civic content. */
   qualityFlag?: string | null;
   qualityReason?: string | null;

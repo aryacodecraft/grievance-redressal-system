@@ -337,6 +337,12 @@ const grievanceSchema = z.object({
     })
     .passthrough()
     .nullish(),
+  resolutionFeedback: z.object({
+    rating: z.number(),
+    comment: z.string(),
+    isSatisfied: z.boolean(),
+    submittedAt: z.string(),
+  }).nullish(),
 });
 
 const grievanceListSchema = z.array(grievanceSchema);
@@ -462,6 +468,17 @@ export async function getGrievanceHistory(id: string): Promise<unknown[]> {
     { method: "GET" }
   );
   return raw as unknown[];
+}
+
+export async function submitResolutionFeedback(
+  id: string,
+  body: { rating: number; comment: string; is_satisfied: boolean }
+): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/feedback`, body);
+}
+
+export async function requestFurtherAction(id: string, reason: string): Promise<unknown> {
+  return postJson(`/grievances/${encodeURIComponent(id.trim())}/reopen`, { reason });
 }
 
 export async function listUsers(): Promise<unknown[]> {

@@ -116,7 +116,12 @@ class WithdrawRequest(BaseModel):
     reason: str
 
 class ReopenRequest(BaseModel):
-    reason: str
+    reason: str = Field(min_length=10, max_length=2000)
+
+class ResolutionFeedbackRequest(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: str = Field(min_length=3, max_length=2000)
+    is_satisfied: bool
 
 class RejectRequest(BaseModel):
     reason: str
