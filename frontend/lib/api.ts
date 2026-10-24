@@ -343,6 +343,18 @@ const grievanceSchema = z.object({
     isSatisfied: z.boolean(),
     submittedAt: z.string(),
   }).nullish(),
+  escalation: z.object({
+    issueType: z.string().optional(),
+    reason: z.string().optional(),
+    description: z.string().optional(),
+    suggestedAction: z.string().nullish(),
+    evidenceUrl: z.string().nullish(),
+    by: z.string().optional(),
+    at: z.string().optional(),
+    status: z.string().optional(),
+    managerResponse: z.string().optional(),
+    reviewedAt: z.string().optional(),
+  }).passthrough().nullish(),
 });
 
 const grievanceListSchema = z.array(grievanceSchema);

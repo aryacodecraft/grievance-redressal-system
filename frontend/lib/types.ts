@@ -55,6 +55,18 @@ export interface Grievance {
     isSatisfied: boolean;
     submittedAt: string;
   } | null;
+  escalation?: {
+    issueType?: string;
+    reason?: string;
+    description?: string;
+    suggestedAction?: string | null;
+    evidenceUrl?: string | null;
+    by?: string;
+    at?: string;
+    status?: string;
+    managerResponse?: string;
+    reviewedAt?: string;
+  } | null;
   /** Quality gate (DEC-049): "suspicious" when AI flagged as non-civic content. */
   qualityFlag?: string | null;
   qualityReason?: string | null;

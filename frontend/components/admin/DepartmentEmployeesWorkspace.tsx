@@ -80,7 +80,10 @@ export function DepartmentEmployeesWorkspace() {
     if (!employeeId) return;
     setBusy(true); setMessage("");
     try {
-      await reassignGrievance(grievance.id, { ownerId: employeeId, departmentId, reason: "Department manager assigned task" });
+      const reason = grievance.escalation
+        ? `Manager reviewed worker ticket (${grievance.escalation.issueType || "issue"}) and reassigned the task`
+        : "Department manager assigned task";
+      await reassignGrievance(grievance.id, { ownerId: employeeId, departmentId, reason });
       await refreshGrievances();
       setMessage(`Task ${grievance.id} assigned.`);
       notify("Task assigned", `${grievance.id} was assigned to ${employees.find((employee) => employee.id === employeeId)?.full_name || "the selected employee"}.`);

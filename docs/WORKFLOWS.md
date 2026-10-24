@@ -280,9 +280,16 @@ All transitions are enforced server-side. Invalid transitions return HTTP 422.
 Workers are represented by the existing `RESOLVER` role. A department manager
 assigns an owner; the worker can acknowledge `ASSIGNED → ACCEPTED`, start work,
 post daily updates, place work on hold with a required reason, or raise a
-structured escalation ticket. Completion is submitted as
+structured escalation/reassignment request. Managers see the ticket and the
+current assignee in grievance review. Reassigning an escalated task returns it
+to `ASSIGNED`, addresses the ticket, and notifies the old/new employee; the
+manager may also return it to the current employee after review. Completion is submitted as
 `RESOLUTION_SUBMITTED`, preserving the required manager approval step before
 the grievance becomes `RESOLVED`.
+
+When a manager returns a submitted resolution for rework, the reason is kept in
+the grievance state history and appears as **Manager review feedback** in the
+assigned employee's task details and activity timeline.
 
 The worker queue uses `GET /resolver/tasks`, scoped by authenticated `ownerId`
 and independent of department filters/aliases. Assignment eligibility, manager

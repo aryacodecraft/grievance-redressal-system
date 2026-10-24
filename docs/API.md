@@ -450,9 +450,13 @@ withdrawn complaints return `422`. The target must be active and have role
 **Request:** `{ "ownerId": "employee-user-id", "departmentId"?: "roads", "reason": "Required non-blank explanation" }`
 
 The current owner, department, manager, updated timestamp, and assignment/state
-history are persisted together before notifications are sent. Reassigning to
-the already-current owner is an idempotent no-op and does not duplicate history
-or notifications. The response includes `grievanceId` and current `state`.
+history are persisted together before notifications are sent. Reassigning an
+`ESCALATED` grievance returns it to `ASSIGNED` so the selected employee can
+resume work; the escalation ticket is marked addressed with the manager's
+response. Selecting the current employee in this state records the manager's
+decision and also returns the task to `ASSIGNED`. Reassigning to the current
+owner in other active states remains an idempotent no-op. The response includes
+`grievanceId` and current `state`.
 
 ---
 
@@ -640,9 +644,12 @@ Common HTTP status codes:
 - `POST /grievances/{id}/accept` — owner-only `RESOLVER` acknowledgement.
 - `POST /grievances/{id}/escalate` accepts `issueType`, `description`,
   `suggestedAction`, and optional `evidenceUrl`; the ticket is stored with the
-  grievance and in escalation history.
+  grievance and in escalation history. Managers see open employee tickets in
+  grievance review and can reassign the task in response.
 - `POST /grievances/{id}/resolution` accepts optional completion photo and
   supporting document URLs; manager approval remains required.
+- `GET /grievances/{id}/history` includes manager return-for-rework reasons for
+  the assigned employee, labelled as review feedback in the employee workspace.
 - Progress updates accept an optional `attachmentUrl`.
 
 ### Department employee management

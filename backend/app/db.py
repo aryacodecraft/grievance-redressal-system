@@ -425,6 +425,7 @@ def to_api(doc: dict[str, Any]) -> dict[str, Any]:
         "stateHistory", "assignmentHistory", "priorityHistory", "deadlineHistory",
         "resolution",
         "resolutionFeedback",
+        "escalation",
         # Quality gate (DEC-049) — forwarded when present so admin surfaces can
         # surface flagged grievances without extra DB queries.
         "qualityFlag", "qualityReason",

@@ -173,18 +173,37 @@ def reassign_grievance(
         return JSONResponse(status_code=400, content={"error": "Assigned employee must belong to the grievance department"})
     now = datetime.now(timezone.utc).isoformat()
     old_owner = doc.get("ownerId")
-    if old_owner == payload.ownerId:
+    same_owner = old_owner == payload.ownerId
+    resumes_assigned_work = state == "ESCALATED"
+    if same_owner and not resumes_assigned_work:
         return {"message": "Grievance is already assigned to this employee", "grievanceId": grievance_id, "state": state}
     patch = {"ownerId": payload.ownerId, "managerId": current["user_id"], "updatedAt": now}
     if payload.departmentId:
         patch["departmentId"] = assignment_department
     initial_assignment = state in ("PENDING_ASSIGNMENT", "SUBMITTED")
+    moves_to_assigned = initial_assignment or resumes_assigned_work
+    if resumes_assigned_work:
+        transition_state(state, "ASSIGNED", role)
     if initial_assignment:
         due_days = sla_repository.get_days(doc.get("category", "other"), doc.get("priority", "low"))
-        patch.update({"state": "ASSIGNED", "status": "assigned", "managerId": current["user_id"],
-                      "dueDate": doc.get("dueDate") or (datetime.now(timezone.utc) + timedelta(days=due_days)).isoformat()})
-    histories = {
-        "assignmentHistory": {
+        patch["dueDate"] = doc.get("dueDate") or (datetime.now(timezone.utc) + timedelta(days=due_days)).isoformat()
+    if moves_to_assigned:
+        patch.update({"state": "ASSIGNED", "status": "assigned"})
+    if resumes_assigned_work and isinstance(doc.get("escalation"), dict):
+        patch["escalation"] = {
+            **doc["escalation"],
+            "status": "ADDRESSED",
+            "managerResponse": (
+                "Reviewed; work may continue with the current assignee."
+                if same_owner
+                else f"Reassigned to {target.get('full_name') or target.get('email') or payload.ownerId}"
+            ),
+            "reviewedAt": now,
+            "reviewedBy": current["user_id"],
+        }
+    histories = {}
+    if not same_owner:
+        histories["assignmentHistory"] = {
             "fromOwner": old_owner,
             "toOwner": payload.ownerId,
             "fromDept": doc.get("departmentId"),
@@ -195,20 +214,32 @@ def reassign_grievance(
             "at": now,
             "reassign": True,
         }
-    }
-    if initial_assignment:
-        histories["stateHistory"] = {"from": state, "to": "ASSIGNED", "by": current["user_id"], "byRole": role, "reason": reason, "at": now, "source": "HUMAN"}
+    if moves_to_assigned:
+        histories["stateHistory"] = {
+            "from": state,
+            "to": "ASSIGNED",
+            "by": current["user_id"],
+            "byRole": role,
+            "reason": reason if initial_assignment else f"Employee reassignment request reviewed: {reason}",
+            "at": now,
+            "source": "HUMAN",
+        }
     updated = repository.update_with_history(grievance_id, patch, histories)
     if updated is None:
         raise HTTPException(status_code=404, detail="Grievance not found")
     
-    _notify(payload.ownerId, "grievance.assigned_to_you", grievance_id, f"New task assigned: {doc.get('title', grievance_id)}", f"{grievance_id} · {doc.get('priority', 'low')} priority · Due {patch.get('dueDate', doc.get('dueDate', 'not set'))}")
+    if same_owner and resumes_assigned_work:
+        _notify(payload.ownerId, "grievance.escalation_reviewed", grievance_id, f"Your reassignment request for {grievance_id} was reviewed", patch.get("escalation", {}).get("managerResponse"))
+    else:
+        _notify(payload.ownerId, "grievance.assigned_to_you", grievance_id, f"New task assigned: {doc.get('title', grievance_id)}", f"{grievance_id} · {doc.get('priority', 'low')} priority · Due {patch.get('dueDate', doc.get('dueDate', 'not set'))}")
     if initial_assignment:
         _notify(doc.get("userId"), "grievance.assigned", grievance_id, f"Your grievance {grievance_id} has been assigned to a department employee")
-    if old_owner:
+    if old_owner and not same_owner:
         _notify(old_owner, "grievance.reassigned_away", grievance_id, f"Grievance {grievance_id} has been reassigned")
-    _emit_audit(current, "grievance.reassigned", grievance_id, {"ownerId": old_owner, "state": state}, {"ownerId": payload.ownerId, "state": "ASSIGNED" if initial_assignment else state}, reason)
-    return {"message": "Grievance reassigned", "grievanceId": grievance_id, "state": "ASSIGNED" if initial_assignment else state}
+    action = "grievance.escalation_reviewed" if same_owner and resumes_assigned_work else "grievance.reassigned"
+    _emit_audit(current, action, grievance_id, {"ownerId": old_owner, "state": state}, {"ownerId": payload.ownerId, "state": "ASSIGNED" if moves_to_assigned else state}, reason)
+    message = "Escalation reviewed; task returned to work" if resumes_assigned_work else "Grievance reassigned"
+    return {"message": message, "grievanceId": grievance_id, "state": "ASSIGNED" if moves_to_assigned else state}
 
 
 @router.patch("/grievances/{grievance_id}/priority")

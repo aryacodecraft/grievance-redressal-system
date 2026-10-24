@@ -1482,3 +1482,12 @@ citizens. Department managers were therefore querying their own citizen records
 instead of their department queue. The shared admin feed now explicitly requests
 staff scope and passes the JWT-associated department; server RBAC remains the
 scope authority. TypeScript/ESLint and diff checks passed. No tests/browser run.
+
+## 2026-10-24 — Worker ticket reassignment and review feedback (DEC-069)
+
+Added an explicit worker reassignment-ticket category and manager visibility of
+ticket details/current assignee. Reassigning an escalated task now marks its
+ticket addressed, records history/audit, notifies employees, and restores
+`ASSIGNED`; managers can keep the current employee after review. Employee task
+history now includes manager return reasons, and citizen feedback is visible on
+employee task details. Static checks passed; no tests/browser review run.

@@ -7,6 +7,18 @@
 > Older entries (2026-08-06 → 2026-10-13) are archived at
 > `memory/archive/CHANGELOG-2026-08-06_to_2026-10-13.md`.
 
+## 2026-10-24 — Worker ticket reassignment and manager review feedback (DEC-069)
+
+- Worker issue forms now include an explicit reassignment request. Managers see
+  the ticket and current assignee; reassignment marks the ticket addressed and
+  returns the grievance from `ESCALATED` to `ASSIGNED`, so the selected worker
+  can accept/start it. Managers can also return it to the current worker.
+- Employee history now includes authorized state events, with return-for-rework
+  reasons highlighted as manager feedback. Citizen ratings/comments appear on
+  employee task details. Updated API/workflow docs.
+- TypeScript, focused ESLint, Python compilation, and diff checks passed. No
+  tests or browser review were run.
+
 ## 2026-10-24 — Department manager grievance feed scope
 
 - Fixed the shared admin dashboard feed: department managers were classified

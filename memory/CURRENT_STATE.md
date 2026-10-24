@@ -42,8 +42,10 @@ only — humans retain assignment, escalation, resolution and closure authority
   server-validated assignment path; department manager feeds use authenticated
   role and department scope rather than an email allowlist. Owner and workflow
   histories persist atomically, manager feed refreshes immediately, and
-  duplicate owner assignment is idempotent. The feed scope fix is recorded in
-  the latest `CHANGELOG.md` entry.
+  duplicate owner assignment is idempotent. Employee escalation tickets are
+  visible to managers; reassigning them restores an active employee task, and
+  manager review feedback is visible to the assigned employee. Recent fixes are
+  recorded in the latest `CHANGELOG.md` entries.
 - **Citizen experience** — submit (auth required, GPS, image upload, mobile-compact UI — DEC-047, pop-out map modal with click/tap pinning and language-aware structured place search — DEC-050/065), track
   (master-detail, sign-in required; department/priority/employee updates/completion photos hidden from citizens —
   DEC-028/029/030/044/050), notifications inbox v1, profile. Session persistence hardened against network glitches. IMPLEMENTED, TESTED.

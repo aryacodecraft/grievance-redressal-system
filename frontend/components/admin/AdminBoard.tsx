@@ -84,7 +84,7 @@ export function AdminBoard() {
   const [overrides, setOverrides] = useState<Record<string, Partial<Grievance>>>({});
   const [employees, setEmployees] = useState<DepartmentEmployee[]>([]);
   // The API scopes this list to the authenticated manager's department.
-  useEffect(() => { if (isDepartmentManager) void listUsers().then((rows) => setEmployees((rows as DepartmentEmployee[]).filter((row) => row.role === "RESOLVER" && row.isActive !== false))).catch(() => setEmployees([])); }, [isDepartmentManager]);
+  useEffect(() => { if (isDepartmentManager) void listUsers().then((rows) => setEmployees((rows as DepartmentEmployee[]).filter((row) => row.role === "RESOLVER"))).catch(() => setEmployees([])); }, [isDepartmentManager]);
 
   // Filtering & Sorting
   const [queueTab, setQueueTab] = useState<"active" | "closed">("active");
@@ -267,18 +267,34 @@ export function AdminBoard() {
   async function handleEmployeeAssignment(employeeId: string) {
     if (!selected || !scopedDepartmentId) return;
     if (!live) throw new Error("Employee assignment requires a live backend connection.");
-    await reassignGrievance(selected.id, { ownerId: employeeId, departmentId: scopedDepartmentId, reason: "Department manager assigned task to employee" });
+    const sameOwner = selected.ownerId === employeeId;
+    const assignmentReason = selected.escalation
+      ? `Manager reviewed worker ticket (${selected.escalation.issueType || "issue"}) and ${sameOwner ? "approved the current assignment" : "reassigned the task"}`
+      : "Department manager assigned task to employee";
+    await reassignGrievance(selected.id, { ownerId: employeeId, departmentId: scopedDepartmentId, reason: assignmentReason });
     const currentState = (selected.state ?? selected.status).toUpperCase();
     const newlyAssigned = currentState === "PENDING_ASSIGNMENT" || currentState === "SUBMITTED";
+    const resumedAfterTicket = currentState === "ESCALATED";
     patchLocal(selected.id, {
       ownerId: employeeId,
       managerId: user?.id,
       departmentId: scopedDepartmentId,
-      state: newlyAssigned ? "ASSIGNED" : selected.state,
-      status: newlyAssigned ? "ASSIGNED" : selected.status,
+      state: newlyAssigned || resumedAfterTicket ? "ASSIGNED" : selected.state,
+      status: newlyAssigned || resumedAfterTicket ? "ASSIGNED" : selected.status,
+      ...(resumedAfterTicket && selected.escalation ? {
+        escalation: {
+          ...selected.escalation,
+          status: "ADDRESSED",
+          managerResponse: sameOwner
+            ? "Reviewed; work may continue with the current assignee."
+            : `Reassigned to ${employees.find((employee) => employee.id === employeeId)?.full_name || "selected employee"}`,
+        },
+      } : {}),
     });
     await refreshGrievances();
-    notify("Task assigned", `${selected.id} was assigned to ${employees.find((employee) => employee.id === employeeId)?.full_name || "the selected employee"}.`);
+    notify(sameOwner && resumedAfterTicket ? "Request reviewed" : "Task assigned", sameOwner && resumedAfterTicket
+      ? `${selected.id} can continue with its current assignee.`
+      : `${selected.id} was assigned to ${employees.find((employee) => employee.id === employeeId)?.full_name || "the selected employee"}.`);
   }
 
   return (

@@ -119,6 +119,9 @@ export function GrievanceReviewModal({
   const g = grievance;
   const hasLocation = g.latitude != null && g.longitude != null;
   const currentState = String(g.state ?? g.status ?? "").toUpperCase();
+  const currentEmployee = employees.find((employee) => employee.id === g.ownerId);
+  const ticketAuthor = employees.find((employee) => employee.id === g.escalation?.by);
+  const isEscalated = currentState === "ESCALATED";
   const canInitialAssign = ["SUBMITTED", "PENDING_ASSIGNMENT"].includes(currentState);
   const canStartWork = ["ASSIGNED", "ACCEPTED", "BLOCKED", "REOPENED"].includes(currentState);
   const canApproveResolution = ["RESOLUTION_SUBMITTED", "UNDER_REVIEW"].includes(currentState);
@@ -235,7 +238,25 @@ export function GrievanceReviewModal({
                 <span className="font-semibold text-ink-700">Department:</span>{" "}
                 {g.assignee || "Unassigned"}
               </div>
+              {departmentManager && <div className="col-span-2">
+                <span className="font-semibold text-ink-700">Assigned employee:</span>{" "}
+                {g.ownerId ? currentEmployee?.full_name || currentEmployee?.email || "Assigned employee" : "Not assigned"}
+              </div>}
             </div>
+
+            {g.escalation && (
+              <div className={`rounded-md border p-3 ${g.escalation.status === "ADDRESSED" ? "border-emerald-200 bg-emerald-50/60" : "border-amber-300 bg-amber-50"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-ink-900">{ticketAuthor ? `Employee request from ${ticketAuthor.full_name || ticketAuthor.email || "assigned employee"}` : "Escalation ticket"} · {g.escalation.issueType || "Issue reported"}</p>
+                  <span className="rounded border border-ink-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-ink-600">{g.escalation.status || "OPEN"}</span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-ink-700">{g.escalation.description || g.escalation.reason}</p>
+                {g.escalation.suggestedAction && <p className="mt-2 text-xs text-ink-700"><strong>Suggested action:</strong> {g.escalation.suggestedAction}</p>}
+                {g.escalation.evidenceUrl && <a href={g.escalation.evidenceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary-700 hover:underline">View supporting evidence <ExternalLink size={11} /></a>}
+                {g.escalation.managerResponse && <p className="mt-2 text-xs text-emerald-900"><strong>Manager response:</strong> {g.escalation.managerResponse}</p>}
+                {g.escalation.at && <p className="mt-2 text-[10px] text-ink-500">Raised {formatDateTime(g.escalation.at)}</p>}
+              </div>
+            )}
 
             {/* Location */}
             <div>
@@ -388,7 +409,7 @@ Attached Photo
                   Assign to this department
                 </Button>}
 
-                {departmentManager && <Button type="button" onClick={() => void assignEmployee()} disabled={submitting || !employeeId || !onEmployeeAssign} className="flex items-center justify-center gap-1.5"><Building2 size={14} />Assign to this employee</Button>}
+                {departmentManager && <Button type="button" onClick={() => void assignEmployee()} disabled={submitting || !employeeId || !onEmployeeAssign || (employeeId === g.ownerId && !isEscalated)} className="flex items-center justify-center gap-1.5"><Building2 size={14} />{isEscalated ? (employeeId === g.ownerId ? "Return to current employee" : "Reassign and return to work") : g.ownerId ? "Reassign to this employee" : "Assign to this employee"}</Button>}
 
                 {canStartWork && <Button
                   type="button"

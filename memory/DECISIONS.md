@@ -2903,3 +2903,28 @@ the original complainant preserves ownership checks and auditability.
 
 **Reversible:** Yes — remove the citizen actions or narrow eligible states while
 retaining the audit history and server-side ownership checks.
+
+## DEC-069 — Manager Review of Worker Reassignment Requests (2026-10-24)
+
+**Context:** Workers could raise an escalation ticket, but the manager's feed
+did not expose the ticket content. Although the reassign endpoint accepted
+`ESCALATED`, it left the grievance in that state after changing its owner, so
+the new worker could not accept or start the task. Manager return-for-rework
+reasons were stored in state history but omitted from the worker history view.
+
+**Decision:** Show the current assignee and open escalation ticket in manager
+grievance review, and offer an explicit reassignment request category to
+workers. A manager's reassignment of an escalated grievance atomically records
+assignment/state history, marks the ticket addressed, transitions the grievance
+to `ASSIGNED`, and notifies the relevant employees. A manager may also return
+the escalated task to its existing employee. Authorized employee history
+includes state events and labels a resolution return as manager review feedback.
+Citizen feedback on completed grievances is also visible to the assigned
+employee.
+
+**Reason:** A ticket must lead to a visible, human-reviewed follow-up action and
+the selected worker must receive a task in a state they can act on. Review
+reasons and assignment changes remain traceable.
+
+**Reversible:** Yes — the ticket UI and state handling can be changed while
+preserving assignment and state history.

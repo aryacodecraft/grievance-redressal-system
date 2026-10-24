@@ -139,8 +139,7 @@ def get_history(
     else:
         updates = progress_repository.list_for_grievance(grievance_id, visibility_filter=["customer", "system"])
     
-    # Include state changes in the citizen activity history, using only the
-    # customer-safe fields recorded by the workflow.
+    # Include citizen-owned state changes without exposing staff comments.
     if role == "USER" and doc.get("userId") == actor_id:
         updates.extend(
             {
@@ -150,6 +149,26 @@ def get_history(
                 "reason": entry.get("reason") if role == "USER" and entry.get("by") == actor_id else None,
                 "createdAt": entry.get("at"),
                 "visibility": "system",
+            }
+            for entry in doc.get("stateHistory", [])
+            if entry.get("at")
+        )
+    # Assigned employees and in-scope managers need workflow history too: in
+    # particular, a manager's return-for-rework reason is the employee's review
+    # feedback and must be visible on the task they are asked to correct.
+    elif role in ("RESOLVER", "EMPLOYEE", "ADMIN", "SUPERADMIN") and not is_department_staff_out_of_scope:
+        updates.extend(
+            {
+                "kind": (
+                    "review_feedback"
+                    if entry.get("from") == "RESOLUTION_SUBMITTED" and entry.get("to") == "IN_PROGRESS"
+                    else "status"
+                ),
+                "from": entry.get("from"),
+                "to": entry.get("to"),
+                "reason": entry.get("reason"),
+                "createdAt": entry.get("at"),
+                "visibility": "internal",
             }
             for entry in doc.get("stateHistory", [])
             if entry.get("at")
