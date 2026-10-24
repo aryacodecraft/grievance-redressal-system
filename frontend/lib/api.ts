@@ -297,7 +297,8 @@ const submitResultSchema = z.object({
 
 const imageValidationSchema = z.object({
   ok: z.boolean().default(true),
-  llm_score: z.number().optional(),
+  llm_score: z.number().nullish(),
+  status: z.enum(["validated", "unverified"]).optional(),
   explanation: z.string().optional(),
 }).passthrough();
 
@@ -312,6 +313,7 @@ const grievanceSchema = z.object({
   priority: z.string().default("low"),
   createdAt: z.string(),
   imageUrl: z.string().nullish(),
+  imagePublicId: z.string().nullish(),
   latitude: z.number().nullish(),
   longitude: z.number().nullish(),
   address: z.string().nullish(),

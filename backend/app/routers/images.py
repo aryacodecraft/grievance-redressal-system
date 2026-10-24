@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from ..config import IMAGE_LLM_THRESHOLD
 from ..models import DeleteCloudinaryRequest, SignCloudinaryRequest, ValidateImageRequest
 from ..services import cloudinary as cloudinary_service
-from ..services.image import llm_image_confidence
+from ..services.image import is_allowed_image_url, llm_image_confidence
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter()
@@ -24,24 +24,26 @@ def validate_image(payload: ValidateImageRequest):
 
     if not image_url:
         return JSONResponse(status_code=400, content={"error": "imageUrl required"})
+    if not is_allowed_image_url(image_url):
+        return JSONResponse(status_code=400, content={"error": "Image must be uploaded to the configured Cloudinary account"})
 
     try:
         llm_res = llm_image_confidence(image_url)
     except Exception as exc:
         logger.exception("LLM image check failed for url: %s", image_url)
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "LLM image validation failed",
-                "detail": str(exc),
-                "hint": "Check GROQ_API_KEY and the Groq SDK; see server logs for the raw reply.",
-            },
-        )
+        llm_res = {
+            "score": None,
+            "explanation": "Validation unavailable; image can be reviewed by staff.",
+            "raw": "validation-unavailable",
+        }
 
-    llm_score = float(llm_res.get("score", 0.0))
-    ok = llm_score >= IMAGE_LLM_THRESHOLD
+    raw_score = llm_res.get("score")
+    available = raw_score is not None
+    llm_score = float(raw_score) if available else None
+    ok = not available or llm_score >= IMAGE_LLM_THRESHOLD
     result = {
         "ok": ok,
+        "status": "validated" if available else "unverified",
         "llm_score": llm_score,
         "explanation": llm_res.get("explanation", ""),
         "raw": llm_res.get("raw", ""),

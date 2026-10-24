@@ -94,6 +94,7 @@ export interface SubmitPayload {
   latitude?: number;
   longitude?: number;
   imageUrl?: string;
+  imagePublicId?: string;
   address?: string;
 }
 

@@ -68,7 +68,8 @@ after every restart once data existed. See `memory/DECISIONS.md` DEC-014.
 | `priority` | string | `low` \| `medium` \| `high`. Mirrors `hfEngine.priority`. |
 | `createdAt` | **BSON date** | Stored as UTC `Date`, serialised back to ISO-8601 by the API. |
 | `imageUrl` | string | Optional — Cloudinary secure URL. |
-| `imageValidation` | object | Optional — `{llm_score, explanation, raw}`. |
+| `imagePublicId` | string | Optional — Cloudinary public ID, retained for asset lifecycle and audit. |
+| `imageValidation` | object | Optional — `{ok, status, llm_score, explanation, raw}`; `status` is `validated` or `unverified`. |
 | `departmentId` | string | Canonical department responsible for the grievance. |
 | `ownerId` | string | Optional — assigned employee/resolver account id. |
 | `managerId` | string | Optional — manager who initiated employee assignment. |

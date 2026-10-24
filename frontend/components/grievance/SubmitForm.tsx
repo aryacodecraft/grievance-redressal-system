@@ -118,6 +118,7 @@ export function SubmitForm() {
           longitude: coords.longitude,
           ...(coords.address ? { address: coords.address } : {}),
           ...(image?.url ? { imageUrl: image.url } : {}),
+          ...(image?.publicId ? { imagePublicId: image.publicId } : {}),
         });
         setResult(res);
         notify("Grievance registered", `Reference ID ${res.grievanceId}. Updates will appear in Notifications and Track Status.`);

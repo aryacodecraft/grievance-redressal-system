@@ -3,19 +3,31 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 import numpy as np
 import requests
 from PIL import Image, ImageStat
 from io import BytesIO
 
-from ..config import IMAGE_LLM_THRESHOLD, LLAVA_MODEL, get_groq_client
+from ..config import CLOUDINARY_CLOUD_NAME, IMAGE_LLM_THRESHOLD, LLAVA_MODEL, get_groq_client
 
 logger = logging.getLogger("grievance-api")
 
 # Image validation runs inline during submit, before the grievance is stored.
 # Bound it like the classification calls: no SDK retries, hard per-call limit.
 IMAGE_LLM_TIMEOUT_SECONDS = 8.0
+
+
+def is_allowed_image_url(image_url: str) -> bool:
+    """Only fetch images uploaded to this application's Cloudinary account."""
+    parsed = urlparse(image_url)
+    prefix = f"/{CLOUDINARY_CLOUD_NAME}/image/upload/" if CLOUDINARY_CLOUD_NAME else ""
+    return bool(
+        parsed.scheme == "https" and parsed.hostname == "res.cloudinary.com"
+        and not parsed.username and not parsed.password and parsed.port is None
+        and prefix and parsed.path.startswith(prefix)
+    )
 
 
 def compute_image_quality_score(pil_img: Image.Image) -> dict:
@@ -71,10 +83,12 @@ def llm_image_confidence(image_url: str) -> dict:
     """Score an image 0-100 for "is this a public infrastructure complaint?".
 
     Uses Groq multimodal when configured, otherwise an image-quality heuristic.
-    Returns {"score": float, "explanation": str, "raw": str}.
+    Returns a numeric score when available, otherwise score=None for review.
     """
     if not image_url:
         return {"score": 0.0, "explanation": "No image URL provided", "raw": ""}
+    if not is_allowed_image_url(image_url):
+        return {"score": 0.0, "explanation": "Image URL is not from the configured Cloudinary account.", "raw": "invalid-image-url"}
 
     groq_client = get_groq_client()
     if groq_client:
@@ -160,9 +174,14 @@ def llm_image_confidence(image_url: str) -> dict:
 
     # Heuristic fallback
     try:
-        r = requests.get(image_url, timeout=12)
+        r = requests.get(image_url, timeout=12, allow_redirects=False, stream=True)
         r.raise_for_status()
-        img = Image.open(BytesIO(r.content)).convert("RGB")
+        if int(r.headers.get("Content-Length", "0") or 0) > 10 * 1024 * 1024:
+            raise ValueError("Image exceeds 10 MB")
+        data = r.raw.read(10 * 1024 * 1024 + 1)
+        if len(data) > 10 * 1024 * 1024:
+            raise ValueError("Image exceeds 10 MB")
+        img = Image.open(BytesIO(data)).convert("RGB")
         q = compute_image_quality_score(img)
         score = q.get("score", 0.0)
         comps = q.get("components", {})
@@ -177,7 +196,7 @@ def llm_image_confidence(image_url: str) -> dict:
     except Exception as exc:
         logger.exception("Fallback image download/quality check failed")
         return {
-            "score": 5.0,
+            "score": None,
             "explanation": "Unable to validate image (LLM failed and fallback also failed).",
             "raw": f"heuristic:error:{str(exc)[:300]}",
         }

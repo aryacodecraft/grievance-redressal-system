@@ -813,3 +813,9 @@ Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local back
 - Tests & Validation:
   - Added `tests/test_admin_analytics.py`: 11 passed (100% pass on auth, RBAC, filters, metrics, PII checks).
   - `npx tsc --noEmit` clean, ESLint clean on all touched files, contract checks 21/21 passed, voice tests 80/80 passed, `next build` 20/20 static pages green.
+
+## 2026-10-24 — Image validation reliability and asset metadata
+
+- Restricted image validation URLs to the configured Cloudinary account and bounded fallback downloads to 10 MB without redirects.
+- Image-provider failures now retain the photo as unverified for staff review rather than blocking submission; successful/rejected scores retain explicit status and threshold behavior.
+- Submission carries Cloudinary public ID into grievance persistence and API projection. Updated API/database/current-state documentation. Automated verification was not run.

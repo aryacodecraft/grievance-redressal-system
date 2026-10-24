@@ -1491,3 +1491,16 @@ ticket addressed, records history/audit, notifies employees, and restores
 `ASSIGNED`; managers can keep the current employee after review. Employee task
 history now includes manager return reasons, and citizen feedback is visible on
 employee task details. Static checks passed; no tests/browser review run.
+
+## 2026-10-24 — Image validation reliability
+
+### Request
+Fix image validation reliability and explain/preserve image storage metadata.
+
+### What changed
+- Restricted validator URLs to HTTPS assets in the configured Cloudinary account; fallback download is bounded to 10 MB and does not follow redirects.
+- If image scoring raises or yields no score, submission continues with an `unverified` validation record for staff review. A measured score below threshold remains rejected.
+- The frontend now sends Cloudinary `imagePublicId` with submission; backend persists and returns it. Updated API/database/current-state docs.
+
+### Verification
+- Not run (no explicit request to run tests).

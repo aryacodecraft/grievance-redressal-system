@@ -419,7 +419,7 @@ def to_api(doc: dict[str, Any]) -> dict[str, Any]:
     }
 
     for key in (
-        "userId", "imageUrl", "imageValidation", "latitude", "longitude",
+        "userId", "imageUrl", "imagePublicId", "imageValidation", "latitude", "longitude",
         "assignee",
         "departmentId", "ownerId", "managerId", "dueDate", "resolvedAt", "closedAt",
         "stateHistory", "assignmentHistory", "priorityHistory", "deadlineHistory",

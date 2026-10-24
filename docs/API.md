@@ -46,6 +46,13 @@ Development: `http://localhost:10000`
 | `POST` | `/sign-cloudinary` | Cloudinary upload signature |
 | `POST` | `/delete-cloudinary` | Cloudinary asset removal |
 
+Image URLs accepted by validation must use HTTPS and belong to the configured
+Cloudinary account (`res.cloudinary.com/<cloud>/image/upload/...`). If the
+vision provider and local quality check are unavailable during submission, the
+photo is retained with `imageValidation.status` set to `unverified` for staff
+review. A measured score below threshold remains rejected. New submissions
+include `imagePublicId` alongside the Cloudinary URL.
+
 > **Naming note:** the implemented create route is `POST /submit-grievance`
 > (kept for parity with the legacy client), not `POST /grievances` as
 > originally planned below. Interactive docs: `http://localhost:10000/docs`.

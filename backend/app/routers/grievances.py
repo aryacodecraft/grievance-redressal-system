@@ -95,27 +95,28 @@ def submit_grievance(
     image_url = payload.imageUrl
     image_validation_result = None
 
-    # 1. LLM image validation (rejection is decided here, before we store)
+    # 1. Image validation (measured low scores reject; unavailable checks are
+    # retained as unverified for staff review rather than blocking submission).
     if image_url:
         try:
             llm_res = llm_image_confidence(image_url)
         except Exception as exc:
             logger.exception("LLM image validation failed during submit")
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "LLM image validation failed",
-                    "detail": str(exc),
-                },
-            )
-        llm_score = float(llm_res.get("score", 0.0))
+            llm_res = {
+                "score": None,
+                "explanation": "Image validation unavailable; retained for human review.",
+                "raw": "validation-unavailable",
+            }
+        llm_score = llm_res.get("score")
+        validation_available = llm_score is not None
         image_validation_result = {
-            "ok": True,
-            "llm_score": llm_score,
+            "ok": bool(validation_available and float(llm_score) >= IMAGE_LLM_THRESHOLD),
+            "status": "validated" if validation_available else "unverified",
+            "llm_score": float(llm_score) if validation_available else None,
             "explanation": llm_res.get("explanation", ""),
             "raw": llm_res.get("raw", ""),
         }
-        if llm_score < IMAGE_LLM_THRESHOLD:
+        if validation_available and float(llm_score) < IMAGE_LLM_THRESHOLD:
             return JSONResponse(
                 status_code=400,
                 content={
@@ -235,6 +236,8 @@ def submit_grievance(
         record["qualityReason"] = quality_result.get("reason", "")
     if image_url:
         record["imageUrl"] = image_url
+        if payload.imagePublicId:
+            record["imagePublicId"] = payload.imagePublicId
         if image_validation_result:
             record["imageValidation"] = image_validation_result
     if payload.latitude is not None and payload.longitude is not None:

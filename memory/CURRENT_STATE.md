@@ -200,9 +200,7 @@ only — humans retain assignment, escalation, resolution and closure authority
   in `memory/rbac/AUTHENTICATION.md`.
 - Rotate the Firebase web API key (compromised key in git history) and Atlas
   credentials; restrict the Atlas IP allowlist.
-- Fix SSRF in `backend/app/services/image.py`; add auth to the
-  `/delete-cloudinary` and `/sign-cloudinary` endpoints.
-- Persist `imageValidation`/`publicId` so image decisions are auditable.
+- Add auth to the `/delete-cloudinary` and `/sign-cloudinary` endpoints.
 - Add `/readyz` (liveness separate from the config-only `/health`).
 - Verify audit-trail completeness: every state modification should log actor,
   previous → new state, timestamp and source (Human vs AI). (Old TODO §1 item;
@@ -347,14 +345,16 @@ only — humans retain assignment, escalation, resolution and closure authority
   to confirm first: public/non-owner grievance lookup returns title/status/
   category/priority/departmentId for sequential IDs (G-04/G-05), citizens
   cannot see resolution/closure/rejection text or real transition history
-  (G-01/G-02), retries after a lost submit response can duplicate (G-08), and
-  an image-LLM failure can return 500 and block a photo submission (G-10).
-  These are inspection findings, not executed defects.
+  (G-01/G-02), and retries after a lost submit response can duplicate (G-08).
+  The prior G-10 image-AI blocking path is changed to retain unverified images
+  for staff review; automated verification is pending.
 - Firebase API key compromised in git history (rotation pending); Atlas
   credentials weak + allowlist unset.
 - `/health` reports configuration, not DB reachability (by design; `/readyz` missing).
 - In-memory fallback is non-persistent when `MONGODB_URI` is absent.
-- `imageValidation` not persisted → no image audit trail.
+- Image validation may be marked unverified when providers are unavailable;
+  staff review is required. Validation results and Cloudinary public IDs are
+  persisted on new submissions; older records may lack them.
 - Voice/SMS quota counters are process-local (reset on restart).
 - Twilio Trial US sender: only verified numbers receive messages and the sender
   ID is not preserved; full Indian delivery needs an account upgrade + DLT.
@@ -414,7 +414,7 @@ only — humans retain assignment, escalation, resolution and closure authority
 1. Execute the citizen-side P0 suite and record results in
    `docs/USER_SIDE_TEST_CASES.md` §20; confirm and fix G-04/G-05 (cross-user/
    public read), G-01/G-02 (outcome/history visibility), G-08 (retry
-   duplicates) and G-10 (image-AI blocking) before claiming the citizen
+   duplicates) and verify the G-10 unverified-image review path before claiming the citizen
    experience is VALIDATED.
 2. Fresh full pytest run; triage the baseline failures (§5).
 3. Verify the DEC-046 Render release: Twilio OTP to the verified number, then
