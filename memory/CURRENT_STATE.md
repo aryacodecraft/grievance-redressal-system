@@ -54,12 +54,12 @@ only — humans retain assignment, escalation, resolution and closure authority
   submit a 1–5 rating and comment, or request further action with a required
   explanation. The latter reopens a resolved/closed record and notifies its
   manager. IMPLEMENTED; verification pending.
-- **Quality check & suspicious grievance flagging (DEC-049)** — Groq-powered bounded
-  quality gate in the submit pipeline; non-civic or fake complaints (e.g. math queries,
-  riddles, gibberish, spam) are flagged with `qualityFlag="suspicious"` and reason,
-  warned in citizen UI with text and voice (`speakWarning`), and surfaced in the admin
-  board under a dedicated "Flagged" filter and review badge without ever silently dropping
-  submissions. IMPLEMENTED, TESTED.
+- **Submission relevance gate (DEC-049/062/073)** — every submission requires
+  a positive Groq relevance result before image/category processing. Locally or
+  AI-identified non-civic text is persisted as `REJECTED` with reason/source,
+  citizen notification, and reference ID; it appears in the admin Closed →
+  Rejected view and not the active queue. Unavailable/unusable results return
+  503 without persistence. Current change implemented; verification pending.
 - **Complaint image validation** — new uploads retain Cloudinary public IDs and
   validation results. Vision scores below threshold reject the photo; when
   vision is unavailable, image-quality metrics are diagnostic only and the

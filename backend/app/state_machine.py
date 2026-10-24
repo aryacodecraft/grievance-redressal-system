@@ -74,6 +74,7 @@ TRANSITIONS: dict[tuple[GrievanceState, GrievanceState], frozenset[str]] = {
     # Reopen
     (S.RESOLVED, S.REOPENED):              frozenset({_US, _AD, _SA}),
     (S.CLOSED, S.REOPENED):                frozenset({_US, _AD, _SA}),
+    (S.REJECTED, S.REOPENED):              frozenset({_AD, _SA}),
 
     # Escalation (from any active state)
     (S.SUBMITTED, S.ESCALATED):            frozenset({_US, _RE, _AD, _SA}),

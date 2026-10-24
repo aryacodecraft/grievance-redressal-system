@@ -270,6 +270,8 @@ All transitions are enforced server-side. Invalid transitions return HTTP 422.
 | ESCALATED | RESOLVED | RESOLVER |
 | RESOLVED | UNDER_REVIEW | SYSTEM (AI-10 flag) |
 | RESOLVED | CLOSED | SYSTEM, ADMIN |
+| CLOSED | REOPENED | USER, ADMIN |
+| REJECTED | REOPENED | ADMIN |
 | UNDER_REVIEW | CLOSED | ADMIN |
 | UNDER_REVIEW | IN_PROGRESS | ADMIN (return for rework) |
 | ANY | REJECTED | ADMIN |

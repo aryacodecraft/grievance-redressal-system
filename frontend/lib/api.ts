@@ -293,6 +293,7 @@ const submitResultSchema = z.object({
   message: z.string(),
   grievanceId: z.string(),
   hfEngine: hfEngineSchema,
+  rejected: z.boolean().optional(),
 });
 
 const imageValidationSchema = z.object({

@@ -2949,3 +2949,53 @@ human review is required for uncertain cases.
 
 **Reversible:** Yes — change the review/acceptance policy while retaining
 validation status and audit fields.
+
+## DEC-071 — Reject Quality-Check Non-Civic Submissions Before Persistence (2026-10-24)
+
+**Context:** The local scope gate rejects recognizable non-civic requests, but ambiguous text that reached the optional quality classifier could be persisted as suspicious even when Groq explicitly judged it non-genuine.
+
+**Decision:** When category classification remains uncertain, a negative quality check returns HTTP 422 before grievance creation, notification, or SMS. Keep provider errors and unusable responses fail-open so provider outages do not block plausible complaints. The local deterministic rejection gate remains the first check.
+
+**Reason:** The owner requested that nonsensical or irrelevant complaints not be saved in the database. A negative answer is a usable relevance decision; an unavailable provider cannot safely establish that a complaint is irrelevant.
+
+**Limitations:** The quality check is an experimental LLM judgment and can be wrong. It only runs after local category abstention, and fail-open behavior can still allow irrelevant text when the provider is unavailable.
+
+**Reversible:** Restore suspicious-flag persistence for negative quality results if later evaluation shows unacceptable false rejections.
+
+## DEC-072 — Require Positive Relevance Check Before Every Submission (2026-10-24)
+
+**Context:** DEC-071 only used the quality classifier after category abstention, so irrelevant text that the category model happened to categorize could bypass that filter. The owner requested screening every irrelevant submission.
+
+**Decision:** Run the Groq relevance check on every submission after the local clear-noncivic gate and before image/category provider calls or persistence. A negative result returns HTTP 422. An unavailable, malformed, or indeterminate result returns HTTP 503; neither case persists a grievance or sends a notification/SMS. Only an explicit boolean positive result proceeds.
+
+**Reason:** Category confidence is not a relevance measure. Screening all submissions closes the current bypass and avoids saving complaints when the required relevance decision could not be obtained.
+
+**Limitations:** No LLM can guarantee detection of every irrelevant submission; false positives and false negatives remain possible. Fail-closed provider behavior also temporarily blocks valid complaints during provider outages.
+
+**Supersedes:** DEC-071's conditional quality-check invocation and fail-open provider behavior. The local deterministic gate remains as an early rejection.
+
+**Reversible:** Restore conditional/fail-open behavior if latency, provider availability, or measured false rejections make mandatory screening unsuitable.
+
+## DEC-073 — Persist Auto-Rejections for Administrator Review (2026-10-24)
+
+**Context:** DEC-072's mandatory relevance gate rejected non-civic submissions without saving them, so administrators could not inspect those decisions. The owner requests that such submissions default to rejected and remain visible to admins.
+
+**Decision:** When either the deterministic clear-noncivic gate or the required AI relevance check identifies a submission as non-civic, persist the title and description as a grievance with `status="rejected"` and `state="REJECTED"`. Mark `qualityFlag="suspicious"`, record the rejection reason and AI/deterministic source in history, notify the submitter, and return its reference ID. The record is visible in the existing admin Closed → Rejected view and cannot enter the active assignment queue. If the provider is indeterminate/unavailable, return 503 without saving. An explicit AI positive response follows normal classification/submission.
+
+**Reason:** Administrators need to review auto-rejections and the submitter needs a reference. Rejected records are stored for audit but are not active complaints for assignment or processing.
+
+**Limitations:** AI relevance judgments can be wrong. This does not guarantee catching every irrelevant submission; false positives remain visible for admin review. This deliberately stores a rejected record, resolving the prior no-storage requirement in favor of the newer admin-visibility requirement.
+
+**Supersedes:** DEC-072's no-persistence behavior for negative relevance results. Its all-submission screening and fail-closed handling of indeterminate results remain in effect.
+
+**Reversible:** Restore non-persistence for negative results if admins should not retain rejected submission text.
+
+## DEC-074 — Allow Administrators to Reopen Rejected Grievances (2026-10-24)
+
+**Context:** Admins could inspect rejected submissions in the closed archive, but the state machine did not allow a rejected record to return to active work. Admins also lacked a reopen action for closed/rejected items in grievance review.
+
+**Decision:** ADMIN and SUPERADMIN may transition `REJECTED` to `REOPENED`. The existing state-transition endpoint records the actor, reason, timestamp, notification, state history and audit event. The admin review modal exposes the same action for `CLOSED` and `REJECTED` grievances. Subsequent assignment or work progression remains a human admin action.
+
+**Reason:** Administrators need a reversible review path when a rejection or closure is found to be mistaken, while retaining traceable human control.
+
+**Reversible:** Remove the `REJECTED → REOPENED` transition and UI action; retain the history and audit records already written.

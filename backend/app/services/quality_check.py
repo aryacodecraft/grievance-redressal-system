@@ -1,12 +1,12 @@
 """Quality check: is the grievance text a genuine civic complaint?
 
 Uses a fast Groq call bounded by the shared classification budget.
-Returns a dict: { "is_genuine": bool, "reason": str }
+Returns a dict: { "is_genuine": bool | None, "reason": str }
 
 Design constraints (AGENTS.md / DEC-049):
-  - Never blocks submission — any error or LLM unavailability falls back to
-    is_genuine=True so citizens are never falsely rejected.
-  - AI flags for admin review; humans retain final authority (HITL principle).
+  - An unavailable or unusable answer is indeterminate; the caller must not
+    persist the submission without a positive relevance result.
+  - The result is a relevance filter, not an administrative decision.
   - Shares the classification_budget() context so its wall time is counted
     against the same 20 s budget as category / priority / refinement calls.
 """
@@ -46,10 +46,9 @@ Respond ONLY with valid JSON — no markdown, no extra text:
 
 
 def check_quality(title: str, description: str) -> dict:
-    """Return ``{"is_genuine": bool, "reason": str}``.
+    """Return true, false, or indeterminate for civic relevance.
 
-    Never raises.  Defaults to ``is_genuine=True`` on any error so that
-    legitimate grievances are never blocked by a transient LLM failure.
+    Indeterminate results must fail closed at the submission boundary.
     """
     text = f"{title}\n{description}".strip()[:2000]
     try:
@@ -57,14 +56,14 @@ def check_quality(title: str, description: str) -> dict:
             _PROMPT.format(text=text), max_tokens=120, stage="quality_check"
         )
         if raw is None:
-            return {"is_genuine": True, "reason": "quality check skipped (LLM unavailable)"}
+            return {"is_genuine": None, "reason": "quality check unavailable"}
         parsed = _extract_json(raw.strip())
-        if isinstance(parsed, dict) and "is_genuine" in parsed:
+        if isinstance(parsed, dict) and type(parsed.get("is_genuine")) is bool:
             return {
-                "is_genuine": bool(parsed.get("is_genuine", True)),
+                "is_genuine": parsed["is_genuine"],
                 "reason": str(parsed.get("reason", "")),
             }
         logger.warning("quality_check: unexpected LLM response type=%s", type(parsed).__name__)
     except Exception as exc:  # noqa: BLE001
         logger.warning("quality_check failed error_type=%s", type(exc).__name__)
-    return {"is_genuine": True, "reason": "quality check failed (fallback: accepted)"}
+    return {"is_genuine": None, "reason": "quality check returned no usable result"}

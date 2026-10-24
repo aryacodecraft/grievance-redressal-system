@@ -121,7 +121,10 @@ export function SubmitForm() {
           ...(image?.publicId ? { imagePublicId: image.publicId } : {}),
         });
         setResult(res);
-        notify("Grievance registered", `Reference ID ${res.grievanceId}. Updates will appear in Notifications and Track Status.`);
+        notify(
+          res.rejected ? "Submission rejected" : "Grievance registered",
+          `Reference ID ${res.grievanceId}. ${res.message}`,
+        );
         reset();
         setImage(null);
         setPhotoSkipped(false);
@@ -296,7 +299,25 @@ export function SubmitForm() {
 
       {result && (
         <div ref={resultRef} className="scroll-mt-20">
-        {result.flagged ? (
+        {result.rejected ? (
+          <Card className="border-red-300/80 bg-white shadow-sm">
+            <CardHeader
+              title={t("rejectedTitle")}
+              subtitle={t("rejectedText")}
+            />
+            <CardBody className="space-y-4">
+              <div className="rounded-md bg-ink-900 px-4 py-3 dark:bg-white">
+                <p className="text-xs uppercase tracking-wider text-ink-400 dark:text-ink-500">
+                  {t("refIdLabel")}
+                </p>
+                <p className="font-mono text-lg font-bold text-white dark:text-ink-900">
+                  {result.grievanceId}
+                </p>
+              </div>
+              <Alert tone="warning">{result.message}</Alert>
+            </CardBody>
+          </Card>
+        ) : result.flagged ? (
           /* Flagged / suspicious submission — amber warning card (DEC-049) */
           <Card className="border-amber-300/80 bg-white shadow-sm">
             <CardHeader

@@ -837,8 +837,32 @@ Added Enabling Voice Transcription for Testing to HANDOFF_SUMMARY.md: local back
   - Added `tests/test_admin_analytics.py`: 11 passed (100% pass on auth, RBAC, filters, metrics, PII checks).
   - `npx tsc --noEmit` clean, ESLint clean on all touched files, contract checks 21/21 passed, voice tests 80/80 passed, `next build` 20/20 static pages green.
 
-## 2026-10-24 — Image validation reliability and asset metadata
+## 2026-10-24 ï¿½ Image validation reliability and asset metadata
 
 - Restricted image validation URLs to the configured Cloudinary account and bounded fallback downloads to 10 MB without redirects.
 - Image-provider failures now retain the photo as unverified for staff review rather than blocking submission; successful/rejected scores retain explicit status and threshold behavior.
 - Submission carries Cloudinary public ID into grievance persistence and API projection. Updated API/database/current-state documentation. Automated verification was not run.
+
+## 2026-10-24 ï¿½ Reject quality-checked non-civic submissions (DEC-071)
+
+When the optional quality classifier returns `is_genuine=false`, submit now
+returns HTTP 422 before record persistence, notifications, or SMS. Provider
+failures remain fail-open. Updated API/AI docs. No tests were run.
+
+## 2026-10-24 ï¿½ Require relevance screening for every submission (DEC-072)
+
+The Groq relevance check now runs on every submission before image/category
+provider work. Negative results return 422; unavailable or unusable results
+return 503, without persistence or submission side effects. No tests were run.
+
+## 2026-10-24 ï¿½ Save auto-rejected submissions for admin review (DEC-073)
+
+Deterministic or AI non-civic decisions now create a `REJECTED` record with the
+reason/source in history and suspicious flag, notify the citizen with a
+reference ID, and appear in the existing admin Closed ? Rejected view. Provider
+indeterminate responses still return 503 without persistence. Updated API/AI
+docs and citizen response. No tests were run.
+
+## 2026-10-24 â€” Admin reopening of rejected and closed grievances (DEC-074)
+
+Admins can reopen rejected/closed grievances from review. Rejected-to-reopened is now an allowed audited transition; API/workflow docs and current state updated. No tests were run.

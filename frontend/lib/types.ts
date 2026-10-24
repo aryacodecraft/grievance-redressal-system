@@ -109,6 +109,8 @@ export interface SubmitResult {
   message: string;
   grievanceId: string;
   hfEngine: HfEngine;
+  /** True when the relevance gate stored this submission in REJECTED state. */
+  rejected?: boolean;
   /** Quality gate (DEC-049): true when backend flagged as non-civic content. */
   flagged?: boolean;
   flagReason?: string | null;

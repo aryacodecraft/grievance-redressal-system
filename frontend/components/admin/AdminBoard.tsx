@@ -248,6 +248,7 @@ export function AdminBoard() {
           in_progress: "Officer started work",
           resolved: "Officer approved the submitted resolution",
           rejected: "Officer rejected the grievance",
+          reopened: "Officer reopened the grievance after review",
         };
         await transitionGrievanceState(selected.id, {
           to_state: status.toUpperCase(),

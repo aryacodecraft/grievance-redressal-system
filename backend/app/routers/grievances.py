@@ -38,10 +38,84 @@ from ..services.image import llm_image_confidence
 from ..repositories.notifications import notif_repository
 from ..services.departments import canonical_department
 from ..services.quality_check import check_quality
-from ..services.quality_check import check_quality
 
 logger = logging.getLogger("grievance-api")
 router = APIRouter()
+
+
+def _save_auto_rejected_submission(
+    *, title: str, description: str, user_id: str, reason: str, source: str
+) -> str | None:
+    """Persist an AI-rejected submission in the admin's rejected archive."""
+    now = datetime.now(timezone.utc).isoformat()
+    record = {
+        "title": title,
+        "description": description,
+        "userId": user_id,
+        "status": "rejected",
+        "state": "REJECTED",
+        "category": "other",
+        "departmentId": canonical_department("other"),
+        "priority": "low",
+        "createdAt": now,
+        "updatedAt": now,
+        "qualityFlag": "suspicious",
+        "qualityReason": reason,
+        "rejectionSource": "AI_RELEVANCE_GATE",
+        "stateHistory": [{
+            "from": "SUBMITTED",
+            "to": "REJECTED",
+            "by": "system",
+            "byRole": "SYSTEM",
+            "reason": reason,
+            "at": now,
+            "source": "AI_RECOMMENDATION",
+            "model": source,
+        }],
+        "hfEngine": {
+            "category": "other",
+            "priority": "low",
+            "isUrgent": False,
+            "keywords": [],
+            "explanation": "Automatically rejected by the civic relevance check; available to administrators for review.",
+            "categoryConfidence": 0.0,
+            "modelInfo": {
+                "categorySource": "quality_check",
+                "categoryOutcome": "out_of_scope",
+                "categoryConfidenceSemantics": "unavailable",
+                "rejectionSource": source,
+            },
+        },
+    }
+    try:
+        return repository.create(record)
+    except Exception:
+        logger.exception("Failed to save AI-rejected grievance for admin review")
+        return None
+
+
+def _auto_rejected_response(grievance_id: str, reason: str, source: str) -> dict:
+    return {
+        "message": "This submission was automatically rejected and saved for administrator review.",
+        "grievanceId": grievance_id,
+        "rejected": True,
+        "flagged": True,
+        "flagReason": reason,
+        "hfEngine": {
+            "category": "other",
+            "priority": "low",
+            "isUrgent": False,
+            "keywords": [],
+            "explanation": "Automatically rejected by the civic relevance check.",
+            "categoryConfidence": 0.0,
+            "modelInfo": {
+                "categorySource": "quality_check",
+                "categoryOutcome": "out_of_scope",
+                "categoryConfidenceSemantics": "unavailable",
+                "rejectionSource": source,
+            },
+        },
+    }
 
 @router.post("/submit-grievance")
 def submit_grievance(
@@ -77,17 +151,60 @@ def submit_grievance(
             },
         )
 
-    # Reject only locally recognizable, clearly non-civic intent. Keep this
-    # before image/provider validation, classification, reference generation,
-    # persistence, notifications and SMS; uncertain text stays reviewable.
+    # Store locally recognizable non-civic submissions directly as rejected,
+    # before image/category processing; admins can review them in the archive.
     if is_clearly_out_of_scope(full_text):
-        logger.info("grievance submission rejected reason=clearly_out_of_scope")
+        reason = "Local relevance rules identified this as clearly outside civic services."
+        grievance_id = _save_auto_rejected_submission(
+            title=title, description=description, user_id=user_id,
+            reason=reason, source="scope_gate",
+        )
+        if not grievance_id:
+            return JSONResponse(status_code=500, content={"error": "Could not save the rejected submission for review"})
+        logger.info("grievance submission auto-rejected reason=clearly_out_of_scope")
+        notif_repository.create({
+            "userId": user_id,
+            "kind": "grievance.rejected",
+            "entityId": grievance_id,
+            "title": f"Submission {grievance_id} was rejected",
+            "message": "Your submission was marked as non-civic and is available for administrator review.",
+        })
+        return _auto_rejected_response(grievance_id, reason, "scope_gate")
+
+    # Require an explicit positive relevance result for every submission.
+    # This runs before image/category providers and all persistence side effects.
+    try:
+        with classification_budget():
+            quality_result = check_quality(title, description)
+    except Exception:
+        logger.exception("required grievance relevance check failed")
+        quality_result = {"is_genuine": None, "reason": "quality check error"}
+
+    if quality_result.get("is_genuine") is False:
+        reason = quality_result.get("reason") or "The AI relevance check marked this submission as non-civic."
+        grievance_id = _save_auto_rejected_submission(
+            title=title, description=description, user_id=user_id,
+            reason=reason, source="groq_quality_check",
+        )
+        if not grievance_id:
+            return JSONResponse(status_code=500, content={"error": "Could not save the rejected submission for review"})
+        logger.info("grievance submission auto-rejected reason=quality_check_non_civic")
+        notif_repository.create({
+            "userId": user_id,
+            "kind": "grievance.rejected",
+            "entityId": grievance_id,
+            "title": f"Submission {grievance_id} was rejected",
+            "message": "Your submission was marked as non-civic and is available for administrator review.",
+        })
+        return _auto_rejected_response(grievance_id, reason, "groq_quality_check")
+    if quality_result.get("is_genuine") is not True:
+        logger.warning("grievance submission blocked reason=quality_check_unavailable")
         return JSONResponse(
-            status_code=422,
+            status_code=503,
             content={
                 "error": (
-                    "Please describe a problem related to a public service or "
-                    "civic issue. Add what happened and where it is affecting you."
+                    "We could not verify that this is a civic complaint right now. "
+                    "Please try submitting again shortly."
                 )
             },
         )
@@ -155,16 +272,6 @@ def submit_grievance(
 
         hf_raw_label = cat_res.get("rawLabel", "")
         keywords = extract_keywords(full_text)
-
-        # The optional quality classifier is useful only when the local
-        # category cascade abstains. Avoid an external call on every submission;
-        # provider failures remain fail-open for uncertain civic complaints.
-        quality_result = {"is_genuine": True, "reason": "quality check skipped"}
-        if cat_res.get("categoryOutcome") == "uncertain":
-            try:
-                quality_result = check_quality(title, description)
-            except Exception:
-                quality_result = {"is_genuine": True, "reason": "quality check error"}
 
     priority = hf_priority
     category = hf_category

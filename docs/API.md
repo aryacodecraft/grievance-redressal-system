@@ -63,11 +63,15 @@ include `imagePublicId` alongside the Cloudinary URL.
 `POST /submit-grievance` returns `hfEngine.modelInfo.categoryOutcome` with one
 of `categorized`, `other`, or `uncertain`, alongside `categorySource` and
 `categoryConfidenceSemantics`. These fields describe the classifier result.
-Clearly non-civic text is rejected before classification; uncertain text is
-still accepted for the existing officer-review workflow. The persisted
-category remains the routing value (`other` is the general fallback queue).
-The separate `qualityFlag` marks uncertain content flagged by the optional
-quality check.
+Clearly non-civic text is identified locally before provider work. Every other
+submission requires a relevance response from the Groq check before normal
+submission processing. A negative result is saved only as a rejected record
+with `status="rejected"` and
+`state="REJECTED"`, and appears in the admin Closed → Rejected view with an AI
+relevance reason. An unavailable or unusable response returns HTTP 503 without
+saving anything. The citizen receives a reference ID for an auto-rejected
+record. Category uncertainty for accepted complaints still uses `other` as the
+general routing queue.
 
 `categoryConfidence` is interpreted together with
 `categoryConfidenceSemantics`: `uncalibrated_model_probability` is the local
@@ -82,19 +86,15 @@ with a message asking the citizen to describe the issue in words. It does not
 reject short, misspelled, or otherwise uncertain text solely based on length;
 such submissions remain available for officer review.
 
-Before image validation, classifier/provider calls, reference-ID generation or
-any persistence, the submit route locally rejects clear non-civic intent with
-HTTP 422: supported patterns include arithmetic questions, joke/creative
-requests, general-information questions without civic-problem language, plain
-greetings, keyboard-row gibberish and sports-result questions. The response
-contains an `error` asking the citizen to describe a public-service problem
-and where it is affecting them. It has no `grievanceId`; no grievance,
-notification, assignment or SMS side effect is created. This is a conservative
-prototype gate, not a complete language-understanding system. Ambiguous,
-short, misspelled and multilingual civic complaints continue to classification
-or the `other` officer-review path; a civic noun by itself does not make a
-generic information request a complaint. The optional quality classifier runs
-only when the local classifier abstains, and its failure remains fail-open.
+Before image validation and category classification, the submit route locally
+identifies clear non-civic intent using patterns for arithmetic, joke/creative
+requests, generic information questions, greetings, keyboard-row gibberish and
+sports-result questions. Such text is saved as `REJECTED` for admin review,
+with no image/category processing. This is a conservative prototype gate, not a
+complete language-understanding system. Ambiguous, short, misspelled and
+multilingual civic complaints continue only after a positive relevance check;
+a civic noun by itself does not make a generic information request a
+complaint.
 
 Authenticated `RESOLVER` requests to `GET /grievances` are always restricted to
 the caller's `ownerId` assignments. A department filter is optional; omitting
@@ -397,6 +397,8 @@ the state machine validates both the transition and role. **Request:**
 `{ "to_state": "IN_PROGRESS", "reason": "string" }`. The transition is
 persisted to `state` and the legacy lowercase `status` projection, and is
 recorded in state history and the audit log.
+Administrators may reopen `CLOSED` or `REJECTED` grievances to `REOPENED`; the
+action is recorded with the officer identity and reason like other transitions.
 
 ---
 

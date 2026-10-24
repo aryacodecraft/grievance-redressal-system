@@ -1529,3 +1529,19 @@ clarity heuristic to produce a relevance score, so changed fallback behavior to
 return `unverified` and route the photo to human review. Added citizen copy in
 all 11 locales plus review indicators in manager/employee details. Updated
 AI/API docs and memory. Static/test verification pending.
+
+## 2026-10-24 — Reject quality-checked non-civic submissions (DEC-071)
+
+Implemented HTTP 422 rejection for complaints the optional quality classifier explicitly judges non-civic, before DB persistence or submission side effects. Provider errors remain fail-open. Updated DEC-071, API and AI docs. No tests were run.
+
+## 2026-10-24 — Require relevance screening for every submission (DEC-072)
+
+Moved relevance screening ahead of image and category classification and made an explicit positive answer required to persist. Negative returns 422; indeterminate returns 503. Updated DEC-072, API and AI docs. No tests run.
+
+## 2026-10-24 — Save auto-rejected submissions for admin review (DEC-073)
+
+Updated the relevance gate so recognized non-civic text is saved in rejected state, marked with its rejection source/reason, and visible to admins in the existing rejected archive. Citizen receives a reference and rejection response. Unavailable/indeterminate checks still return 503 without saving. Updated API, AI docs, and submit UI. No tests were run.
+
+## 2026-10-24 — Admin reopening of rejected and closed grievances (DEC-074)
+
+Added admin reopen action for closed/rejected records and allowed the audited `REJECTED → REOPENED` transition (DEC-074). Updated API/workflow docs and current state. Static review only; tests were not run.

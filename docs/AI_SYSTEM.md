@@ -135,10 +135,15 @@ requests without civic-problem language). Punctuation-only input remains a
 separate basic validation error. The gate checks request intent, not just
 whether civic nouns such as "road", "water" or "hospital" appear. Ambiguous,
 short, misspelled and multilingual complaints are not rejected on category
-uncertainty; the existing `other` queue remains the human-review path. The
-optional quality classifier runs only after local category abstention and is
-fail-open. This is an explainable baseline with false-positive and
-false-negative risk, not a validated relevance model.
+uncertainty; the existing `other` queue remains the human-review path for
+category selection. Separately, every submission must receive a relevance
+result from the Groq check before normal image/category processing. A negative
+result is persisted only as `REJECTED`, marked as an AI relevance
+recommendation, and shown in the admin Closed → Rejected view for review.
+Unavailable, malformed, or indeterminate results return a temporary service
+error and do not save the complaint. The relevance model can still make
+false-positive and false-negative judgments; it is not a guarantee or a
+validated relevance model.
 
 Water is accepted only when the shared local policy finds an explicit Water
 service issue phrase and no comparably strong competing civic-domain signal.

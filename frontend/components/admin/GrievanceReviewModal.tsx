@@ -126,6 +126,7 @@ export function GrievanceReviewModal({
   const canStartWork = ["ASSIGNED", "ACCEPTED", "BLOCKED", "REOPENED"].includes(currentState);
   const canApproveResolution = ["RESOLUTION_SUBMITTED", "UNDER_REVIEW"].includes(currentState);
   const canReject = ["SUBMITTED", "PENDING_ASSIGNMENT", "ASSIGNED", "IN_PROGRESS"].includes(currentState);
+  const canReopen = ["CLOSED", "REJECTED"].includes(currentState);
 
   async function transition(status: string, assignedDept?: string) {
     setSubmitting(true);
@@ -430,6 +431,17 @@ Attached Photo
                 >
                   <Wrench size={14} />
                   Mark in progress
+                </Button>}
+
+                {canReopen && <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void transition("reopened")}
+                  disabled={submitting}
+                  className="flex items-center justify-center gap-1.5"
+                >
+                  <Wrench size={14} />
+                  Reopen grievance
                 </Button>}
 
                 {canApproveResolution && <Button
